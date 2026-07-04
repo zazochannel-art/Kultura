@@ -870,29 +870,9 @@
       h1 { font-size: 26px; }
     }
 
-    /* Logo sus pe centrul ecranului */
-    .logo-container {
-      display: flex;
-      justify-content: center;
-      padding: 40px 20px 20px;
-      position: relative;
-      z-index: 100;
-    }
-    .logo-container img {
-      max-width: 280px;
-      height: auto;
-      filter: drop-shadow(0 10px 20px rgba(0,0,0,0.3));
-    }
-    @media (max-width: 700px) {
-      .logo-container { padding: 30px 20px 10px; }
-      .logo-container img { max-width: 200px; }
-    }
   </style>
 </head>
 <body>
-  <div class="logo-container">
-    <img src="logo.png" alt="Kultura Logo">
-  </div>
   <!-- ============ LOGIN VIEW ============ -->
   <div id="loginView">
     <div class="login-card">
@@ -1925,7 +1905,6 @@
           status_color: '#F59E0B',
           assigned_user_id: currentUser.id,
           assigned_user_name: currentUser.user_metadata?.full_name || currentUser.email,
-          assigned_user_avatar: currentUser.user_metadata?.avatar_url || null,
           started_at: now
         }).eq('id', id));
 
