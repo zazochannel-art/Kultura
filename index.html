@@ -4,16 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#07080d">
-  <title>Kultura — Autentificare</title>
+  <title>Kultura</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg: #07080d;
-      --surface: #14182b;
+      --surface: rgba(20,24,43,0.55);
+      --surface-solid: #14182b;
       --surface-elev: #1a1f35;
       --border: rgba(255,255,255,0.14);
+      --border-strong: rgba(255,255,255,0.24);
       --text: #f8fafc;
       --text-dim: #94a3b8;
       --text-mute: #64748b;
@@ -24,6 +26,7 @@
       --green: #10b981;
       --red: #ef4444;
       --orange: #f59e0b;
+      --teal: #14b8a6;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { min-height: 100%; }
@@ -32,9 +35,6 @@
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 24px;
       overflow-x: hidden;
       position: relative;
       -webkit-font-smoothing: antialiased;
@@ -50,24 +50,42 @@
     body::before {
       width: 500px; height: 500px;
       background: var(--purple);
-      opacity: 0.30;
+      opacity: 0.28;
       top: -160px; left: -160px;
     }
     body::after {
       width: 440px; height: 440px;
       background: var(--blue);
-      opacity: 0.24;
+      opacity: 0.22;
       bottom: -160px; right: -160px;
     }
 
+    /* ============ LOGIN VIEW ============ */
+    #loginView {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      position: relative;
+      z-index: 1;
+    }
+    .login-card {
+      width: 100%;
+      max-width: 440px;
+      padding: 44px 32px 36px;
+      background: linear-gradient(160deg, rgba(26,31,53,0.90), rgba(14,17,32,0.80));
+      border: 1px solid var(--border);
+      border-radius: 32px;
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      box-shadow: 0 30px 80px rgba(0,0,0,0.4);
+    }
     .brand-mark {
-      position: fixed;
-      top: 24px;
-      left: 24px;
       display: flex;
       align-items: center;
+      justify-content: center;
       gap: 10px;
-      z-index: 10;
+      margin-bottom: 20px;
     }
     .brand-icon {
       width: 36px; height: 36px;
@@ -83,32 +101,8 @@
       letter-spacing: -0.3px;
     }
 
-    .card {
-      position: relative;
-      z-index: 1;
-      width: 100%;
-      max-width: 440px;
-      padding: 44px 32px 36px;
-      background: linear-gradient(160deg, rgba(26,31,53,0.90), rgba(14,17,32,0.80));
-      border: 1px solid var(--border);
-      border-radius: 32px;
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      box-shadow: 0 30px 80px rgba(0,0,0,0.4);
-    }
-    h1 {
-      font-size: 32px;
-      font-weight: 900;
-      letter-spacing: -1px;
-      margin-bottom: 8px;
-      text-align: center;
-    }
-    p.sub {
-      color: var(--text-dim);
-      font-size: 14px;
-      text-align: center;
-      margin-bottom: 28px;
-    }
+    h1 { font-size: 32px; font-weight: 900; letter-spacing: -1px; text-align: center; margin-bottom: 8px; }
+    p.sub { color: var(--text-dim); font-size: 14px; text-align: center; margin-bottom: 28px; }
 
     .field {
       display: flex;
@@ -122,11 +116,7 @@
       transition: border-color 0.15s;
     }
     .field:focus-within { border-color: var(--blue); }
-    .field svg {
-      width: 18px; height: 18px;
-      color: var(--text-mute);
-      flex-shrink: 0;
-    }
+    .field svg { width: 18px; height: 18px; color: var(--text-mute); flex-shrink: 0; }
     .field input {
       flex: 1;
       background: transparent;
@@ -159,43 +149,34 @@
       gap: 10px;
     }
     .msg.show { display: flex; }
-    .msg.error {
-      background: rgba(239,68,68,0.12);
-      border: 1px solid rgba(239,68,68,0.35);
-      color: var(--text);
-    }
-    .msg.success {
-      background: rgba(16,185,129,0.12);
-      border: 1px solid rgba(16,185,129,0.35);
-      color: var(--text);
-    }
+    .msg.error { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.35); }
+    .msg.success { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.35); }
     .msg svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
     .msg.error svg { color: var(--red); }
     .msg.success svg { color: var(--green); }
 
     .btn {
-      display: flex;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      width: 100%;
-      padding: 16px 24px;
+      padding: 14px 20px;
       font-size: 15px;
       font-weight: 700;
       font-family: inherit;
       color: #fff;
       background: linear-gradient(90deg, var(--blue), var(--cyan));
       border: none;
-      border-radius: 16px;
+      border-radius: 14px;
       cursor: pointer;
       text-decoration: none;
       transition: transform 0.15s, box-shadow 0.2s, opacity 0.15s;
-      box-shadow: 0 12px 28px rgba(59,130,246,0.35);
-      margin-top: 8px;
+      box-shadow: 0 10px 24px rgba(59,130,246,0.35);
     }
-    .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 16px 34px rgba(59,130,246,0.45); }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(59,130,246,0.45); }
     .btn:active:not(:disabled) { transform: translateY(0); }
     .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn.full { width: 100%; padding: 16px 24px; border-radius: 16px; margin-top: 8px; }
     .btn.ghost {
       background: transparent;
       color: var(--text);
@@ -203,6 +184,14 @@
       box-shadow: none;
     }
     .btn.ghost:hover:not(:disabled) { background: rgba(255,255,255,0.04); }
+    .btn.danger {
+      background: transparent;
+      color: var(--red);
+      border: 1px solid rgba(239,68,68,0.35);
+      box-shadow: none;
+    }
+    .btn.danger:hover:not(:disabled) { background: rgba(239,68,68,0.08); }
+    .btn.small { padding: 8px 14px; font-size: 13px; border-radius: 10px; box-shadow: 0 4px 12px rgba(59,130,246,0.25); }
 
     .spinner {
       width: 20px; height: 20px;
@@ -219,69 +208,296 @@
       color: var(--text-dim);
       font-size: 14px;
     }
-    .toggle a {
-      color: var(--blue);
-      font-weight: 700;
-      text-decoration: none;
-      cursor: pointer;
-    }
+    .toggle a { color: var(--blue); font-weight: 700; text-decoration: none; cursor: pointer; }
     .toggle a:hover { text-decoration: underline; }
 
-    .footer {
-      position: fixed;
-      bottom: 20px;
-      left: 0; right: 0;
-      text-align: center;
-      color: var(--text-mute);
-      font-size: 12px;
-      z-index: 2;
-    }
-    .footer a { color: var(--blue); text-decoration: none; }
+    /* ============ APP VIEW ============ */
+    #appView { display: none; min-height: 100vh; position: relative; z-index: 1; }
+    #appView.show { display: block; }
 
-    #successView { display: none; }
-    #successView.show { display: block; }
-    .check-icon {
-      width: 88px; height: 88px;
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 32px;
+      max-width: 1280px;
+      margin: 0 auto;
+      gap: 16px;
+    }
+    .app-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .avatar {
+      width: 40px; height: 40px;
       border-radius: 50%;
-      background: rgba(16,185,129,0.15);
-      border: 2px solid rgba(16,185,129,0.35);
-      display: grid; place-items: center;
-      margin: 0 auto 24px;
-      animation: pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+      background: linear-gradient(135deg, var(--purple), var(--pink));
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+      font-size: 13px;
+      border: 2px solid var(--border-strong);
     }
-    .check-icon svg { width: 44px; height: 44px; color: var(--green); }
-    .check-icon svg polyline {
-      stroke-dasharray: 100;
-      stroke-dashoffset: 100;
-      animation: draw 0.6s 0.2s cubic-bezier(0.65, 0, 0.35, 1) forwards;
-    }
-    @keyframes pop {
-      0% { transform: scale(0); opacity: 0; }
-      50% { transform: scale(1.1); }
-      100% { transform: scale(1); opacity: 1; }
-    }
-    @keyframes draw { to { stroke-dashoffset: 0; } }
 
-    @media (max-width: 480px) {
-      .card { padding: 36px 22px 28px; border-radius: 24px; }
+    .tabs {
+      display: flex;
+      gap: 6px;
+      background: rgba(20,24,43,0.6);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 6px;
+      max-width: 1280px;
+      margin: 0 auto 24px;
+      overflow-x: auto;
+    }
+    .tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 12px;
+      color: var(--text-dim);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: color 0.15s, background 0.15s;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active {
+      color: #fff;
+      background: linear-gradient(90deg, var(--blue), var(--purple));
+      box-shadow: 0 6px 18px rgba(139,92,246,0.35);
+    }
+    .tab svg { width: 16px; height: 16px; }
+
+    .content {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 32px 60px;
+    }
+    .section { display: none; animation: fadeIn 0.25s ease; }
+    .section.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    .greeting-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .greeting p { color: var(--text-dim); font-size: 14px; }
+    .greeting h1 { font-size: 34px; letter-spacing: -1.2px; text-align: left; }
+
+    /* HERO CARD */
+    .hero {
+      position: relative;
+      background: linear-gradient(135deg, #7C3AED, #3B82F6, #06B6D4);
+      border-radius: 24px;
+      padding: 26px 28px;
+      margin-bottom: 28px;
+      overflow: hidden;
+      color: #fff;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.35));
+      pointer-events: none;
+    }
+    .hero-inner { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 12px; min-height: 180px; }
+    .hero-badge {
+      align-self: flex-start;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: rgba(255,255,255,0.18);
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 1px;
+    }
+    .hero-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+    .hero-meta {
+      position: absolute;
+      top: 0; right: 0;
+      text-align: right;
+    }
+    .hero-meta .n { font-size: 34px; font-weight: 900; letter-spacing: -1.2px; }
+    .hero-meta .l { font-size: 12px; font-weight: 700; opacity: 0.9; }
+    .hero-title { font-size: 24px; font-weight: 900; letter-spacing: -0.5px; margin-top: auto; }
+    .hero-sub { font-size: 13px; opacity: 0.85; }
+    .hero-info { display: flex; gap: 16px; font-size: 12px; font-weight: 700; flex-wrap: wrap; margin-top: 4px; }
+    .hero-info span { display: inline-flex; align-items: center; gap: 6px; }
+
+    /* STATS */
+    .section-title {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 14px;
+    }
+    .section-title h2 { font-size: 18px; font-weight: 900; letter-spacing: -0.3px; }
+    .section-title p { color: var(--text-dim); font-size: 12px; }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .stat {
+      padding: 18px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .stat-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .stat-icon {
+      width: 40px; height: 40px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .stat-icon svg { width: 20px; height: 20px; }
+    .stat-icon.blue { background: linear-gradient(135deg, rgba(59,130,246,0.28), rgba(59,130,246,0.10)); color: var(--cyan); }
+    .stat-icon.purple { background: linear-gradient(135deg, rgba(139,92,246,0.28), rgba(139,92,246,0.10)); color: var(--purple); }
+    .stat-icon.pink { background: linear-gradient(135deg, rgba(236,72,153,0.28), rgba(236,72,153,0.10)); color: var(--pink); }
+    .stat-icon.orange { background: linear-gradient(135deg, rgba(245,158,11,0.28), rgba(245,158,11,0.10)); color: var(--orange); }
+    .stat-icon.green { background: linear-gradient(135deg, rgba(16,185,129,0.28), rgba(16,185,129,0.10)); color: var(--green); }
+    .stat-trend {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 8px; border-radius: 8px; font-size: 10px; font-weight: 700;
+      background: rgba(16,185,129,0.15); color: var(--green);
+    }
+    .stat-value { font-size: 26px; font-weight: 900; letter-spacing: -0.5px; }
+    .stat-label { color: var(--text-dim); font-size: 12px; font-weight: 500; margin-top: 2px; }
+
+    /* CARDS / LISTS */
+    .card {
+      padding: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      margin-bottom: 16px;
+    }
+    .card-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 12px;
+    }
+    .card-head h3 { font-size: 15px; font-weight: 900; }
+    .card-head p { color: var(--text-dim); font-size: 11px; }
+
+    .row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .row:last-child { border-bottom: none; }
+    .row-icon {
+      width: 40px; height: 40px;
+      border-radius: 12px;
+      display: grid; place-items: center;
+      flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .row-icon svg { width: 18px; height: 18px; }
+    .row-icon.blue { background: linear-gradient(135deg, rgba(59,130,246,0.25), rgba(139,92,246,0.10)); color: var(--cyan); }
+    .row-icon.green { background: linear-gradient(135deg, rgba(16,185,129,0.25), rgba(16,185,129,0.10)); color: var(--green); }
+    .row-icon.orange { background: linear-gradient(135deg, rgba(245,158,11,0.25), rgba(245,158,11,0.10)); color: var(--orange); }
+    .row-icon.red { background: linear-gradient(135deg, rgba(239,68,68,0.25), rgba(239,68,68,0.10)); color: var(--red); }
+    .row-icon.purple { background: linear-gradient(135deg, rgba(139,92,246,0.25), rgba(236,72,153,0.10)); color: var(--purple); }
+    .row-body { flex: 1; min-width: 0; }
+    .row-title { font-size: 14px; font-weight: 700; }
+    .row-sub { color: var(--text-dim); font-size: 12px; margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+    .row-sub span.sep { width: 3px; height: 3px; border-radius: 50%; background: var(--text-mute); }
+    .badge {
+      padding: 4px 10px;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 8px;
+      border: 1px solid;
+      white-space: nowrap;
+    }
+    .badge.green { color: var(--green); background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.30); }
+    .badge.blue { color: var(--blue); background: rgba(59,130,246,0.15); border-color: rgba(59,130,246,0.30); }
+    .badge.orange { color: var(--orange); background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.30); }
+    .badge.red { color: var(--red); background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.30); }
+    .badge.purple { color: var(--purple); background: rgba(139,92,246,0.15); border-color: rgba(139,92,246,0.30); }
+
+    .empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-mute);
+    }
+    .empty svg { width: 44px; height: 44px; margin-bottom: 12px; opacity: 0.5; }
+    .empty p { font-size: 14px; font-weight: 600; color: var(--text-dim); }
+
+    /* SETTINGS */
+    .setting-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .setting-label { font-size: 12px; color: var(--text-mute); font-weight: 700; letter-spacing: 1.2px; margin-bottom: 12px; }
+    .setting-row {
+      display: flex; align-items: center; gap: 12px; padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-row .icon-box {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: rgba(59,130,246,0.15); color: var(--blue);
+      display: grid; place-items: center;
+    }
+    .setting-row .icon-box.red { background: rgba(239,68,68,0.15); color: var(--red); }
+    .setting-row .icon-box svg { width: 18px; height: 18px; }
+    .setting-row .txt { flex: 1; }
+    .setting-row .txt strong { display: block; font-size: 14px; font-weight: 700; }
+    .setting-row .txt span { color: var(--text-dim); font-size: 12px; }
+
+    @media (max-width: 700px) {
+      .app-header { padding: 16px 20px; }
+      .content { padding: 0 20px 60px; }
+      .tabs { margin: 0 20px 20px; }
+      .greeting h1 { font-size: 26px; }
+      .hero-title { font-size: 20px; }
+    }
+    @media (max-width: 500px) {
+      .login-card { padding: 36px 22px 28px; border-radius: 24px; }
       h1 { font-size: 26px; }
     }
   </style>
 </head>
 <body>
-  <div class="brand-mark">
-    <div class="brand-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"></path>
-        <circle cx="6.5" cy="16.5" r="2.5"></circle>
-        <circle cx="16.5" cy="16.5" r="2.5"></circle>
-      </svg>
-    </div>
-    <div class="brand-name">Kultura</div>
-  </div>
+  <!-- ============ LOGIN VIEW ============ -->
+  <div id="loginView">
+    <div class="login-card">
+      <div class="brand-mark">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"></path>
+            <circle cx="6.5" cy="16.5" r="2.5"></circle>
+            <circle cx="16.5" cy="16.5" r="2.5"></circle>
+          </svg>
+        </div>
+        <div class="brand-name">Kultura</div>
+      </div>
 
-  <div class="card">
-    <div id="formView">
       <h1 id="title">Bun venit</h1>
       <p class="sub" id="subtitle">Autentifică-te pentru a continua</p>
 
@@ -314,7 +530,7 @@
           </button>
         </div>
 
-        <button type="submit" class="btn" id="submitBtn">
+        <button type="submit" class="btn full" id="submitBtn">
           <span id="btnText">Autentifică-te</span>
         </button>
       </form>
@@ -324,31 +540,212 @@
         <a id="toggleLink">Înregistrează-te</a>
       </p>
     </div>
-
-    <div id="successView">
-      <div class="check-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="4 12 10 18 20 6"></polyline>
-        </svg>
-      </div>
-      <h1 style="text-align:center">Autentificat!</h1>
-      <p class="sub" id="successEmail">—</p>
-      <button class="btn" id="openAppBtn" style="margin-top: 20px">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
-          <polyline points="10 17 15 12 10 7"></polyline>
-          <line x1="15" y1="12" x2="3" y2="12"></line>
-        </svg>
-        Deschide aplicația
-      </button>
-      <button class="btn ghost" id="logoutBtn" style="margin-top: 10px">Deconectare</button>
-    </div>
   </div>
 
-  <div class="footer">
-    <a href="https://github.com/zazochannel-art/Kultura">GitHub</a>
-    &nbsp;·&nbsp;
-    <a href="confirmed.html">Suport</a>
+  <!-- ============ APP VIEW ============ -->
+  <div id="appView">
+    <header class="app-header">
+      <div class="app-brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"></path>
+            <circle cx="6.5" cy="16.5" r="2.5"></circle>
+            <circle cx="16.5" cy="16.5" r="2.5"></circle>
+          </svg>
+        </div>
+        <div class="brand-name">Kultura</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="btn ghost small" id="openAppBtn" title="Deschide aplicația Android">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+            <polyline points="10 17 15 12 10 7"></polyline>
+            <line x1="15" y1="12" x2="3" y2="12"></line>
+          </svg>
+          <span>Deschide app</span>
+        </button>
+        <div class="avatar" id="avatarBadge">?</div>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-section="home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Acasă
+      </button>
+      <button class="tab" data-section="events">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Evenimente
+      </button>
+      <button class="tab" data-section="cars">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
+        Mașini
+      </button>
+      <button class="tab" data-section="tasks">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Taskuri
+      </button>
+      <button class="tab" data-section="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Setări
+      </button>
+    </nav>
+
+    <main class="content">
+      <!-- HOME -->
+      <section class="section active" id="section-home">
+        <div class="greeting-row">
+          <div class="greeting">
+            <p>Bun venit înapoi 👋</p>
+            <h1 id="greetingEmail">—</h1>
+          </div>
+        </div>
+
+        <div class="hero">
+          <div class="hero-inner">
+            <div class="hero-badge"><span class="dot"></span>URMĂTORUL EVENIMENT</div>
+            <div class="hero-meta">
+              <div class="n" id="heroDays">—</div>
+              <div class="l">zile rămase</div>
+            </div>
+            <div class="hero-title" id="heroTitle">Se încarcă...</div>
+            <div class="hero-sub" id="heroSub"></div>
+            <div class="hero-info">
+              <span id="heroDate"></span>
+              <span id="heroLocation"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title">
+          <div><h2>Statistici</h2><p>Rezumat live din baza de date</p></div>
+        </div>
+        <div class="stats-grid">
+          <div class="stat">
+            <div class="stat-head">
+              <div class="stat-icon blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
+              </div>
+              <div class="stat-trend">↑ live</div>
+            </div>
+            <div class="stat-value" id="statCars">—</div>
+            <div class="stat-label">Mașini înscrise</div>
+          </div>
+          <div class="stat">
+            <div class="stat-head">
+              <div class="stat-icon purple">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
+              <div class="stat-trend">↑ live</div>
+            </div>
+            <div class="stat-value" id="statEvents">—</div>
+            <div class="stat-label">Evenimente planificate</div>
+          </div>
+          <div class="stat">
+            <div class="stat-head">
+              <div class="stat-icon green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+              </div>
+              <div class="stat-trend">↑ live</div>
+            </div>
+            <div class="stat-value" id="statCarsConfirmed">—</div>
+            <div class="stat-label">Mașini confirmate</div>
+          </div>
+          <div class="stat">
+            <div class="stat-head">
+              <div class="stat-icon orange">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+              </div>
+              <div class="stat-trend">↑ live</div>
+            </div>
+            <div class="stat-value" id="statTasks">—</div>
+            <div class="stat-label">Taskuri deschise</div>
+          </div>
+        </div>
+
+        <div class="card" id="upcomingEventsCard">
+          <div class="card-head">
+            <div><h3>Evenimente viitoare</h3><p>Ce urmează pe agendă</p></div>
+          </div>
+          <div id="upcomingEventsList"></div>
+        </div>
+
+        <div class="card" id="topTasksCard">
+          <div class="card-head">
+            <div><h3>Taskuri prioritare</h3><p>Ce e activ acum</p></div>
+          </div>
+          <div id="topTasksList"></div>
+        </div>
+      </section>
+
+      <!-- EVENTS -->
+      <section class="section" id="section-events">
+        <div class="section-title">
+          <div><h2>Evenimente</h2><p>Toate festivalurile din baza de date</p></div>
+        </div>
+        <div id="eventsList"></div>
+      </section>
+
+      <!-- CARS -->
+      <section class="section" id="section-cars">
+        <div class="section-title">
+          <div><h2>Mașini invitate</h2><p><span id="carsCount">0</span> mașini în total</p></div>
+        </div>
+        <div id="carsList"></div>
+      </section>
+
+      <!-- TASKS -->
+      <section class="section" id="section-tasks">
+        <div class="section-title">
+          <div><h2>Taskuri</h2><p><span id="tasksCount">0</span> total</p></div>
+        </div>
+        <div id="tasksList"></div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section class="section" id="section-settings">
+        <div class="setting-block">
+          <div class="setting-label">CONT</div>
+          <div class="setting-row">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <div class="txt">
+              <strong>Email</strong>
+              <span id="settingsEmail">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="setting-block">
+          <div class="setting-label">APLICAȚIE ANDROID</div>
+          <div class="setting-row">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+            </div>
+            <div class="txt">
+              <strong>Deschide aplicația mobilă</strong>
+              <span>Continuă în app-ul nativ Kultura</span>
+            </div>
+            <button class="btn small" id="openAppBtn2">Deschide</button>
+          </div>
+        </div>
+
+        <div class="setting-block">
+          <div class="setting-label">SESIUNE</div>
+          <div class="setting-row">
+            <div class="icon-box red">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </div>
+            <div class="txt">
+              <strong>Deconectare</strong>
+              <span>Închide sesiunea și revino la ecranul de login</span>
+            </div>
+            <button class="btn danger small" id="logoutBtn">Ieși</button>
+          </div>
+        </div>
+      </section>
+    </main>
   </div>
 
   <script type="module">
@@ -363,19 +760,19 @@
     const el = (id) => document.getElementById(id);
     let isSignUp = false;
 
+    // ----- AUTH UI -----
     function showMsg(kind, text) {
       const m = el('msg');
       m.className = 'msg show ' + kind;
-      const icon = el('msgIcon');
-      icon.innerHTML = kind === 'error'
+      el('msgIcon').innerHTML = kind === 'error'
         ? '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>'
         : '<polyline points="20 6 9 17 4 12"></polyline>';
       el('msgText').textContent = text;
     }
     function hideMsg() { el('msg').className = 'msg'; }
 
-    function toggleMode(e) {
-      if (e) e.preventDefault();
+    el('toggleLink').addEventListener('click', (e) => {
+      e.preventDefault();
       isSignUp = !isSignUp;
       el('title').textContent = isSignUp ? 'Bine ai venit' : 'Bun venit';
       el('subtitle').textContent = isSignUp ? 'Creează un cont pentru echipa ta' : 'Autentifică-te pentru a continua';
@@ -384,9 +781,7 @@
       el('toggleLink').textContent = isSignUp ? 'Autentifică-te' : 'Înregistrează-te';
       el('password').autocomplete = isSignUp ? 'new-password' : 'current-password';
       hideMsg();
-    }
-
-    el('toggleLink').addEventListener('click', toggleMode);
+    });
 
     el('togglePwd').addEventListener('click', () => {
       const p = el('password');
@@ -397,26 +792,16 @@
         : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
     });
 
-    function showSuccess(email) {
-      el('formView').style.display = 'none';
-      el('successView').classList.add('show');
-      el('successEmail').textContent = email;
-    }
-
     el('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       hideMsg();
       const email = el('email').value.trim();
       const password = el('password').value;
-      if (password.length < 6) {
-        showMsg('error', 'Parola trebuie să aibă minim 6 caractere');
-        return;
-      }
+      if (password.length < 6) return showMsg('error', 'Parola trebuie să aibă minim 6 caractere');
       const btn = el('submitBtn');
-      const originalText = el('btnText').textContent;
       btn.disabled = true;
+      const originalText = el('btnText').textContent;
       el('btnText').innerHTML = '<span class="spinner"></span>';
-
       try {
         if (isSignUp) {
           const { data, error } = await supa.auth.signUp({
@@ -425,14 +810,14 @@
           });
           if (error) throw error;
           if (data.user && !data.session) {
-            showMsg('success', 'Cont creat! Verifică emailul pentru linkul de confirmare.');
+            showMsg('success', 'Cont creat! Verifică emailul pentru confirmare.');
           } else if (data.session) {
-            showSuccess(email);
+            enterApp(data.session.user.email);
           }
         } else {
           const { data, error } = await supa.auth.signInWithPassword({ email, password });
           if (error) throw error;
-          showSuccess(email);
+          enterApp(data.user.email);
         }
       } catch (err) {
         showMsg('error', err.message || 'A apărut o eroare');
@@ -442,26 +827,220 @@
       }
     });
 
-    el('openAppBtn').addEventListener('click', () => {
-      window.location.href = 'kultura://login';
+    // ----- APP SHELL -----
+    function enterApp(email) {
+      el('loginView').style.display = 'none';
+      el('appView').classList.add('show');
+      el('greetingEmail').textContent = email;
+      el('settingsEmail').textContent = email;
+      el('avatarBadge').textContent = (email[0] || '?').toUpperCase();
+      loadData();
+    }
+    function leaveApp() {
+      el('appView').classList.remove('show');
+      el('loginView').style.display = 'grid';
+      el('email').value = '';
+      el('password').value = '';
+      hideMsg();
+    }
+
+    // Tab navigation
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        tab.classList.add('active');
+        el('section-' + tab.dataset.section).classList.add('active');
+      });
+    });
+
+    // Open Android app deep link
+    ['openAppBtn', 'openAppBtn2'].forEach(id => {
+      el(id).addEventListener('click', () => { window.location.href = 'kultura://login'; });
     });
 
     el('logoutBtn').addEventListener('click', async () => {
       await supa.auth.signOut();
-      el('successView').classList.remove('show');
-      el('formView').style.display = 'block';
-      el('email').value = '';
-      el('password').value = '';
-      hideMsg();
+      leaveApp();
     });
 
-    // Auto-detect existing session on load
+    // ----- DATA -----
+    function statusToBadge(s) {
+      if (!s) return 'blue';
+      const k = s.toLowerCase();
+      if (k.includes('confirmat') || k.includes('finalizat') || k.includes('aprobat')) return 'green';
+      if (k.includes('așteptare') || k.includes('planificat') || k.includes('curând') || k.includes('progres')) return 'blue';
+      if (k.includes('urgent') || k.includes('respins')) return 'red';
+      return 'orange';
+    }
+
+    async function loadData() {
+      const [{ data: cars }, { data: tasks }, { data: events }] = await Promise.all([
+        supa.from('cars').select('*').order('id', { ascending: false }),
+        supa.from('tasks').select('*').order('id', { ascending: false }),
+        supa.from('events').select('*').order('id', { ascending: false })
+      ]);
+      renderStats(cars, tasks, events);
+      renderHero(events);
+      renderUpcoming(events);
+      renderTopTasks(tasks);
+      renderEvents(events);
+      renderCars(cars);
+      renderTasks(tasks);
+    }
+
+    function renderStats(cars, tasks, events) {
+      el('statCars').textContent = (cars || []).length;
+      el('statEvents').textContent = (events || []).length;
+      el('statCarsConfirmed').textContent = (cars || []).filter(c => (c.status || '').toLowerCase().includes('confirmat')).length;
+      el('statTasks').textContent = (tasks || []).filter(t => !t.is_completed).length;
+    }
+
+    function renderHero(events) {
+      const list = events || [];
+      if (!list.length) {
+        el('heroTitle').textContent = 'Niciun eveniment planificat';
+        el('heroSub').textContent = 'Adaugă unul din aplicația mobilă';
+        el('heroDate').textContent = '';
+        el('heroLocation').textContent = '';
+        el('heroDays').textContent = '—';
+        return;
+      }
+      const e = list[0];
+      el('heroTitle').textContent = e.title || '—';
+      el('heroSub').textContent = e.subtitle || '';
+      el('heroDate').innerHTML = calendarIcon() + (e.date || '');
+      el('heroLocation').innerHTML = pinIcon() + (e.location || '');
+      el('heroDays').textContent = e.days_left ?? '—';
+    }
+
+    function calendarIcon() {
+      return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ';
+    }
+    function pinIcon() {
+      return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ';
+    }
+
+    function renderUpcoming(events) {
+      const list = (events || []).slice(0, 4);
+      const c = el('upcomingEventsList');
+      if (!list.length) return c.innerHTML = emptyState('Niciun eveniment');
+      c.innerHTML = list.map(e => `
+        <div class="row">
+          <div class="row-icon blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          </div>
+          <div class="row-body">
+            <div class="row-title">${escape(e.title)}</div>
+            <div class="row-sub">${escape(e.date || '')}${e.location ? '<span class="sep"></span>' + escape(e.location) : ''}</div>
+          </div>
+          <div class="badge ${statusToBadge(e.status)}">${escape(e.status || '—')}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderTopTasks(tasks) {
+      const list = (tasks || []).filter(t => !t.is_completed).slice(0, 4);
+      const c = el('topTasksList');
+      if (!list.length) return c.innerHTML = emptyState('Niciun task deschis');
+      c.innerHTML = list.map(t => `
+        <div class="row">
+          <div class="row-icon ${statusToBadge(t.status) === 'red' ? 'red' : statusToBadge(t.status) === 'green' ? 'green' : 'orange'}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          </div>
+          <div class="row-body">
+            <div class="row-title">${escape(t.title)}</div>
+            <div class="row-sub">${escape(t.event || t.date || '')}</div>
+          </div>
+          <div class="badge ${statusToBadge(t.status)}">${escape(t.status || '—')}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderEvents(events) {
+      const list = events || [];
+      const c = el('eventsList');
+      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Niciun eveniment în baza de date') + '</div>';
+      c.innerHTML = list.map(e => `
+        <div class="card">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+            <div style="flex:1;">
+              <div style="font-size:18px;font-weight:900;letter-spacing:-0.3px;">${escape(e.title)}</div>
+              ${e.subtitle ? `<div style="color:var(--text-dim);font-size:13px;margin-top:4px;">${escape(e.subtitle)}</div>` : ''}
+              <div style="display:flex;gap:14px;margin-top:12px;font-size:12px;color:var(--text-dim);flex-wrap:wrap;">
+                <span style="display:inline-flex;align-items:center;gap:6px;">${calendarIcon()}${escape(e.date || '—')}</span>
+                ${e.location ? `<span style="display:inline-flex;align-items:center;gap:6px;">${pinIcon()}${escape(e.location)}</span>` : ''}
+              </div>
+            </div>
+            <div style="text-align:right;">
+              <div class="badge ${statusToBadge(e.status)}">${escape(e.status || '—')}</div>
+              ${e.days_left != null ? `<div style="margin-top:10px;color:var(--text-dim);font-size:11px;">${e.days_left} zile</div>` : ''}
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderCars(cars) {
+      const list = cars || [];
+      el('carsCount').textContent = list.length;
+      const c = el('carsList');
+      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Nicio mașină înscrisă') + '</div>';
+      c.innerHTML = '<div class="card"><div id="carsInner"></div></div>';
+      el('carsInner').innerHTML = list.map(car => `
+        <div class="row">
+          <div class="row-icon blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
+          </div>
+          <div class="row-body">
+            <div class="row-title">${escape(car.model)}${car.is_vip ? ' <span class="badge purple" style="margin-left:6px;font-size:9px;padding:2px 6px;">VIP</span>' : ''}</div>
+            <div class="row-sub">${escape(car.owner || '')}${car.plate ? '<span class="sep"></span>' + escape(car.plate) : ''}${car.zone ? '<span class="sep"></span>' + escape(car.zone) : ''}</div>
+          </div>
+          <div class="badge ${statusToBadge(car.status)}">${escape(car.status || '—')}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderTasks(tasks) {
+      const list = tasks || [];
+      el('tasksCount').textContent = list.length;
+      const c = el('tasksList');
+      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Niciun task') + '</div>';
+      c.innerHTML = '<div class="card"><div id="tasksInner"></div></div>';
+      el('tasksInner').innerHTML = list.map(t => `
+        <div class="row">
+          <div class="row-icon ${t.is_completed ? 'green' : statusToBadge(t.status) === 'red' ? 'red' : 'orange'}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${t.is_completed ? '<polyline points="20 6 9 17 4 12"/>' : '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'}</svg>
+          </div>
+          <div class="row-body">
+            <div class="row-title" style="${t.is_completed ? 'text-decoration:line-through;color:var(--text-dim);' : ''}">${escape(t.title)}</div>
+            <div class="row-sub">${escape(t.event || '')}${t.date ? '<span class="sep"></span>' + escape(t.date) : ''}</div>
+          </div>
+          <div class="badge ${t.is_completed ? 'green' : statusToBadge(t.status)}">${t.is_completed ? 'Finalizat' : escape(t.status || '—')}</div>
+        </div>
+      `).join('');
+    }
+
+    function emptyState(text) {
+      return `<div class="empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="15" x2="15" y2="9"/></svg>
+        <p>${escape(text)}</p>
+      </div>`;
+    }
+    function escape(str) {
+      return String(str ?? '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+    }
+
+    // ----- SESSION BOOTSTRAP -----
     (async () => {
       const { data: { session } } = await supa.auth.getSession();
-      if (session?.user?.email) {
-        showSuccess(session.user.email);
-      }
+      if (session?.user?.email) enterApp(session.user.email);
     })();
+
+    supa.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') leaveApp();
+      else if (event === 'SIGNED_IN' && session?.user?.email) enterApp(session.user.email);
+    });
   </script>
 </body>
 </html>
