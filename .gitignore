@@ -1,19 +1,65 @@
+# Gradle
 *.iml
 .gradle
 /local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
 /build
 /captures
 .externalNativeBuild
 .cxx
-local.properties
+
+# IDE
+.idea/
+.idea/caches
+.idea/libraries
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+*.iws
+*.ipr
+
+# OS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Kotlin
 .kotlin/
 kotlin-js-store/
-web/build/
 
+# Build outputs
+web/build/
+app/build/
+
+# Sensitive files & backups
+local.properties
+*.backup
+*.bak
+*.tmp
+*.swp
+*.swo
+*~
+
+# Firebase
+google-services.json
+firebaserc
+
+# Credentials and secrets
+.env
+.env.local
+*.pem
+*.key
+.credentials
+
+# Compiled output
+*.class
+*.jar
+*.war
+
+# Log files
+*.log
+
+# Node (for web preview if using Node)
+node_modules/
+npm-debug.log
+yarn-error.log
