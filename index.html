@@ -847,23 +847,33 @@
       .login-card { padding: 36px 22px 28px; border-radius: 24px; }
       h1 { font-size: 26px; }
     }
+
+    /* Logo sus pe centrul ecranului */
+    .logo-container {
+      display: flex;
+      justify-content: center;
+      padding: 40px 20px 20px;
+      position: relative;
+      z-index: 100;
+    }
+    .logo-container img {
+      max-width: 280px;
+      height: auto;
+      filter: drop-shadow(0 10px 20px rgba(0,0,0,0.3));
+    }
+    @media (max-width: 700px) {
+      .logo-container { padding: 30px 20px 10px; }
+      .logo-container img { max-width: 200px; }
+    }
   </style>
 </head>
 <body>
+  <div class="logo-container">
+    <img src="logo.png" alt="Kultura Logo">
+  </div>
   <!-- ============ LOGIN VIEW ============ -->
   <div id="loginView">
     <div class="login-card">
-      <div class="brand-mark">
-        <div class="brand-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"></path>
-            <circle cx="6.5" cy="16.5" r="2.5"></circle>
-            <circle cx="16.5" cy="16.5" r="2.5"></circle>
-          </svg>
-        </div>
-        <div class="brand-name">Kultura</div>
-      </div>
-
       <h1 id="title">Bun venit</h1>
       <p class="sub" id="subtitle">Autentifică-te pentru a continua</p>
 
@@ -911,18 +921,9 @@
   <!-- ============ APP VIEW ============ -->
   <div id="appView">
     <header class="app-header">
-      <div class="app-brand">
-        <div class="brand-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"></path>
-            <circle cx="6.5" cy="16.5" r="2.5"></circle>
-            <circle cx="16.5" cy="16.5" r="2.5"></circle>
-          </svg>
-        </div>
-        <div class="brand-name">Kultura</div>
-      </div>
+      <div></div> <!-- Placeholder for space -->
       <div style="display:flex;align-items:center;gap:12px;">
-        <div class="live-badge" id="liveBadge" title="Sincronizare live la fiecare 5 secunde">
+        <div class="live-badge" id="liveBadge" title="Sincronizare live la fiecare secundă">
           <span class="live-dot"></span>
           <span class="live-text">Live</span>
         </div>
@@ -1554,14 +1555,14 @@
       return inFlightLoad;
     }
 
-    // ----- POLLING FALLBACK (every 5s) -----
-    // Refreshes silently so changes made by other users show up even when
-    // Realtime is throttled / disconnected. Skips refresh if the user is
-    // actively working (a modal is open, an action is in flight, or the
-    // tab is hidden) so nothing they're touching gets clobbered.
+    // ----- POLLING (every 1s) -----
+    // Aggressive 1s poll so changes made by other users appear within a second.
+    // Skips refresh if the user is actively working (a modal is open, an action
+    // is in flight, or the tab is hidden) so nothing they're touching gets clobbered.
+    // `inFlightLoad` dedupe prevents pile-up if a fetch takes >1s.
     let pollTimer = null;
     function shouldSkipPoll() {
-      if (document.hidden) return true; // tab in background — save battery
+      if (document.hidden) return true; // tab in background — save battery + bandwidth
       if (document.querySelector('.modal-backdrop.show')) return true; // form open
       if (document.querySelector('.action-btn.loading')) return true; // save in progress
       if (inFlightLoad) return true;
@@ -1576,7 +1577,7 @@
         } catch (err) {
           console.warn('Polling refresh failed:', err);
         }
-      }, 5000);
+      }, 1000);
     }
     function stopPolling() {
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
