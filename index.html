@@ -470,12 +470,57 @@
     .setting-row .txt strong { display: block; font-size: 14px; font-weight: 700; }
     .setting-row .txt span { color: var(--text-dim); font-size: 12px; }
 
+    /* CAR ACTIONS */
+    .car-row { flex-wrap: wrap; }
+    .car-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      width: 100%;
+      margin-top: 8px;
+      margin-left: 52px;
+    }
+    .action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+      color: var(--text-dim);
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .action-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+    .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .action-btn.active-invitat { color: var(--blue); border-color: rgba(59,130,246,0.4); background: rgba(59,130,246,0.12); }
+    .action-btn.active-sosit { color: var(--green); border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.12); }
+    .action-btn.active-plecat { color: var(--purple); border-color: rgba(139,92,246,0.4); background: rgba(139,92,246,0.12); }
+    .action-btn.active-asteptare { color: var(--orange); border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.12); }
+    .action-btn.delete { color: var(--red); border-color: rgba(239,68,68,0.3); }
+    .action-btn.delete:hover { background: rgba(239,68,68,0.10); border-color: rgba(239,68,68,0.5); }
+    .action-btn.loading { pointer-events: none; opacity: 0.6; }
+    .action-btn svg { width: 12px; height: 12px; }
+    .action-btn .mini-spin {
+      width: 10px; height: 10px;
+      border: 1.5px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
     @media (max-width: 700px) {
       .app-header { padding: 16px 20px; }
       .content { padding: 0 20px 60px; }
       .tabs { margin: 0 20px 20px; }
       .greeting h1 { font-size: 26px; }
       .hero-title { font-size: 20px; }
+      .car-actions { margin-left: 0; }
     }
     @media (max-width: 500px) {
       .login-card { padding: 36px 22px 28px; border-radius: 24px; }
@@ -981,25 +1026,97 @@
       `).join('');
     }
 
+    const CAR_STATUS_OPTIONS = [
+      { key: 'invitat',    label: 'Invitat',      color: '#3B82F6' },
+      { key: 'sosit',      label: 'Sosit',        color: '#10B981' },
+      { key: 'plecat',     label: 'Plecat',       color: '#8B5CF6' },
+      { key: 'asteptare',  label: 'În așteptare', color: '#F59E0B' }
+    ];
+    function statusKey(status) {
+      const s = (status || '').toLowerCase();
+      if (s.includes('sosit')) return 'sosit';
+      if (s.includes('plecat')) return 'plecat';
+      if (s.includes('așteptare') || s.includes('asteptare')) return 'asteptare';
+      if (s.includes('invitat')) return 'invitat';
+      return null;
+    }
+
     function renderCars(cars) {
       const list = cars || [];
       el('carsCount').textContent = list.length;
       const c = el('carsList');
       if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Nicio mașină înscrisă') + '</div>';
       c.innerHTML = '<div class="card"><div id="carsInner"></div></div>';
-      el('carsInner').innerHTML = list.map(car => `
-        <div class="row">
-          <div class="row-icon blue">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
+      el('carsInner').innerHTML = list.map(car => {
+        const active = statusKey(car.status);
+        const actionButtons = CAR_STATUS_OPTIONS.map(opt => `
+          <button class="action-btn ${active === opt.key ? 'active-' + opt.key : ''}"
+                  data-action="status"
+                  data-car-id="${car.id}"
+                  data-label="${escape(opt.label)}"
+                  data-color="${opt.color}">
+            ${escape(opt.label)}
+          </button>
+        `).join('');
+        return `
+          <div class="row car-row" data-row-id="${car.id}">
+            <div class="row-icon blue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
+            </div>
+            <div class="row-body">
+              <div class="row-title">${escape(car.model)}${car.is_vip ? ' <span class="badge purple" style="margin-left:6px;font-size:9px;padding:2px 6px;">VIP</span>' : ''}</div>
+              <div class="row-sub">${escape(car.owner || '')}${car.plate ? '<span class="sep"></span>' + escape(car.plate) : ''}${car.zone ? '<span class="sep"></span>' + escape(car.zone) : ''}</div>
+            </div>
+            <div class="badge ${statusToBadge(car.status)}">${escape(car.status || '—')}</div>
+            <div class="car-actions">
+              ${actionButtons}
+              <button class="action-btn delete" data-action="delete" data-car-id="${car.id}" data-car-label="${escape(car.model)}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+                Șterge
+              </button>
+            </div>
           </div>
-          <div class="row-body">
-            <div class="row-title">${escape(car.model)}${car.is_vip ? ' <span class="badge purple" style="margin-left:6px;font-size:9px;padding:2px 6px;">VIP</span>' : ''}</div>
-            <div class="row-sub">${escape(car.owner || '')}${car.plate ? '<span class="sep"></span>' + escape(car.plate) : ''}${car.zone ? '<span class="sep"></span>' + escape(car.zone) : ''}</div>
-          </div>
-          <div class="badge ${statusToBadge(car.status)}">${escape(car.status || '—')}</div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
+
+    // Delegate clicks for car status/delete
+    document.addEventListener('click', async (ev) => {
+      const btn = ev.target.closest('.action-btn[data-car-id]');
+      if (!btn || btn.classList.contains('loading')) return;
+      const carId = btn.dataset.carId;
+      const action = btn.dataset.action;
+
+      if (action === 'delete') {
+        const label = btn.dataset.carLabel || 'mașina';
+        if (!confirm(`Șterge "${label}"?\nAcțiune ireversibilă.`)) return;
+        btn.classList.add('loading');
+        btn.innerHTML = '<span class="mini-spin"></span>';
+        const { error } = await supa.from('cars').delete().eq('id', carId);
+        if (error) { alert('Eroare la ștergere: ' + error.message); btn.classList.remove('loading'); }
+        await loadData();
+        return;
+      }
+
+      if (action === 'status') {
+        const label = btn.dataset.label;
+        const color = btn.dataset.color;
+        // Mark other buttons in the same row as inactive visually while saving
+        const row = btn.closest('.car-row');
+        row.querySelectorAll('.action-btn').forEach(b => b.disabled = true);
+        btn.classList.add('loading');
+        const oldText = btn.innerHTML;
+        btn.innerHTML = '<span class="mini-spin"></span>';
+        const { error } = await supa.from('cars')
+          .update({ status: label, status_color: color })
+          .eq('id', carId);
+        btn.classList.remove('loading');
+        btn.innerHTML = oldText;
+        row.querySelectorAll('.action-btn').forEach(b => b.disabled = false);
+        if (error) { alert('Eroare la update: ' + error.message); return; }
+        await loadData();
+      }
+    });
 
     function renderTasks(tasks) {
       const list = tasks || [];
