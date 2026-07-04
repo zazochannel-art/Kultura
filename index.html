@@ -873,6 +873,79 @@
       h1 { font-size: 26px; }
     }
 
+    /* ============ DESKTOP LAYOUT — SIDEBAR ============ */
+    @media (min-width: 701px) {
+      :root {
+        --sidebar-w: 240px;
+      }
+
+      /* Logo hero — fixed in sidebar top */
+      .logo-hero {
+        position: fixed;
+        left: 0; top: 0;
+        width: var(--sidebar-w);
+        padding: 28px 20px 12px;
+        z-index: 20;
+      }
+      .logo-img {
+        width: clamp(140px, 13vw, 190px);
+        filter: drop-shadow(0 6px 20px rgba(139, 92, 246, 0.30));
+      }
+
+      /* Tabs — vertical sidebar under the logo */
+      .tabs {
+        position: fixed;
+        left: 16px;
+        top: 150px;
+        bottom: 24px;
+        width: calc(var(--sidebar-w) - 32px);
+        max-width: none;
+        margin: 0;
+        z-index: 20;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        padding: 10px;
+        border-radius: 20px;
+        background: rgba(20, 24, 43, 0.6);
+        backdrop-filter: blur(20px) saturate(160%);
+        -webkit-backdrop-filter: blur(20px) saturate(160%);
+        overflow-y: auto;
+        scrollbar-width: thin;
+      }
+      .tabs::-webkit-scrollbar { width: 4px; }
+      .tabs::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 100px; }
+      .tab {
+        justify-content: flex-start;
+        padding: 12px 14px;
+        text-align: left;
+        border-radius: 12px;
+      }
+      .tab svg { width: 18px; height: 18px; margin-right: 2px; }
+
+      /* Shift the rest of the app right */
+      .app-header,
+      .content {
+        margin-left: var(--sidebar-w);
+        max-width: none;
+      }
+      .app-header {
+        padding-right: 32px;
+        padding-left: 16px;
+      }
+      .content {
+        padding-right: 32px;
+        padding-left: 16px;
+      }
+    }
+
+    @media (min-width: 1200px) {
+      :root {
+        --sidebar-w: 260px;
+      }
+      .content { max-width: 1100px; }
+    }
+
   </style>
 </head>
 <body>
