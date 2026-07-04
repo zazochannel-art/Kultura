@@ -1,5 +1,7 @@
 package com.example.kultura.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,6 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
@@ -20,12 +23,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
+import com.example.kultura.data.AiRepository
 import com.example.kultura.data.SupabaseRepository
 import com.example.kultura.ui.components.*
 import com.example.kultura.ui.theme.*
+import kotlinx.coroutines.launch
+import java.io.InputStream
+import java.io.OutputStreamWriter
 
 // Use the data models from com.example.kultura.data
 typealias DomainCar = com.example.kultura.data.Car
@@ -34,16 +44,57 @@ typealias DomainTask = com.example.kultura.data.Task
 @Composable
 fun CarsScreen() {
     val repository = remember { SupabaseRepository() }
+    val aiRepository = remember { AiRepository() }
     val allCars by repository.getCarsFlow().collectAsState(initial = emptyList())
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     
     var selectedFilter by remember { mutableStateOf("Toate") }
+    var showAddCarDialog by remember { mutableStateOf(false) }
+    var showAiImportDialog by remember { mutableStateOf(false) }
     
     val filteredCars = when (selectedFilter) {
         "Toate" -> allCars
-        "Confirmate" -> allCars.filter { it.status == "Confirmat" }
-        "În așteptare" -> allCars.filter { it.status == "În așteptare" }
-        "VIP" -> allCars.filter { it.isVip }
+        "Înscrise" -> allCars.filter { it.status == "Înscris" }
+        "Aprobate" -> allCars.filter { it.status == "Confirmat" || it.status == "Aprobat" }
+        "NeAprobate" -> allCars.filter { it.status == "În așteptare" || it.status == "Respins" }
         else -> allCars
+    }
+
+    // Export Launcher
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        uri?.let {
+            try {
+                context.contentResolver.openOutputStream(it)?.use { outputStream ->
+                    val csvData = repository.exportCarsToCsv(allCars)
+                    OutputStreamWriter(outputStream).use { writer ->
+                        writer.write(csvData)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Import Launcher
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            scope.launch {
+                try {
+                    context.contentResolver.openInputStream(it)?.use { inputStream ->
+                        val csvContent = inputStream.bufferedReader().readText()
+                        repository.importCarsFromCsv(csvContent)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
     }
 
     Column(
@@ -65,16 +116,76 @@ fun CarsScreen() {
 
             // Search and Filter
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(modifier = Modifier.weight(1f).height(48.dp), color = CardBackground, shape = RoundedCornerShape(12.dp)) {
-                    Row(modifier = Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    color = CardBackground,
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Icon(Icons.Default.Search, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Caută după model, proprietar, număr...", color = TextSecondary, fontSize = 13.sp)
+                        Text("Caută după model, proprietar...", color = TextSecondary, fontSize = 13.sp)
                     }
                 }
-                Spacer(modifier = Modifier.width(12.dp))
-                Surface(modifier = Modifier.size(48.dp), color = CardBackground, shape = RoundedCornerShape(12.dp)) {
-                    Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.Tune, contentDescription = null, tint = TextPrimary) }
+                Spacer(modifier = Modifier.width(10.dp))
+                
+                // Export Button
+                Surface(
+                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).clickable { exportLauncher.launch("cars_export.csv") },
+                    color = CardBackground,
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Download, contentDescription = "Export", tint = TextPrimary, modifier = Modifier.size(20.dp))
+                    }
+                }
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                // Import Button
+                Surface(
+                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).clickable { importLauncher.launch("text/csv") },
+                    color = CardBackground,
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Upload, contentDescription = "Import", tint = TextPrimary, modifier = Modifier.size(20.dp))
+                    }
+                }
+                
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // AI Smart Import Button
+                Surface(
+                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).clickable { showAiImportDialog = true },
+                    color = PrimaryBlue.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryBlue.copy(alpha = 0.5f))
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = "AI Import", tint = PrimaryBlue, modifier = Modifier.size(20.dp))
+                    }
+                }
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                Surface(
+                    modifier = Modifier.size(48.dp),
+                    color = CardBackground,
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Tune, contentDescription = null, tint = TextPrimary)
+                    }
                 }
             }
 
@@ -83,9 +194,9 @@ fun CarsScreen() {
             // Filter Chips
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 item { CarFilterChip(label = "Toate", isSelected = selectedFilter == "Toate", onClick = { selectedFilter = "Toate" }) }
-                item { CarFilterChip(label = "Confirmate", isSelected = selectedFilter == "Confirmate", selectedColor = StatusGreen, onClick = { selectedFilter = "Confirmate" }) }
-                item { CarFilterChip(label = "În așteptare", isSelected = selectedFilter == "În așteptare", selectedColor = StatusOrange, onClick = { selectedFilter = "În așteptare" }) }
-                item { CarFilterChip(label = "VIP", icon = Icons.Default.Star, isSelected = selectedFilter == "VIP", selectedColor = Color(0xFF6200EE), onClick = { selectedFilter = "VIP" }) }
+                item { CarFilterChip(label = "Înscrise", isSelected = selectedFilter == "Înscrise", selectedColor = PrimaryBlue, onClick = { selectedFilter = "Înscrise" }) }
+                item { CarFilterChip(label = "Aprobate", isSelected = selectedFilter == "Aprobate", selectedColor = StatusGreen, onClick = { selectedFilter = "Aprobate" }) }
+                item { CarFilterChip(label = "NeAprobate", isSelected = selectedFilter == "NeAprobate", selectedColor = StatusRed, onClick = { selectedFilter = "NeAprobate" }) }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -107,7 +218,7 @@ fun CarsScreen() {
             // Bottom Add Button
             Box(modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)) {
                 Surface(
-                    modifier = Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(16.dp)).background(Brush.horizontalGradient(listOf(PrimaryBlue, AccentBlue))).clickable { },
+                    modifier = Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(16.dp)).background(Brush.horizontalGradient(listOf(PrimaryBlue, AccentBlue))).clickable { showAddCarDialog = true },
                     color = Color.Transparent
                 ) {
                     Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
@@ -118,7 +229,274 @@ fun CarsScreen() {
                 }
             }
         }
+
+        if (showAddCarDialog) {
+            AddCarDialog(
+                onDismiss = { showAddCarDialog = false },
+                onSave = { car ->
+                    scope.launch {
+                        try {
+                            repository.addCar(car)
+                            showAddCarDialog = false
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            )
+        }
+
+        if (showAiImportDialog) {
+            AiImportDialog(
+                onDismiss = { showAiImportDialog = false },
+                onImport = { cars ->
+                    scope.launch {
+                        try {
+                            cars.forEach { repository.addCar(it) }
+                            showAiImportDialog = false
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                },
+                aiRepository = aiRepository
+            )
+        }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AiImportDialog(
+    onDismiss: () -> Unit,
+    onImport: (List<com.example.kultura.data.Car>) -> Unit,
+    aiRepository: AiRepository
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var aiStatus by remember { mutableStateOf("Așteptare fișier...") }
+    var isProcessing by remember { mutableStateOf(false) }
+    var parsedCars by remember { mutableStateOf<List<com.example.kultura.data.Car>>(emptyList()) }
+
+    val excelPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            scope.launch {
+                isProcessing = true
+                aiStatus = "Se citește fișierul Excel..."
+                try {
+                    context.contentResolver.openInputStream(it)?.use { inputStream ->
+                        val text = aiRepository.extractTextFromExcel(inputStream)
+                        aiStatus = "AI analizează datele..."
+                        val cars = aiRepository.parseCarsFromText(text)
+                        parsedCars = cars
+                        aiStatus = if (cars.isNotEmpty()) "Am găsit ${cars.size} mașini!" else "Nu am reușit să extrag date."
+                    }
+                } catch (e: Exception) {
+                    aiStatus = "Eroare: ${e.message}"
+                } finally {
+                    isProcessing = false
+                }
+            }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.fillMaxWidth().padding(24.dp),
+        content = {
+            GlassCard(shape = RoundedCornerShape(28.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = PrimaryBlue)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("AI Magic Import", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = "Încarcă un fișier Excel (.xlsx) sau CSV și AI-ul va extrage automat datele mașinilor.",
+                        color = TextSecondary,
+                        fontSize = 14.sp
+                    )
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    if (parsedCars.isEmpty()) {
+                        Button(
+                            onClick = { excelPickerLauncher.launch("*/*") },
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                            shape = RoundedCornerShape(14.dp),
+                            enabled = !isProcessing
+                        ) {
+                            if (isProcessing) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+                            } else {
+                                Icon(Icons.Default.FileUpload, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Selectează Fișier")
+                            }
+                        }
+                    } else {
+                        // Preview List
+                        Text("PREVIZUALIZARE (${parsedCars.size} mașini)", color = TextTertiary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(modifier = Modifier.heightIn(max = 300.dp)) {
+                            LazyColumn {
+                                items(parsedCars) { car ->
+                                    Row(modifier = Modifier.padding(vertical = 4.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(PrimaryBlue))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(car.model, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                            Text("${car.owner} • ${car.plate}", color = TextSecondary, fontSize = 11.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(aiStatus, color = if (aiStatus.startsWith("Eroare")) StatusRed else PrimaryBlue, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = onDismiss) { Text("Anulează", color = TextSecondary) }
+                        if (parsedCars.isNotEmpty()) {
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Button(
+                                onClick = { onImport(parsedCars) },
+                                colors = ButtonDefaults.buttonColors(containerColor = StatusGreen),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Importă Tot", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddCarDialog(onDismiss: () -> Unit, onSave: (com.example.kultura.data.Car) -> Unit) {
+    var model by remember { mutableStateOf("") }
+    var owner by remember { mutableStateOf("") }
+    var plate by remember { mutableStateOf("") }
+    var zone by remember { mutableStateOf("") }
+    var contact by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("Înscris") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.fillMaxWidth().padding(24.dp),
+        content = {
+            GlassCard(shape = RoundedCornerShape(28.dp)) {
+                Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
+                    Text("Adaugă Mașină Nouă", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    if (errorMessage != null) {
+                        Text(errorMessage!!, color = StatusRed, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+                    }
+
+                    OutlinedTextField(
+                        value = model, onValueChange = { model = it; errorMessage = null },
+                        label = { Text("Model Mașină") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PrimaryBlue, unfocusedBorderColor = GlassBorder, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    OutlinedTextField(
+                        value = owner, onValueChange = { owner = it },
+                        label = { Text("Nume Proprietar") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PrimaryBlue, unfocusedBorderColor = GlassBorder, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = plate, onValueChange = { plate = it },
+                        label = { Text("Număr Înmatriculare") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PrimaryBlue, unfocusedBorderColor = GlassBorder, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = zone, onValueChange = { zone = it },
+                        label = { Text("Zonă") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PrimaryBlue, unfocusedBorderColor = GlassBorder, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = contact, onValueChange = { contact = it },
+                        label = { Text("Nr de contact") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PrimaryBlue, unfocusedBorderColor = GlassBorder, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = onDismiss) { Text("Anulează", color = TextSecondary) }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        
+                        var isSaving by remember { mutableStateOf(false) }
+                        
+                        Button(
+                            onClick = { 
+                                when {
+                                    model.isBlank() -> errorMessage = "Modelul este obligatoriu"
+                                    owner.isBlank() -> errorMessage = "Numele proprietarului este obligatoriu"
+                                    plate.isBlank() -> errorMessage = "Numărul de înmatriculare este obligatoriu"
+                                    else -> {
+                                        isSaving = true
+                                        onSave(com.example.kultura.data.Car(
+                                            model = model, 
+                                            owner = owner, 
+                                            plate = plate, 
+                                            zone = zone, 
+                                            contact = contact,
+                                            status = status, 
+                                            statusColor = "#1E69FF"
+                                        ))
+                                    }
+                                }
+                            },
+                            enabled = !isSaving,
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            if (isSaving) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                            } else {
+                                Text("Salvează", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
 }
 
 @Composable

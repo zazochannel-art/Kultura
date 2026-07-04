@@ -57,7 +57,8 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             verticalArrangement = Arrangement.Center
         ) {
             GlassCard(
-                modifier = Modifier.fillMaxWidth(),
+                // constrain the card width on large screens so it looks good on web/desktop
+                modifier = Modifier.fillMaxWidth().widthIn(max = 480.dp),
                 shape = RoundedCornerShape(32.dp)
             ) {
                 Column(
@@ -170,10 +171,22 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
 
                     Spacer(modifier = Modifier.height(32.dp))
 
+                    // Demo Credentials Hint
+                    Text(
+                        text = "Demo: admin@kultura.ro / password",
+                        color = PrimaryBlue.copy(alpha = 0.7f),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
                     Button(
                         onClick = {
                             isFormSubmitted = true
-                            if (email.isNotEmpty() && password.isNotEmpty() && isEmailValid) {
+                            if (email == "admin@kultura.ro" && password == "password") {
+                                onLoginSuccess()
+                            } else if (email.isNotEmpty() && password.isNotEmpty() && isEmailValid) {
+                                // For now allow any valid-ish combo if not matching demo exactly, 
+                                // but ideally we only allow demo here.
                                 onLoginSuccess()
                             }
                         },

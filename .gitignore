@@ -13,3 +13,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+.kotlin/
+kotlin-js-store/
+web/build/
+

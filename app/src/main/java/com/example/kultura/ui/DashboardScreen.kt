@@ -18,52 +18,82 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.kultura.data.SupabaseRepository
 import com.example.kultura.ui.components.*
 import com.example.kultura.ui.theme.*
 import kotlinx.coroutines.launch
+import android.widget.Toast
 
 @Composable
 fun DashboardScreen() {
     var selectedItem by remember { mutableIntStateOf(0) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val isCompact = maxWidth < 720.dp
+
         MeshBackground()
 
-        Scaffold(
-            topBar = {
-                MobileTopBar()
-            },
-            bottomBar = {
-                MobileBottomNavigation(
-                    selectedItem = selectedItem,
-                    onItemSelected = { selectedItem = it }
-                )
-            },
-            containerColor = Color.Transparent
-        ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                when (selectedItem) {
-                    0 -> {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState())
-                        ) {
-                            DashboardContentMobile()
+        if (isCompact) {
+            // mobile / narrow screens: keep existing scaffold with bottom navigation
+            Scaffold(
+                topBar = { MobileTopBar() },
+                bottomBar = {
+                    MobileBottomNavigation(
+                        selectedItem = selectedItem,
+                        onItemSelected = { selectedItem = it }
+                    )
+                },
+                containerColor = Color.Transparent
+            ) { innerPadding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                ) {
+                    when (selectedItem) {
+                        0 -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                DashboardContentMobile()
+                            }
                         }
+                        1 -> EventsScreen()
+                        2 -> CarsScreen()
+                        3 -> TasksScreen()
+                        4 -> SettingsScreen()
                     }
-                    1 -> EventsScreen()
-                    2 -> CarsScreen()
-                    3 -> TasksScreen()
-                    4 -> SettingsScreen()
+                }
+            }
+        } else {
+            // desktop / wide screens: show sidebar + top bar and content area
+            Row(modifier = Modifier.fillMaxSize()) {
+                Sidebar(modifier = Modifier)
+
+                Column(modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+                ) {
+                    // reuse mobile top bar for now (could add a dedicated TopBar)
+                    MobileTopBar()
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // main content area
+                    Box(modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp)
+                    ) {
+                        DashboardContentMobile()
+                    }
                 }
             }
         }
