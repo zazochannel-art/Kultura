@@ -752,6 +752,300 @@
     }
     .modal-msg.show { display: block; }
 
+    /* ============ DETAIL MODAL ============ */
+    .modal.detail {
+      max-width: 720px;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      max-height: 92vh;
+    }
+    .detail-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 24px 28px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .detail-head h2 {
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+    .detail-head-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+    .detail-close {
+      width: 36px; height: 36px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text-dim);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+      transition: color 0.15s, background 0.15s;
+    }
+    .detail-close:hover { color: var(--text); background: rgba(255,255,255,0.10); }
+    .detail-close svg { width: 18px; height: 18px; }
+
+    .detail-body {
+      overflow-y: auto;
+      padding: 20px 28px 24px;
+      flex: 1;
+    }
+    .detail-section {
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .detail-section:last-child { border-bottom: none; }
+    .detail-section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--text-mute);
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .detail-section-title svg { width: 14px; height: 14px; }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 14px 20px;
+    }
+    .detail-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+    .detail-field .k {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-mute);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .detail-field .v {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      overflow-wrap: anywhere;
+    }
+    .detail-field .v.dim { color: var(--text-dim); font-weight: 500; }
+    .detail-field.wide { grid-column: 1 / -1; }
+
+    .detail-text {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      min-height: 60px;
+    }
+    .detail-text.empty { color: var(--text-mute); font-style: italic; }
+
+    .detail-textarea {
+      display: block;
+      width: 100%;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--blue);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 14px;
+      font-family: inherit;
+      line-height: 1.6;
+      color: var(--text);
+      resize: vertical;
+      min-height: 120px;
+      outline: none;
+    }
+
+    .detail-edit-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text-dim);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+      margin-left: auto;
+    }
+    .detail-edit-btn:hover { color: var(--text); border-color: var(--border-strong); background: rgba(255,255,255,0.04); }
+    .detail-edit-btn svg { width: 12px; height: 12px; }
+
+    .detail-inline-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 10px;
+    }
+
+    /* Task updates thread */
+    .update {
+      display: flex;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .update:last-child { border-bottom: none; }
+    .update-avatar {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .update-body { flex: 1; min-width: 0; }
+    .update-head {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 4px;
+      flex-wrap: wrap;
+    }
+    .update-name { font-size: 13px; font-weight: 700; }
+    .update-time { font-size: 11px; color: var(--text-mute); }
+    .update-msg { font-size: 14px; line-height: 1.5; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+    .update-delete {
+      background: transparent;
+      border: none;
+      color: var(--text-mute);
+      cursor: pointer;
+      padding: 4px;
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s;
+    }
+    .update:hover .update-delete { opacity: 1; }
+    .update-delete:hover { color: var(--red); }
+    .update-delete svg { width: 14px; height: 14px; }
+
+    .update-composer {
+      display: flex;
+      gap: 10px;
+      padding-top: 14px;
+    }
+    .update-composer textarea {
+      flex: 1;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--text);
+      resize: vertical;
+      min-height: 44px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .update-composer textarea:focus { border-color: var(--blue); }
+
+    /* Car photos gallery */
+    .detail-photos {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+      scrollbar-width: thin;
+    }
+    .detail-photos::-webkit-scrollbar { height: 4px; }
+    .detail-photos::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 100px; }
+    .detail-photo {
+      flex: 0 0 auto;
+      width: 200px;
+      height: 130px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      object-fit: cover;
+      cursor: zoom-in;
+    }
+    .detail-photo-placeholder {
+      flex: 0 0 auto;
+      width: 200px;
+      height: 130px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(59,130,246,0.10), rgba(139,92,246,0.10));
+      border: 1px dashed var(--border);
+      display: grid;
+      place-items: center;
+      color: var(--text-mute);
+      font-size: 11px;
+    }
+
+    .detail-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      padding: 16px 28px 20px;
+      border-top: 1px solid var(--border);
+      background: linear-gradient(180deg, transparent, rgba(0,0,0,0.15));
+    }
+
+    .modal-toast {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 90px;
+      z-index: 2000;
+      padding: 12px 18px;
+      background: rgba(16, 185, 129, 0.95);
+      color: #fff;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .modal-toast.show { opacity: 1; transform: translate(-50%, -6px); pointer-events: auto; }
+    .modal-toast.error { background: rgba(239, 68, 68, 0.95); }
+
+    @media (max-width: 700px) {
+      .modal.detail {
+        max-width: 100%;
+        max-height: 100vh;
+        height: 100vh;
+        border-radius: 0;
+        margin: 0;
+      }
+      .modal-backdrop:has(.modal.detail).show { padding: 0; align-items: stretch; }
+      .detail-head { padding: 20px 20px 12px; }
+      .detail-body { padding: 16px 20px 20px; }
+      .detail-actions {
+        padding: 12px 20px calc(16px + env(safe-area-inset-bottom, 0px));
+        position: sticky;
+        bottom: 0;
+        background: rgba(14, 17, 32, 0.95);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+      }
+      .detail-grid { grid-template-columns: 1fr 1fr; }
+    }
+
     /* CAR ACTIONS */
     .car-row { flex-wrap: wrap; }
     .car-actions {
@@ -1261,9 +1555,25 @@
         <p class="sub-help">Completează detaliile mașinii invitate.</p>
         <div class="modal-msg" id="modal-add-car-msg"></div>
         <form id="form-add-car">
-          <div class="form-field">
-            <label>Model *</label>
-            <input type="text" name="model" required placeholder="ex: BMW M4 Competition">
+          <div class="form-row">
+            <div class="form-field">
+              <label>Marcă</label>
+              <input type="text" name="brand" placeholder="BMW">
+            </div>
+            <div class="form-field">
+              <label>Model *</label>
+              <input type="text" name="model" required placeholder="M4 Competition">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label>An fabricație</label>
+              <input type="number" name="year" min="1900" max="2100" placeholder="2022">
+            </div>
+            <div class="form-field">
+              <label>Categorie</label>
+              <input type="text" name="category" placeholder="Performance / Retro / Muscle...">
+            </div>
           </div>
           <div class="form-row">
             <div class="form-field">
@@ -1277,13 +1587,36 @@
           </div>
           <div class="form-row">
             <div class="form-field">
-              <label>Zonă</label>
-              <input type="text" name="zone" placeholder="ex: VIP Zone A">
+              <label>Telefon</label>
+              <input type="tel" name="phone" placeholder="+373 XX XXX XXX">
             </div>
             <div class="form-field">
-              <label>Contact</label>
-              <input type="text" name="contact" placeholder="+40...">
+              <label>Email</label>
+              <input type="email" name="email" placeholder="exemplu@mail.ro">
             </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label>Oraș / Țară</label>
+              <input type="text" name="city" placeholder="București, RO">
+            </div>
+            <div class="form-field">
+              <label>Zonă parcare</label>
+              <input type="text" name="zone" placeholder="ex: VIP Zone A">
+            </div>
+          </div>
+          <div class="form-field">
+            <label>Modificări</label>
+            <textarea name="modifications" rows="2" placeholder="ex: suspensie Air Ride, jante custom, evacuare sport..."></textarea>
+          </div>
+          <div class="form-field">
+            <label>Persoană responsabilă</label>
+            <input type="text" name="responsible_person" placeholder="Coordonator din echipă">
+          </div>
+          <div class="form-field">
+            <label>Observații suplimentare</label>
+            <textarea name="additional_notes" rows="4"
+              placeholder="Scrie aici informații suplimentare despre mașină, proprietar, transport, amplasare sau cerințe speciale..."></textarea>
           </div>
           <div class="form-field">
             <label>Status inițial</label>
@@ -1365,22 +1698,46 @@
             <input type="text" name="title" required placeholder="ex: Confirmă parteneri principali">
           </div>
           <div class="form-field">
-            <label>Eveniment</label>
+            <label>Descriere scurtă</label>
             <input type="text" name="event" placeholder="ex: KULTURA Auto Festival">
           </div>
           <div class="form-row">
             <div class="form-field">
-              <label>Termen</label>
-              <input type="text" name="date" placeholder="ex: 19 Iunie 2025">
+              <label>Categorie</label>
+              <input type="text" name="category" placeholder="Marketing / Logistică / Tehnic...">
             </div>
             <div class="form-field">
-              <label>Status</label>
-              <select name="status">
-                <option value="available">Disponibil</option>
-                <option value="in_progress">În lucru</option>
-                <option value="completed">Finisat</option>
+              <label>Echipă / Departament</label>
+              <input type="text" name="team" placeholder="ex: Echipa marketing">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label>Termen limită</label>
+              <input type="text" name="date" placeholder="ex: 15 iulie 2026">
+            </div>
+            <div class="form-field">
+              <label>Prioritate</label>
+              <select name="priority">
+                <option value="Normală">Normală</option>
+                <option value="Ridicată">Ridicată</option>
+                <option value="Urgentă">Urgentă</option>
+                <option value="Scăzută">Scăzută</option>
               </select>
             </div>
+          </div>
+          <div class="form-field">
+            <label>Status</label>
+            <select name="status">
+              <option value="available">Disponibil</option>
+              <option value="in_progress">În lucru</option>
+              <option value="completed">Finisat</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Ce trebuie făcut</label>
+            <textarea name="detailed_description" rows="5"
+              placeholder="Scrie aici instrucțiuni detaliate despre ce trebuie să facă utilizatorul pentru realizarea acestui task..."></textarea>
           </div>
           <div class="modal-actions">
             <button type="button" class="btn ghost" data-close>Anulează</button>
@@ -1389,6 +1746,43 @@
         </form>
       </div>
     </div>
+
+    <!-- MODAL: Task Detail -->
+    <div class="modal-backdrop" id="modal-task-detail" data-modal-name="task-detail">
+      <div class="modal detail" role="dialog" aria-labelledby="taskDetailTitle">
+        <div class="detail-head">
+          <div style="flex:1;min-width:0;">
+            <h2 id="taskDetailTitle">—</h2>
+            <div class="detail-head-badges" id="taskDetailBadges"></div>
+          </div>
+          <button class="detail-close" data-close aria-label="Închide">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="detail-body" id="taskDetailBody"></div>
+        <div class="detail-actions" id="taskDetailActions"></div>
+      </div>
+    </div>
+
+    <!-- MODAL: Car Detail -->
+    <div class="modal-backdrop" id="modal-car-detail" data-modal-name="car-detail">
+      <div class="modal detail" role="dialog" aria-labelledby="carDetailTitle">
+        <div class="detail-head">
+          <div style="flex:1;min-width:0;">
+            <h2 id="carDetailTitle">—</h2>
+            <div class="detail-head-badges" id="carDetailBadges"></div>
+          </div>
+          <button class="detail-close" data-close aria-label="Închide">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="detail-body" id="carDetailBody"></div>
+        <div class="detail-actions" id="carDetailActions"></div>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="modal-toast" id="modalToast"></div>
 
     <!-- MODAL: AI Import -->
     <div class="modal-backdrop" id="modal-ai-import" data-modal-name="ai-import">
@@ -1906,7 +2300,7 @@
           </button>
         `).join('');
         return `
-          <div class="row car-row" data-row-id="${car.id}">
+          <div class="row car-row" data-row-id="${car.id}" style="cursor:pointer;">
             <div class="row-icon blue">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
             </div>
@@ -2275,12 +2669,22 @@
       msg.classList.remove('show');
 
       try {
+        const yearRaw = fd.get('year');
         const { error } = await supa.from('cars').insert({
+          brand: (fd.get('brand') || '').trim() || null,
           model: fd.get('model').trim(),
+          year: yearRaw ? parseInt(yearRaw, 10) : null,
+          category: (fd.get('category') || '').trim() || null,
           owner: (fd.get('owner') || '').trim(),
           plate: (fd.get('plate') || '').trim(),
+          phone: (fd.get('phone') || '').trim() || null,
+          email: (fd.get('email') || '').trim() || null,
+          city: (fd.get('city') || '').trim() || null,
           zone: (fd.get('zone') || '').trim(),
-          contact: (fd.get('contact') || '').trim() || null,
+          modifications: (fd.get('modifications') || '').trim() || null,
+          responsible_person: (fd.get('responsible_person') || '').trim() || null,
+          additional_notes: (fd.get('additional_notes') || '').trim() || null,
+          contact: (fd.get('phone') || '').trim() || null,
           status, status_color: statusColor,
           is_vip: fd.get('is_vip') === 'on'
         });
@@ -2347,13 +2751,20 @@
       msg.classList.remove('show');
 
       try {
+        const me = currentUserEmail();
         const { error } = await supa.from('tasks').insert({
           title: fd.get('title').trim(),
           event: (fd.get('event') || '').trim(),
           date: (fd.get('date') || '').trim(),
+          category: (fd.get('category') || '').trim() || null,
+          team: (fd.get('team') || '').trim() || null,
+          priority: fd.get('priority') || 'Normală',
+          detailed_description: (fd.get('detailed_description') || '').trim() || null,
+          created_by: me,
           status,
           status_color: map[status] || '#3B82F6',
-          is_completed: status === 'completed'
+          is_completed: status === 'completed',
+          ...(status === 'completed' ? { completed_by: me, completed_at: new Date().toISOString() } : {})
         });
         if (error) throw error;
         closeModal(document.getElementById('modal-add-task'));
@@ -2372,7 +2783,463 @@
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cars' },   () => loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' },  () => loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_updates' }, (payload) => {
+        // If the detail modal is open on this task, refresh its updates thread
+        if (openTaskDetailId != null) refreshTaskUpdates(openTaskDetailId);
+      })
       .subscribe();
+
+    // ==============================================================
+    // DETAIL MODALS (Task / Car)
+    // ==============================================================
+    const currentUserEmail = () => (supa.auth._currentSession?.user?.email) || (authState.email) || '—';
+    let authState = { email: null };
+    supa.auth.getUser().then(({ data }) => { if (data?.user?.email) authState.email = data.user.email; });
+
+    let openTaskDetailId = null;
+    let openCarDetailId  = null;
+
+    function showToast(msg, kind = 'ok') {
+      const t = el('modalToast');
+      if (!t) return;
+      t.textContent = msg;
+      t.className = 'modal-toast show' + (kind === 'error' ? ' error' : '');
+      clearTimeout(t._timer);
+      t._timer = setTimeout(() => t.classList.remove('show'), 2600);
+    }
+
+    function fmtDateTime(v) {
+      if (!v) return '—';
+      try {
+        const d = new Date(v);
+        if (isNaN(d)) return escape(String(v));
+        return d.toLocaleString('ro-RO', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      } catch { return escape(String(v)); }
+    }
+
+    function fmtRelative(v) {
+      if (!v) return '';
+      const d = new Date(v);
+      if (isNaN(d)) return escape(String(v));
+      const diff = (Date.now() - d.getTime()) / 1000;
+      if (diff < 60) return 'acum câteva secunde';
+      if (diff < 3600) return `acum ${Math.floor(diff/60)} min`;
+      if (diff < 86400) return `acum ${Math.floor(diff/3600)} h`;
+      return fmtDateTime(v);
+    }
+
+    function fieldRow(k, v, opts = {}) {
+      const isEmpty = v == null || v === '' || v === undefined;
+      const val = isEmpty ? '—' : String(v);
+      const dim = isEmpty ? 'dim' : '';
+      const wide = opts.wide ? 'wide' : '';
+      return `
+        <div class="detail-field ${wide}">
+          <div class="k">${escape(k)}</div>
+          <div class="v ${dim}">${escape(val)}</div>
+        </div>`;
+    }
+
+    function priorityBadge(p) {
+      const map = { 'urgentă': 'red', 'ridicată': 'orange', 'normală': 'blue', 'scăzută': 'green' };
+      const key = (p || '').toLowerCase();
+      return `<div class="badge ${map[key] || 'blue'}">${escape(p || 'Normală')}</div>`;
+    }
+
+    // ----- TASK DETAIL -----
+    async function showTaskDetail(taskId) {
+      const t = state.tasks.find(x => String(x.id) === String(taskId));
+      if (!t) return;
+      openTaskDetailId = t.id;
+
+      el('taskDetailTitle').textContent = t.title || '—';
+      const badges = [
+        `<div class="badge ${statusToBadge(t.status)}">${escape(t.status || '—')}</div>`,
+        priorityBadge(t.priority),
+        t.category ? `<div class="badge purple">${escape(t.category)}</div>` : ''
+      ].join(' ');
+      el('taskDetailBadges').innerHTML = badges;
+
+      el('taskDetailBody').innerHTML = `
+        <div class="detail-section">
+          <div class="detail-section-title">Prezentare</div>
+          <div class="detail-grid">
+            ${fieldRow('Termen limită', t.date || t.due_date)}
+            ${fieldRow('Prioritate', t.priority || 'Normală')}
+            ${fieldRow('Categorie', t.category)}
+            ${fieldRow('Echipă', t.team)}
+            ${fieldRow('Descriere scurtă', t.event, { wide: true })}
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-section-title" style="display:flex;align-items:center;">
+            Ce trebuie făcut
+            <button class="detail-edit-btn" id="taskEditInstructionsBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              Editează
+            </button>
+          </div>
+          <div id="taskInstructionsView">
+            ${t.detailed_description
+              ? `<div class="detail-text">${escape(t.detailed_description)}</div>`
+              : `<div class="detail-text empty">Nu există instrucțiuni detaliate. Apasă "Editează" pentru a le adăuga.</div>`}
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-section-title">Trasabilitate</div>
+          <div class="detail-grid">
+            ${fieldRow('Creat de', t.created_by)}
+            ${fieldRow('Data creării', fmtDateTime(t.created_at))}
+            ${fieldRow('Preluat de', t.assigned_to)}
+            ${fieldRow('Preluat la', fmtDateTime(t.assigned_at))}
+            ${fieldRow('Finalizat de', t.completed_by)}
+            ${fieldRow('Finalizat la', fmtDateTime(t.completed_at))}
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Actualizări și observații
+          </div>
+          <div id="taskUpdatesList"><div class="empty" style="padding:12px 0;color:var(--text-mute);font-size:13px;">Se încarcă...</div></div>
+          <div class="update-composer">
+            <textarea id="taskUpdateInput" rows="2" placeholder="Scrie o actualizare despre progresul taskului..."></textarea>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+            <button class="btn small" id="taskUpdateSubmit">Adaugă actualizare</button>
+          </div>
+        </div>
+      `;
+
+      // Actions
+      const isDone = !!t.is_completed;
+      el('taskDetailActions').innerHTML = `
+        ${!isDone ? `<button class="btn ghost" data-detail-action="task-take" data-task-id="${t.id}">Iau în lucru</button>` : ''}
+        ${!isDone ? `<button class="btn" data-detail-action="task-finish" data-task-id="${t.id}">Finisat</button>`
+                  : `<button class="btn ghost" data-detail-action="task-reopen" data-task-id="${t.id}">Redeschide</button>`}
+        <button class="btn danger" data-detail-action="task-delete" data-task-id="${t.id}" data-task-label="${escape(t.title)}">Șterge</button>
+      `;
+
+      // Wire edit button + submit
+      el('taskEditInstructionsBtn').onclick = () => enterEditTaskInstructions(t);
+      el('taskUpdateSubmit').onclick = () => submitTaskUpdate(t.id);
+      el('taskUpdateInput').addEventListener('keydown', (ev) => {
+        if ((ev.metaKey || ev.ctrlKey) && ev.key === 'Enter') { ev.preventDefault(); submitTaskUpdate(t.id); }
+      });
+
+      openModal('task-detail');
+      refreshTaskUpdates(t.id);
+    }
+
+    function enterEditTaskInstructions(t) {
+      const view = el('taskInstructionsView');
+      const current = t.detailed_description || '';
+      view.innerHTML = `
+        <textarea class="detail-textarea" id="taskInstructionsInput" rows="6"
+          placeholder="Scrie aici instrucțiuni detaliate...">${escape(current)}</textarea>
+        <div class="detail-inline-actions">
+          <button class="btn ghost small" id="taskInstructionsCancel">Anulează</button>
+          <button class="btn small" id="taskInstructionsSave">Salvează</button>
+        </div>`;
+      el('taskEditInstructionsBtn').style.display = 'none';
+      el('taskInstructionsCancel').onclick = () => showTaskDetail(t.id); // rerender = cancel
+      el('taskInstructionsSave').onclick = async () => {
+        const btn = el('taskInstructionsSave');
+        btn.disabled = true;
+        const newVal = el('taskInstructionsInput').value.trim();
+        const { error } = await supa.from('tasks').update({ detailed_description: newVal || null }).eq('id', t.id);
+        if (error) { showToast('Eroare: ' + error.message, 'error'); btn.disabled = false; return; }
+        showToast('Detaliile taskului au fost actualizate.');
+        t.detailed_description = newVal;
+        await loadData();
+        showTaskDetail(t.id);
+      };
+      el('taskInstructionsInput').focus();
+    }
+
+    async function refreshTaskUpdates(taskId) {
+      const { data, error } = await supa.from('task_updates')
+        .select('*').eq('task_id', taskId).order('created_at', { ascending: false });
+      const c = el('taskUpdatesList');
+      if (!c) return;
+      if (error) { c.innerHTML = `<div class="empty" style="color:var(--red);">${escape(error.message)}</div>`; return; }
+      if (!data.length) {
+        c.innerHTML = `<div class="empty" style="padding:14px 0;color:var(--text-mute);font-size:13px;">Nicio actualizare încă. Fii primul care scrie una.</div>`;
+        return;
+      }
+      const me = currentUserEmail();
+      c.innerHTML = data.map(u => `
+        <div class="update">
+          <div class="update-avatar">${escape((u.user_email || '?')[0].toUpperCase())}</div>
+          <div class="update-body">
+            <div class="update-head">
+              <span class="update-name">${escape(u.user_email || 'Anonim')}</span>
+              <span class="update-time" title="${escape(fmtDateTime(u.created_at))}">${escape(fmtRelative(u.created_at))}</span>
+              ${u.user_email === me ? `<button class="update-delete" data-update-delete="${u.id}" title="Șterge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+              </button>` : ''}
+            </div>
+            <div class="update-msg">${escape(u.message)}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function submitTaskUpdate(taskId) {
+      const input = el('taskUpdateInput');
+      const msg = (input.value || '').trim();
+      if (!msg) return;
+      const btn = el('taskUpdateSubmit');
+      btn.disabled = true;
+      const { error } = await supa.from('task_updates').insert({
+        task_id: taskId, user_email: currentUserEmail(), message: msg
+      });
+      btn.disabled = false;
+      if (error) { showToast('Eroare: ' + error.message, 'error'); return; }
+      input.value = '';
+      refreshTaskUpdates(taskId);
+    }
+
+    // ----- CAR DETAIL -----
+    function showCarDetail(carId) {
+      const c = state.cars.find(x => String(x.id) === String(carId));
+      if (!c) return;
+      openCarDetailId = c.id;
+
+      const title = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
+      el('carDetailTitle').textContent = title;
+      const badges = [
+        `<div class="badge ${statusToBadge(c.status)}">${escape(c.status || '—')}</div>`,
+        c.is_vip ? `<div class="badge purple">VIP</div>` : '',
+        c.category ? `<div class="badge blue">${escape(c.category)}</div>` : ''
+      ].filter(Boolean).join(' ');
+      el('carDetailBadges').innerHTML = badges;
+
+      const photos = Array.isArray(c.photos) ? c.photos : [];
+      const photosHtml = photos.length
+        ? `<div class="detail-photos">${photos.map(p => `<img src="${escape(p)}" alt="" class="detail-photo" loading="lazy">`).join('')}</div>`
+        : `<div class="detail-photos"><div class="detail-photo-placeholder">Nicio fotografie</div></div>`;
+
+      el('carDetailBody').innerHTML = `
+        <div class="detail-section">
+          <div class="detail-section-title">Fotografii</div>
+          ${photosHtml}
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-section-title">Mașină</div>
+          <div class="detail-grid">
+            ${fieldRow('Marcă', c.brand)}
+            ${fieldRow('Model', c.model)}
+            ${fieldRow('An fabricație', c.year)}
+            ${fieldRow('Categorie', c.category)}
+            ${fieldRow('Plăcuță', c.plate)}
+            ${fieldRow('Zonă parcare', c.zone)}
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-section-title">Proprietar</div>
+          <div class="detail-grid">
+            ${fieldRow('Nume', c.owner)}
+            ${fieldRow('Telefon', c.phone || c.contact)}
+            ${fieldRow('Email', c.email)}
+            ${fieldRow('Oraș / Țară', c.city)}
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-section-title">Detalii tehnice</div>
+          <div class="detail-grid">
+            <div class="detail-field wide">
+              <div class="k">Modificări</div>
+              <div class="v ${c.modifications ? '' : 'dim'}">${escape(c.modifications || '—')}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-section-title">Organizare</div>
+          <div class="detail-grid">
+            ${fieldRow('Persoană responsabilă', c.responsible_person)}
+            ${fieldRow('Data înregistrării', fmtDateTime(c.created_at))}
+            ${fieldRow('Transport / Platformă', c.transport_info, { wide: true })}
+            ${fieldRow('Rețele sociale', c.social_links, { wide: true })}
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-section-title" style="display:flex;align-items:center;">
+            Observații suplimentare
+            <button class="detail-edit-btn" id="carEditNotesBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              Editează
+            </button>
+          </div>
+          <div id="carNotesView">
+            ${c.additional_notes
+              ? `<div class="detail-text">${escape(c.additional_notes)}</div>`
+              : `<div class="detail-text empty">Nicio observație. Apasă "Editează" pentru a adăuga.</div>`}
+          </div>
+        </div>
+      `;
+
+      el('carDetailActions').innerHTML = `
+        <button class="btn ghost" data-detail-action="car-status" data-car-id="${c.id}" data-label="Sosit" data-color="#10B981">Confirmă participarea</button>
+        <button class="btn ghost" data-detail-action="car-status" data-car-id="${c.id}" data-label="Plecat" data-color="#8B5CF6">Respinge</button>
+        <button class="btn danger" data-detail-action="car-delete" data-car-id="${c.id}" data-car-label="${escape(title)}">Șterge</button>
+      `;
+
+      el('carEditNotesBtn').onclick = () => {
+        const view = el('carNotesView');
+        view.innerHTML = `
+          <textarea class="detail-textarea" id="carNotesInput" rows="5"
+            placeholder="Scrie observații despre mașină, transport, cerințe...">${escape(c.additional_notes || '')}</textarea>
+          <div class="detail-inline-actions">
+            <button class="btn ghost small" id="carNotesCancel">Anulează</button>
+            <button class="btn small" id="carNotesSave">Salvează</button>
+          </div>`;
+        el('carEditNotesBtn').style.display = 'none';
+        el('carNotesCancel').onclick = () => showCarDetail(c.id);
+        el('carNotesSave').onclick = async () => {
+          const btn = el('carNotesSave'); btn.disabled = true;
+          const newVal = el('carNotesInput').value.trim();
+          const { error } = await supa.from('cars').update({ additional_notes: newVal || null }).eq('id', c.id);
+          if (error) { showToast('Eroare: ' + error.message, 'error'); btn.disabled = false; return; }
+          showToast('Detaliile mașinii au fost actualizate.');
+          c.additional_notes = newVal;
+          await loadData();
+          showCarDetail(c.id);
+        };
+        el('carNotesInput').focus();
+      };
+
+      openModal('car-detail');
+    }
+
+    // ----- Row click → open detail; ignore action-button clicks -----
+    document.addEventListener('click', (ev) => {
+      // Skip if clicking any action button, chip, or explicit stop-marked element
+      if (ev.target.closest('.action-btn')) return;
+      if (ev.target.closest('.chip')) return;
+      if (ev.target.closest('.add-btn')) return;
+      if (ev.target.closest('[data-close]')) return;
+      if (ev.target.closest('.modal-backdrop')) return; // click was inside a modal or on backdrop; other handlers handle it
+
+      const carRow = ev.target.closest('.car-row');
+      if (carRow && carRow.dataset.rowId) { showCarDetail(carRow.dataset.rowId); return; }
+      const taskRow = ev.target.closest('.task-row');
+      if (taskRow && taskRow.dataset.rowId) { showTaskDetail(taskRow.dataset.rowId); return; }
+    });
+
+    // Reset openTaskDetailId / openCarDetailId when modals close
+    ['task-detail', 'car-detail'].forEach(name => {
+      const m = document.getElementById('modal-' + name);
+      if (m) {
+        new MutationObserver(() => {
+          if (!m.classList.contains('show')) {
+            if (name === 'task-detail') openTaskDetailId = null;
+            if (name === 'car-detail') openCarDetailId = null;
+          }
+        }).observe(m, { attributes: true, attributeFilter: ['class'] });
+      }
+    });
+
+    // Detail action buttons (delegated)
+    document.addEventListener('click', async (ev) => {
+      const btn = ev.target.closest('[data-detail-action]');
+      if (!btn) return;
+      ev.stopPropagation();
+      const action = btn.dataset.detailAction;
+      btn.disabled = true;
+
+      const me = currentUserEmail();
+
+      try {
+        if (action === 'task-take') {
+          const id = btn.dataset.taskId;
+          const { error } = await supa.from('tasks').update({
+            status: 'În lucru', status_color: '#F59E0B',
+            assigned_to: me, assigned_at: new Date().toISOString()
+          }).eq('id', id);
+          if (error) throw error;
+          showToast('Ai preluat taskul.');
+          await loadData();
+          showTaskDetail(id);
+
+        } else if (action === 'task-finish') {
+          const id = btn.dataset.taskId;
+          const { error } = await supa.from('tasks').update({
+            status: 'Finalizat', status_color: '#10B981', is_completed: true,
+            completed_by: me, completed_at: new Date().toISOString()
+          }).eq('id', id);
+          if (error) throw error;
+          showToast('Task finalizat.');
+          await loadData();
+          showTaskDetail(id);
+
+        } else if (action === 'task-reopen') {
+          const id = btn.dataset.taskId;
+          const { error } = await supa.from('tasks').update({
+            is_completed: false, completed_by: null, completed_at: null,
+            status: 'În progres', status_color: '#F59E0B'
+          }).eq('id', id);
+          if (error) throw error;
+          showToast('Task redeschis.');
+          await loadData();
+          showTaskDetail(id);
+
+        } else if (action === 'task-delete') {
+          const id = btn.dataset.taskId;
+          const label = btn.dataset.taskLabel || 'taskul';
+          if (!confirm(`Șterge "${label}"?\nAcțiune ireversibilă.`)) { btn.disabled = false; return; }
+          const { error } = await supa.from('tasks').delete().eq('id', id);
+          if (error) throw error;
+          showToast('Task șters.');
+          closeModal(document.getElementById('modal-task-detail'));
+          await loadData();
+
+        } else if (action === 'car-status') {
+          const id = btn.dataset.carId;
+          const { error } = await supa.from('cars').update({
+            status: btn.dataset.label, status_color: btn.dataset.color
+          }).eq('id', id);
+          if (error) throw error;
+          showToast('Status actualizat.');
+          await loadData();
+          showCarDetail(id);
+
+        } else if (action === 'car-delete') {
+          const id = btn.dataset.carId;
+          const label = btn.dataset.carLabel || 'mașina';
+          if (!confirm(`Șterge "${label}"?\nAcțiune ireversibilă.`)) { btn.disabled = false; return; }
+          const { error } = await supa.from('cars').delete().eq('id', id);
+          if (error) throw error;
+          showToast('Mașină ștearsă.');
+          closeModal(document.getElementById('modal-car-detail'));
+          await loadData();
+        }
+      } catch (e) {
+        showToast('Eroare: ' + (e.message || e), 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // Delete update
+    document.addEventListener('click', async (ev) => {
+      const b = ev.target.closest('[data-update-delete]');
+      if (!b) return;
+      ev.stopPropagation();
+      if (!confirm('Șterge această actualizare?')) return;
+      const id = b.dataset.updateDelete;
+      const { error } = await supa.from('task_updates').delete().eq('id', id);
+      if (error) return showToast('Eroare: ' + error.message, 'error');
+      if (openTaskDetailId != null) refreshTaskUpdates(openTaskDetailId);
+    });
 
     const TASK_STATUS_OPTIONS = [
       { key: 'available',   label: 'Disponibil',  color: '#3B82F6' },
@@ -2484,7 +3351,7 @@
         }
 
         return `
-          <div class="row task-row">
+          <div class="row task-row" data-row-id="${t.id}" style="cursor:pointer;">
             <div class="row-icon ${sk === 'completed' ? 'green' : sk === 'in_progress' ? 'orange' : 'blue'}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${sk === 'completed' ? '<polyline points="20 6 9 17 4 12"/>' : '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'}</svg>
             </div>
