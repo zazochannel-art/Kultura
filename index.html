@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
   <style>
     :root {
       --bg: #07080d;
@@ -349,7 +350,7 @@
 
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: 14px;
       margin-bottom: 28px;
     }
@@ -1040,6 +1041,13 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input type="search" id="carsSearch" placeholder="Caută model, proprietar, plăcuță...">
           </div>
+          <button class="add-btn" id="manualRefreshBtn" style="background: var(--surface-elev); color: var(--text-dim); border: 1px solid var(--border);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          </button>
+          <button class="add-btn" id="aiImportBtn" style="background: linear-gradient(90deg, #8b5cf6, #ec4899);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+            AI Import
+          </button>
           <button class="add-btn" data-modal="add-car">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Adaugă
@@ -1094,6 +1102,20 @@
               <span>Închide sesiunea și revino la ecranul de login</span>
             </div>
             <button class="btn danger small" id="logoutBtn">Ieși</button>
+          </div>
+        </div>
+
+        <div class="setting-block">
+          <div class="setting-label">DATE</div>
+          <div class="setting-row">
+            <div class="icon-box red">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
+            </div>
+            <div class="txt">
+              <strong>Șterge toate mașinile</strong>
+              <span>Elimină toate mașinile din baza de date (acțiune ireversibilă)</span>
+            </div>
+            <button class="btn danger small" id="deleteAllCarsBtn">Șterge</button>
           </div>
         </div>
       </section>
@@ -1235,6 +1257,39 @@
         </form>
       </div>
     </div>
+
+    <!-- MODAL: AI Import -->
+    <div class="modal-backdrop" id="modal-ai-import" data-modal-name="ai-import">
+      <div class="modal">
+        <h2>AI Magic Import</h2>
+        <p class="sub-help">Încarcă un fișier Excel (.xlsx) sau CSV și AI-ul va extrage automat datele mașinilor.</p>
+        <div class="modal-msg" id="modal-ai-import-msg"></div>
+        
+        <div id="aiImportFileSection">
+          <div class="form-field">
+            <label>Selectează fișier</label>
+            <input type="file" id="aiImportFile" accept=".xlsx,.xls,.csv" required>
+          </div>
+          <div id="aiImportStatus" style="margin-top: 12px; font-size: 13px; color: var(--text-dim);">Așteptare fișier...</div>
+          <div id="aiProgressBarContainer" style="display: none; width: 100%; height: 6px; background: rgba(255,255,255,0.05); border-radius: 10px; margin-top: 12px; overflow: hidden; border: 1px solid var(--border);">
+            <div id="aiProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--blue), var(--purple)); transition: width 0.3s ease;"></div>
+          </div>
+        </div>
+
+        <div id="aiImportPreviewSection" style="display: none;">
+          <div style="margin-top: 16px; padding: 12px; background: rgba(59,130,246,0.1); border-radius: 8px; border: 1px solid rgba(59,130,246,0.3);">
+            <div style="font-size: 11px; font-weight: bold; color: var(--blue); margin-bottom: 8px;">PREVIZUALIZARE (<span id="aiImportCount">0</span> mașini)</div>
+            <div id="aiImportPreview" style="max-height: 200px; overflow-y: auto;"></div>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn ghost" data-close>Anulează</button>
+          <button type="button" class="btn" id="aiImportProcessBtn">Selectează Fișier</button>
+          <button type="button" class="btn" id="aiImportConfirmBtn" style="display: none; background: var(--green);">Importă Tot</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script type="module">
@@ -1242,6 +1297,8 @@
 
     const SUPABASE_URL = 'https://knphmxxokowwkruimdus.supabase.co';
     const SUPABASE_ANON = 'sb_publishable_9b7WSJF4UlfF1JIdCDjWqQ_dxOTpqSW';
+    const OPENAI_API_KEY = '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';
+
     const supa = createClient(SUPABASE_URL, SUPABASE_ANON, {
       auth: { persistSession: true, autoRefreshToken: true }
     });
@@ -1356,6 +1413,36 @@
       leaveApp();
     });
 
+    el('manualRefreshBtn').addEventListener('click', async () => {
+      const btn = el('manualRefreshBtn');
+      btn.disabled = true;
+      btn.classList.add('loading');
+      btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;"></span>';
+      try {
+        await loadData();
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>';
+      }
+    });
+
+    el('deleteAllCarsBtn').addEventListener('click', async () => {
+      if (!confirm('Ești sigur că vrei să ștergi TOATE mașinile din baza de date?\n\nAceastă acțiune este ireversibilă!')) return;
+      
+      try {
+        const { error } = await supa.from('cars').delete().neq('id', 0);
+        if (error) {
+          alert('Eroare la ștergere: ' + error.message);
+        } else {
+          alert('Toate mașinile au fost șterse cu succes!');
+          await loadData();
+        }
+      } catch (err) {
+        alert('Eroare: ' + err.message);
+      }
+    });
+
     // ----- DATA -----
     function statusToBadge(s) {
       if (!s) return 'blue';
@@ -1421,7 +1508,11 @@
       if (pollTimer) return;
       pollTimer = setInterval(async () => {
         if (shouldSkipPoll()) return;
-        try { await loadData(); } catch (_) { /* silent */ }
+        try {
+          await loadData();
+        } catch (err) {
+          console.warn('Polling refresh failed:', err);
+        }
       }, 5000);
     }
     function stopPolling() {
@@ -1795,69 +1886,292 @@
       if (closeBtn) { closeModal(closeBtn.closest('.modal-backdrop')); return; }
     });
 
+    // AI Import button handler
+    el('aiImportBtn').addEventListener('click', () => {
+      openModal('ai-import');
+      el('aiImportStatus').textContent = 'Așteptare fișier...';
+      el('aiImportStatus').style.color = 'var(--text-dim)';
+      el('aiImportPreview').innerHTML = '';
+      el('aiImportFile').value = '';
+      el('aiImportFileSection').style.display = 'block';
+      el('aiImportPreviewSection').style.display = 'none';
+      el('aiImportProcessBtn').style.display = 'inline-block';
+      el('aiImportProcessBtn').textContent = 'Selectează Fișier';
+      el('aiImportProcessBtn').disabled = false;
+      el('aiImportConfirmBtn').style.display = 'none';
+      window.pendingCars = [];
+    });
+
+    // Auto-process when file is selected
+    el('aiImportFile').addEventListener('change', () => {
+      if (el('aiImportFile').files.length > 0) {
+        el('aiImportProcessBtn').click();
+      }
+    });
+
+    // AI Import process - select and parse file
+    el('aiImportProcessBtn').addEventListener('click', async () => {
+      const fileInput = el('aiImportFile');
+      const statusDiv = el('aiImportStatus');
+      const file = fileInput.files[0];
+      
+      if (!file) {
+        statusDiv.textContent = 'Te rog selectează un fișier.';
+        statusDiv.style.color = 'var(--red)';
+        return;
+      }
+
+      statusDiv.textContent = 'Se citește fișierul...';
+      statusDiv.style.color = 'var(--text-dim)';
+      el('aiImportProcessBtn').disabled = true;
+      
+      try {
+        if (typeof XLSX === 'undefined') {
+          throw new Error('Biblioteca Excel (XLSX) nu s-a încărcat. Verifică conexiunea la internet.');
+        }
+
+        let text = '';
+        if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+          const data = await file.arrayBuffer();
+          const workbook = XLSX.read(data);
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          text = XLSX.utils.sheet_to_csv(sheet);
+        } else {
+          text = await file.text();
+        }
+        
+        statusDiv.textContent = 'AI analizează datele...';
+        el('aiProgressBarContainer').style.display = 'block';
+        el('aiProgressBar').style.width = '0%';
+
+        const lines = text.split('\n').filter(l => l.trim().length > 3);
+        const chunkSize = 25; // Process 25 rows at a time
+        const totalChunks = Math.ceil(lines.length / chunkSize);
+        let allExtractedCars = [];
+
+        for (let i = 0; i < totalChunks; i++) {
+          const progress = Math.round((i / totalChunks) * 100);
+          statusDiv.textContent = `AI analizează datele: ${progress}% (Lot ${i+1}/${totalChunks})...`;
+          el('aiProgressBar').style.width = `${progress}%`;
+
+          const start = i * chunkSize;
+          const chunk = lines.slice(start, start + chunkSize).join('\n');
+
+          const prompt = `
+            Extract car details from the following text and return a JSON object with a "cars" key containing an array of car objects.
+            Fields for each car object:
+            - model (string)
+            - owner (string)
+            - plate (string)
+            - zone (string)
+            - status (string: "Invitat", "Sosit", "Plecat", or "În așteptare")
+            - status_color (string: HEX)
+            - is_vip (boolean)
+            - contact (string)
+
+            Data to process:
+            ${chunk}
+          `;
+
+          // ACUM APELĂM SERVERUL NOSTRU LOCAL, NU OPENAI DIRECT
+          const response = await fetch('/api/ai-import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt })
+          });
+
+          if (!response.ok) {
+            const errJson = await response.json();
+            throw new Error(errJson.error?.message || `Eroare server la lotul ${i+1}`);
+          }
+
+          const resultJson = await response.json();
+          const rawContent = resultJson.choices[0].message.content;
+          const parsedData = JSON.parse(rawContent);
+          if (parsedData.cars) {
+            allExtractedCars = allExtractedCars.concat(parsedData.cars);
+          }
+        }
+
+        const cars = allExtractedCars;
+        el('aiProgressBar').style.width = '100%';
+
+        if (cars.length === 0) {
+          statusDiv.textContent = 'Nu am reușit să extrag date din fișier.';
+          statusDiv.style.color = 'var(--red)';
+          el('aiImportProcessBtn').disabled = false;
+          return;
+        }
+
+        statusDiv.textContent = `Analiză completă! Am găsit ${cars.length} mașini.`;
+        statusDiv.style.color = 'var(--green)';
+        setTimeout(() => { el('aiProgressBarContainer').style.display = 'none'; }, 1000);
+
+        // Show preview
+        el('aiImportCount').textContent = cars.length;
+        el('aiImportPreview').innerHTML = cars.map(car => `
+          <div style="padding: 8px; border-bottom: 1px solid rgba(59,130,246,0.2); font-size: 12px; display: flex; align-items: center; gap: 8px;">
+            <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--blue);"></div>
+            <div style="flex: 1;">
+              <div style="font-weight: bold; color: var(--text);">${escape(car.model)}</div>
+              <div style="color: var(--text-dim); font-size: 11px;">${escape(car.owner)} ${car.plate ? ' • ' + escape(car.plate) : ''}</div>
+            </div>
+          </div>
+        `).join('');
+
+        // Switch to preview mode
+        el('aiImportFileSection').style.display = 'none';
+        el('aiImportPreviewSection').style.display = 'block';
+        el('aiImportProcessBtn').style.display = 'none';
+        el('aiImportConfirmBtn').style.display = 'inline-block';
+        el('aiImportConfirmBtn').disabled = false;
+        
+        // Store cars for import
+        window.pendingCars = cars;
+      } catch (err) {
+        console.error('Import Error:', err);
+        statusDiv.textContent = 'Eroare: ' + err.message;
+        statusDiv.style.color = 'var(--red)';
+        el('aiImportProcessBtn').disabled = false;
+      }
+    });
+
+    // AI Import confirm - actually import to Supabase
+    el('aiImportConfirmBtn').addEventListener('click', async () => {
+      const statusDiv = el('aiImportStatus');
+      const cars = window.pendingCars || [];
+      
+      if (cars.length === 0) return;
+
+      statusDiv.textContent = 'Se importă mașinile...';
+      statusDiv.style.color = 'var(--text-dim)';
+      el('aiImportConfirmBtn').disabled = true;
+      
+      try {
+        // Import cars to Supabase
+        for (const car of cars) {
+          await supa.from('cars').insert(car);
+        }
+        
+        statusDiv.textContent = `Au fost importate ${cars.length} mașini cu succes!`;
+        statusDiv.style.color = 'var(--green)';
+        await loadData();
+        
+        setTimeout(() => {
+          closeModal(document.getElementById('modal-ai-import'));
+        }, 1500);
+      } catch (err) {
+        statusDiv.textContent = 'Eroare la import: ' + err.message;
+        statusDiv.style.color = 'var(--red)';
+        el('aiImportConfirmBtn').disabled = false;
+      }
+    });
+
     // Add Car
     el('form-add-car').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const btn = e.target.querySelector('button[type="submit"]');
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;"></span>';
+
       const fd = new FormData(e.target);
       const status = fd.get('status') || 'Invitat';
       const statusColor = CAR_STATUS_OPTIONS.find(o => o.label === status)?.color || '#3B82F6';
       const msg = el('modal-add-car-msg');
       msg.classList.remove('show');
-      const { error } = await supa.from('cars').insert({
-        model: fd.get('model').trim(),
-        owner: (fd.get('owner') || '').trim(),
-        plate: (fd.get('plate') || '').trim(),
-        zone: (fd.get('zone') || '').trim(),
-        contact: (fd.get('contact') || '').trim() || null,
-        status, status_color: statusColor,
-        is_vip: fd.get('is_vip') === 'on'
-      });
-      if (error) { msg.textContent = error.message; msg.classList.add('show'); return; }
-      closeModal(document.getElementById('modal-add-car'));
-      await loadData();
+
+      try {
+        const { error } = await supa.from('cars').insert({
+          model: fd.get('model').trim(),
+          owner: (fd.get('owner') || '').trim(),
+          plate: (fd.get('plate') || '').trim(),
+          zone: (fd.get('zone') || '').trim(),
+          contact: (fd.get('contact') || '').trim() || null,
+          status, status_color: statusColor,
+          is_vip: fd.get('is_vip') === 'on'
+        });
+        if (error) throw error;
+        closeModal(document.getElementById('modal-add-car'));
+        await loadData();
+      } catch (err) {
+        msg.textContent = err.message;
+        msg.classList.add('show');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
     });
 
     // Add Event
     el('form-add-event').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const btn = e.target.querySelector('button[type="submit"]');
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;"></span>';
+
       const fd = new FormData(e.target);
       const status = fd.get('status') || 'Planificat';
       const statusColor = EVENT_STATUS_OPTIONS.find(o => o.label === status)?.color || '#10B981';
       const msg = el('modal-add-event-msg');
       msg.classList.remove('show');
       const days = fd.get('days_left');
-      const { error } = await supa.from('events').insert({
-        title: fd.get('title').trim(),
-        subtitle: (fd.get('subtitle') || '').trim() || null,
-        date: fd.get('date').trim(),
-        location: (fd.get('location') || '').trim() || null,
-        status, status_color: statusColor,
-        days_left: days ? parseInt(days, 10) : null
-      });
-      if (error) { msg.textContent = error.message; msg.classList.add('show'); return; }
-      closeModal(document.getElementById('modal-add-event'));
-      await loadData();
+
+      try {
+        const { error } = await supa.from('events').insert({
+          title: fd.get('title').trim(),
+          subtitle: (fd.get('subtitle') || '').trim() || null,
+          date: fd.get('date').trim(),
+          location: (fd.get('location') || '').trim() || null,
+          status, status_color: statusColor,
+          days_left: days ? parseInt(days, 10) : null
+        });
+        if (error) throw error;
+        closeModal(document.getElementById('modal-add-event'));
+        await loadData();
+      } catch (err) {
+        msg.textContent = err.message;
+        msg.classList.add('show');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
     });
 
     // Add Task
     el('form-add-task').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const btn = e.target.querySelector('button[type="submit"]');
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;"></span>';
+
       const fd = new FormData(e.target);
       const status = fd.get('status') || 'În progres';
       const map = { 'Urgent': '#EF4444', 'În progres': '#F59E0B', 'Planificat': '#3B82F6', 'Finalizat': '#10B981' };
       const msg = el('modal-add-task-msg');
       msg.classList.remove('show');
-      const { error } = await supa.from('tasks').insert({
-        title: fd.get('title').trim(),
-        event: (fd.get('event') || '').trim(),
-        date: (fd.get('date') || '').trim(),
-        status,
-        status_color: map[status] || '#F59E0B',
-        is_completed: status === 'Finalizat'
-      });
-      if (error) { msg.textContent = error.message; msg.classList.add('show'); return; }
-      closeModal(document.getElementById('modal-add-task'));
-      await loadData();
+
+      try {
+        const { error } = await supa.from('tasks').insert({
+          title: fd.get('title').trim(),
+          event: (fd.get('event') || '').trim(),
+          date: (fd.get('date') || '').trim(),
+          status,
+          status_color: map[status] || '#F59E0B',
+          is_completed: status === 'Finalizat'
+        });
+        if (error) throw error;
+        closeModal(document.getElementById('modal-add-task'));
+        await loadData();
+      } catch (err) {
+        msg.textContent = err.message;
+        msg.classList.add('show');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
     });
 
     // Realtime — reload when anyone changes the tables

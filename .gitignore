@@ -16,4 +16,7 @@ local.properties
 .kotlin/
 kotlin-js-store/
 web/build/
+server.log
+server_err.log
+.env
 
