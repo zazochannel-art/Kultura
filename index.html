@@ -10,7 +10,7 @@
   <title>Kultura</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Bungee&display=swap" rel="stylesheet">
   <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
   <style>
     :root {
@@ -474,6 +474,42 @@
     .setting-row .txt strong { display: block; font-size: 14px; font-weight: 700; }
     .setting-row .txt span { color: var(--text-dim); font-size: 12px; }
 
+    /* HERO LOGO — centered at top of app */
+    .logo-hero {
+      position: relative;
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 20px 8px;
+      user-select: none;
+    }
+    .logo-word {
+      font-family: 'Bungee', 'Inter', sans-serif;
+      font-size: clamp(38px, 9vw, 64px);
+      line-height: 1;
+      color: transparent;
+      -webkit-text-stroke: 1.6px rgba(255, 255, 255, 0.92);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      display: inline-block;
+      transform: skewX(-6deg);
+      text-shadow: 0 6px 24px rgba(139, 92, 246, 0.35);
+      filter: drop-shadow(0 2px 0 rgba(255, 255, 255, 0.1));
+    }
+    .logo-underline {
+      display: block;
+      margin-top: -6px;
+      width: clamp(180px, 42vw, 320px);
+      height: auto;
+      transform: skewX(-6deg) translateX(4px);
+    }
+    @media (max-width: 500px) {
+      .logo-hero { padding: 16px 20px 4px; }
+      .logo-word { letter-spacing: 2px; -webkit-text-stroke: 1.2px rgba(255, 255, 255, 0.92); }
+    }
+
     /* LIVE SYNC BADGE */
     .live-badge {
       display: inline-flex;
@@ -920,6 +956,25 @@
 
   <!-- ============ APP VIEW ============ -->
   <div id="appView">
+    <!-- HERO LOGO — centered at top of the app -->
+    <div class="logo-hero" aria-label="Kultura">
+      <span class="logo-word">Kultura</span>
+      <svg class="logo-underline" viewBox="0 0 320 30" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#EC4899"/>
+            <stop offset="55%" stop-color="#A855F7"/>
+            <stop offset="100%" stop-color="#8B5CF6"/>
+          </linearGradient>
+        </defs>
+        <path d="M 10 22 Q 160 -4 310 20"
+              stroke="url(#logoGrad)"
+              stroke-width="10"
+              stroke-linecap="round"
+              fill="none"/>
+      </svg>
+    </div>
+
     <header class="app-header">
       <div></div> <!-- Placeholder for space -->
       <div style="display:flex;align-items:center;gap:12px;">
@@ -1296,10 +1351,9 @@
             <div class="form-field">
               <label>Status</label>
               <select name="status">
-                <option value="În progres">În progres</option>
-                <option value="Urgent">Urgent</option>
-                <option value="Planificat">Planificat</option>
-                <option value="Finalizat">Finalizat</option>
+                <option value="available">Disponibil</option>
+                <option value="in_progress">În lucru</option>
+                <option value="completed">Finisat</option>
               </select>
             </div>
           </div>
@@ -1358,6 +1412,7 @@
 
     const el = (id) => document.getElementById(id);
     let isSignUp = false;
+    let currentUser = null;
 
     // ----- AUTH UI -----
     function showMsg(kind, text) {
@@ -1411,12 +1466,12 @@
           if (data.user && !data.session) {
             showMsg('success', 'Cont creat! Verifică emailul pentru confirmare.');
           } else if (data.session) {
-            enterApp(data.session.user.email);
+            enterApp(data.session.user);
           }
         } else {
           const { data, error } = await supa.auth.signInWithPassword({ email, password });
           if (error) throw error;
-          enterApp(data.user.email);
+          enterApp(data.user);
         }
       } catch (err) {
         showMsg('error', err.message || 'A apărut o eroare');
@@ -1427,7 +1482,9 @@
     });
 
     // ----- APP SHELL -----
-    function enterApp(email) {
+    function enterApp(user) {
+      currentUser = user;
+      const email = user.email;
       el('loginView').style.display = 'none';
       el('appView').classList.add('show');
       el('greetingEmail').textContent = email;
@@ -1879,17 +1936,65 @@
         await loadData();
 
       // --- TASKS ---
-      } else if (action === 'task-status') {
-        const id = btn.dataset.taskId, label = btn.dataset.label, color = btn.dataset.color;
-        const { error } = await withSpinner(() => supa.from('tasks').update({ status: label, status_color: color, is_completed: false }).eq('id', id));
-        if (error) return alert('Eroare: ' + error.message);
-        await loadData();
-      } else if (action === 'task-toggle') {
+      } else if (action === 'task-take') {
+        if (!currentUser) return alert('Trebuie să fii autentificat.');
         const id = btn.dataset.taskId;
-        const done = btn.dataset.completed === '1';
-        const { error } = await withSpinner(() => supa.from('tasks').update({ is_completed: !done }).eq('id', id));
+        const now = new Date().toISOString();
+
+        // Verificăm dacă taskul e încă disponibil (prevenire cursă de date)
+        const { data: currentTask } = await supa.from('tasks').select('status, assigned_user_id').eq('id', id).single();
+        if (currentTask && taskStatusKey(currentTask.status) !== 'available') {
+           alert('Acest task a fost deja preluat de alt utilizator.');
+           return await loadData();
+        }
+
+        const { error } = await withSpinner(() => supa.from('tasks').update({
+          status: 'in_progress',
+          status_color: '#F59E0B',
+          assigned_user_id: currentUser.id,
+          assigned_user_name: currentUser.user_metadata?.full_name || currentUser.email,
+          assigned_user_avatar: currentUser.user_metadata?.avatar_url || null,
+          started_at: now
+        }).eq('id', id));
+
+        if (error) return alert('Eroare: ' + error.message);
+        console.log('Task preluat cu succes.');
+        await loadData();
+
+      } else if (action === 'task-complete') {
+        const id = btn.dataset.taskId;
+        if (!confirm('Ești sigur că ai finalizat acest task?')) return;
+
+        const now = new Date().toISOString();
+        const { error } = await withSpinner(() => supa.from('tasks').update({
+          status: 'completed',
+          status_color: '#10B981',
+          is_completed: true,
+          completed_at: now,
+          completed_by_user_id: currentUser.id,
+          completed_by_user_name: currentUser.user_metadata?.full_name || currentUser.email
+        }).eq('id', id));
+
+        if (error) return alert('Eroare: ' + error.message);
+        console.log('Task finalizat cu succes.');
+        await loadData();
+
+      } else if (action === 'task-release') {
+        const id = btn.dataset.taskId;
+        if (!confirm('Vrei să eliberezi acest task? Statusul va reveni la "Disponibil".')) return;
+
+        const { error } = await withSpinner(() => supa.from('tasks').update({
+          status: 'available',
+          status_color: '#3B82F6',
+          assigned_user_id: null,
+          assigned_user_name: null,
+          assigned_user_avatar: null,
+          started_at: null
+        }).eq('id', id));
+
         if (error) return alert('Eroare: ' + error.message);
         await loadData();
+
       } else if (action === 'task-delete') {
         const id = btn.dataset.taskId, label = btn.dataset.taskLabel || 'taskul';
         if (!confirm(`Șterge "${label}"?\nAcțiune ireversibilă.`)) return;
@@ -2212,8 +2317,8 @@
       btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;"></span>';
 
       const fd = new FormData(e.target);
-      const status = fd.get('status') || 'În progres';
-      const map = { 'Urgent': '#EF4444', 'În progres': '#F59E0B', 'Planificat': '#3B82F6', 'Finalizat': '#10B981' };
+      const status = fd.get('status') || 'available';
+      const map = { 'available': '#3B82F6', 'in_progress': '#F59E0B', 'completed': '#10B981' };
       const msg = el('modal-add-task-msg');
       msg.classList.remove('show');
 
@@ -2223,8 +2328,8 @@
           event: (fd.get('event') || '').trim(),
           date: (fd.get('date') || '').trim(),
           status,
-          status_color: map[status] || '#F59E0B',
-          is_completed: status === 'Finalizat'
+          status_color: map[status] || '#3B82F6',
+          is_completed: status === 'completed'
         });
         if (error) throw error;
         closeModal(document.getElementById('modal-add-task'));
@@ -2246,27 +2351,26 @@
       .subscribe();
 
     const TASK_STATUS_OPTIONS = [
-      { key: 'urgent',    label: 'Urgent',      color: '#EF4444' },
-      { key: 'progres',   label: 'În progres',  color: '#F59E0B' },
-      { key: 'planificat',label: 'Planificat',  color: '#3B82F6' }
+      { key: 'available',   label: 'Disponibil',  color: '#3B82F6' },
+      { key: 'in_progress', label: 'În lucru',    color: '#F59E0B' },
+      { key: 'completed',   label: 'Finisat',     color: '#10B981' }
     ];
     function taskStatusKey(status) {
       const s = (status || '').toLowerCase();
-      if (s.includes('urgent')) return 'urgent';
-      if (s.includes('progres')) return 'progres';
-      if (s.includes('planificat')) return 'planificat';
-      if (s.includes('finalizat')) return 'finalizat';
-      return null;
+      if (s === 'available' || s.includes('disponibil') || s.includes('nou')) return 'available';
+      if (s === 'in_progress' || s.includes('lucru')) return 'in_progress';
+      if (s === 'completed' || s.includes('finisat') || s.includes('finalizat')) return 'completed';
+      return 'available';
     }
 
     function filterTasks() {
       const q = state.tasksSearch.toLowerCase();
       return state.tasks.filter(t => {
-        if (state.tasksFilter === 'done' && !t.is_completed) return false;
-        if (state.tasksFilter === 'open' && t.is_completed) return false;
+        const sk = taskStatusKey(t.status);
+        if (state.tasksFilter === 'done' && sk !== 'completed') return false;
+        if (state.tasksFilter === 'open' && sk === 'completed') return false;
         if (state.tasksFilter !== 'all' && state.tasksFilter !== 'done' && state.tasksFilter !== 'open') {
-          if (t.is_completed) return false;
-          if (taskStatusKey(t.status) !== state.tasksFilter) return false;
+          if (sk !== state.tasksFilter) return false;
         }
         if (!q) return true;
         return (t.title || '').toLowerCase().includes(q) ||
@@ -2276,17 +2380,18 @@
 
     function renderTasksChips() {
       const total = state.tasks.length;
-      const open = state.tasks.filter(t => !t.is_completed).length;
-      const done = state.tasks.filter(t => t.is_completed).length;
-      const counts = { all: total, open, done };
+      const counts = { all: total };
+      counts.open = state.tasks.filter(t => taskStatusKey(t.status) !== 'completed').length;
+      counts.done = state.tasks.filter(t => taskStatusKey(t.status) === 'completed').length;
+
       TASK_STATUS_OPTIONS.forEach(o => {
-        counts[o.key] = state.tasks.filter(t => !t.is_completed && taskStatusKey(t.status) === o.key).length;
+        counts[o.key] = state.tasks.filter(t => taskStatusKey(t.status) === o.key).length;
       });
+
       const chips = [
         { key: 'all',  label: 'Toate' },
         { key: 'open', label: 'Deschise' },
         ...TASK_STATUS_OPTIONS,
-        { key: 'done', label: 'Finalizate' }
       ];
       el('tasksChips').innerHTML = chips.map(chip => `
         <button class="chip ${state.tasksFilter === chip.key ? 'active' : ''}" data-tasks-filter="${chip.key}">
@@ -2303,33 +2408,70 @@
       if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Nimic găsit') + '</div>';
       c.innerHTML = '<div class="card"><div id="tasksInner"></div></div>';
       el('tasksInner').innerHTML = list.map(t => {
-        const active = taskStatusKey(t.status);
-        const buttons = TASK_STATUS_OPTIONS.map(opt => `
-          <button class="action-btn ${!t.is_completed && active === opt.key ? 'active-' + opt.key : ''}"
-                  data-action="task-status"
-                  data-task-id="${t.id}"
-                  data-label="${escape(opt.label)}"
-                  data-color="${opt.color}">${escape(opt.label)}</button>
-        `).join('');
+        const sk = taskStatusKey(t.status);
+        const isAssignedToMe = currentUser && t.assigned_user_id === currentUser.id;
+        const isAdmin = currentUser && currentUser.email.includes('admin'); // Simple admin check
+
+        let actionButtons = '';
+        let assignmentInfo = '';
+
+        if (sk === 'available') {
+          actionButtons = `
+            <button class="action-btn active-curand" data-action="task-take" data-task-id="${t.id}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
+              Iau în lucru
+            </button>
+          `;
+        } else if (sk === 'in_progress') {
+          assignmentInfo = `
+            <div class="assign-info">
+              <div class="user">
+                ${t.assigned_user_avatar ? `<img src="${t.assigned_user_avatar}" class="mini-avatar">` : `<div class="mini-avatar-placeholder">${(t.assigned_user_name || '?')[0].toUpperCase()}</div>`}
+                <span>Preluat de: <strong>${escape(t.assigned_user_name)}</strong></span>
+              </div>
+              <div class="time">Preluat la: ${formatDate(t.started_at)}</div>
+            </div>
+          `;
+          if (isAssignedToMe || isAdmin) {
+            actionButtons += `
+              <button class="action-btn active-sosit" data-action="task-complete" data-task-id="${t.id}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Finisat
+              </button>
+            `;
+          }
+          if (isAdmin) {
+             actionButtons += `
+              <button class="action-btn ghost" data-action="task-release" data-task-id="${t.id}">
+                Eliberează
+              </button>
+             `;
+          }
+        } else if (sk === 'completed') {
+           assignmentInfo = `
+            <div class="assign-info completed">
+              <div class="user">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;color:var(--green)"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                <span>Finalizat de: <strong>${escape(t.completed_by_user_name || t.assigned_user_name)}</strong></span>
+              </div>
+              <div class="time">Finalizat la: ${formatDate(t.completed_at)}</div>
+            </div>
+          `;
+        }
+
         return `
           <div class="row task-row">
-            <div class="row-icon ${t.is_completed ? 'green' : statusToBadge(t.status) === 'red' ? 'red' : 'orange'}">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${t.is_completed ? '<polyline points="20 6 9 17 4 12"/>' : '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'}</svg>
+            <div class="row-icon ${sk === 'completed' ? 'green' : sk === 'in_progress' ? 'orange' : 'blue'}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${sk === 'completed' ? '<polyline points="20 6 9 17 4 12"/>' : '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'}</svg>
             </div>
             <div class="row-body">
-              <div class="row-title" style="${t.is_completed ? 'text-decoration:line-through;color:var(--text-dim);' : ''}">${escape(t.title)}</div>
+              <div class="row-title" style="${sk === 'completed' ? 'text-decoration:line-through;color:var(--text-dim);' : ''}">${escape(t.title)}</div>
               <div class="row-sub">${escape(t.event || '')}${t.date ? '<span class="sep"></span>' + escape(t.date) : ''}</div>
+              ${assignmentInfo}
             </div>
-            <div class="badge ${t.is_completed ? 'green' : statusToBadge(t.status)}">${t.is_completed ? 'Finalizat' : escape(t.status || '—')}</div>
+            <div class="badge ${statusToBadge(t.status)}">${sk === 'completed' ? 'Finisat' : sk === 'in_progress' ? 'În lucru' : 'Disponibil'}</div>
             <div class="task-actions">
-              ${buttons}
-              <button class="action-btn ${t.is_completed ? 'active-planificat' : ''}"
-                      data-action="task-toggle" data-task-id="${t.id}" data-completed="${t.is_completed ? '1' : '0'}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                  ${t.is_completed ? '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>' : '<polyline points="20 6 9 17 4 12"/>'}
-                </svg>
-                ${t.is_completed ? 'Redeschide' : 'Finalizează'}
-              </button>
+              ${actionButtons}
               <button class="action-btn delete" data-action="task-delete" data-task-id="${t.id}" data-task-label="${escape(t.title)}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
                 Șterge
@@ -2349,16 +2491,21 @@
     function escape(str) {
       return String(str ?? '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
     }
+    function formatDate(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      return d.toLocaleDateString('ro-RO', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+    }
 
     // ----- SESSION BOOTSTRAP -----
     (async () => {
       const { data: { session } } = await supa.auth.getSession();
-      if (session?.user?.email) enterApp(session.user.email);
+      if (session?.user) enterApp(session.user);
     })();
 
     supa.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') leaveApp();
-      else if (event === 'SIGNED_IN' && session?.user?.email) enterApp(session.user.email);
+      else if (event === 'SIGNED_IN' && session?.user) enterApp(session.user);
     });
   </script>
 </body>
