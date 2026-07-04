@@ -473,6 +473,216 @@
     /* MOBILE BOTTOM TABS (ExpandableTabs) */
     .mobile-tabs { display: none; }
 
+    /* SECTION TOOLBAR */
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .search {
+      flex: 1;
+      min-width: 200px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      transition: border-color 0.15s;
+    }
+    .search:focus-within { border-color: var(--blue); }
+    .search svg { width: 16px; height: 16px; color: var(--text-mute); }
+    .search input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+    }
+    .search input::placeholder { color: var(--text-mute); }
+    .add-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 16px;
+      background: linear-gradient(90deg, var(--blue), var(--purple));
+      border: none;
+      border-radius: 14px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
+      transition: transform 0.15s;
+    }
+    .add-btn:hover { transform: translateY(-1px); }
+    .add-btn svg { width: 16px; height: 16px; }
+
+    .chips {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      margin-bottom: 16px;
+      scrollbar-width: none;
+    }
+    .chips::-webkit-scrollbar { display: none; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 100px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .chip:hover { color: var(--text); }
+    .chip.active {
+      background: linear-gradient(90deg, var(--blue), var(--purple));
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+    }
+    .chip .count { opacity: 0.75; }
+
+    /* TASK ACTIONS */
+    .task-row { flex-wrap: wrap; }
+    .task-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      width: 100%;
+      margin-top: 8px;
+      margin-left: 52px;
+    }
+
+    /* EVENT ACTIONS */
+    .event-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    /* MODAL */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+    .modal-backdrop.show {
+      display: flex;
+      animation: fadeIn 0.2s ease;
+    }
+    .modal {
+      background: linear-gradient(160deg, rgba(26,31,53,0.95), rgba(14,17,32,0.90));
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 28px;
+      max-width: 480px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+    }
+    .modal h2 {
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      margin-bottom: 6px;
+    }
+    .modal p.sub-help {
+      color: var(--text-dim);
+      font-size: 13px;
+      margin-bottom: 22px;
+    }
+    .form-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .form-field label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-mute);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .form-field input,
+    .form-field textarea,
+    .form-field select {
+      padding: 12px 14px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-field input:focus,
+    .form-field textarea:focus,
+    .form-field select:focus {
+      border-color: var(--blue);
+    }
+    .form-check {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 14px;
+      cursor: pointer;
+    }
+    .form-check input { width: 18px; height: 18px; accent-color: var(--purple); cursor: pointer; }
+    .form-check span { font-size: 13px; font-weight: 600; }
+    .form-row {
+      display: flex;
+      gap: 10px;
+    }
+    .form-row .form-field { flex: 1; }
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+    .modal-msg {
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      margin-bottom: 14px;
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.35);
+      color: var(--text);
+      display: none;
+    }
+    .modal-msg.show { display: block; }
+
     /* CAR ACTIONS */
     .car-row { flex-wrap: wrap; }
     .car-actions {
@@ -664,17 +874,7 @@
         </div>
         <div class="brand-name">Kultura</div>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;">
-        <button class="btn ghost small" id="openAppBtn" title="Deschide aplicația Android">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
-            <polyline points="10 17 15 12 10 7"></polyline>
-            <line x1="15" y1="12" x2="3" y2="12"></line>
-          </svg>
-          <span>Deschide app</span>
-        </button>
-        <div class="avatar" id="avatarBadge">?</div>
-      </div>
+      <div class="avatar" id="avatarBadge">?</div>
     </header>
 
     <nav class="tabs">
@@ -814,8 +1014,19 @@
       <!-- EVENTS -->
       <section class="section" id="section-events">
         <div class="section-title">
-          <div><h2>Evenimente</h2><p>Toate festivalurile din baza de date</p></div>
+          <div><h2>Evenimente</h2><p><span id="eventsCount">0</span> total</p></div>
         </div>
+        <div class="toolbar">
+          <div class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="search" id="eventsSearch" placeholder="Caută eveniment...">
+          </div>
+          <button class="add-btn" data-modal="add-event">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Adaugă
+          </button>
+        </div>
+        <div class="chips" id="eventsChips"></div>
         <div id="eventsList"></div>
       </section>
 
@@ -824,6 +1035,17 @@
         <div class="section-title">
           <div><h2>Mașini invitate</h2><p><span id="carsCount">0</span> mașini în total</p></div>
         </div>
+        <div class="toolbar">
+          <div class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="search" id="carsSearch" placeholder="Caută model, proprietar, plăcuță...">
+          </div>
+          <button class="add-btn" data-modal="add-car">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Adaugă
+          </button>
+        </div>
+        <div class="chips" id="carsChips"></div>
         <div id="carsList"></div>
       </section>
 
@@ -832,6 +1054,17 @@
         <div class="section-title">
           <div><h2>Taskuri</h2><p><span id="tasksCount">0</span> total</p></div>
         </div>
+        <div class="toolbar">
+          <div class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="search" id="tasksSearch" placeholder="Caută task...">
+          </div>
+          <button class="add-btn" data-modal="add-task">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Adaugă
+          </button>
+        </div>
+        <div class="chips" id="tasksChips"></div>
         <div id="tasksList"></div>
       </section>
 
@@ -851,20 +1084,6 @@
         </div>
 
         <div class="setting-block">
-          <div class="setting-label">APLICAȚIE ANDROID</div>
-          <div class="setting-row">
-            <div class="icon-box">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-            </div>
-            <div class="txt">
-              <strong>Deschide aplicația mobilă</strong>
-              <span>Continuă în app-ul nativ Kultura</span>
-            </div>
-            <button class="btn small" id="openAppBtn2">Deschide</button>
-          </div>
-        </div>
-
-        <div class="setting-block">
           <div class="setting-label">SESIUNE</div>
           <div class="setting-row">
             <div class="icon-box red">
@@ -879,6 +1098,143 @@
         </div>
       </section>
     </main>
+
+    <!-- MODAL: Add Car -->
+    <div class="modal-backdrop" id="modal-add-car" data-modal-name="add-car">
+      <div class="modal">
+        <h2>Adaugă mașină</h2>
+        <p class="sub-help">Completează detaliile mașinii invitate.</p>
+        <div class="modal-msg" id="modal-add-car-msg"></div>
+        <form id="form-add-car">
+          <div class="form-field">
+            <label>Model *</label>
+            <input type="text" name="model" required placeholder="ex: BMW M4 Competition">
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label>Proprietar</label>
+              <input type="text" name="owner" placeholder="Nume">
+            </div>
+            <div class="form-field">
+              <label>Plăcuță</label>
+              <input type="text" name="plate" placeholder="B 100 XYZ">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label>Zonă</label>
+              <input type="text" name="zone" placeholder="ex: VIP Zone A">
+            </div>
+            <div class="form-field">
+              <label>Contact</label>
+              <input type="text" name="contact" placeholder="+40...">
+            </div>
+          </div>
+          <div class="form-field">
+            <label>Status inițial</label>
+            <select name="status">
+              <option value="Invitat">Invitat</option>
+              <option value="Sosit">Sosit</option>
+              <option value="Plecat">Plecat</option>
+              <option value="În așteptare">În așteptare</option>
+            </select>
+          </div>
+          <label class="form-check">
+            <input type="checkbox" name="is_vip">
+            <span>Marchează ca VIP</span>
+          </label>
+          <div class="modal-actions">
+            <button type="button" class="btn ghost" data-close>Anulează</button>
+            <button type="submit" class="btn">Salvează</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: Add Event -->
+    <div class="modal-backdrop" id="modal-add-event" data-modal-name="add-event">
+      <div class="modal">
+        <h2>Adaugă eveniment</h2>
+        <p class="sub-help">Detaliile festivalului/expoziției.</p>
+        <div class="modal-msg" id="modal-add-event-msg"></div>
+        <form id="form-add-event">
+          <div class="form-field">
+            <label>Titlu *</label>
+            <input type="text" name="title" required placeholder="ex: KULTURA Auto Festival">
+          </div>
+          <div class="form-field">
+            <label>Subtitlu</label>
+            <input type="text" name="subtitle" placeholder="Descriere scurtă">
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label>Dată *</label>
+              <input type="text" name="date" required placeholder="ex: 29 - 30 Iunie 2025">
+            </div>
+            <div class="form-field">
+              <label>Zile rămase</label>
+              <input type="number" name="days_left" placeholder="12" min="0">
+            </div>
+          </div>
+          <div class="form-field">
+            <label>Locație</label>
+            <input type="text" name="location" placeholder="Romexpo, București">
+          </div>
+          <div class="form-field">
+            <label>Status</label>
+            <select name="status">
+              <option value="Planificat">Planificat</option>
+              <option value="În curând">În curând</option>
+              <option value="Activ">Activ</option>
+              <option value="Finalizat">Finalizat</option>
+              <option value="Anulat">Anulat</option>
+            </select>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn ghost" data-close>Anulează</button>
+            <button type="submit" class="btn">Salvează</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: Add Task -->
+    <div class="modal-backdrop" id="modal-add-task" data-modal-name="add-task">
+      <div class="modal">
+        <h2>Adaugă task</h2>
+        <p class="sub-help">Ceva de făcut pentru echipa ta.</p>
+        <div class="modal-msg" id="modal-add-task-msg"></div>
+        <form id="form-add-task">
+          <div class="form-field">
+            <label>Titlu *</label>
+            <input type="text" name="title" required placeholder="ex: Confirmă parteneri principali">
+          </div>
+          <div class="form-field">
+            <label>Eveniment</label>
+            <input type="text" name="event" placeholder="ex: KULTURA Auto Festival">
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label>Termen</label>
+              <input type="text" name="date" placeholder="ex: 19 Iunie 2025">
+            </div>
+            <div class="form-field">
+              <label>Status</label>
+              <select name="status">
+                <option value="În progres">În progres</option>
+                <option value="Urgent">Urgent</option>
+                <option value="Planificat">Planificat</option>
+                <option value="Finalizat">Finalizat</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn ghost" data-close>Anulează</button>
+            <button type="submit" class="btn">Salvează</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 
   <script type="module">
@@ -993,11 +1349,6 @@
       t.addEventListener('click', () => selectSection(t.dataset.section));
     });
 
-    // Open Android app deep link
-    ['openAppBtn', 'openAppBtn2'].forEach(id => {
-      el(id).addEventListener('click', () => { window.location.href = 'kultura://login'; });
-    });
-
     el('logoutBtn').addEventListener('click', async () => {
       await supa.auth.signOut();
       leaveApp();
@@ -1013,19 +1364,33 @@
       return 'orange';
     }
 
+    // ----- STATE for filters / search -----
+    const state = {
+      cars: [], tasks: [], events: [],
+      carsFilter: 'all', carsSearch: '',
+      tasksFilter: 'all', tasksSearch: '',
+      eventsFilter: 'all', eventsSearch: ''
+    };
+
     async function loadData() {
       const [{ data: cars }, { data: tasks }, { data: events }] = await Promise.all([
         supa.from('cars').select('*').order('id', { ascending: false }),
         supa.from('tasks').select('*').order('id', { ascending: false }),
         supa.from('events').select('*').order('id', { ascending: false })
       ]);
-      renderStats(cars, tasks, events);
-      renderHero(events);
-      renderUpcoming(events);
-      renderTopTasks(tasks);
-      renderEvents(events);
-      renderCars(cars);
-      renderTasks(tasks);
+      state.cars = cars || [];
+      state.tasks = tasks || [];
+      state.events = events || [];
+      renderStats(state.cars, state.tasks, state.events);
+      renderHero(state.events);
+      renderUpcoming(state.events);
+      renderTopTasks(state.tasks);
+      renderEventsChips();
+      renderCarsChips();
+      renderTasksChips();
+      renderEvents();
+      renderCars();
+      renderTasks();
     }
 
     function renderStats(cars, tasks, events) {
@@ -1096,29 +1461,104 @@
       `).join('');
     }
 
-    function renderEvents(events) {
-      const list = events || [];
-      const c = el('eventsList');
-      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Niciun eveniment în baza de date') + '</div>';
-      c.innerHTML = list.map(e => `
-        <div class="card">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
-            <div style="flex:1;">
-              <div style="font-size:18px;font-weight:900;letter-spacing:-0.3px;">${escape(e.title)}</div>
-              ${e.subtitle ? `<div style="color:var(--text-dim);font-size:13px;margin-top:4px;">${escape(e.subtitle)}</div>` : ''}
-              <div style="display:flex;gap:14px;margin-top:12px;font-size:12px;color:var(--text-dim);flex-wrap:wrap;">
-                <span style="display:inline-flex;align-items:center;gap:6px;">${calendarIcon()}${escape(e.date || '—')}</span>
-                ${e.location ? `<span style="display:inline-flex;align-items:center;gap:6px;">${pinIcon()}${escape(e.location)}</span>` : ''}
-              </div>
-            </div>
-            <div style="text-align:right;">
-              <div class="badge ${statusToBadge(e.status)}">${escape(e.status || '—')}</div>
-              ${e.days_left != null ? `<div style="margin-top:10px;color:var(--text-dim);font-size:11px;">${e.days_left} zile</div>` : ''}
-            </div>
-          </div>
-        </div>
+    const EVENT_STATUS_OPTIONS = [
+      { key: 'planificat', label: 'Planificat', color: '#10B981' },
+      { key: 'curand',     label: 'În curând',  color: '#3B82F6' },
+      { key: 'activ',      label: 'Activ',      color: '#8B5CF6' },
+      { key: 'finalizat',  label: 'Finalizat',  color: '#64748B' }
+    ];
+    function eventStatusKey(status) {
+      const s = (status || '').toLowerCase();
+      if (s.includes('curând') || s.includes('curand')) return 'curand';
+      if (s.includes('activ')) return 'activ';
+      if (s.includes('finalizat')) return 'finalizat';
+      if (s.includes('planificat')) return 'planificat';
+      return null;
+    }
+
+    function filterEvents() {
+      const q = state.eventsSearch.toLowerCase();
+      return state.events.filter(e => {
+        const status = eventStatusKey(e.status);
+        if (state.eventsFilter !== 'all' && state.eventsFilter !== status) return false;
+        if (!q) return true;
+        return (e.title || '').toLowerCase().includes(q) ||
+               (e.subtitle || '').toLowerCase().includes(q) ||
+               (e.location || '').toLowerCase().includes(q);
+      });
+    }
+
+    function renderEventsChips() {
+      const c = el('eventsChips');
+      const total = state.events.length;
+      const counts = { all: total };
+      EVENT_STATUS_OPTIONS.forEach(o => {
+        counts[o.key] = state.events.filter(e => eventStatusKey(e.status) === o.key).length;
+      });
+      const chips = [{ key: 'all', label: 'Toate' }, ...EVENT_STATUS_OPTIONS];
+      c.innerHTML = chips.map(chip => `
+        <button class="chip ${state.eventsFilter === chip.key ? 'active' : ''}"
+                data-events-filter="${chip.key}">
+          ${escape(chip.label)}
+          <span class="count">· ${counts[chip.key] || 0}</span>
+        </button>
       `).join('');
     }
+
+    function renderEvents() {
+      el('eventsCount').textContent = state.events.length;
+      const list = filterEvents();
+      const c = el('eventsList');
+      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Nimic găsit') + '</div>';
+      c.innerHTML = list.map(e => {
+        const active = eventStatusKey(e.status);
+        const buttons = EVENT_STATUS_OPTIONS.map(opt => `
+          <button class="action-btn ${active === opt.key ? 'active-' + opt.key : ''}"
+                  data-action="event-status"
+                  data-event-id="${e.id}"
+                  data-label="${escape(opt.label)}"
+                  data-color="${opt.color}">${escape(opt.label)}</button>
+        `).join('');
+        return `
+          <div class="card">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+              <div style="flex:1;">
+                <div style="font-size:18px;font-weight:900;letter-spacing:-0.3px;">${escape(e.title)}</div>
+                ${e.subtitle ? `<div style="color:var(--text-dim);font-size:13px;margin-top:4px;">${escape(e.subtitle)}</div>` : ''}
+                <div style="display:flex;gap:14px;margin-top:12px;font-size:12px;color:var(--text-dim);flex-wrap:wrap;">
+                  <span style="display:inline-flex;align-items:center;gap:6px;">${calendarIcon()}${escape(e.date || '—')}</span>
+                  ${e.location ? `<span style="display:inline-flex;align-items:center;gap:6px;">${pinIcon()}${escape(e.location)}</span>` : ''}
+                </div>
+              </div>
+              <div style="text-align:right;">
+                <div class="badge ${statusToBadge(e.status)}">${escape(e.status || '—')}</div>
+                ${e.days_left != null ? `<div style="margin-top:10px;color:var(--text-dim);font-size:11px;">${e.days_left} zile</div>` : ''}
+              </div>
+            </div>
+            <div class="event-actions">
+              ${buttons}
+              <button class="action-btn delete" data-action="event-delete" data-event-id="${e.id}" data-event-label="${escape(e.title)}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                Șterge
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+    // Add CSS entries for event status colors dynamically (uses same var pattern)
+    (function addEventColors() {
+      const style = document.createElement('style');
+      style.textContent = `
+        .action-btn.active-planificat { color: var(--green); border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.12); }
+        .action-btn.active-curand { color: var(--blue); border-color: rgba(59,130,246,0.4); background: rgba(59,130,246,0.12); }
+        .action-btn.active-activ { color: var(--purple); border-color: rgba(139,92,246,0.4); background: rgba(139,92,246,0.12); }
+        .action-btn.active-finalizat { color: var(--text-dim); border-color: rgba(148,163,184,0.4); background: rgba(148,163,184,0.12); }
+        .action-btn.active-urgent { color: var(--red); border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.12); }
+        .action-btn.active-progres { color: var(--orange); border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.12); }
+      `;
+      document.head.appendChild(style);
+    })();
 
     const CAR_STATUS_OPTIONS = [
       { key: 'invitat', label: 'Invitat', color: '#3B82F6' },
@@ -1133,11 +1573,48 @@
       return null;
     }
 
-    function renderCars(cars) {
-      const list = cars || [];
-      el('carsCount').textContent = list.length;
+    function filterCars() {
+      const q = state.carsSearch.toLowerCase();
+      return state.cars.filter(car => {
+        if (state.carsFilter === 'vip' && !car.is_vip) return false;
+        if (state.carsFilter !== 'all' && state.carsFilter !== 'vip') {
+          if (statusKey(car.status) !== state.carsFilter) return false;
+        }
+        if (!q) return true;
+        return (car.model || '').toLowerCase().includes(q) ||
+               (car.owner || '').toLowerCase().includes(q) ||
+               (car.plate || '').toLowerCase().includes(q) ||
+               (car.zone || '').toLowerCase().includes(q);
+      });
+    }
+
+    function renderCarsChips() {
+      const total = state.cars.length;
+      const counts = {
+        all: total,
+        vip: state.cars.filter(c => c.is_vip).length
+      };
+      CAR_STATUS_OPTIONS.forEach(o => {
+        counts[o.key] = state.cars.filter(c => statusKey(c.status) === o.key).length;
+      });
+      const chips = [
+        { key: 'all', label: 'Toate' },
+        ...CAR_STATUS_OPTIONS,
+        { key: 'vip', label: 'VIP' }
+      ];
+      el('carsChips').innerHTML = chips.map(chip => `
+        <button class="chip ${state.carsFilter === chip.key ? 'active' : ''}" data-cars-filter="${chip.key}">
+          ${escape(chip.label)}
+          <span class="count">· ${counts[chip.key] || 0}</span>
+        </button>
+      `).join('');
+    }
+
+    function renderCars() {
+      el('carsCount').textContent = state.cars.length;
+      const list = filterCars();
       const c = el('carsList');
-      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Nicio mașină înscrisă') + '</div>';
+      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Nimic găsit') + '</div>';
       c.innerHTML = '<div class="card"><div id="carsInner"></div></div>';
       el('carsInner').innerHTML = list.map(car => {
         const active = statusKey(car.status);
@@ -1172,62 +1649,276 @@
       }).join('');
     }
 
-    // Delegate clicks for car status/delete
+    // Delegate clicks — cars/tasks/events actions
     document.addEventListener('click', async (ev) => {
-      const btn = ev.target.closest('.action-btn[data-car-id]');
+      const btn = ev.target.closest('.action-btn');
       if (!btn || btn.classList.contains('loading')) return;
-      const carId = btn.dataset.carId;
       const action = btn.dataset.action;
 
-      if (action === 'delete') {
-        const label = btn.dataset.carLabel || 'mașina';
-        if (!confirm(`Șterge "${label}"?\nAcțiune ireversibilă.`)) return;
+      const withSpinner = async (fn) => {
+        const row = btn.closest('.car-row, .task-row, .card');
+        row?.querySelectorAll('.action-btn').forEach(b => b.disabled = true);
         btn.classList.add('loading');
+        const old = btn.innerHTML;
         btn.innerHTML = '<span class="mini-spin"></span>';
-        const { error } = await supa.from('cars').delete().eq('id', carId);
-        if (error) { alert('Eroare la ștergere: ' + error.message); btn.classList.remove('loading'); }
-        await loadData();
-        return;
-      }
+        try { return await fn(); }
+        finally {
+          btn.classList.remove('loading');
+          btn.innerHTML = old;
+          row?.querySelectorAll('.action-btn').forEach(b => b.disabled = false);
+        }
+      };
 
+      // --- CARS ---
       if (action === 'status') {
-        const label = btn.dataset.label;
-        const color = btn.dataset.color;
-        // Mark other buttons in the same row as inactive visually while saving
-        const row = btn.closest('.car-row');
-        row.querySelectorAll('.action-btn').forEach(b => b.disabled = true);
-        btn.classList.add('loading');
-        const oldText = btn.innerHTML;
-        btn.innerHTML = '<span class="mini-spin"></span>';
-        const { error } = await supa.from('cars')
-          .update({ status: label, status_color: color })
-          .eq('id', carId);
-        btn.classList.remove('loading');
-        btn.innerHTML = oldText;
-        row.querySelectorAll('.action-btn').forEach(b => b.disabled = false);
-        if (error) { alert('Eroare la update: ' + error.message); return; }
+        const id = btn.dataset.carId, label = btn.dataset.label, color = btn.dataset.color;
+        const { error } = await withSpinner(() => supa.from('cars').update({ status: label, status_color: color }).eq('id', id));
+        if (error) return alert('Eroare: ' + error.message);
+        await loadData();
+      } else if (action === 'delete') {
+        const id = btn.dataset.carId, label = btn.dataset.carLabel || 'mașina';
+        if (!confirm(`Șterge "${label}"?\nAcțiune ireversibilă.`)) return;
+        const { error } = await withSpinner(() => supa.from('cars').delete().eq('id', id));
+        if (error) return alert('Eroare: ' + error.message);
+        await loadData();
+
+      // --- TASKS ---
+      } else if (action === 'task-status') {
+        const id = btn.dataset.taskId, label = btn.dataset.label, color = btn.dataset.color;
+        const { error } = await withSpinner(() => supa.from('tasks').update({ status: label, status_color: color, is_completed: false }).eq('id', id));
+        if (error) return alert('Eroare: ' + error.message);
+        await loadData();
+      } else if (action === 'task-toggle') {
+        const id = btn.dataset.taskId;
+        const done = btn.dataset.completed === '1';
+        const { error } = await withSpinner(() => supa.from('tasks').update({ is_completed: !done }).eq('id', id));
+        if (error) return alert('Eroare: ' + error.message);
+        await loadData();
+      } else if (action === 'task-delete') {
+        const id = btn.dataset.taskId, label = btn.dataset.taskLabel || 'taskul';
+        if (!confirm(`Șterge "${label}"?\nAcțiune ireversibilă.`)) return;
+        const { error } = await withSpinner(() => supa.from('tasks').delete().eq('id', id));
+        if (error) return alert('Eroare: ' + error.message);
+        await loadData();
+
+      // --- EVENTS ---
+      } else if (action === 'event-status') {
+        const id = btn.dataset.eventId, label = btn.dataset.label, color = btn.dataset.color;
+        const { error } = await withSpinner(() => supa.from('events').update({ status: label, status_color: color }).eq('id', id));
+        if (error) return alert('Eroare: ' + error.message);
+        await loadData();
+      } else if (action === 'event-delete') {
+        const id = btn.dataset.eventId, label = btn.dataset.eventLabel || 'evenimentul';
+        if (!confirm(`Șterge "${label}"?\nAcțiune ireversibilă.`)) return;
+        const { error } = await withSpinner(() => supa.from('events').delete().eq('id', id));
+        if (error) return alert('Eroare: ' + error.message);
         await loadData();
       }
     });
 
-    function renderTasks(tasks) {
-      const list = tasks || [];
-      el('tasksCount').textContent = list.length;
-      const c = el('tasksList');
-      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Niciun task') + '</div>';
-      c.innerHTML = '<div class="card"><div id="tasksInner"></div></div>';
-      el('tasksInner').innerHTML = list.map(t => `
-        <div class="row">
-          <div class="row-icon ${t.is_completed ? 'green' : statusToBadge(t.status) === 'red' ? 'red' : 'orange'}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${t.is_completed ? '<polyline points="20 6 9 17 4 12"/>' : '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'}</svg>
-          </div>
-          <div class="row-body">
-            <div class="row-title" style="${t.is_completed ? 'text-decoration:line-through;color:var(--text-dim);' : ''}">${escape(t.title)}</div>
-            <div class="row-sub">${escape(t.event || '')}${t.date ? '<span class="sep"></span>' + escape(t.date) : ''}</div>
-          </div>
-          <div class="badge ${t.is_completed ? 'green' : statusToBadge(t.status)}">${t.is_completed ? 'Finalizat' : escape(t.status || '—')}</div>
-        </div>
+    // Chips filter — cars/tasks/events
+    document.addEventListener('click', (ev) => {
+      const cc = ev.target.closest('[data-cars-filter]');
+      if (cc) { state.carsFilter = cc.dataset.carsFilter; renderCarsChips(); renderCars(); return; }
+      const tc = ev.target.closest('[data-tasks-filter]');
+      if (tc) { state.tasksFilter = tc.dataset.tasksFilter; renderTasksChips(); renderTasks(); return; }
+      const ec = ev.target.closest('[data-events-filter]');
+      if (ec) { state.eventsFilter = ec.dataset.eventsFilter; renderEventsChips(); renderEvents(); return; }
+    });
+
+    // Search inputs
+    ['cars', 'tasks', 'events'].forEach(k => {
+      el(k + 'Search').addEventListener('input', (e) => {
+        state[k + 'Search'] = e.target.value;
+        ({ cars: renderCars, tasks: renderTasks, events: renderEvents }[k])();
+      });
+    });
+
+    // Modal open/close
+    function openModal(name) {
+      const m = document.getElementById('modal-' + name);
+      if (m) m.classList.add('show');
+    }
+    function closeModal(m) {
+      m.classList.remove('show');
+      const form = m.querySelector('form');
+      if (form) form.reset();
+      const msg = m.querySelector('.modal-msg');
+      if (msg) msg.classList.remove('show');
+    }
+    document.addEventListener('click', (ev) => {
+      const opener = ev.target.closest('[data-modal]');
+      if (opener) { openModal(opener.dataset.modal); return; }
+      if (ev.target.matches('.modal-backdrop')) { closeModal(ev.target); return; }
+      const closeBtn = ev.target.closest('[data-close]');
+      if (closeBtn) { closeModal(closeBtn.closest('.modal-backdrop')); return; }
+    });
+
+    // Add Car
+    el('form-add-car').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const status = fd.get('status') || 'Invitat';
+      const statusColor = CAR_STATUS_OPTIONS.find(o => o.label === status)?.color || '#3B82F6';
+      const msg = el('modal-add-car-msg');
+      msg.classList.remove('show');
+      const { error } = await supa.from('cars').insert({
+        model: fd.get('model').trim(),
+        owner: (fd.get('owner') || '').trim(),
+        plate: (fd.get('plate') || '').trim(),
+        zone: (fd.get('zone') || '').trim(),
+        contact: (fd.get('contact') || '').trim() || null,
+        status, status_color: statusColor,
+        is_vip: fd.get('is_vip') === 'on'
+      });
+      if (error) { msg.textContent = error.message; msg.classList.add('show'); return; }
+      closeModal(document.getElementById('modal-add-car'));
+      await loadData();
+    });
+
+    // Add Event
+    el('form-add-event').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const status = fd.get('status') || 'Planificat';
+      const statusColor = EVENT_STATUS_OPTIONS.find(o => o.label === status)?.color || '#10B981';
+      const msg = el('modal-add-event-msg');
+      msg.classList.remove('show');
+      const days = fd.get('days_left');
+      const { error } = await supa.from('events').insert({
+        title: fd.get('title').trim(),
+        subtitle: (fd.get('subtitle') || '').trim() || null,
+        date: fd.get('date').trim(),
+        location: (fd.get('location') || '').trim() || null,
+        status, status_color: statusColor,
+        days_left: days ? parseInt(days, 10) : null
+      });
+      if (error) { msg.textContent = error.message; msg.classList.add('show'); return; }
+      closeModal(document.getElementById('modal-add-event'));
+      await loadData();
+    });
+
+    // Add Task
+    el('form-add-task').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const status = fd.get('status') || 'În progres';
+      const map = { 'Urgent': '#EF4444', 'În progres': '#F59E0B', 'Planificat': '#3B82F6', 'Finalizat': '#10B981' };
+      const msg = el('modal-add-task-msg');
+      msg.classList.remove('show');
+      const { error } = await supa.from('tasks').insert({
+        title: fd.get('title').trim(),
+        event: (fd.get('event') || '').trim(),
+        date: (fd.get('date') || '').trim(),
+        status,
+        status_color: map[status] || '#F59E0B',
+        is_completed: status === 'Finalizat'
+      });
+      if (error) { msg.textContent = error.message; msg.classList.add('show'); return; }
+      closeModal(document.getElementById('modal-add-task'));
+      await loadData();
+    });
+
+    // Realtime — reload when anyone changes the tables
+    supa.channel('kultura-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cars' },   () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' },  () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => loadData())
+      .subscribe();
+
+    const TASK_STATUS_OPTIONS = [
+      { key: 'urgent',    label: 'Urgent',      color: '#EF4444' },
+      { key: 'progres',   label: 'În progres',  color: '#F59E0B' },
+      { key: 'planificat',label: 'Planificat',  color: '#3B82F6' }
+    ];
+    function taskStatusKey(status) {
+      const s = (status || '').toLowerCase();
+      if (s.includes('urgent')) return 'urgent';
+      if (s.includes('progres')) return 'progres';
+      if (s.includes('planificat')) return 'planificat';
+      if (s.includes('finalizat')) return 'finalizat';
+      return null;
+    }
+
+    function filterTasks() {
+      const q = state.tasksSearch.toLowerCase();
+      return state.tasks.filter(t => {
+        if (state.tasksFilter === 'done' && !t.is_completed) return false;
+        if (state.tasksFilter === 'open' && t.is_completed) return false;
+        if (state.tasksFilter !== 'all' && state.tasksFilter !== 'done' && state.tasksFilter !== 'open') {
+          if (t.is_completed) return false;
+          if (taskStatusKey(t.status) !== state.tasksFilter) return false;
+        }
+        if (!q) return true;
+        return (t.title || '').toLowerCase().includes(q) ||
+               (t.event || '').toLowerCase().includes(q);
+      });
+    }
+
+    function renderTasksChips() {
+      const total = state.tasks.length;
+      const open = state.tasks.filter(t => !t.is_completed).length;
+      const done = state.tasks.filter(t => t.is_completed).length;
+      const counts = { all: total, open, done };
+      TASK_STATUS_OPTIONS.forEach(o => {
+        counts[o.key] = state.tasks.filter(t => !t.is_completed && taskStatusKey(t.status) === o.key).length;
+      });
+      const chips = [
+        { key: 'all',  label: 'Toate' },
+        { key: 'open', label: 'Deschise' },
+        ...TASK_STATUS_OPTIONS,
+        { key: 'done', label: 'Finalizate' }
+      ];
+      el('tasksChips').innerHTML = chips.map(chip => `
+        <button class="chip ${state.tasksFilter === chip.key ? 'active' : ''}" data-tasks-filter="${chip.key}">
+          ${escape(chip.label)}
+          <span class="count">· ${counts[chip.key] || 0}</span>
+        </button>
       `).join('');
+    }
+
+    function renderTasks() {
+      el('tasksCount').textContent = state.tasks.length;
+      const list = filterTasks();
+      const c = el('tasksList');
+      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Nimic găsit') + '</div>';
+      c.innerHTML = '<div class="card"><div id="tasksInner"></div></div>';
+      el('tasksInner').innerHTML = list.map(t => {
+        const active = taskStatusKey(t.status);
+        const buttons = TASK_STATUS_OPTIONS.map(opt => `
+          <button class="action-btn ${!t.is_completed && active === opt.key ? 'active-' + opt.key : ''}"
+                  data-action="task-status"
+                  data-task-id="${t.id}"
+                  data-label="${escape(opt.label)}"
+                  data-color="${opt.color}">${escape(opt.label)}</button>
+        `).join('');
+        return `
+          <div class="row task-row">
+            <div class="row-icon ${t.is_completed ? 'green' : statusToBadge(t.status) === 'red' ? 'red' : 'orange'}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${t.is_completed ? '<polyline points="20 6 9 17 4 12"/>' : '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'}</svg>
+            </div>
+            <div class="row-body">
+              <div class="row-title" style="${t.is_completed ? 'text-decoration:line-through;color:var(--text-dim);' : ''}">${escape(t.title)}</div>
+              <div class="row-sub">${escape(t.event || '')}${t.date ? '<span class="sep"></span>' + escape(t.date) : ''}</div>
+            </div>
+            <div class="badge ${t.is_completed ? 'green' : statusToBadge(t.status)}">${t.is_completed ? 'Finalizat' : escape(t.status || '—')}</div>
+            <div class="task-actions">
+              ${buttons}
+              <button class="action-btn ${t.is_completed ? 'active-planificat' : ''}"
+                      data-action="task-toggle" data-task-id="${t.id}" data-completed="${t.is_completed ? '1' : '0'}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                  ${t.is_completed ? '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>' : '<polyline points="20 6 9 17 4 12"/>'}
+                </svg>
+                ${t.is_completed ? 'Redeschide' : 'Finalizează'}
+              </button>
+              <button class="action-btn delete" data-action="task-delete" data-task-id="${t.id}" data-task-label="${escape(t.title)}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                Șterge
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
     }
 
     function emptyState(text) {
