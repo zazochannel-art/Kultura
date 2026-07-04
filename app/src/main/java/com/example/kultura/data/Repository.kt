@@ -2,6 +2,7 @@ package com.example.kultura.data
 
 import io.github.jan.supabase.annotations.SupabaseExperimental
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.realtime.realtime
 import io.github.jan.supabase.realtime.selectAsFlow
 import kotlinx.coroutines.flow.Flow
@@ -65,6 +66,19 @@ class SupabaseRepository {
 
     suspend fun addTask(task: Task) {
         supabase.from("tasks").insert(task)
+    }
+
+    suspend fun deleteAllCars(): Result<Unit> {
+        return try {
+            // PostgREST requires a filter on DELETE; id >= 0 matches all rows.
+            supabase.from("cars").delete {
+                filter { filter("id", FilterOperator.GTE, 0) }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
     }
 
     suspend fun addEvent(event: Event) {

@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.example.kultura.data.AiRepository
+import com.example.kultura.data.AuthRepository
 import com.example.kultura.data.SupabaseRepository
 import com.example.kultura.ui.components.*
 import com.example.kultura.ui.theme.*
@@ -284,14 +285,25 @@ fun AiImportDialog(
         uri?.let {
             scope.launch {
                 isProcessing = true
-                aiStatus = "Se citește fișierul Excel..."
+                aiStatus = "Se citește fișierul..."
                 try {
                     context.contentResolver.openInputStream(it)?.use { inputStream ->
                         val text = aiRepository.extractTextFromExcel(inputStream)
+                        if (text.isBlank()) {
+                            aiStatus = "Eroare: fișierul e gol sau nu poate fi citit ca Excel."
+                            return@use
+                        }
                         aiStatus = "AI analizează datele..."
-                        val cars = aiRepository.parseCarsFromText(text)
-                        parsedCars = cars
-                        aiStatus = if (cars.isNotEmpty()) "Am găsit ${cars.size} mașini!" else "Nu am reușit să extrag date."
+                        aiRepository.parseCarsFromText(text)
+                            .onSuccess { cars ->
+                                parsedCars = cars
+                                aiStatus = if (cars.isNotEmpty())
+                                    "Am găsit ${cars.size} mașini!"
+                                else "Nu am reușit să extrag date."
+                            }
+                            .onFailure { e ->
+                                aiStatus = "Eroare: ${e.message}"
+                            }
                     }
                 } catch (e: Exception) {
                     aiStatus = "Eroare: ${e.message}"
@@ -322,16 +334,38 @@ fun AiImportDialog(
                         color = TextSecondary,
                         fontSize = 14.sp
                     )
-                    
+
+                    if (!aiRepository.isConfigured) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Surface(
+                            color = StatusOrange.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, StatusOrange.copy(alpha = 0.4f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = StatusOrange, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Cheie Gemini lipsă. Adaug-o în local.properties: gemini.api.key=... și repornește build-ul.",
+                                    color = TextPrimary,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(24.dp))
-                    
+
                     if (parsedCars.isEmpty()) {
                         Button(
                             onClick = { excelPickerLauncher.launch("*/*") },
                             modifier = Modifier.fillMaxWidth().height(56.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
                             shape = RoundedCornerShape(14.dp),
-                            enabled = !isProcessing
+                            enabled = !isProcessing && aiRepository.isConfigured
                         ) {
                             if (isProcessing) {
                                 CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
@@ -572,6 +606,15 @@ fun SettingsScreen() {
     var emailEnabled by remember { mutableStateOf(true) }
     var darkThemeEnabled by remember { mutableStateOf(true) }
 
+    val repository = remember { SupabaseRepository() }
+    val authRepository = remember { AuthRepository() }
+    val allCars by repository.getCarsFlow().collectAsState(initial = emptyList())
+    val scope = rememberCoroutineScope()
+    var showDeleteAllDialog by remember { mutableStateOf(false) }
+    var isDeleting by remember { mutableStateOf(false) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
+    val currentEmail = authRepository.currentUserEmail ?: "—"
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -579,7 +622,7 @@ fun SettingsScreen() {
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        ProfileHeader(name = "Andrei Popescu", role = "Administrator")
+        ProfileHeader(name = currentEmail, role = "Administrator")
         
         Spacer(modifier = Modifier.height(24.dp))
         
@@ -676,19 +719,146 @@ fun SettingsScreen() {
             }
         }
         
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ZONĂ PERICULOASĂ
+        Text("ZONĂ PERICULOASĂ", color = StatusRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(8.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, StatusRed.copy(alpha = 0.3f))
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !isDeleting) { showDeleteAllDialog = true }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(modifier = Modifier.size(36.dp), shape = RoundedCornerShape(8.dp), color = StatusRed.copy(alpha = 0.15f)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.DeleteForever, contentDescription = null, tint = StatusRed, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Șterge toate mașinile", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (isDeleting) "Se șterge..."
+                            else "${allCars.size} mașini în bază · acțiune ireversibilă",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    if (isDeleting) {
+                        CircularProgressIndicator(color = StatusRed, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                    } else {
+                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = StatusRed, modifier = Modifier.size(18.dp))
+                    }
+                }
+                deleteError?.let {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Eroare: $it", color = StatusRed, fontSize = 11.sp)
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         // Logout Button
-        Surface(modifier = Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(12.dp)).background(StatusRed.copy(alpha = 0.1f)).clickable { }, color = Color.Transparent) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(12.dp))
+                .background(StatusRed.copy(alpha = 0.1f))
+                .clickable { scope.launch { authRepository.signOut() } },
+            color = Color.Transparent
+        ) {
             Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, tint = StatusRed)
                 Spacer(modifier = Modifier.width(12.dp))
                 Text("Deconectare", color = StatusRed, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
         }
-        
+
         Spacer(modifier = Modifier.height(24.dp))
     }
+
+    if (showDeleteAllDialog) {
+        DeleteAllCarsDialog(
+            carCount = allCars.size,
+            onDismiss = { showDeleteAllDialog = false },
+            onConfirm = {
+                showDeleteAllDialog = false
+                isDeleting = true
+                deleteError = null
+                scope.launch {
+                    repository.deleteAllCars()
+                        .onFailure { deleteError = it.message ?: "Ștergerea a eșuat" }
+                    isDeleting = false
+                }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DeleteAllCarsDialog(
+    carCount: Int,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.fillMaxWidth().padding(24.dp),
+        content = {
+            GlassCard(shape = RoundedCornerShape(28.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(StatusRed.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Warning, contentDescription = null, tint = StatusRed, modifier = Modifier.size(24.dp))
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Text("Ești sigur?", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Toate cele $carCount mașini din bază vor fi șterse definitiv. Această acțiune nu poate fi anulată.",
+                        color = TextSecondary,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = onDismiss) { Text("Anulează", color = TextSecondary, fontWeight = FontWeight.SemiBold) }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = onConfirm,
+                            colors = ButtonDefaults.buttonColors(containerColor = StatusRed),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Șterge tot", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    )
 }
 
 @Composable

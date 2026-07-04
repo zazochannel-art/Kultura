@@ -6,7 +6,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -19,30 +18,61 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.kultura.data.AuthRepository
 import com.example.kultura.ui.components.GlassCard
 import com.example.kultura.ui.components.MeshBackground
 import com.example.kultura.ui.theme.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit) {
+    val authRepository = remember { AuthRepository() }
+    val scope = rememberCoroutineScope()
+
+    var isSignUpMode by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var rememberMe by remember { mutableStateOf(false) }
     var showPassword by remember { mutableStateOf(false) }
-    var isFormSubmitted by remember { mutableStateOf(false) }
-    
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var successMessage by remember { mutableStateOf<String?>(null) }
+
     val isEmailValid = remember(email) {
         val re = android.util.Patterns.EMAIL_ADDRESS
         email.isEmpty() || re.matcher(email).matches()
+    }
+
+    fun submit() {
+        errorMessage = null
+        successMessage = null
+        when {
+            !isEmailValid -> { errorMessage = "Email invalid"; return }
+            email.isBlank() -> { errorMessage = "Introdu emailul"; return }
+            password.length < 6 -> { errorMessage = "Parola trebuie să aibă minim 6 caractere"; return }
+        }
+        isLoading = true
+        scope.launch {
+            val result = if (isSignUpMode) authRepository.signUp(email, password)
+            else authRepository.signIn(email, password)
+            isLoading = false
+            result.onSuccess {
+                if (isSignUpMode) {
+                    successMessage = "Cont creat! Verifică emailul pentru confirmare."
+                } else {
+                    onLoginSuccess()
+                }
+            }.onFailure { e ->
+                errorMessage = e.message?.take(200) ?: "A apărut o eroare"
+            }
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -57,7 +87,6 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             verticalArrangement = Arrangement.Center
         ) {
             GlassCard(
-                // constrain the card width on large screens so it looks good on web/desktop
                 modifier = Modifier.fillMaxWidth().widthIn(max = 480.dp),
                 shape = RoundedCornerShape(32.dp)
             ) {
@@ -66,24 +95,25 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Welcome",
+                        text = if (isSignUpMode) "Bine ai venit" else "Bun venit",
                         color = TextPrimary,
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = (-1).sp
                     )
                     Text(
-                        text = "Please sign in to continue",
+                        text = if (isSignUpMode) "Creează un cont pentru echipa ta"
+                        else "Autentifică-te pentru a continua",
                         color = TextSecondary,
                         fontSize = 14.sp,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 32.dp)
+                        modifier = Modifier.padding(top = 4.dp, bottom = 28.dp)
                     )
 
                     // Email Field
                     OutlinedTextField(
                         value = email,
-                        onValueChange = { email = it },
-                        label = { Text("Email Address") },
+                        onValueChange = { email = it; errorMessage = null },
+                        label = { Text("Email") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
                         colors = TextFieldDefaults.colors(
@@ -98,25 +128,17 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                         ),
                         isError = !isEmailValid && email.isNotEmpty(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                        singleLine = true
+                        singleLine = true,
+                        enabled = !isLoading
                     )
-                    
-                    if (!isEmailValid && email.isNotEmpty()) {
-                        Text(
-                            text = "Please enter a valid email",
-                            color = StatusRed,
-                            fontSize = 12.sp,
-                            modifier = Modifier.align(Alignment.Start).padding(start = 8.dp, top = 4.dp)
-                        )
-                    }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // Password Field
                     OutlinedTextField(
                         value = password,
-                        onValueChange = { password = it },
-                        label = { Text("Password") },
+                        onValueChange = { password = it; errorMessage = null },
+                        label = { Text("Parolă") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
                         visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
@@ -139,111 +161,82 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                             focusedTextColor = TextPrimary,
                             unfocusedTextColor = TextPrimary
                         ),
-                        singleLine = true
+                        singleLine = true,
+                        enabled = !isLoading
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(
-                                checked = rememberMe,
-                                onCheckedChange = { rememberMe = it },
-                                colors = CheckboxDefaults.colors(
-                                    checkedColor = PrimaryBlue,
-                                    uncheckedColor = TextSecondary
-                                )
-                            )
-                            Text("Remember me", color = TextSecondary, fontSize = 13.sp)
+                    // Error / Success
+                    errorMessage?.let {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                                .background(StatusRed.copy(alpha = 0.12f)).padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = StatusRed, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(it, color = StatusRed, fontSize = 12.sp)
                         }
-                        Text(
-                            "Forgot Password?",
-                            color = PrimaryBlue,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clickable { }
-                        )
+                    }
+                    successMessage?.let {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                                .background(StatusGreen.copy(alpha = 0.12f)).padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = StatusGreen, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(it, color = StatusGreen, fontSize = 12.sp)
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(32.dp))
-
-                    // Demo Credentials Hint
-                    Text(
-                        text = "Demo: admin@kultura.ro / password",
-                        color = PrimaryBlue.copy(alpha = 0.7f),
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                    Spacer(modifier = Modifier.height(24.dp))
 
                     Button(
-                        onClick = {
-                            isFormSubmitted = true
-                            if (email == "admin@kultura.ro" && password == "password") {
-                                onLoginSuccess()
-                            } else if (email.isNotEmpty() && password.isNotEmpty() && isEmailValid) {
-                                // For now allow any valid-ish combo if not matching demo exactly, 
-                                // but ideally we only allow demo here.
-                                onLoginSuccess()
-                            }
-                        },
+                        onClick = { submit() },
+                        enabled = !isLoading,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp)
                             .clip(RoundedCornerShape(16.dp))
                             .background(Brush.horizontalGradient(listOf(PrimaryBlue, AccentBlue))),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, disabledContainerColor = Color.Transparent),
                         shape = RoundedCornerShape(16.dp)
                     ) {
-                        Text("Sign In", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                        if (isLoading) {
+                            CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                        } else {
+                            Text(
+                                if (isSignUpMode) "Creează cont" else "Autentifică-te",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        HorizontalDivider(modifier = Modifier.weight(1f), color = DividerColor)
-                        Text("or continue with", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp))
-                        HorizontalDivider(modifier = Modifier.weight(1f), color = DividerColor)
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        SocialButton(icon = Icons.Default.Public, modifier = Modifier.weight(1f)) // Placeholder for GitHub
-                        SocialButton(icon = Icons.Default.Share, modifier = Modifier.weight(1f)) // Placeholder for Twitter
-                        SocialButton(icon = Icons.Default.Work, modifier = Modifier.weight(1f)) // Placeholder for Linkedin
-                    }
-
-                    Spacer(modifier = Modifier.height(32.dp))
-
-                    Row {
-                        Text("Don't have an account? ", color = TextSecondary, fontSize = 14.sp)
-                        Text("Sign up", color = PrimaryBlue, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { })
+                        Text(
+                            if (isSignUpMode) "Ai deja un cont? " else "Nu ai cont? ",
+                            color = TextSecondary,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            if (isSignUpMode) "Autentifică-te" else "Înregistrează-te",
+                            color = PrimaryBlue,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable(enabled = !isLoading) {
+                                isSignUpMode = !isSignUpMode
+                                errorMessage = null
+                                successMessage = null
+                            }
+                        )
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun SocialButton(icon: ImageVector, modifier: Modifier = Modifier) {
-    Surface(
-        modifier = modifier
-            .height(50.dp)
-            .clickable { },
-        shape = RoundedCornerShape(14.dp),
-        color = CardBackground,
-        border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(imageVector = icon, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -263,14 +256,10 @@ fun ParticleBackground() {
             )
         }
     }
-    
-    // Trigger recomposition for animation
+
     LaunchedEffect(Unit) {
         while (true) {
             delay(16)
-            // This is a simple way to force redraw, normally you'd use Animatable or similar
-            // but for many particles, updating state inside a loop or using a specialized shader is better.
-            // For this UI, even a slow update feels organic.
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.example.kultura.data
 
+import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.realtime.Realtime
@@ -15,6 +16,11 @@ val supabase = createSupabaseClient(
     supabaseKey = SupabaseConfig.ANON_KEY
 ) {
     httpEngine = CIO.create()
+    install(Auth) {
+        // Auto-refresh + persistent session backed by multiplatform-settings.
+        alwaysAutoRefresh = true
+        autoLoadFromStorage = true
+    }
     install(Postgrest)
     install(Realtime)
 }

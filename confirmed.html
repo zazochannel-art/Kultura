@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#07080d">
+  <title>Kultura — Email confirmat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07080d;
+      --surface: #14182b;
+      --surface-elev: #1a1f35;
+      --border: rgba(255,255,255,0.14);
+      --text: #f8fafc;
+      --text-dim: #94a3b8;
+      --text-mute: #64748b;
+      --blue: #3b82f6;
+      --cyan: #06b6d4;
+      --purple: #8b5cf6;
+      --pink: #ec4899;
+      --green: #10b981;
+      --red: #ef4444;
+      --orange: #f59e0b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      overflow-x: hidden;
+      position: relative;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* Mesh background blobs */
+    body::before, body::after {
+      content: "";
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      z-index: 0;
+    }
+    body::before {
+      width: 480px; height: 480px;
+      background: var(--purple);
+      opacity: 0.28;
+      top: -140px; left: -140px;
+    }
+    body::after {
+      width: 420px; height: 420px;
+      background: var(--blue);
+      opacity: 0.22;
+      bottom: -140px; right: -140px;
+    }
+    .card {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 480px;
+      padding: 40px 32px;
+      background: linear-gradient(160deg, rgba(26,31,53,0.90), rgba(14,17,32,0.80));
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      text-align: center;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.4);
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 32px;
+    }
+    .brand-icon {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      display: grid; place-items: center;
+      box-shadow: 0 8px 20px rgba(59,130,246,0.35);
+    }
+    .brand-icon svg { width: 20px; height: 20px; color: #fff; }
+    .brand-name {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+    }
+    .status-icon {
+      width: 96px; height: 96px;
+      border-radius: 50%;
+      display: grid; place-items: center;
+      margin: 0 auto 28px;
+      position: relative;
+    }
+    .status-icon.success {
+      background: rgba(16,185,129,0.15);
+      border: 2px solid rgba(16,185,129,0.35);
+      animation: pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .status-icon.success::after {
+      content: "";
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(16,185,129,0.35), transparent 70%);
+      z-index: -1;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .status-icon.error {
+      background: rgba(239,68,68,0.15);
+      border: 2px solid rgba(239,68,68,0.35);
+      animation: shake 0.5s ease-in-out;
+    }
+    .status-icon.loading {
+      background: rgba(59,130,246,0.15);
+      border: 2px solid rgba(59,130,246,0.35);
+    }
+    .status-icon svg { width: 48px; height: 48px; }
+    .status-icon.success svg { color: var(--green); }
+    .status-icon.error svg { color: var(--red); }
+    .status-icon.loading svg { color: var(--blue); animation: spin 1s linear infinite; }
+    .check-path {
+      stroke-dasharray: 100;
+      stroke-dashoffset: 100;
+      animation: draw 0.6s 0.2s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: -0.8px;
+      margin-bottom: 12px;
+    }
+    p.subtitle {
+      color: var(--text-dim);
+      font-size: 15px;
+      line-height: 1.55;
+      margin-bottom: 8px;
+    }
+    p.detail {
+      color: var(--text-mute);
+      font-size: 13px;
+      line-height: 1.55;
+      margin-bottom: 32px;
+    }
+    .cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 16px 24px;
+      font-size: 15px;
+      font-weight: 700;
+      font-family: inherit;
+      color: #fff;
+      background: linear-gradient(90deg, var(--blue), var(--cyan));
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 0.15s ease, box-shadow 0.2s ease;
+      box-shadow: 0 12px 28px rgba(59,130,246,0.35);
+    }
+    .cta:hover { transform: translateY(-1px); box-shadow: 0 16px 34px rgba(59,130,246,0.45); }
+    .cta:active { transform: translateY(0); }
+    .cta.secondary {
+      background: transparent;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+      box-shadow: none;
+      margin-top: 10px;
+    }
+    .cta.secondary:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+    .footer {
+      margin-top: 28px;
+      font-size: 12px;
+      color: var(--text-mute);
+    }
+    .footer a { color: var(--blue); text-decoration: none; }
+    @keyframes pop {
+      0% { transform: scale(0); opacity: 0; }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(1.05); }
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+    @media (max-width: 480px) {
+      .card { padding: 32px 24px; border-radius: 24px; }
+      h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"></path>
+          <circle cx="6.5" cy="16.5" r="2.5"></circle>
+          <circle cx="16.5" cy="16.5" r="2.5"></circle>
+        </svg>
+      </div>
+      <div class="brand-name">Kultura</div>
+    </div>
+
+    <div id="statusBox">
+      <div class="status-icon loading" id="statusIcon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+        </svg>
+      </div>
+      <h1 id="statusTitle">Se verifică...</h1>
+      <p class="subtitle" id="statusSubtitle">Îți confirmăm emailul.</p>
+      <p class="detail" id="statusDetail"></p>
+    </div>
+
+    <div id="ctaBox" style="display:none">
+      <a class="cta" id="ctaPrimary" href="#">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+          <polyline points="10 17 15 12 10 7"></polyline>
+          <line x1="15" y1="12" x2="3" y2="12"></line>
+        </svg>
+        <span id="ctaPrimaryText">Deschide aplicația</span>
+      </a>
+      <a class="cta secondary" id="ctaSecondary" href="#" style="display:none">Încearcă din nou</a>
+    </div>
+
+    <div class="footer">
+      Ai probleme? Contactează-ne prin <a href="mailto:support@kultura.app">support</a>.
+    </div>
+  </div>
+
+  <script>
+    // Parse both query string and URL fragment — Supabase emits errors either way.
+    function parseParams() {
+      const out = {};
+      const fromHash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      const fromQuery = new URLSearchParams(window.location.search);
+      for (const [k, v] of fromHash.entries()) out[k] = v;
+      for (const [k, v] of fromQuery.entries()) out[k] = v;
+      return out;
+    }
+
+    function showSuccess() {
+      const box = document.getElementById('statusBox');
+      const icon = document.getElementById('statusIcon');
+      icon.className = 'status-icon success';
+      icon.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polyline class="check-path" points="4 12 10 18 20 6"></polyline>
+        </svg>`;
+      document.getElementById('statusTitle').textContent = 'Email confirmat!';
+      document.getElementById('statusSubtitle').textContent = 'Contul tău Kultura este activ.';
+      document.getElementById('statusDetail').textContent = 'Deschide aplicația de pe telefon și autentifică-te cu emailul și parola alese.';
+      document.getElementById('ctaBox').style.display = 'block';
+      document.getElementById('ctaPrimaryText').textContent = 'Deschide aplicația';
+    }
+
+    function showError(message) {
+      const icon = document.getElementById('statusIcon');
+      icon.className = 'status-icon error';
+      icon.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>`;
+      document.getElementById('statusTitle').textContent = 'Confirmarea a eșuat';
+      document.getElementById('statusSubtitle').textContent = message || 'Linkul de confirmare este invalid sau expirat.';
+      document.getElementById('statusDetail').textContent = 'Încearcă să te înregistrezi din nou din aplicație pentru a primi un link nou.';
+      document.getElementById('ctaBox').style.display = 'block';
+      document.getElementById('ctaPrimaryText').textContent = 'Deschide aplicația';
+      const sec = document.getElementById('ctaSecondary');
+      sec.style.display = 'inline-flex';
+      sec.textContent = 'Trimite alt link';
+    }
+
+    // Deep link scheme — the app can register kultura:// to catch this.
+    // Falls back to a friendly instruction if the app isn't installed.
+    document.getElementById('ctaPrimary').addEventListener('click', function (e) {
+      e.preventDefault();
+      const deep = 'kultura://login';
+      // Try opening the app; if it doesn't respond, show help toast.
+      const t0 = Date.now();
+      window.location.href = deep;
+      setTimeout(function () {
+        if (Date.now() - t0 < 1400 && document.visibilityState === 'visible') {
+          document.getElementById('statusDetail').textContent = 'Aplicația nu răspunde — deschide-o manual pe telefon.';
+        }
+      }, 1200);
+    });
+    document.getElementById('ctaSecondary').addEventListener('click', function (e) {
+      e.preventDefault();
+      document.getElementById('statusDetail').textContent = 'Deschide aplicația și înregistrează-te din nou pentru a primi un email de confirmare nou.';
+    });
+
+    // Decide state from the URL params.
+    const p = parseParams();
+    if (p.error || p.error_description || p.error_code) {
+      showError(p.error_description || p.error || 'Ceva a mers greșit.');
+    } else if (p.access_token || p.type === 'signup' || p.type === 'recovery' || p.type === 'invite' || p.confirmed === '1') {
+      showSuccess();
+    } else {
+      // No auth params — probably direct visit. Show success anyway; if user got here,
+      // the click already ran through Supabase.
+      showSuccess();
+    }
+  </script>
+</body>
+</html>

@@ -1,7 +1,16 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+}
+
+val geminiApiKey: String = run {
+    val props = Properties()
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { props.load(it) }
+    props.getProperty("gemini.api.key", "") ?: ""
 }
 
 android {
@@ -20,6 +29,8 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "GEMINI_API_KEY", "\"${geminiApiKey}\"")
     }
 
     buildTypes {
@@ -35,6 +46,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -52,14 +64,15 @@ dependencies {
     // Supabase
     implementation(libs.supabase.postgrest)
     implementation(libs.supabase.realtime)
+    implementation(libs.supabase.auth)
+    implementation(libs.multiplatform.settings)
     implementation(libs.ktor.client.cio)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.kotlinx.serialization.json)
 
-    // AI & Excel
-    implementation(libs.google.generativeai)
+    // Excel parsing (AI uses ktor + REST, no SDK needed)
     implementation(libs.poi.ooxml)
 
     testImplementation(libs.junit)

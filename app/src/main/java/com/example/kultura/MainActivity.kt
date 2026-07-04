@@ -4,17 +4,23 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.runtime.*
+import com.example.kultura.data.AuthRepository
 import com.example.kultura.ui.DashboardScreen
 import com.example.kultura.ui.LoginScreen
+import com.example.kultura.ui.theme.BackgroundDark
 import com.example.kultura.ui.theme.KulturaTheme
+import com.example.kultura.ui.theme.PrimaryBlue
+import io.github.jan.supabase.auth.status.SessionStatus
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -22,31 +28,27 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             KulturaTheme {
-                var isLoggedIn by remember { mutableStateOf(false) }
-
-                if (!isLoggedIn) {
-                    LoginScreen(onLoginSuccess = { isLoggedIn = true })
-                } else {
-                    DashboardScreen()
-                }
+                AppRoot()
             }
         }
     }
 }
 
-
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
+private fun AppRoot() {
+    val authRepository = remember { AuthRepository() }
+    val sessionStatus by authRepository.sessionStatus.collectAsState()
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    KulturaTheme {
-        Greeting("Android")
+    when (sessionStatus) {
+        is SessionStatus.Authenticated -> DashboardScreen()
+        is SessionStatus.NotAuthenticated -> LoginScreen(onLoginSuccess = { /* session flow handles it */ })
+        is SessionStatus.Initializing, is SessionStatus.RefreshFailure -> {
+            Box(
+                modifier = Modifier.fillMaxSize().background(BackgroundDark),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = PrimaryBlue)
+            }
+        }
     }
 }
