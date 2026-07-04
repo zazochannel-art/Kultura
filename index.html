@@ -97,6 +97,14 @@
       transition: color 0.15s;
     }
     .nav-links a:hover { color: var(--text); }
+    .nav-links a.nav-login {
+      padding: 8px 16px;
+      background: linear-gradient(90deg, var(--blue), var(--cyan));
+      color: #fff;
+      border-radius: 10px;
+      box-shadow: 0 6px 16px rgba(59,130,246,0.35);
+    }
+    .nav-links a.nav-login:hover { color: #fff; transform: translateY(-1px); }
 
     .hero {
       position: relative;
@@ -177,6 +185,34 @@
       box-shadow: none;
     }
     .cta.ghost:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+
+    .fallback {
+      max-width: 520px;
+      margin: 28px auto 0;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+    }
+    .fallback.show {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .fallback-inner {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 14px 18px;
+      background: rgba(245,158,11,0.12);
+      border: 1px solid rgba(245,158,11,0.35);
+      border-radius: 14px;
+      text-align: left;
+      font-size: 13px;
+      color: var(--text);
+    }
+    .fallback-inner svg { color: var(--orange); flex-shrink: 0; margin-top: 2px; }
+    .fallback-inner span { color: var(--text-dim); }
 
     .features {
       position: relative;
@@ -260,7 +296,7 @@
     </div>
     <div class="nav-links">
       <a href="https://github.com/zazochannel-art/Kultura" target="_blank" rel="noopener">GitHub</a>
-      <a href="confirmed.html">Suport</a>
+      <a href="#" id="navLogin" class="nav-login">Intră în cont</a>
     </div>
   </nav>
 
@@ -275,13 +311,13 @@
       de participare — toate live, cu sincronizare Supabase și AI pentru import rapid.
     </p>
     <div class="cta-row">
-      <a class="cta" href="https://github.com/zazochannel-art/Kultura/releases" target="_blank" rel="noopener">
+      <a class="cta" href="#" id="heroLogin">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="7 10 12 15 17 10"></polyline>
-          <line x1="12" y1="15" x2="12" y2="3"></line>
+          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+          <polyline points="10 17 15 12 10 7"></polyline>
+          <line x1="15" y1="12" x2="3" y2="12"></line>
         </svg>
-        Descarcă app-ul
+        <span>Deschide aplicația</span>
       </a>
       <a class="cta ghost" href="https://github.com/zazochannel-art/Kultura" target="_blank" rel="noopener">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -289,6 +325,20 @@
         </svg>
         Vezi codul sursă
       </a>
+    </div>
+
+    <div id="fallbackMsg" class="fallback">
+      <div class="fallback-inner">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+        <div>
+          <strong>Nu ai aplicația instalată?</strong><br>
+          <span>Kultura este o aplicație Android nativă. Aici, pe desktop, poți vedea landing page-ul; loginul se face din app.</span>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -362,5 +412,27 @@
     <p>© 2025 Kultura — Auto Festival Manager</p>
     <p>Made with Compose · Supabase · Gemini · <a href="https://github.com/zazochannel-art/Kultura">GitHub</a></p>
   </footer>
+
+  <script>
+    function openApp(e) {
+      if (e) e.preventDefault();
+      var t0 = Date.now();
+      // Fire the deep link. Android with the app installed will intercept it
+      // via the kultura://login intent-filter and switch to MainActivity.
+      window.location.href = 'kultura://login';
+
+      // If the page is still visible after ~1.4s, assume the app isn't there.
+      setTimeout(function () {
+        if (document.visibilityState === 'visible' && Date.now() - t0 < 3000) {
+          var el = document.getElementById('fallbackMsg');
+          if (el) el.classList.add('show');
+        }
+      }, 1400);
+    }
+    var heroLogin = document.getElementById('heroLogin');
+    var navLogin = document.getElementById('navLogin');
+    if (heroLogin) heroLogin.addEventListener('click', openApp);
+    if (navLogin) navLogin.addEventListener('click', openApp);
+  </script>
 </body>
 </html>
