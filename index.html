@@ -797,24 +797,21 @@
 
     @media (max-width: 700px) {
       .app-header { padding: 8px 20px; }
-      .content { padding: 0 20px 24px; }
+      .content { padding: 0 20px calc(96px + env(safe-area-inset-bottom, 0px)); }
       .greeting h1 { font-size: 26px; }
       .hero-title { font-size: 20px; }
       .car-actions { margin-left: 0; }
 
-      /* Hide the top desktop tabs on mobile — replaced by top pill nav */
+      /* Hide the top desktop tabs on mobile — replaced by bottom pill nav */
       .tabs { display: none; }
 
-      /* Push app content below the fixed top nav pill */
-      #appView { padding-top: calc(72px + env(safe-area-inset-top, 0px)); }
-
-      /* Top floating pill nav — icon-only, tab-ul selectat se extinde cu label */
+      /* Bottom floating pill nav — icon-only, tab-ul selectat se extinde cu label */
       .mobile-tabs {
         display: flex;
         position: fixed;
         left: 16px;
         right: 16px;
-        top: calc(12px + env(safe-area-inset-top, 0px));
+        bottom: calc(12px + env(safe-area-inset-bottom, 0px));
         z-index: 100;
         gap: 4px;
         padding: 6px;
