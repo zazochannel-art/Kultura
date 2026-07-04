@@ -2914,14 +2914,35 @@
         </div>
       `;
 
-      // Actions
+      // Actions — contextual buttons based on task state
       const isDone = !!t.is_completed;
-      el('taskDetailActions').innerHTML = `
-        ${!isDone ? `<button class="btn ghost" data-detail-action="task-take" data-task-id="${t.id}">Iau în lucru</button>` : ''}
-        ${!isDone ? `<button class="btn" data-detail-action="task-finish" data-task-id="${t.id}">Finisat</button>`
-                  : `<button class="btn ghost" data-detail-action="task-reopen" data-task-id="${t.id}">Redeschide</button>`}
-        <button class="btn danger" data-detail-action="task-delete" data-task-id="${t.id}" data-task-label="${escape(t.title)}">Șterge</button>
-      `;
+      const sk = taskStatusKey(t.status);
+      const isAssignedToMe = currentUser && String(t.assigned_user_id) === String(currentUser.id);
+      const isAdmin = currentUser && currentUser.email.includes('admin');
+
+      let actionsHtml = '';
+      if (isDone) {
+        actionsHtml = `
+          <button class="btn ghost" data-detail-action="task-reopen" data-task-id="${t.id}">Redeschide</button>
+          <button class="btn danger" data-detail-action="task-delete" data-task-id="${t.id}" data-task-label="${escape(t.title)}">Șterge</button>
+        `;
+      } else if (sk === 'in_progress') {
+        // Butonul "Finisat" apare doar pentru cel responsabil sau admin
+        if (isAssignedToMe || isAdmin) {
+          actionsHtml += `
+            <button class="btn" data-detail-action="task-finish" data-task-id="${t.id}">Finisat</button>
+          `;
+        }
+        actionsHtml += `
+          <button class="btn danger" data-detail-action="task-delete" data-task-id="${t.id}" data-task-label="${escape(t.title)}">Șterge</button>
+        `;
+      } else {
+        actionsHtml = `
+          <button class="btn" data-detail-action="task-take" data-task-id="${t.id}">Iau în lucru</button>
+          <button class="btn danger" data-detail-action="task-delete" data-task-id="${t.id}" data-task-label="${escape(t.title)}">Șterge</button>
+        `;
+      }
+      el('taskDetailActions').innerHTML = actionsHtml;
 
       // Wire edit button + submit
       el('taskEditInstructionsBtn').onclick = () => enterEditTaskInstructions(t);
