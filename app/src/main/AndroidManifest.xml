@@ -18,11 +18,31 @@
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.Kultura"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Custom scheme opened by the confirmation landing page. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="kultura" android:host="login" />
+            </intent-filter>
+
+            <!-- Optional App Links: open kultura URLs from GitHub Pages directly in the app.
+                 Requires assetlinks.json on the site to be autoVerify=true. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https"
+                      android:host="zazochannel-art.github.io"
+                      android:pathPrefix="/Kultura/" />
             </intent-filter>
         </activity>
     </application>
