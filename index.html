@@ -501,7 +501,6 @@
     .action-btn.active-invitat { color: var(--blue); border-color: rgba(59,130,246,0.4); background: rgba(59,130,246,0.12); }
     .action-btn.active-sosit { color: var(--green); border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.12); }
     .action-btn.active-plecat { color: var(--purple); border-color: rgba(139,92,246,0.4); background: rgba(139,92,246,0.12); }
-    .action-btn.active-asteptare { color: var(--orange); border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.12); }
     .action-btn.delete { color: var(--red); border-color: rgba(239,68,68,0.3); }
     .action-btn.delete:hover { background: rgba(239,68,68,0.10); border-color: rgba(239,68,68,0.5); }
     .action-btn.loading { pointer-events: none; opacity: 0.6; }
@@ -1027,16 +1026,14 @@
     }
 
     const CAR_STATUS_OPTIONS = [
-      { key: 'invitat',    label: 'Invitat',      color: '#3B82F6' },
-      { key: 'sosit',      label: 'Sosit',        color: '#10B981' },
-      { key: 'plecat',     label: 'Plecat',       color: '#8B5CF6' },
-      { key: 'asteptare',  label: 'În așteptare', color: '#F59E0B' }
+      { key: 'invitat', label: 'Invitat', color: '#3B82F6' },
+      { key: 'sosit',   label: 'Sosit',   color: '#10B981' },
+      { key: 'plecat',  label: 'Plecat',  color: '#8B5CF6' }
     ];
     function statusKey(status) {
       const s = (status || '').toLowerCase();
       if (s.includes('sosit')) return 'sosit';
       if (s.includes('plecat')) return 'plecat';
-      if (s.includes('așteptare') || s.includes('asteptare')) return 'asteptare';
       if (s.includes('invitat')) return 'invitat';
       return null;
     }
