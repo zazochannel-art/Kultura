@@ -1324,8 +1324,10 @@
       el('settingsEmail').textContent = email;
       el('avatarBadge').textContent = (email[0] || '?').toUpperCase();
       loadData();
+      startPolling();
     }
     function leaveApp() {
+      stopPolling();
       el('appView').classList.remove('show');
       el('loginView').style.display = 'grid';
       el('email').value = '';
@@ -1372,26 +1374,65 @@
       eventsFilter: 'all', eventsSearch: ''
     };
 
+    let inFlightLoad = null;
     async function loadData() {
-      const [{ data: cars }, { data: tasks }, { data: events }] = await Promise.all([
-        supa.from('cars').select('*').order('id', { ascending: false }),
-        supa.from('tasks').select('*').order('id', { ascending: false }),
-        supa.from('events').select('*').order('id', { ascending: false })
-      ]);
-      state.cars = cars || [];
-      state.tasks = tasks || [];
-      state.events = events || [];
-      renderStats(state.cars, state.tasks, state.events);
-      renderHero(state.events);
-      renderUpcoming(state.events);
-      renderTopTasks(state.tasks);
-      renderEventsChips();
-      renderCarsChips();
-      renderTasksChips();
-      renderEvents();
-      renderCars();
-      renderTasks();
+      if (inFlightLoad) return inFlightLoad; // dedupe concurrent calls
+      inFlightLoad = (async () => {
+        try {
+          const [{ data: cars }, { data: tasks }, { data: events }] = await Promise.all([
+            supa.from('cars').select('*').order('id', { ascending: false }),
+            supa.from('tasks').select('*').order('id', { ascending: false }),
+            supa.from('events').select('*').order('id', { ascending: false })
+          ]);
+          state.cars = cars || [];
+          state.tasks = tasks || [];
+          state.events = events || [];
+          renderStats(state.cars, state.tasks, state.events);
+          renderHero(state.events);
+          renderUpcoming(state.events);
+          renderTopTasks(state.tasks);
+          renderEventsChips();
+          renderCarsChips();
+          renderTasksChips();
+          renderEvents();
+          renderCars();
+          renderTasks();
+        } finally {
+          inFlightLoad = null;
+        }
+      })();
+      return inFlightLoad;
     }
+
+    // ----- POLLING FALLBACK (every 5s) -----
+    // Refreshes silently so changes made by other users show up even when
+    // Realtime is throttled / disconnected. Skips refresh if the user is
+    // actively working (a modal is open, an action is in flight, or the
+    // tab is hidden) so nothing they're touching gets clobbered.
+    let pollTimer = null;
+    function shouldSkipPoll() {
+      if (document.hidden) return true; // tab in background — save battery
+      if (document.querySelector('.modal-backdrop.show')) return true; // form open
+      if (document.querySelector('.action-btn.loading')) return true; // save in progress
+      if (inFlightLoad) return true;
+      return false;
+    }
+    function startPolling() {
+      if (pollTimer) return;
+      pollTimer = setInterval(async () => {
+        if (shouldSkipPoll()) return;
+        try { await loadData(); } catch (_) { /* silent */ }
+      }, 5000);
+    }
+    function stopPolling() {
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    }
+    // Also refresh immediately when the user returns to the tab
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && el('appView').classList.contains('show') && !shouldSkipPoll()) {
+        loadData().catch(() => {});
+      }
+    });
 
     function renderStats(cars, tasks, events) {
       el('statCars').textContent = (cars || []).length;
