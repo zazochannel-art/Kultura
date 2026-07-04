@@ -481,19 +481,19 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 24px 20px 8px;
+      padding: 12px 20px 4px;
       user-select: none;
     }
     .logo-img {
       display: block;
-      width: clamp(220px, 55vw, 380px);
+      width: clamp(160px, 36vw, 260px);
       height: auto;
-      filter: drop-shadow(0 8px 30px rgba(139, 92, 246, 0.35));
+      filter: drop-shadow(0 6px 20px rgba(139, 92, 246, 0.30));
       pointer-events: none;
     }
     @media (max-width: 500px) {
-      .logo-hero { padding: 16px 20px 6px; }
-      .logo-img { width: clamp(200px, 62vw, 280px); }
+      .logo-hero { padding: 8px 20px 4px; }
+      .logo-img { width: clamp(140px, 44vw, 200px); }
     }
 
     /* LIVE SYNC BADGE */
@@ -796,22 +796,25 @@
     }
 
     @media (max-width: 700px) {
-      .app-header { padding: 16px 20px; }
-      .content { padding: 0 20px 120px; }
+      .app-header { padding: 8px 20px; }
+      .content { padding: 0 20px 24px; }
       .greeting h1 { font-size: 26px; }
       .hero-title { font-size: 20px; }
       .car-actions { margin-left: 0; }
 
-      /* Hide the top desktop tabs on mobile — replaced by bottom bar */
+      /* Hide the top desktop tabs on mobile — replaced by top pill nav */
       .tabs { display: none; }
 
-      /* Bottom floating pill nav — icon-only, tab-ul selectat se extinde cu label */
+      /* Push app content below the fixed top nav pill */
+      #appView { padding-top: calc(72px + env(safe-area-inset-top, 0px)); }
+
+      /* Top floating pill nav — icon-only, tab-ul selectat se extinde cu label */
       .mobile-tabs {
         display: flex;
         position: fixed;
         left: 16px;
         right: 16px;
-        bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        top: calc(12px + env(safe-area-inset-top, 0px));
         z-index: 100;
         gap: 4px;
         padding: 6px;
