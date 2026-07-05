@@ -688,6 +688,183 @@
       margin-left: 52px;
     }
 
+    /* ============ TASK CARD V2 (mockup design) ============ */
+    .tk-card {
+      background: linear-gradient(160deg, rgba(11, 14, 27, 0.85), rgba(6, 8, 18, 0.85));
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 20px 22px 18px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .tk-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 255, 255, 0.18);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+    }
+    .tk-head {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .tk-status-icon {
+      width: 52px; height: 52px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+    .tk-status-icon svg { width: 26px; height: 26px; }
+    .tk-status-icon.progress {
+      background: rgba(245, 158, 11, 0.12);
+      color: #F59E0B;
+      box-shadow: 0 0 20px rgba(245, 158, 11, 0.15) inset;
+    }
+    .tk-status-icon.available {
+      background: rgba(59, 130, 246, 0.12);
+      color: #3B82F6;
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.15) inset;
+    }
+    .tk-status-icon.done {
+      background: rgba(16, 185, 129, 0.12);
+      color: #10B981;
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.15) inset;
+    }
+
+    .tk-badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; flex: 1; }
+    .tk-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      background: transparent;
+      border: 1px solid;
+      white-space: nowrap;
+    }
+    .tk-badge.cat { color: #8B5CF6; border-color: rgba(139, 92, 246, 0.35); background: rgba(139, 92, 246, 0.06); }
+    .tk-badge.pri-urgent { color: #EF4444; border-color: rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.06); }
+    .tk-badge.pri-high { color: #F59E0B; border-color: rgba(245, 158, 11, 0.35); background: rgba(245, 158, 11, 0.06); }
+    .tk-badge.pri-normal { color: #94A3B8; border-color: rgba(148, 163, 184, 0.35); background: rgba(148, 163, 184, 0.06); }
+    .tk-badge.pri-low { color: #10B981; border-color: rgba(16, 185, 129, 0.35); background: rgba(16, 185, 129, 0.06); }
+    .tk-badge.stat-progress { color: #3B82F6; border-color: rgba(59, 130, 246, 0.35); background: rgba(59, 130, 246, 0.06); margin-left: auto; }
+    .tk-badge.stat-available { color: #06B6D4; border-color: rgba(6, 182, 212, 0.35); background: rgba(6, 182, 212, 0.06); margin-left: auto; }
+    .tk-badge.stat-done { color: #10B981; border-color: rgba(16, 185, 129, 0.35); background: rgba(16, 185, 129, 0.06); margin-left: auto; }
+
+    .tk-title {
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: -0.4px;
+      color: var(--text);
+      margin-bottom: 6px;
+      line-height: 1.2;
+    }
+    .tk-title.done { text-decoration: line-through; opacity: 0.55; }
+    .tk-sub {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .tk-sub .event { color: #3B82F6; font-weight: 700; }
+    .tk-sub .sep { color: var(--text-mute); }
+
+    .tk-info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .tk-info-cell {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.015);
+      min-width: 0;
+    }
+    .tk-info-cell svg { width: 20px; height: 20px; color: var(--text-dim); flex-shrink: 0; }
+    .tk-info-cell .cell-body { min-width: 0; flex: 1; }
+    .tk-info-cell .cell-k { font-size: 12px; color: var(--text-dim); margin-bottom: 3px; }
+    .tk-info-cell .cell-v {
+      font-size: 15px;
+      font-weight: 700;
+      color: #F59E0B;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tk-divider { border-top: 1px solid rgba(255, 255, 255, 0.06); margin: 0 -6px 14px; }
+
+    .tk-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .tk-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 11px 20px;
+      border-radius: 12px;
+      border: 1.5px solid;
+      background: transparent;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: background 0.15s, box-shadow 0.2s, transform 0.1s;
+      white-space: nowrap;
+      flex: 1;
+      min-width: 100px;
+    }
+    .tk-btn:hover { transform: translateY(-1px); }
+    .tk-btn:active { transform: translateY(0); }
+    .tk-btn svg { width: 16px; height: 16px; }
+    .tk-btn.green {
+      color: #10B981;
+      border-color: rgba(16, 185, 129, 0.55);
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.15);
+    }
+    .tk-btn.green:hover { background: rgba(16, 185, 129, 0.08); box-shadow: 0 0 20px rgba(16, 185, 129, 0.28); }
+    .tk-btn.blue {
+      color: #3B82F6;
+      border-color: rgba(59, 130, 246, 0.55);
+      box-shadow: 0 0 14px rgba(59, 130, 246, 0.15);
+    }
+    .tk-btn.blue:hover { background: rgba(59, 130, 246, 0.08); box-shadow: 0 0 20px rgba(59, 130, 246, 0.28); }
+    .tk-btn.dots {
+      flex: 0 0 auto;
+      min-width: 46px;
+      padding: 11px 14px;
+      color: var(--text-dim);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+    .tk-btn.dots:hover { color: var(--text); border-color: rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.03); }
+
+    @media (max-width: 620px) {
+      .tk-card { padding: 16px; }
+      .tk-info-grid { grid-template-columns: 1fr; }
+      .tk-badge.stat-progress, .tk-badge.stat-available, .tk-badge.stat-done { margin-left: 0; }
+      .tk-title { font-size: 18px; }
+      .tk-btn { min-width: 0; padding: 10px 12px; font-size: 13px; }
+    }
+
     /* EVENT ACTIONS */
     .event-actions {
       display: flex;
@@ -3643,72 +3820,96 @@
       const list = filterTasks();
       const c = el('tasksList');
       if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Nimic găsit') + '</div>';
-      c.innerHTML = '<div class="card" style="padding: 10px;"><div id="tasksInner"></div></div>';
-      el('tasksInner').innerHTML = list.map(t => {
+
+      const priorityMeta = (p) => {
+        const key = (p || '').toLowerCase();
+        if (key.includes('urgent')) return { cls: 'pri-urgent', label: 'URGENT', mark: '+' };
+        if (key.includes('ridicat') || key.includes('important') || key.includes('high')) return { cls: 'pri-high', label: 'IMPORTANT', mark: '+' };
+        if (key.includes('scăzut') || key.includes('scazut') || key.includes('low')) return { cls: 'pri-low', label: 'SCĂZUTĂ', mark: '' };
+        return null;
+      };
+
+      const iconClock = '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>';
+      const iconCheck = '<polyline points="20 6 9 17 4 12"/>';
+      const iconPlay  = '<polygon points="5 3 19 12 5 21 5 3"/>';
+      const iconDots  = '<circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/>';
+      const iconCal   = '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>';
+      const iconUser  = '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>';
+      const iconTrash = '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>';
+      const iconUndo  = '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/>';
+
+      c.innerHTML = list.map(t => {
         const sk = taskStatusKey(t.status);
-        const isAssignedToMe = currentUser && t.assigned_user_id === currentUser.id;
-        const isAdmin = currentUser && currentUser.email.includes('admin');
+        const iconClass = sk === 'completed' ? 'done' : sk === 'in_progress' ? 'progress' : 'available';
+        const iconSvg   = sk === 'completed' ? iconCheck : iconClock;
+        const statusLabel = sk === 'completed' ? 'FINISAT' : sk === 'in_progress' ? 'ÎN LUCRU' : 'DISPONIBIL';
+        const statusCls   = sk === 'completed' ? 'stat-done' : sk === 'in_progress' ? 'stat-progress' : 'stat-available';
+        const pri = priorityMeta(t.priority);
+        const responsibleRaw = t.assigned_to || t.assigned_user_name || t.assigned_user_email || '—';
+        const responsible = escape(responsibleRaw);
 
-        let actionButtons = '';
-        let assignmentInfo = '';
-
+        // Contextual primary action based on state
+        let primaryBtn = '';
         if (sk === 'available') {
-          actionButtons = `
-            <button class="action-btn active-curand" data-action="task-take" data-task-id="${t.id}">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
-              Iau în lucru
-            </button>
-          `;
+          primaryBtn = `<button class="tk-btn blue" data-action="task-take" data-task-id="${t.id}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${iconPlay}</svg>
+            Începe lucrul
+          </button>`;
         } else if (sk === 'in_progress') {
-          assignmentInfo = `
-            <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 11px; background: rgba(245,158,11,0.08); padding: 4px 10px; border-radius: 8px; width: fit-content; border: 1px solid rgba(245,158,11,0.2);">
-              ${t.assigned_user_avatar ? `<img src="${t.assigned_user_avatar}" style="width: 16px; height: 16px; border-radius: 50%;">` : `<div style="width: 16px; height: 16px; border-radius: 50%; background: var(--orange); color: #fff; display: grid; place-items: center; font-size: 9px; font-weight: 900;">${(t.assigned_user_name || '?')[0].toUpperCase()}</div>`}
-              <span style="color: var(--orange); font-weight: 700;">${escape(t.assigned_user_name)}</span>
-            </div>
-          `;
-          if (isAssignedToMe || isAdmin) {
-            actionButtons += `
-              <button class="action-btn active-sosit" data-action="task-complete" data-task-id="${t.id}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                Finisat
-              </button>
-            `;
-          }
-          if (isAdmin) {
-             actionButtons += `
-              <button class="action-btn ghost" data-action="task-release" data-task-id="${t.id}">
-                Eliberează
-              </button>
-             `;
-          }
-        } else if (sk === 'completed') {
-           assignmentInfo = `
-            <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 11px; background: rgba(16,185,129,0.08); padding: 4px 10px; border-radius: 8px; width: fit-content; border: 1px solid rgba(16,185,129,0.2);">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px; color:var(--green);"><polyline points="20 6 9 17 4 12"/></svg>
-              <span style="color: var(--green); font-weight: 700;">${escape(t.completed_by_user_name || t.assigned_user_name)}</span>
-            </div>
-          `;
+          primaryBtn = `<button class="tk-btn green" data-action="task-complete" data-task-id="${t.id}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${iconCheck}</svg>
+            Finisat
+          </button>`;
+        } else {
+          primaryBtn = `<button class="tk-btn blue" data-action="task-reopen" data-task-id="${t.id}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${iconUndo}</svg>
+            Redeschide
+          </button>`;
         }
 
         return `
-          <div class="row task-row" data-row-id="${t.id}" style="cursor:pointer;">
-            <div class="row-icon ${sk === 'completed' ? 'green' : sk === 'in_progress' ? 'orange' : 'blue'}">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${sk === 'completed' ? '<polyline points="20 6 9 17 4 12"/>' : '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'}</svg>
-            </div>
-            <div class="row-body">
-              <div class="row-title" style="${sk === 'completed' ? 'text-decoration:line-through; opacity: 0.6;' : ''}">${escape(t.title)}</div>
-              <div class="row-sub">
-                <span style="color: var(--blue); opacity: 0.9;">${escape(t.event || 'General')}</span>
-                ${t.date ? '<span class="sep"></span><span style="font-weight: 600;">' + escape(t.date) + '</span>' : ''}
+          <div class="tk-card task-row" data-row-id="${t.id}">
+            <div class="tk-head">
+              <div class="tk-status-icon ${iconClass}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${iconSvg}</svg>
               </div>
-              ${assignmentInfo}
+              <div class="tk-badges">
+                ${t.category ? `<span class="tk-badge cat">${escape(t.category)}</span>` : ''}
+                ${pri ? `<span class="tk-badge ${pri.cls}">${pri.label}${pri.mark ? ' <span style="opacity:0.75">' + pri.mark + '</span>' : ''}</span>` : ''}
+                <span class="tk-badge ${statusCls}">${statusLabel}</span>
+              </div>
             </div>
-            <div class="badge ${statusToBadge(t.status)}">${sk === 'completed' ? 'Finisat' : sk === 'in_progress' ? 'În lucru' : 'Disponibil'}</div>
-            <div class="task-actions" style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
-              ${actionButtons}
-              <button class="action-btn delete" data-action="task-delete" data-task-id="${t.id}" data-task-label="${escape(t.title)}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-                Șterge
+
+            <div class="tk-title ${sk === 'completed' ? 'done' : ''}">${escape(t.title)}</div>
+            <div class="tk-sub">
+              ${t.event ? `<span class="event">${escape(t.event)}</span>` : ''}
+              ${t.event && t.date ? '<span class="sep">•</span>' : ''}
+              ${t.date ? `<span>${escape(t.date)}</span>` : ''}
+            </div>
+
+            <div class="tk-info-grid">
+              <div class="tk-info-cell">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconCal}</svg>
+                <div class="cell-body">
+                  <div class="cell-k">Termen limită</div>
+                  <div class="cell-v">${escape(t.date || '—')}</div>
+                </div>
+              </div>
+              <div class="tk-info-cell">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconUser}</svg>
+                <div class="cell-body">
+                  <div class="cell-k">Responsabil</div>
+                  <div class="cell-v">${responsible}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="tk-divider"></div>
+
+            <div class="tk-actions">
+              ${primaryBtn}
+              <button class="tk-btn dots" data-row-id="${t.id}" data-open-detail="1" title="Detalii">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${iconDots}</svg>
               </button>
             </div>
           </div>
