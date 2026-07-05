@@ -691,8 +691,14 @@
     /* ============ TASK CARD V2 (mockup design) ============ */
     .tk-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+      grid-template-columns: 1fr;
       gap: 14px;
+    }
+    @media (min-width: 900px) {
+      .tk-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (min-width: 1400px) {
+      .tk-grid { grid-template-columns: 1fr 1fr; }
     }
     .tk-card {
       background: linear-gradient(160deg, rgba(11, 14, 27, 0.85), rgba(6, 8, 18, 0.85));
