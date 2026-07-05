@@ -1883,7 +1883,7 @@
         settings: { account: "CONT", email: "Email", session: "SESIUNE", logout: "Deconectare", logout_desc: "Închide sesiunea și revino la ecranul de login", logout_btn: "Ieși", data: "DATE", delete_all: "Șterge toate mașinile", delete_all_desc: "Elimină toate mașinile din baza de date (acțiune ireversibilă)", delete_btn: "Șterge", language: "LIMBĂ APLICAȚIE", languageDesc: "Selectează limba în care dorești să fie afișată aplicația.", lang_changed: "Limba aplicației a fost schimbată cu succes." },
         common: { cancel: "Anulează", save: "Salvează", empty: "Nimic găsit", none: "Niciun eveniment", none_tasks: "Niciun task deschis", urgent: "Urgentă", high: "Ridicată", normal: "Normală", low: "Scăzută", available: "Disponibil", in_progress: "În lucru", completed: "Finisat" },
         statuses: { planned: "Planificat", soon: "În curând", active: "Activ", done: "Finalizat", canceled: "Anulat", invited: "Invitat", arrived: "Sosit", left: "Plecat", pending: "În așteptare" },
-        modals: { add_event: "Adaugă eveniment", event_help: "Detaliile festivalului/expoziției.", add_task: "Adaugă task", task_help: "Ceva de făcut pentru echipa ta." }
+        modals: { add_event: "Add event", event_help: "Festival/exhibition details.", add_task: "Add task", task_help: "Something for your team to do." }
       },
       ru: {
         login: { title: "Добро пожаловать", subtitle: "Войдите, чтобы продолжить", welcome: "Добро пожаловать", subtitle_signup: "Создайте аккаунт для вашей команды", email: "Email", password: "Пароль", show_pwd: "Показать пароль", submit: "Войти", signup: "Создать аккаунт", toggle_no: "Нет аккаунта?", toggle_yes: "Уже есть аккаунт?", register: "Зарегистрироваться", login: "Войти", min_chars: "Пароль должен быть не менее 6 символов", signup_success: "Аккаунт создан! Проверьте почту для подтверждения." },
@@ -2388,10 +2388,6 @@
             </div>
             <div class="event-actions">
               ${buttons}
-              <button class="action-btn delete" data-action="event-delete" data-event-id="${e.id}" data-event-label="${escape(e.title)}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-                ${t('events.add')}
-              </button>
             </div>
           </div>
         `;
@@ -2491,10 +2487,6 @@
             <div class="badge ${statusToBadge(car.status)}">${escape(t('statuses.' + statusKey(car.status)))}</div>
             <div class="car-actions">
               ${actionButtons}
-              <button class="action-btn delete" data-action="delete" data-car-id="${car.id}" data-car-label="${escape(car.model)}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
-                ${t('settings.delete_btn')}
-              </button>
             </div>
           </div>
         `;
@@ -3564,10 +3556,6 @@
             <div class="badge ${statusToBadge(task.status)}">${escape(t('common.' + sk))}</div>
             <div class="task-actions">
               ${actionButtons}
-              <button class="action-btn delete" data-action="task-delete" data-task-id="${task.id}" data-task-label="${escape(task.title)}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-                ${t('settings.delete_btn')}
-              </button>
             </div>
           </div>
         `;
