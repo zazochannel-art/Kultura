@@ -2177,7 +2177,6 @@
 
     const SUPABASE_URL = 'https://knphmxxokowwkruimdus.supabase.co';
     const SUPABASE_ANON = 'sb_publishable_9b7WSJF4UlfF1JIdCDjWqQ_dxOTpqSW';
-    const OPENAI_API_KEY = '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';
 
     const supa = createClient(SUPABASE_URL, SUPABASE_ANON, {
       auth: { persistSession: true, autoRefreshToken: true }
@@ -2385,13 +2384,81 @@
       }
     });
 
+    // ----- TASK ACTIONS CORE -----
+    async function apiTaskTake(taskId) {
+      if (!currentUser) { alert('Trebuie să fii autentificat.'); return false; }
+
+      const { data: currentTask, error: fetchError } = await supa.from('tasks').select('status, assigned_user_id').eq('id', taskId).single();
+      if (fetchError) { alert('Eroare la verificarea statusului: ' + fetchError.message); return false; }
+
+      if (currentTask && taskStatusKey(currentTask.status) !== 'available') {
+        alert('Acest task a fost deja preluat de alt utilizator.');
+        await loadData();
+        return false;
+      }
+
+      const { error } = await supa.from('tasks').update({
+        status: 'in_progress',
+        status_color: '#F59E0B',
+        assigned_user_id: currentUser.id,
+        assigned_user_name: currentUserName(),
+        started_at: new Date().toISOString()
+      }).eq('id', taskId);
+
+      if (error) { alert('Eroare: ' + error.message); return false; }
+      showToast('Ai preluat taskul.');
+      return true;
+    }
+
+    async function apiTaskComplete(taskId) {
+      const { error } = await supa.from('tasks').update({
+        status: 'completed',
+        status_color: '#10B981',
+        is_completed: true,
+        completed_at: new Date().toISOString(),
+        completed_by_user_id: currentUser.id,
+        completed_by_user_name: currentUserName()
+      }).eq('id', taskId);
+
+      if (error) { alert('Eroare: ' + error.message); return false; }
+      showToast('Task finalizat.');
+      return true;
+    }
+
+    async function apiTaskReopen(taskId) {
+      const { error } = await supa.from('tasks').update({
+        is_completed: false,
+        completed_by_user_id: null,
+        completed_by_user_name: null,
+        completed_at: null,
+        assigned_user_id: null,
+        assigned_user_name: null,
+        started_at: null,
+        status: 'available',
+        status_color: '#3B82F6'
+      }).eq('id', taskId);
+
+      if (error) { alert('Eroare: ' + error.message); return false; }
+      showToast('Task redeschis.');
+      return true;
+    }
+
+    async function apiTaskDelete(taskId, label) {
+      if (!confirm(`Șterge "${label || 'taskul'}"?\nAcțiune ireversibilă.`)) return false;
+      const { error } = await supa.from('tasks').delete().eq('id', taskId);
+      if (error) { alert('Eroare: ' + error.message); return false; }
+      showToast('Task șters.');
+      return true;
+    }
+
     // ----- DATA -----
     function statusToBadge(s) {
       if (!s) return 'blue';
       const k = s.toLowerCase();
-      if (k.includes('confirmat') || k.includes('finalizat') || k.includes('aprobat')) return 'green';
-      if (k.includes('așteptare') || k.includes('planificat') || k.includes('curând') || k.includes('progres')) return 'blue';
+      if (k.includes('confirmat') || k.includes('finalizat') || k.includes('aprobat') || k.includes('completed')) return 'green';
+      if (k.includes('așteptare') || k.includes('planificat') || k.includes('curând') || k.includes('progres') || k.includes('available')) return 'blue';
       if (k.includes('urgent') || k.includes('respins')) return 'red';
+      if (k.includes('in_progress')) return 'orange';
       return 'orange';
     }
 
@@ -2467,7 +2534,7 @@
         } catch (err) {
           console.warn('Polling refresh failed:', err);
         }
-      }, 1000);
+      }, 30000);
     }
     function stopPolling() {
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
@@ -2782,69 +2849,29 @@
 
       // --- TASKS ---
       } else if (action === 'task-take') {
-        if (!currentUser) return alert('Trebuie să fii autentificat.');
-        const id = btn.dataset.taskId;
-        const now = new Date().toISOString();
-
-        // Verificăm dacă taskul e încă disponibil (prevenire cursă de date)
-        const { data: currentTask } = await supa.from('tasks').select('status, assigned_user_id').eq('id', id).single();
-        if (currentTask && taskStatusKey(currentTask.status) !== 'available') {
-           alert('Acest task a fost deja preluat de alt utilizator.');
-           return await loadData();
-        }
-
-        const { error } = await withSpinner(() => supa.from('tasks').update({
-          status: 'in_progress',
-          status_color: '#F59E0B',
-          assigned_user_id: currentUser.id,
-          assigned_user_name: currentUser.user_metadata?.full_name || currentUser.email,
-          started_at: now
-        }).eq('id', id));
-
-        if (error) return alert('Eroare: ' + error.message);
-        console.log('Task preluat cu succes.');
+        await withSpinner(() => apiTaskTake(btn.dataset.taskId));
         await loadData();
 
-      } else if (action === 'task-complete') {
-        const id = btn.dataset.taskId;
-        if (!confirm('Ești sigur că ai finalizat acest task?')) return;
+      } else if (action === 'task-finish') {
+        if (confirm('Ești sigur că ai finalizat acest task?')) {
+          await withSpinner(() => apiTaskComplete(btn.dataset.taskId));
+          await loadData();
+        }
 
-        const now = new Date().toISOString();
-        const { error } = await withSpinner(() => supa.from('tasks').update({
-          status: 'completed',
-          status_color: '#10B981',
-          is_completed: true,
-          completed_at: now,
-          completed_by_user_id: currentUser.id,
-          completed_by_user_name: currentUser.user_metadata?.full_name || currentUser.email
-        }).eq('id', id));
-
-        if (error) return alert('Eroare: ' + error.message);
-        console.log('Task finalizat cu succes.');
+      } else if (action === 'task-reopen') {
+        await withSpinner(() => apiTaskReopen(btn.dataset.taskId));
         await loadData();
 
       } else if (action === 'task-release') {
-        const id = btn.dataset.taskId;
-        if (!confirm('Vrei să eliberezi acest task? Statusul va reveni la "Disponibil".')) return;
-
-        const { error } = await withSpinner(() => supa.from('tasks').update({
-          status: 'available',
-          status_color: '#3B82F6',
-          assigned_user_id: null,
-          assigned_user_name: null,
-          assigned_user_avatar: null,
-          started_at: null
-        }).eq('id', id));
-
-        if (error) return alert('Eroare: ' + error.message);
-        await loadData();
+        if (confirm('Vrei să eliberezi acest task? Statusul va reveni la "Disponibil".')) {
+          await withSpinner(() => apiTaskReopen(btn.dataset.taskId));
+          await loadData();
+        }
 
       } else if (action === 'task-delete') {
-        const id = btn.dataset.taskId, label = btn.dataset.taskLabel || 'taskul';
-        if (!confirm(`Șterge "${label}"?\nAcțiune ireversibilă.`)) return;
-        const { error } = await withSpinner(() => supa.from('tasks').delete().eq('id', id));
-        if (error) return alert('Eroare: ' + error.message);
-        await loadData();
+        if (await withSpinner(() => apiTaskDelete(btn.dataset.taskId, btn.dataset.taskLabel))) {
+          await loadData();
+        }
 
       // --- EVENTS ---
       } else if (action === 'event-status') {
@@ -2982,7 +3009,10 @@
             - status (string: "Invitat", "Sosit", "Plecat", or "În așteptare")
             - status_color (string: HEX)
             - is_vip (boolean)
-            - contact (string)
+            - phone (string)
+            - email (string)
+            - brand (string)
+            - city (string)
 
             Data to process:
             ${chunk}
@@ -2996,11 +3026,20 @@
           });
 
           if (!response.ok) {
-            const errJson = await response.json();
-            throw new Error(errJson.error?.message || `Eroare server la lotul ${i+1}`);
+            let errorMessage = `Eroare server la lotul ${i+1}`;
+            try {
+              const errJson = await response.json();
+              errorMessage = errJson.error?.message || errJson.error || errorMessage;
+            } catch(e) {}
+            throw new Error(errorMessage);
           }
 
           const resultJson = await response.json();
+
+          if (!resultJson.choices || !resultJson.choices[0] || !resultJson.choices[0].message) {
+             throw new Error("Răspuns AI invalid de la server.");
+          }
+
           const rawContent = resultJson.choices[0].message.content;
           const parsedData = JSON.parse(rawContent);
           if (parsedData.cars) {
@@ -3065,6 +3104,10 @@
       try {
         // Import cars to Supabase
         for (const car of cars) {
+          // Ensure phone/contact consistency
+          if (car.phone && !car.contact) car.contact = car.phone;
+          if (car.contact && !car.phone) car.phone = car.contact;
+
           await supa.from('cars').insert(car);
         }
         
@@ -3393,8 +3436,8 @@
     }
 
     function priorityBadge(p) {
-      const map = { 'urgentă': 'red', 'ridicată': 'orange', 'normală': 'blue', 'scăzută': 'green' };
-      const key = (p || '').toLowerCase();
+      const map = { 'urgenta': 'red', 'ridicata': 'orange', 'normala': 'blue', 'scazuta': 'green' };
+      const key = (p || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       return `<div class="badge ${map[key] || 'blue'}">${escape(p || 'Normală')}</div>`;
     }
 
@@ -3750,46 +3793,31 @@
       try {
         if (action === 'task-take') {
           const id = btn.dataset.taskId;
-          const { error } = await supa.from('tasks').update({
-            status: 'În lucru', status_color: '#F59E0B',
-            assigned_to: me, assigned_at: new Date().toISOString()
-          }).eq('id', id);
-          if (error) throw error;
-          showToast('Ai preluat taskul.');
-          await loadData();
-          showTaskDetail(id);
+          if (await apiTaskTake(id)) {
+            await loadData();
+            showTaskDetail(id);
+          }
 
         } else if (action === 'task-finish') {
           const id = btn.dataset.taskId;
-          const { error } = await supa.from('tasks').update({
-            status: 'Finalizat', status_color: '#10B981', is_completed: true,
-            completed_by: me, completed_at: new Date().toISOString()
-          }).eq('id', id);
-          if (error) throw error;
-          showToast('Task finalizat.');
-          await loadData();
-          showTaskDetail(id);
+          if (await apiTaskComplete(id)) {
+            await loadData();
+            showTaskDetail(id);
+          }
 
         } else if (action === 'task-reopen') {
           const id = btn.dataset.taskId;
-          const { error } = await supa.from('tasks').update({
-            is_completed: false, completed_by: null, completed_at: null,
-            status: 'În progres', status_color: '#F59E0B'
-          }).eq('id', id);
-          if (error) throw error;
-          showToast('Task redeschis.');
-          await loadData();
-          showTaskDetail(id);
+          if (await apiTaskReopen(id)) {
+            await loadData();
+            showTaskDetail(id);
+          }
 
         } else if (action === 'task-delete') {
           const id = btn.dataset.taskId;
-          const label = btn.dataset.taskLabel || 'taskul';
-          if (!confirm(`Șterge "${label}"?\nAcțiune ireversibilă.`)) { btn.disabled = false; return; }
-          const { error } = await supa.from('tasks').delete().eq('id', id);
-          if (error) throw error;
-          showToast('Task șters.');
-          closeModal(document.getElementById('modal-task-detail'));
-          await loadData();
+          if (await apiTaskDelete(id, btn.dataset.taskLabel)) {
+            closeModal(document.getElementById('modal-task-detail'));
+            await loadData();
+          }
 
         } else if (action === 'car-status') {
           const id = btn.dataset.carId;
@@ -3838,7 +3866,7 @@
     function taskStatusKey(status) {
       const s = (status || '').toLowerCase();
       if (s === 'available' || s.includes('disponibil') || s.includes('nou')) return 'available';
-      if (s === 'in_progress' || s.includes('lucru')) return 'in_progress';
+      if (s === 'in_progress' || s.includes('lucru') || s.includes('progres')) return 'in_progress';
       if (s === 'completed' || s.includes('finisat') || s.includes('finalizat')) return 'completed';
       return 'available';
     }
@@ -3957,18 +3985,12 @@
         const statusLabel = sk === 'completed' ? 'FINISAT' : sk === 'in_progress' ? 'ÎN LUCRU' : 'DISPONIBIL';
         const statusCls   = sk === 'completed' ? 'stat-done' : sk === 'in_progress' ? 'stat-progress' : 'stat-available';
         const pri = priorityMeta(t.priority);
-        const responsibleRaw = t.assigned_to || t.assigned_user_name || t.assigned_user_email || '—';
+        const responsibleRaw = t.assigned_user_name || '—';
         const responsible = escape(responsibleRaw);
 
         // Contextual primary action based on state + ownership
-        const myEmail = currentUser?.email || null;
         const myId = currentUser?.id || null;
-        const isOwner = !!myEmail && (
-          (t.assigned_user_id && myId && t.assigned_user_id === myId) ||
-          (t.assigned_to && t.assigned_to === myEmail) ||
-          (t.assigned_user_email && t.assigned_user_email === myEmail) ||
-          (t.assigned_user_name && t.assigned_user_name === myEmail)
-        );
+        const isOwner = !!myId && t.assigned_user_id === myId;
         let primaryBtn = '';
         if (sk === 'available') {
           primaryBtn = `<button class="tk-btn blue" data-action="task-take" data-task-id="${t.id}">
