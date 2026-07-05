@@ -2187,6 +2187,14 @@
     let currentUser = null;
 
     // ----- AUTH UI -----
+    const currentUserEmail = () => (supa.auth._currentSession?.user?.email) || (authState.email) || '—';
+    const currentUserName = () => {
+      const u = currentUser || supa.auth._currentSession?.user;
+      if (!u) return '—';
+      return u.user_metadata?.full_name || u.email;
+    };
+    let authState = { email: null };
+
     function showMsg(kind, text) {
       const m = el('msg');
       m.className = 'msg show ' + kind;
@@ -3027,10 +3035,15 @@
 
           if (!response.ok) {
             let errorMessage = `Eroare server la lotul ${i+1}`;
-            try {
-              const errJson = await response.json();
-              errorMessage = errJson.error?.message || errJson.error || errorMessage;
-            } catch(e) {}
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+              try {
+                const errJson = await response.json();
+                errorMessage = errJson.error?.message || errJson.error || errorMessage;
+              } catch(e) {}
+            } else {
+              errorMessage = `Server Error (${response.status}): Serverul nu a returnat JSON.`;
+            }
             throw new Error(errorMessage);
           }
 
@@ -3382,13 +3395,6 @@
     // ==============================================================
     // DETAIL MODALS (Task / Car)
     // ==============================================================
-    const currentUserEmail = () => (supa.auth._currentSession?.user?.email) || (authState.email) || '—';
-    const currentUserName = () => {
-      const u = currentUser || supa.auth._currentSession?.user;
-      if (!u) return '—';
-      return u.user_metadata?.full_name || u.email;
-    };
-    let authState = { email: null };
     supa.auth.getUser().then(({ data }) => { if (data?.user?.email) authState.email = data.user.email; });
 
     let openTaskDetailId = null;

@@ -31,6 +31,11 @@ const mimeTypes = {
 const server = http.createServer((req, res) => {
   // --- ENDPOINT PENTRU AI IMPORT ---
   if (req.url === '/api/ai-import' && req.method === 'POST') {
+    if (!OPENAI_API_KEY) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: "OPENAI_API_KEY is missing on server. Please check your .env file." }));
+      return;
+    }
     let body = '';
     req.on('data', chunk => { body += chunk.toString(); });
     req.on('end', () => {
@@ -61,7 +66,9 @@ const server = http.createServer((req, res) => {
           let aiBody = '';
           aiRes.on('data', d => aiBody += d);
           aiRes.on('end', () => {
-            res.writeHead(aiRes.statusCode, { 'Content-Type': 'application/json' });
+            // Pasăm status code-ul și corpul răspunsului, dar ne asigurăm că e JSON
+            const isJson = aiRes.headers['content-type']?.includes('application/json');
+            res.writeHead(aiRes.statusCode, { 'Content-Type': isJson ? 'application/json' : 'text/plain' });
             res.end(aiBody);
           });
         });
