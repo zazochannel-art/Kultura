@@ -3040,9 +3040,16 @@
               try {
                 const errJson = await response.json();
                 errorMessage = errJson.error?.message || errJson.error || errorMessage;
-              } catch(e) {}
+              } catch(e) {
+                errorMessage = `Eroare la parsarea JSON (${response.status})`;
+              }
             } else {
-              errorMessage = `Server Error (${response.status}): Serverul nu a returnat JSON.`;
+              const text = await response.text();
+              console.error("Non-JSON Error Response:", text);
+              errorMessage = `Server Error (${response.status}): Serverul a returnat un răspuns invalid (non-JSON).`;
+              if (text.length > 0) {
+                errorMessage += " Vezi consola pentru detalii.";
+              }
             }
             throw new Error(errorMessage);
           }

@@ -29,8 +29,13 @@ const mimeTypes = {
 };
 
 const server = http.createServer((req, res) => {
+  const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
+  const pathname = parsedUrl.pathname.replace(/\/+$/, '') || '/';
+
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} -> normalized: ${pathname}`);
+
   // --- ENDPOINT PENTRU AI IMPORT ---
-  if (req.url === '/api/ai-import' && req.method === 'POST') {
+  if (pathname === '/api/ai-import' && req.method === 'POST') {
     if (!OPENAI_API_KEY) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: "OPENAI_API_KEY is missing on server. Please check your .env file." }));
