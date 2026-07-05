@@ -689,14 +689,20 @@
     }
 
     /* ============ TASK CARD V2 (mockup design) ============ */
+    .tk-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+      gap: 14px;
+    }
     .tk-card {
       background: linear-gradient(160deg, rgba(11, 14, 27, 0.85), rgba(6, 8, 18, 0.85));
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 20px;
       padding: 20px 22px 18px;
-      margin-bottom: 12px;
       cursor: pointer;
       transition: transform 0.15s, border-color 0.2s, box-shadow 0.2s;
+      display: flex;
+      flex-direction: column;
     }
     .tk-card:hover {
       transform: translateY(-2px);
@@ -3838,7 +3844,7 @@
       const iconTrash = '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>';
       const iconUndo  = '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/>';
 
-      c.innerHTML = list.map(t => {
+      c.innerHTML = '<div class="tk-grid">' + list.map(t => {
         const sk = taskStatusKey(t.status);
         const iconClass = sk === 'completed' ? 'done' : sk === 'in_progress' ? 'progress' : 'available';
         const iconSvg   = sk === 'completed' ? iconCheck : iconClock;
@@ -3914,7 +3920,7 @@
             </div>
           </div>
         `;
-      }).join('');
+      }).join('') + '</div>';
     }
 
     function emptyState(text) {
