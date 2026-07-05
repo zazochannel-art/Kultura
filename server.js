@@ -86,7 +86,9 @@ const server = http.createServer((req, res) => {
   let urlPath = req.url === '/' ? '/index.html' : req.url;
   urlPath = urlPath.split('?')[0];
 
-  let filePath = path.join(__dirname, urlPath);
+  // Eliminăm slash-ul de la început pentru path.join corect pe Windows
+  const safePath = urlPath.startsWith('/') ? urlPath.substring(1) : urlPath;
+  let filePath = path.join(__dirname, safePath);
 
   fs.stat(filePath, (err, stats) => {
     if (!err && stats.isDirectory()) {
