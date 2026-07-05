@@ -2710,13 +2710,15 @@
 
     // Delegate clicks — cars/tasks/events actions
     document.addEventListener('click', async (ev) => {
-      const btn = ev.target.closest('.action-btn');
+      const btn = ev.target.closest('.action-btn, .tk-btn[data-action]');
       if (!btn || btn.classList.contains('loading')) return;
+      // Stop propagation immediately so parent card row doesn't open detail
+      ev.stopPropagation();
       const action = btn.dataset.action;
 
       const withSpinner = async (fn) => {
-        const row = btn.closest('.car-row, .task-row, .card');
-        row?.querySelectorAll('.action-btn').forEach(b => b.disabled = true);
+        const row = btn.closest('.tk-card, .car-row, .task-row, .card');
+        row?.querySelectorAll('.action-btn, .tk-btn').forEach(b => b.disabled = true);
         btn.classList.add('loading');
         const old = btn.innerHTML;
         btn.innerHTML = '<span class="mini-spin"></span>';
@@ -2724,7 +2726,7 @@
         finally {
           btn.classList.remove('loading');
           btn.innerHTML = old;
-          row?.querySelectorAll('.action-btn').forEach(b => b.disabled = false);
+          row?.querySelectorAll('.action-btn, .tk-btn').forEach(b => b.disabled = false);
         }
       };
 
@@ -3663,6 +3665,19 @@
       if (ev.target.closest('.add-btn')) return;
       if (ev.target.closest('[data-close]')) return;
       if (ev.target.closest('.modal-backdrop')) return; // click was inside a modal or on backdrop; other handlers handle it
+      // Skip clicks on card action buttons that have their own data-action handler
+      const tkBtn = ev.target.closest('.tk-btn');
+      if (tkBtn && tkBtn.dataset.action) return; // in-card action button — handled elsewhere
+
+      // The dots button explicitly opens the detail
+      if (tkBtn && tkBtn.dataset.openDetail === '1') {
+        const row = tkBtn.closest('.tk-card, .task-row, .car-row');
+        if (row) {
+          if (row.classList.contains('car-row')) showCarDetail(row.dataset.rowId);
+          else showTaskDetail(row.dataset.rowId);
+        }
+        return;
+      }
 
       const carRow = ev.target.closest('.car-row');
       if (carRow && carRow.dataset.rowId) { showCarDetail(carRow.dataset.rowId); return; }
