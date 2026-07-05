@@ -405,35 +405,45 @@
     .card-head p { color: var(--text-dim); font-size: 11px; }
 
     .row {
-      display: flex; align-items: center; gap: 12px;
-      padding: 10px 0;
+      display: flex; align-items: center; gap: 16px;
+      padding: 14px 12px;
       border-bottom: 1px solid var(--border);
+      transition: background 0.2s, transform 0.2s;
+      border-radius: 12px;
+    }
+    .row:hover {
+      background: rgba(255,255,255,0.03);
     }
     .row:last-child { border-bottom: none; }
     .row-icon {
-      width: 40px; height: 40px;
-      border-radius: 12px;
+      width: 44px; height: 44px;
+      border-radius: 14px;
       display: grid; place-items: center;
       flex-shrink: 0;
-      border: 1px solid rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
     }
-    .row-icon svg { width: 18px; height: 18px; }
-    .row-icon.blue { background: linear-gradient(135deg, rgba(59,130,246,0.25), rgba(139,92,246,0.10)); color: var(--cyan); }
-    .row-icon.green { background: linear-gradient(135deg, rgba(16,185,129,0.25), rgba(16,185,129,0.10)); color: var(--green); }
-    .row-icon.orange { background: linear-gradient(135deg, rgba(245,158,11,0.25), rgba(245,158,11,0.10)); color: var(--orange); }
-    .row-icon.red { background: linear-gradient(135deg, rgba(239,68,68,0.25), rgba(239,68,68,0.10)); color: var(--red); }
-    .row-icon.purple { background: linear-gradient(135deg, rgba(139,92,246,0.25), rgba(236,72,153,0.10)); color: var(--purple); }
+    .row-icon svg { width: 22px; height: 22px; }
+    .row-icon.blue { background: linear-gradient(135deg, rgba(59,130,246,0.3), rgba(59,130,246,0.1)); color: var(--cyan); }
+    .row-icon.green { background: linear-gradient(135deg, rgba(16,185,129,0.3), rgba(16,185,129,0.1)); color: var(--green); }
+    .row-icon.orange { background: linear-gradient(135deg, rgba(245,158,11,0.3), rgba(245,158,11,0.1)); color: var(--orange); }
+    .row-icon.red { background: linear-gradient(135deg, rgba(239,68,68,0.3), rgba(239,68,68,0.1)); color: var(--red); }
+    .row-icon.purple { background: linear-gradient(135deg, rgba(139,92,246,0.3), rgba(236,72,153,0.1)); color: var(--purple); }
+
     .row-body { flex: 1; min-width: 0; }
-    .row-title { font-size: 14px; font-weight: 700; }
-    .row-sub { color: var(--text-dim); font-size: 12px; margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+    .row-title { font-size: 15px; font-weight: 800; letter-spacing: -0.2px; color: var(--text); }
+    .row-sub { color: var(--text-dim); font-size: 13px; margin-top: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .row-sub span.sep { width: 3px; height: 3px; border-radius: 50%; background: var(--text-mute); }
+
     .badge {
-      padding: 4px 10px;
-      font-size: 10px;
-      font-weight: 700;
-      border-radius: 8px;
+      padding: 5px 12px;
+      font-size: 11px;
+      font-weight: 800;
+      border-radius: 10px;
       border: 1px solid;
       white-space: nowrap;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
     .badge.green { color: var(--green); background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.30); }
     .badge.blue { color: var(--blue); background: rgba(59,130,246,0.15); border-color: rgba(59,130,246,0.30); }
@@ -473,38 +483,6 @@
     .setting-row .txt { flex: 1; }
     .setting-row .txt strong { display: block; font-size: 14px; font-weight: 700; }
     .setting-row .txt span { color: var(--text-dim); font-size: 12px; }
-
-    .lang-selector {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-      gap: 12px;
-      margin-top: 4px;
-    }
-    .lang-btn {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 18px;
-      background: rgba(255,255,255,0.02);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      color: var(--text-dim);
-      font-family: inherit;
-      font-size: 14px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .lang-btn:hover { background: rgba(255,255,255,0.05); color: var(--text); border-color: var(--border-strong); }
-    .lang-btn.active {
-      background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(139,92,246,0.15));
-      border-color: var(--blue);
-      color: #fff;
-      box-shadow: 0 8px 20px rgba(59,130,246,0.1);
-    }
-    .lang-btn .flag { font-size: 20px; margin-right: 10px; }
-    .lang-btn svg { width: 18px; height: 18px; color: var(--blue); display: none; }
-    .lang-btn.active svg { display: block; }
 
     /* HERO LOGO — centered at top of app */
     .logo-hero {
@@ -1275,8 +1253,8 @@
   <!-- ============ LOGIN VIEW ============ -->
   <div id="loginView">
     <div class="login-card">
-      <h1 id="title" data-i18n="login.title">Bun venit</h1>
-      <p class="sub" id="subtitle" data-i18n="login.subtitle">Autentifică-te pentru a continua</p>
+      <h1 id="title">Bun venit</h1>
+      <p class="sub" id="subtitle">Autentifică-te pentru a continua</p>
 
       <div class="msg" id="msg">
         <svg id="msgIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -1291,15 +1269,15 @@
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
             <polyline points="22,6 12,13 2,6"></polyline>
           </svg>
-          <input type="email" id="email" placeholder="Email" required autocomplete="email" data-i18n-attr="placeholder:login.email">
+          <input type="email" id="email" placeholder="Email" required autocomplete="email">
         </div>
         <div class="field">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
           </svg>
-          <input type="password" id="password" placeholder="Parolă" required minlength="6" autocomplete="current-password" data-i18n-attr="placeholder:login.password">
-          <button type="button" class="eye" id="togglePwd" aria-label="Arată parola" data-i18n-attr="aria-label:login.show_pwd">
+          <input type="password" id="password" placeholder="Parolă" required minlength="6" autocomplete="current-password">
+          <button type="button" class="eye" id="togglePwd" aria-label="Arată parola">
             <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
               <circle cx="12" cy="12" r="3"></circle>
@@ -1308,13 +1286,13 @@
         </div>
 
         <button type="submit" class="btn full" id="submitBtn">
-          <span id="btnText" data-i18n="login.submit">Autentifică-te</span>
+          <span id="btnText">Autentifică-te</span>
         </button>
       </form>
 
       <p class="toggle">
-        <span id="toggleText" data-i18n="login.toggle_no">Nu ai cont?</span>
-        <a id="toggleLink" data-i18n="login.register">Înregistrează-te</a>
+        <span id="toggleText">Nu ai cont?</span>
+        <a id="toggleLink">Înregistrează-te</a>
       </p>
     </div>
   </div>
@@ -1340,47 +1318,47 @@
     <nav class="tabs">
       <button class="tab active" data-section="home">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-        <span data-i18n="nav.home">Acasă</span>
+        Acasă
       </button>
       <button class="tab" data-section="events">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        <span data-i18n="nav.events">Evenimente</span>
+        Evenimente
       </button>
       <button class="tab" data-section="cars">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
-        <span data-i18n="nav.cars">Mașini</span>
+        Mașini
       </button>
       <button class="tab" data-section="tasks">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        <span data-i18n="nav.tasks">Taskuri</span>
+        Taskuri
       </button>
       <button class="tab" data-section="settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        <span data-i18n="nav.settings">Setări</span>
+        Setări
       </button>
     </nav>
 
     <!-- MOBILE-ONLY BOTTOM NAVIGATION (ExpandableTabs pattern) -->
     <nav class="mobile-tabs" aria-label="Meniu principal">
-      <button class="mtab active" data-section="home" aria-label="Acasă" data-i18n-attr="aria-label:nav.home">
+      <button class="mtab active" data-section="home" aria-label="Acasă">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-        <span class="label" data-i18n="nav.home">Acasă</span>
+        <span class="label">Acasă</span>
       </button>
-      <button class="mtab" data-section="events" aria-label="Evenimente" data-i18n-attr="aria-label:nav.events">
+      <button class="mtab" data-section="events" aria-label="Evenimente">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        <span class="label" data-i18n="nav.events">Evenimente</span>
+        <span class="label">Evenimente</span>
       </button>
-      <button class="mtab" data-section="cars" aria-label="Mașini" data-i18n-attr="aria-label:nav.cars">
+      <button class="mtab" data-section="cars" aria-label="Mașini">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
-        <span class="label" data-i18n="nav.cars">Mașini</span>
+        <span class="label">Mașini</span>
       </button>
-      <button class="mtab" data-section="tasks" aria-label="Taskuri" data-i18n-attr="aria-label:nav.tasks">
+      <button class="mtab" data-section="tasks" aria-label="Taskuri">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        <span class="label" data-i18n="nav.tasks">Taskuri</span>
+        <span class="label">Taskuri</span>
       </button>
-      <button class="mtab" data-section="settings" aria-label="Setări" data-i18n-attr="aria-label:nav.settings">
+      <button class="mtab" data-section="settings" aria-label="Setări">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        <span class="label" data-i18n="nav.settings">Setări</span>
+        <span class="label">Setări</span>
       </button>
     </nav>
 
@@ -1389,19 +1367,19 @@
       <section class="section active" id="section-home">
         <div class="greeting-row">
           <div class="greeting">
-            <p data-i18n="dashboard.welcome">Bun venit înapoi 👋</p>
+            <p>Bun venit înapoi 👋</p>
             <h1 id="greetingEmail">—</h1>
           </div>
         </div>
 
         <div class="hero">
           <div class="hero-inner">
-            <div class="hero-badge"><span class="dot"></span><span data-i18n="dashboard.hero_badge">URMĂTORUL EVENIMENT</span></div>
+            <div class="hero-badge"><span class="dot"></span>URMĂTORUL EVENIMENT</div>
             <div class="hero-meta">
               <div class="n" id="heroDays">—</div>
-              <div class="l" data-i18n="dashboard.days">zile rămase</div>
+              <div class="l">zile rămase</div>
             </div>
-            <div class="hero-title" id="heroTitle" data-i18n="dashboard.loading">Se încarcă...</div>
+            <div class="hero-title" id="heroTitle">Se încarcă...</div>
             <div class="hero-sub" id="heroSub"></div>
             <div class="hero-info">
               <span id="heroDate"></span>
@@ -1411,7 +1389,7 @@
         </div>
 
         <div class="section-title">
-          <div><h2 data-i18n="dashboard.stats_title">Statistici</h2><p data-i18n="dashboard.stats_desc">Rezumat live din baza de date</p></div>
+          <div><h2>Statistici</h2><p>Rezumat live din baza de date</p></div>
         </div>
         <div class="stats-grid">
           <div class="stat">
@@ -1422,7 +1400,7 @@
               <div class="stat-trend">↑ live</div>
             </div>
             <div class="stat-value" id="statCars">—</div>
-            <div class="stat-label" data-i18n="dashboard.stats_cars">Mașini înscrise</div>
+            <div class="stat-label">Mașini înscrise</div>
           </div>
           <div class="stat">
             <div class="stat-head">
@@ -1432,7 +1410,7 @@
               <div class="stat-trend">↑ live</div>
             </div>
             <div class="stat-value" id="statEvents">—</div>
-            <div class="stat-label" data-i18n="dashboard.stats_events">Evenimente planificate</div>
+            <div class="stat-label">Evenimente planificate</div>
           </div>
           <div class="stat">
             <div class="stat-head">
@@ -1442,7 +1420,7 @@
               <div class="stat-trend">↑ live</div>
             </div>
             <div class="stat-value" id="statCarsConfirmed">—</div>
-            <div class="stat-label" data-i18n="dashboard.stats_confirmed">Mașini confirmate</div>
+            <div class="stat-label">Mașini sosite</div>
           </div>
           <div class="stat">
             <div class="stat-head">
@@ -1452,20 +1430,20 @@
               <div class="stat-trend">↑ live</div>
             </div>
             <div class="stat-value" id="statTasks">—</div>
-            <div class="stat-label" data-i18n="dashboard.stats_tasks">Taskuri deschise</div>
+            <div class="stat-label">Taskuri deschise</div>
           </div>
         </div>
 
         <div class="card" id="upcomingEventsCard">
           <div class="card-head">
-            <div><h3 data-i18n="dashboard.upcoming">Evenimente viitoare</h3><p data-i18n="dashboard.upcoming_desc">Ce urmează pe agendă</p></div>
+            <div><h3>Evenimente viitoare</h3><p>Ce urmează pe agendă</p></div>
           </div>
           <div id="upcomingEventsList"></div>
         </div>
 
         <div class="card" id="topTasksCard">
           <div class="card-head">
-            <div><h3 data-i18n="dashboard.tasks">Taskuri prioritare</h3><p data-i18n="dashboard.tasks_desc">Ce e activ acum</p></div>
+            <div><h3>Taskuri prioritare</h3><p>Ce e activ acum</p></div>
           </div>
           <div id="topTasksList"></div>
         </div>
@@ -1474,16 +1452,16 @@
       <!-- EVENTS -->
       <section class="section" id="section-events">
         <div class="section-title">
-          <div><h2 data-i18n="events.title">Evenimente</h2><p><span id="eventsCount">0</span> <span data-i18n="events.total">total</span></p></div>
+          <div><h2>Evenimente</h2><p><span id="eventsCount">0</span> total</p></div>
         </div>
         <div class="toolbar">
           <div class="search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="search" id="eventsSearch" placeholder="Caută eveniment..." data-i18n-attr="placeholder:events.search">
+            <input type="search" id="eventsSearch" placeholder="Caută eveniment...">
           </div>
           <button class="add-btn" data-modal="add-event">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span data-i18n="events.add">Adaugă</span>
+            Adaugă
           </button>
         </div>
         <div class="chips" id="eventsChips"></div>
@@ -1493,23 +1471,23 @@
       <!-- CARS -->
       <section class="section" id="section-cars">
         <div class="section-title">
-          <div><h2 data-i18n="cars.title">Mașini invitate</h2><p><span id="carsCount">0</span> <span data-i18n="cars.total">mașini în total</span></p></div>
+          <div><h2>Mașini invitate</h2><p><span id="carsCount">0</span> mașini în total</p></div>
         </div>
         <div class="toolbar">
           <div class="search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="search" id="carsSearch" placeholder="Caută model, proprietar, plăcuță..." data-i18n-attr="placeholder:cars.search">
+            <input type="search" id="carsSearch" placeholder="Caută model, proprietar, plăcuță...">
           </div>
           <button class="add-btn" id="manualRefreshBtn" style="background: var(--surface-elev); color: var(--text-dim); border: 1px solid var(--border);">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
           </button>
           <button class="add-btn" id="aiImportBtn" style="background: linear-gradient(90deg, #8b5cf6, #ec4899);">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
-            <span data-i18n="cars.ai_import">AI Import</span>
+            AI Import
           </button>
           <button class="add-btn" data-modal="add-car">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span data-i18n="cars.add">Adaugă</span>
+            Adaugă
           </button>
         </div>
         <div class="chips" id="carsChips"></div>
@@ -1519,16 +1497,16 @@
       <!-- TASKS -->
       <section class="section" id="section-tasks">
         <div class="section-title">
-          <div><h2 data-i18n="tasks.title">Taskuri</h2><p><span id="tasksCount">0</span> <span data-i18n="tasks.total">total</span></p></div>
+          <div><h2>Taskuri</h2><p><span id="tasksCount">0</span> total</p></div>
         </div>
         <div class="toolbar">
           <div class="search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="search" id="tasksSearch" placeholder="Caută task..." data-i18n-attr="placeholder:tasks.search">
+            <input type="search" id="tasksSearch" placeholder="Caută task...">
           </div>
           <button class="add-btn" data-modal="add-task">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span data-i18n="tasks.add">Adaugă</span>
+            Adaugă
           </button>
         </div>
         <div class="chips" id="tasksChips"></div>
@@ -1538,62 +1516,43 @@
       <!-- SETTINGS -->
       <section class="section" id="section-settings">
         <div class="setting-block">
-          <div class="setting-label" data-i18n="settings.account">CONT</div>
+          <div class="setting-label">CONT</div>
           <div class="setting-row">
             <div class="icon-box">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             </div>
             <div class="txt">
-              <strong data-i18n="settings.email">Email</strong>
+              <strong>Email</strong>
               <span id="settingsEmail">—</span>
             </div>
           </div>
         </div>
 
         <div class="setting-block">
-          <div class="setting-label" data-i18n="settings.language">LIMBĂ APLICAȚIE</div>
-          <p class="sub-help" style="margin-bottom:16px; font-size:13px; color:var(--text-dim);" data-i18n="settings.languageDesc">Selectează limba în care dorești să fie afișată aplicația.</p>
-          <div class="lang-selector">
-            <button class="lang-btn" data-lang="ro">
-              <span><span class="flag">🇷🇴</span> Română</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            </button>
-            <button class="lang-btn" data-lang="ru">
-              <span><span class="flag">🇷🇺</span> Русский</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            </button>
-            <button class="lang-btn" data-lang="en">
-              <span><span class="flag">🇬🇧</span> English</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            </button>
-          </div>
-        </div>
-
-        <div class="setting-block">
-          <div class="setting-label" data-i18n="settings.session">SESIUNE</div>
+          <div class="setting-label">SESIUNE</div>
           <div class="setting-row">
             <div class="icon-box red">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             </div>
             <div class="txt">
-              <strong data-i18n="settings.logout">Deconectare</strong>
-              <span data-i18n="settings.logout_desc">Închide sesiunea și revino la ecranul de login</span>
+              <strong>Deconectare</strong>
+              <span>Închide sesiunea și revino la ecranul de login</span>
             </div>
-            <button class="btn danger small" id="logoutBtn" data-i18n="settings.logout_btn">Ieși</button>
+            <button class="btn danger small" id="logoutBtn">Ieși</button>
           </div>
         </div>
 
         <div class="setting-block">
-          <div class="setting-label" data-i18n="settings.data">DATE</div>
+          <div class="setting-label">DATE</div>
           <div class="setting-row">
             <div class="icon-box red">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
             </div>
             <div class="txt">
-              <strong data-i18n="settings.delete_all">Șterge toate mașinile</strong>
-              <span data-i18n="settings.delete_all_desc">Elimină toate mașinile din baza de date (acțiune ireversibilă)</span>
+              <strong>Șterge toate mașinile</strong>
+              <span>Elimină toate mașinile din baza de date (acțiune ireversibilă)</span>
             </div>
-            <button class="btn danger small" id="deleteAllCarsBtn" data-i18n="settings.delete_btn">Șterge</button>
+            <button class="btn danger small" id="deleteAllCarsBtn">Șterge</button>
           </div>
         </div>
       </section>
@@ -1872,106 +1831,6 @@
   <script type="module">
     import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-    const translations = {
-      ro: {
-        login: { title: "Bun venit", subtitle: "Autentifică-te pentru a continua", welcome: "Bine ai venit", subtitle_signup: "Creează un cont pentru echipa ta", email: "Email", password: "Parolă", show_pwd: "Arată parola", submit: "Autentifică-te", signup: "Creează cont", toggle_no: "Nu ai cont?", toggle_yes: "Ai deja un cont?", register: "Înregistrează-te", login: "Autentifică-te", min_chars: "Parola trebuie să aibă minim 6 caractere", signup_success: "Cont creat! Verifică emailul pentru confirmare." },
-        nav: { home: "Acasă", events: "Evenimente", cars: "Mașini", tasks: "Taskuri", settings: "Setări" },
-        dashboard: { welcome: "Bun venit înapoi 👋", hero_badge: "URMĂTORUL EVENIMENT", days: "zile rămase", loading: "Se încarcă...", stats_title: "Statistici", stats_desc: "Rezumat live din baza de date", stats_cars: "Mașini înscrise", stats_events: "Evenimente planificate", stats_confirmed: "Mașini confirmate", stats_tasks: "Taskuri deschise", upcoming: "Evenimente viitoare", upcoming_desc: "Ce urmează pe agendă", tasks: "Taskuri prioritare", tasks_desc: "Ce e activ acum" },
-        events: { title: "Evenimente", total: "total", search: "Caută eveniment...", add: "Adaugă", filter_all: "Toate", delete_confirm: "Șterge \"{name}\"?\nAcțiune ireversibilă." },
-        cars: { title: "Mașini invitate", total: "mașini în total", search: "Caută model, proprietar, plăcuță...", ai_import: "AI Import", add: "Adaugă", filter_all: "Toate", filter_vip: "VIP", delete_confirm: "Șterge \"{name}\"?\nAcțiune ireversibilă.", delete_all_confirm: "Ești sigur că vrei să ștergi TOATE mașinile din baza de date?\n\nAceastă acțiune este ireversibilă!", delete_all_success: "Toate mașinile au fost șterse cu succes!", initial_status: "Status inițial", is_vip: "Marchează ca VIP", modal_title: "Adaugă mașină", modal_desc: "Completează detaliile mașinii invitate." },
-        tasks: { title: "Taskuri", total: "total", search: "Caută task...", add: "Adaugă", filter_all: "Toate", filter_open: "Deschise", take_btn: "Iau în lucru", finish_btn: "Finisat", release_btn: "Eliberează", delete_confirm: "Șterge \"{name}\"?\nAcțiune ireversibilă.", finish_confirm: "Ești sigur că ai finalizat acest task?", take_success: "Taskul a fost preluat cu succes.", finish_success: "Taskul a fost marcat ca finisat.", already_taken: "Acest task a fost deja preluat de alt utilizator.", taken_by: "Preluat de", taken_at: "Preluat la", finished_by: "Finalizat de", finished_at: "Finalizat la" },
-        settings: { account: "CONT", email: "Email", session: "SESIUNE", logout: "Deconectare", logout_desc: "Închide sesiunea și revino la ecranul de login", logout_btn: "Ieși", data: "DATE", delete_all: "Șterge toate mașinile", delete_all_desc: "Elimină toate mașinile din baza de date (acțiune ireversibilă)", delete_btn: "Șterge", language: "LIMBĂ APLICAȚIE", languageDesc: "Selectează limba în care dorești să fie afișată aplicația.", lang_changed: "Limba aplicației a fost schimbată cu succes." },
-        common: { cancel: "Anulează", save: "Salvează", empty: "Nimic găsit", none: "Niciun eveniment", none_tasks: "Niciun task deschis", urgent: "Urgentă", high: "Ridicată", normal: "Normală", low: "Scăzută", available: "Disponibil", in_progress: "În lucru", completed: "Finisat" },
-        statuses: { planned: "Planificat", soon: "În curând", active: "Activ", done: "Finalizat", canceled: "Anulat", invited: "Invitat", arrived: "Sosit", left: "Plecat", pending: "În așteptare" },
-        modals: { add_event: "Add event", event_help: "Festival/exhibition details.", add_task: "Add task", task_help: "Something for your team to do." }
-      },
-      ru: {
-        login: { title: "Добро пожаловать", subtitle: "Войдите, чтобы продолжить", welcome: "Добро пожаловать", subtitle_signup: "Создайте аккаунт для вашей команды", email: "Email", password: "Пароль", show_pwd: "Показать пароль", submit: "Войти", signup: "Создать аккаунт", toggle_no: "Нет аккаунта?", toggle_yes: "Уже есть аккаунт?", register: "Зарегистрироваться", login: "Войти", min_chars: "Пароль должен быть не менее 6 символов", signup_success: "Аккаунт создан! Проверьте почту для подтверждения." },
-        nav: { home: "Главная", events: "События", cars: "Машины", tasks: "Задачи", settings: "Настройки" },
-        dashboard: { welcome: "С возвращением 👋", hero_badge: "СЛЕДУЮЩЕЕ СОБЫТИЕ", days: "дней осталось", loading: "Загрузка...", stats_title: "Статистика", stats_desc: "Сводка из базы данных в реальном времени", stats_cars: "Машин зарегистрировано", stats_events: "Планируемые события", stats_confirmed: "Подтвержденные машины", stats_tasks: "Открытые задачи", upcoming: "Предстоящие события", upcoming_desc: "Что в повестке дня", tasks: "Приоритетные задачи", tasks_desc: "Что сейчас активно" },
-        events: { title: "События", total: "всего", search: "Поиск события...", add: "Добавить", filter_all: "Все", delete_confirm: "Удалить \"{name}\"?\nЭто действие необратимо." },
-        cars: { title: "Приглашенные машины", total: "всего машин", search: "Поиск модели, владельца, номера...", ai_import: "AI Импорт", add: "Добавить", filter_all: "Все", filter_vip: "VIP", delete_confirm: "Удалить \"{name}\"?\nЭто действие необратимо.", delete_all_confirm: "Вы уверены, что хотите удалить ВСЕ машины из базы данных?\n\nЭто действие необратимо!", delete_all_success: "Все машины успешно удалены!", initial_status: "Начальный статус", is_vip: "Отметить как VIP", modal_title: "Добавить машину", modal_desc: "Заполните данные приглашенной машины." },
-        tasks: { title: "Задачи", total: "всего", search: "Поиск задачи...", add: "Добавить", filter_all: "Все", filter_open: "Открытые", take_btn: "Взять в работу", finish_btn: "Завершить", release_btn: "Освободить", delete_confirm: "Удалить \"{name}\"?\nЭто действие необратимо.", finish_confirm: "Вы уверены, что завершили эту задачу?", take_success: "Задача успешно взята в работу.", finish_success: "Задача отмечена как завершенная.", already_taken: "Эта задача уже взята другим пользователем.", taken_by: "Взял(а)", taken_at: "Взято в", finished_by: "Завершил(а)", finished_at: "Завершено в" },
-        settings: { account: "АККАУНТ", email: "Email", session: "СЕССИЯ", logout: "Выход", logout_desc: "Завершить сеанс и вернуться к экрану входа", logout_btn: "Выйти", data: "ДАННЫЕ", delete_all: "Удалить все машины", delete_all_desc: "Удалить все машины из базы данных (действие необратимо)", delete_btn: "Удалить", language: "ЯЗЫК ПРИЛОЖЕНИЯ", languageDesc: "Выберите язык, на котором будет отображаться приложение.", lang_changed: "Язык приложения успешно изменён." },
-        common: { cancel: "Отмена", save: "Сохранить", empty: "Ничего не найдено", none: "Нет событий", none_tasks: "Нет открытых задач", urgent: "Срочно", high: "Высокий", normal: "Обычный", low: "Низкий", available: "Доступно", in_progress: "В работе", completed: "Завершено" },
-        statuses: { planned: "Запланировано", soon: "Скоро", active: "Активно", done: "Завершено", canceled: "Отменено", invited: "Приглашен", arrived: "Прибыл", left: "Уехал", pending: "В ожидании" },
-        modals: { add_event: "Добавить событие", event_help: "Детали фестиваля/выставки.", add_task: "Добавить задачу", task_help: "Что-то, что нужно сделать вашей команде." }
-      },
-      en: {
-        login: { title: "Welcome", subtitle: "Sign in to continue", welcome: "Welcome", subtitle_signup: "Create an account for your team", email: "Email", password: "Password", show_pwd: "Show password", submit: "Sign In", signup: "Create Account", toggle_no: "Don't have an account?", toggle_yes: "Already have an account?", register: "Register", login: "Sign In", min_chars: "Password must be at least 6 characters", signup_success: "Account created! Check your email for confirmation." },
-        nav: { home: "Home", events: "Events", cars: "Cars", tasks: "Tasks", settings: "Settings" },
-        dashboard: { welcome: "Welcome back 👋", hero_badge: "NEXT EVENT", days: "days left", loading: "Loading...", stats_title: "Statistics", stats_desc: "Live summary from the database", stats_cars: "Registered cars", stats_events: "Planned events", stats_confirmed: "Confirmed cars", stats_tasks: "Open tasks", upcoming: "Upcoming Events", upcoming_desc: "What's on the agenda", tasks: "Priority Tasks", tasks_desc: "What's active now" },
-        events: { title: "Events", total: "total", search: "Search event...", add: "Add", filter_all: "All", delete_confirm: "Delete \"{name}\"?\nIrreversible action." },
-        cars: { title: "Invited Cars", total: "cars total", search: "Search model, owner, plate...", ai_import: "AI Import", add: "Add", filter_all: "All", filter_vip: "VIP", delete_confirm: "Delete \"{name}\"?\nIrreversible action.", delete_all_confirm: "Are you sure you want to delete ALL cars from the database?\n\nThis action is irreversible!", delete_all_success: "All cars have been successfully deleted!", initial_status: "Initial status", is_vip: "Mark as VIP", modal_title: "Add car", modal_desc: "Fill in the details of the invited car." },
-        tasks: { title: "Tasks", total: "total", search: "Search task...", add: "Add", filter_all: "All", filter_open: "Open", take_btn: "Take task", finish_btn: "Finish", release_btn: "Release", delete_confirm: "Delete \"{name}\"?\nIrreversible action.", finish_confirm: "Are you sure you have completed this task?", take_success: "Task taken successfully.", finish_success: "Task marked as completed.", already_taken: "This task has already been taken by another user.", taken_by: "Taken by", taken_at: "Taken at", finished_by: "Finished by", finished_at: "Finished at" },
-        settings: { account: "ACCOUNT", email: "Email", session: "SESSION", logout: "Logout", logout_desc: "Close the session and return to the login screen", logout_btn: "Logout", data: "DATA", delete_all: "Delete all cars", delete_all_desc: "Remove all cars from the database (irreversible action)", delete_btn: "Delete", language: "APPLICATION LANGUAGE", languageDesc: "Select the language in which the application should be displayed.", lang_changed: "The application language was changed successfully." },
-        common: { cancel: "Cancel", save: "Save", empty: "Nothing found", none: "No events", none_tasks: "No open tasks", urgent: "Urgent", high: "High", normal: "Normal", low: "Low", available: "Available", in_progress: "In progress", completed: "Completed" },
-        statuses: { planned: "Planned", soon: "Soon", active: "Active", done: "Finished", canceled: "Canceled", invited: "Invited", arrived: "Arrived", left: "Left", pending: "Pending" },
-        modals: { add_event: "Add event", event_help: "Festival/exhibition details.", add_task: "Add task", task_help: "Something for your team to do." }
-      }
-    };
-      ru: {
-        login: { title: "Добро пожаловать", subtitle: "Войдите, чтобы продолжить", email: "Email", password: "Пароль", show_pwd: "Показать пароль", submit: "Войти", signup: "Создать аккаунт", toggle_no: "Нет аккаунта?", toggle_yes: "Уже есть аккаунт?", register: "Зарегистрироваться", login: "Войти", min_chars: "Пароль должен быть не менее 6 символов", signup_success: "Аккаунт создан! Проверьте почту для подтверждения." },
-        nav: { home: "Главная", events: "События", cars: "Машины", tasks: "Задачи", settings: "Настройки" },
-        dashboard: { welcome: "С возвращением 👋", hero_badge: "СЛЕДУЮЩЕЕ СОБЫТИЕ", days: "дней осталось", loading: "Загрузка...", stats_title: "Статистика", stats_desc: "Сводка из базы данных в реальном времени", stats_cars: "Машин зарегистрировано", stats_events: "Планируемые события", stats_confirmed: "Подтвержденные машины", stats_tasks: "Открытые задачи", upcoming: "Предстоящие события", upcoming_desc: "Что в повестке дня", tasks: "Приоритетные задачи", tasks_desc: "Что сейчас активно" },
-        events: { title: "События", total: "всего", search: "Поиск события...", add: "Добавить", filter_all: "Все", delete_confirm: "Удалить \"{name}\"?\nЭто действие необратимо." },
-        cars: { title: "Приглашенные машины", total: "всего машин", search: "Поиск модели, владельца, номера...", ai_import: "AI Импорт", add: "Добавить", filter_all: "Все", filter_vip: "VIP", delete_confirm: "Удалить \"{name}\"?\nЭто действие необратимо.", delete_all_confirm: "Вы уверены, что хотите удалить ВСЕ машины из базы данных?\n\nЭто действие необратимо!", delete_all_success: "Все машины успешно удалены!", initial_status: "Начальный статус", is_vip: "Отметить как VIP", modal_title: "Добавить машину", modal_desc: "Заполните данные приглашенной машины." },
-        tasks: { title: "Задачи", total: "всего", search: "Поиск задачи...", add: "Добавить", filter_all: "Все", filter_open: "Открытые", take_btn: "Взять в работу", finish_btn: "Завершить", release_btn: "Освободить", delete_confirm: "Удалить \"{name}\"?\nЭто действие необратимо.", finish_confirm: "Вы уверены, что завершили эту задачу?", take_success: "Задача успешно взята в работу.", finish_success: "Задача отмечена как завершенная.", already_taken: "Эта задача уже взята другим пользователем.", taken_by: "Взял(а)", taken_at: "Взято в", finished_by: "Завершил(а)", finished_at: "Завершено в" },
-        settings: { account: "АККАУНТ", email: "Email", session: "СЕССИЯ", logout: "Выход", logout_desc: "Завершить сеанс и вернуться к экрану входа", logout_btn: "Выйти", data: "ДАННЫЕ", delete_all: "Удалить все машины", delete_all_desc: "Удалить все машины из базы данных (действие необратимо)", delete_btn: "Удалить", language: "ЯЗЫК ПРИЛОЖЕНИЯ", languageDesc: "Выберите язык, на котором будет отображаться приложение.", lang_changed: "Язык приложения успешно изменён." },
-        common: { cancel: "Отмена", save: "Сохранить", empty: "Ничего не найдено", none: "Нет событий", none_tasks: "Нет открытых задач", urgent: "Срочно", high: "Высокий", normal: "Обычный", low: "Низкий", available: "Доступно", in_progress: "В работе", completed: "Завершено" },
-        statuses: { planned: "Запланировано", soon: "Скоро", active: "Активно", done: "Завершено", canceled: "Отменено", invited: "Приглашен", arrived: "Прибыл", left: "Уехал", pending: "В ожидании" },
-        modals: { add_event: "Добавить событие", event_help: "Детали фестиваля/выставки.", add_task: "Добавить задачу", task_help: "Что-то, что нужно сделать вашей команде." }
-      },
-      en: {
-        login: { title: "Welcome", subtitle: "Sign in to continue", email: "Email", password: "Password", show_pwd: "Show password", submit: "Sign In", signup: "Create Account", toggle_no: "Don't have an account?", toggle_yes: "Already have an account?", register: "Register", login: "Sign In", min_chars: "Password must be at least 6 characters", signup_success: "Account created! Check your email for confirmation." },
-        nav: { home: "Home", events: "Events", cars: "Cars", tasks: "Tasks", settings: "Settings" },
-        dashboard: { welcome: "Welcome back 👋", hero_badge: "NEXT EVENT", days: "days left", loading: "Loading...", stats_title: "Statistics", stats_desc: "Live summary from the database", stats_cars: "Registered cars", stats_events: "Planned events", stats_confirmed: "Confirmed cars", stats_tasks: "Open tasks", upcoming: "Upcoming Events", upcoming_desc: "What's on the agenda", tasks: "Priority Tasks", tasks_desc: "What's active now" },
-        events: { title: "Events", total: "total", search: "Search event...", add: "Add", filter_all: "All", delete_confirm: "Delete \"{name}\"?\nIrreversible action." },
-        cars: { title: "Invited Cars", total: "cars total", search: "Search model, owner, plate...", ai_import: "AI Import", add: "Add", filter_all: "All", filter_vip: "VIP", delete_confirm: "Delete \"{name}\"?\nIrreversible action.", delete_all_confirm: "Are you sure you want to delete ALL cars from the database?\n\nThis action is irreversible!", delete_all_success: "All cars have been successfully deleted!", initial_status: "Initial status", is_vip: "Mark as VIP", modal_title: "Add car", modal_desc: "Fill in the details of the invited car." },
-        tasks: { title: "Tasks", total: "total", search: "Search task...", add: "Add", filter_all: "All", filter_open: "Open", take_btn: "Take task", finish_btn: "Finish", release_btn: "Release", delete_confirm: "Delete \"{name}\"?\nIrreversible action.", finish_confirm: "Are you sure you have completed this task?", take_success: "Task taken successfully.", finish_success: "Task marked as completed.", already_taken: "This task has already been taken by another user.", taken_by: "Taken by", taken_at: "Taken at", finished_by: "Finished by", finished_at: "Finished at" },
-        settings: { account: "ACCOUNT", email: "Email", session: "SESSION", logout: "Logout", logout_desc: "Close the session and return to the login screen", logout_btn: "Logout", data: "DATA", delete_all: "Delete all cars", delete_all_desc: "Remove all cars from the database (irreversible action)", delete_btn: "Delete", language: "APPLICATION LANGUAGE", languageDesc: "Select the language in which the application should be displayed.", lang_changed: "The application language was changed successfully." },
-        common: { cancel: "Cancel", save: "Save", empty: "Nothing found", none: "No events", none_tasks: "No open tasks", urgent: "Urgent", high: "High", normal: "Normal", low: "Low", available: "Available", in_progress: "In progress", completed: "Completed" },
-        statuses: { planned: "Planned", soon: "Soon", active: "Active", done: "Finished", canceled: "Canceled", invited: "Invited", arrived: "Arrived", left: "Left", pending: "Pending" },
-        modals: { add_event: "Add event", event_help: "Festival/exhibition details.", add_task: "Add task", task_help: "Something for your team to do." }
-      }
-    };
-
-    let currentLang = localStorage.getItem('app_language') || (navigator.language.startsWith('ru') ? 'ru' : (navigator.language.startsWith('en') ? 'en' : 'ro'));
-
-    function t(key, params = {}) {
-      let val = key.split('.').reduce((obj, k) => obj && obj[k], translations[currentLang]) || key;
-      for (const [k, v] of Object.entries(params)) {
-        val = val.replace(`{${k}}`, v);
-      }
-      return val;
-    }
-
-    function updateUI() {
-      // Elements with data-i18n
-      document.querySelectorAll('[data-i18n]').forEach(el => {
-        const key = el.dataset.i18n;
-        el.textContent = t(key);
-      });
-      // Elements with data-i18n-attr (e.g., placeholder:login.email)
-      document.querySelectorAll('[data-i18n-attr]').forEach(el => {
-        const parts = el.dataset.i18nAttr.split(',');
-        parts.forEach(p => {
-          const [attr, key] = p.split(':');
-          el.setAttribute(attr, t(key));
-        });
-      });
-      // Dynamic sections
-      if (currentUser) {
-        renderEventsChips(); renderCarsChips(); renderTasksChips();
-        renderEvents(); renderCars(); renderTasks();
-        renderHero(state.events); renderUpcoming(state.events); renderTopTasks(state.tasks);
-      }
-      // Update active lang button
-      document.querySelectorAll('.lang-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.lang === currentLang);
-      });
-    }
-
     const SUPABASE_URL = 'https://knphmxxokowwkruimdus.supabase.co';
     const SUPABASE_ANON = 'sb_publishable_9b7WSJF4UlfF1JIdCDjWqQ_dxOTpqSW';
     const OPENAI_API_KEY = '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';
@@ -1998,11 +1857,11 @@
     el('toggleLink').addEventListener('click', (e) => {
       e.preventDefault();
       isSignUp = !isSignUp;
-      el('title').textContent = isSignUp ? t('login.welcome') : t('login.title');
-      el('subtitle').textContent = isSignUp ? t('login.subtitle_signup') : t('login.subtitle');
-      el('btnText').textContent = isSignUp ? t('login.signup') : t('login.login');
-      el('toggleText').textContent = isSignUp ? t('login.toggle_yes') : t('login.toggle_no');
-      el('toggleLink').textContent = isSignUp ? t('login.login') : t('login.register');
+      el('title').textContent = isSignUp ? 'Bine ai venit' : 'Bun venit';
+      el('subtitle').textContent = isSignUp ? 'Creează un cont pentru echipa ta' : 'Autentifică-te pentru a continua';
+      el('btnText').textContent = isSignUp ? 'Creează cont' : 'Autentifică-te';
+      el('toggleText').textContent = isSignUp ? 'Ai deja un cont?' : 'Nu ai cont?';
+      el('toggleLink').textContent = isSignUp ? 'Autentifică-te' : 'Înregistrează-te';
       el('password').autocomplete = isSignUp ? 'new-password' : 'current-password';
       hideMsg();
     });
@@ -2021,7 +1880,7 @@
       hideMsg();
       const email = el('email').value.trim();
       const password = el('password').value;
-      if (password.length < 6) return showMsg('error', t('login.min_chars'));
+      if (password.length < 6) return showMsg('error', 'Parola trebuie să aibă minim 6 caractere');
       const btn = el('submitBtn');
       btn.disabled = true;
       const originalText = el('btnText').textContent;
@@ -2034,7 +1893,7 @@
           });
           if (error) throw error;
           if (data.user && !data.session) {
-            showMsg('success', t('login.signup_success'));
+            showMsg('success', 'Cont creat! Verifică emailul pentru confirmare.');
           } else if (data.session) {
             enterApp(data.session.user);
           }
@@ -2052,17 +1911,8 @@
     });
 
     // ----- APP SHELL -----
-    async function enterApp(user) {
+    function enterApp(user) {
       currentUser = user;
-
-      // Load language preference
-      if (user.user_metadata?.preferred_language) {
-        currentLang = user.user_metadata.preferred_language;
-        localStorage.setItem('app_language', currentLang);
-      }
-
-      updateUI();
-
       const email = user.email;
       el('loginView').style.display = 'none';
       el('appView').classList.add('show');
@@ -2102,25 +1952,6 @@
       leaveApp();
     });
 
-    // Language selection listener
-    document.addEventListener('click', async (ev) => {
-      const langBtn = ev.target.closest('.lang-btn');
-      if (langBtn) {
-        const lang = langBtn.dataset.lang;
-        if (lang === currentLang) return;
-
-        currentLang = lang;
-        localStorage.setItem('app_language', lang);
-
-        if (currentUser) {
-          await supa.auth.updateUser({ data: { preferred_language: lang } });
-        }
-
-        updateUI();
-        showToast(t('settings.lang_changed'));
-      }
-    });
-
     el('manualRefreshBtn').addEventListener('click', async () => {
       const btn = el('manualRefreshBtn');
       btn.disabled = true;
@@ -2136,14 +1967,14 @@
     });
 
     el('deleteAllCarsBtn').addEventListener('click', async () => {
-      if (!confirm(t('cars.delete_all_confirm'))) return;
+      if (!confirm('Ești sigur că vrei să ștergi TOATE mașinile din baza de date?\n\nAceastă acțiune este ireversibilă!')) return;
       
       try {
         const { error } = await supa.from('cars').delete().neq('id', 0);
         if (error) {
           alert('Eroare la ștergere: ' + error.message);
         } else {
-          alert(t('cars.delete_all_success'));
+          alert('Toate mașinile au fost șterse cu succes!');
           await loadData();
         }
       } catch (err) {
@@ -2247,7 +2078,7 @@
     function renderStats(cars, tasks, events) {
       el('statCars').textContent = (cars || []).length;
       el('statEvents').textContent = (events || []).length;
-      el('statCarsConfirmed').textContent = (cars || []).filter(c => (c.status || '').toLowerCase().includes('confirmat')).length;
+      el('statCarsConfirmed').textContent = (cars || []).filter(c => (c.status || '').toLowerCase().includes('sosit')).length;
       el('statTasks').textContent = (tasks || []).filter(t => !t.is_completed).length;
     }
 
@@ -2279,7 +2110,7 @@
     function renderUpcoming(events) {
       const list = (events || []).slice(0, 4);
       const c = el('upcomingEventsList');
-      if (!list.length) return c.innerHTML = emptyState(t('common.none'));
+      if (!list.length) return c.innerHTML = emptyState('Niciun eveniment');
       c.innerHTML = list.map(e => `
         <div class="row">
           <div class="row-icon blue">
@@ -2289,25 +2120,25 @@
             <div class="row-title">${escape(e.title)}</div>
             <div class="row-sub">${escape(e.date || '')}${e.location ? '<span class="sep"></span>' + escape(e.location) : ''}</div>
           </div>
-          <div class="badge ${statusToBadge(e.status)}">${escape(t('statuses.' + eventStatusKey(e.status)))}</div>
+          <div class="badge ${statusToBadge(e.status)}">${escape(e.status || '—')}</div>
         </div>
       `).join('');
     }
 
     function renderTopTasks(tasks) {
-      const list = (tasks || []).filter(t_obj => !t_obj.is_completed).slice(0, 4);
+      const list = (tasks || []).filter(t => !t.is_completed).slice(0, 4);
       const c = el('topTasksList');
-      if (!list.length) return c.innerHTML = emptyState(t('common.none_tasks'));
-      c.innerHTML = list.map(task => `
+      if (!list.length) return c.innerHTML = emptyState('Niciun task deschis');
+      c.innerHTML = list.map(t => `
         <div class="row">
-          <div class="row-icon ${statusToBadge(task.status) === 'red' ? 'red' : statusToBadge(task.status) === 'green' ? 'green' : 'orange'}">
+          <div class="row-icon ${statusToBadge(t.status) === 'red' ? 'red' : statusToBadge(t.status) === 'green' ? 'green' : 'orange'}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           </div>
           <div class="row-body">
-            <div class="row-title">${escape(task.title)}</div>
-            <div class="row-sub">${escape(task.event || task.date || '')}</div>
+            <div class="row-title">${escape(t.title)}</div>
+            <div class="row-sub">${escape(t.event || t.date || '')}</div>
           </div>
-          <div class="badge ${statusToBadge(task.status)}">${escape(t('common.' + taskStatusKey(task.status)))}</div>
+          <div class="badge ${statusToBadge(t.status)}">${escape(t.status || '—')}</div>
         </div>
       `).join('');
     }
@@ -2320,11 +2151,11 @@
     ];
     function eventStatusKey(status) {
       const s = (status || '').toLowerCase();
-      if (s.includes('curând') || s.includes('curand')) return 'soon';
-      if (s.includes('activ')) return 'active';
-      if (s.includes('finalizat')) return 'done';
-      if (s.includes('anulat')) return 'canceled';
-      return 'planned';
+      if (s.includes('curând') || s.includes('curand')) return 'curand';
+      if (s.includes('activ')) return 'activ';
+      if (s.includes('finalizat')) return 'finalizat';
+      if (s.includes('planificat')) return 'planificat';
+      return null;
     }
 
     function filterEvents() {
@@ -2346,7 +2177,7 @@
       EVENT_STATUS_OPTIONS.forEach(o => {
         counts[o.key] = state.events.filter(e => eventStatusKey(e.status) === o.key).length;
       });
-      const chips = [{ key: 'all', label: t('events.filter_all') }, ...EVENT_STATUS_OPTIONS.map(o => ({...o, label: t('statuses.' + o.key)}))];
+      const chips = [{ key: 'all', label: 'Toate' }, ...EVENT_STATUS_OPTIONS];
       c.innerHTML = chips.map(chip => `
         <button class="chip ${state.eventsFilter === chip.key ? 'active' : ''}"
                 data-events-filter="${chip.key}">
@@ -2360,7 +2191,7 @@
       el('eventsCount').textContent = state.events.length;
       const list = filterEvents();
       const c = el('eventsList');
-      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(t('common.empty')) + '</div>';
+      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Nimic găsit') + '</div>';
       c.innerHTML = list.map(e => {
         const active = eventStatusKey(e.status);
         const buttons = EVENT_STATUS_OPTIONS.map(opt => `
@@ -2368,7 +2199,7 @@
                   data-action="event-status"
                   data-event-id="${e.id}"
                   data-label="${escape(opt.label)}"
-                  data-color="${opt.color}">${escape(t('statuses.' + opt.key))}</button>
+                  data-color="${opt.color}">${escape(opt.label)}</button>
         `).join('');
         return `
           <div class="card">
@@ -2382,12 +2213,16 @@
                 </div>
               </div>
               <div style="text-align:right;">
-                <div class="badge ${statusToBadge(e.status)}">${escape(t('statuses.' + eventStatusKey(e.status)))}</div>
-                ${e.days_left != null ? `<div style="margin-top:10px;color:var(--text-dim);font-size:11px;">${e.days_left} ${t('dashboard.days')}</div>` : ''}
+                <div class="badge ${statusToBadge(e.status)}">${escape(e.status || '—')}</div>
+                ${e.days_left != null ? `<div style="margin-top:10px;color:var(--text-dim);font-size:11px;">${e.days_left} zile</div>` : ''}
               </div>
             </div>
             <div class="event-actions">
               ${buttons}
+              <button class="action-btn delete" data-action="event-delete" data-event-id="${e.id}" data-event-label="${escape(e.title)}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                Șterge
+              </button>
             </div>
           </div>
         `;
@@ -2414,11 +2249,10 @@
     ];
     function statusKey(status) {
       const s = (status || '').toLowerCase();
-      if (s.includes('sosit')) return 'arrived';
-      if (s.includes('plecat')) return 'left';
-      if (s.includes('invitat')) return 'invited';
-      if (s.includes('așteptare')) return 'pending';
-      return 'invited';
+      if (s.includes('sosit')) return 'sosit';
+      if (s.includes('plecat')) return 'plecat';
+      if (s.includes('invitat')) return 'invitat';
+      return null;
     }
 
     function filterCars() {
@@ -2446,9 +2280,9 @@
         counts[o.key] = state.cars.filter(c => statusKey(c.status) === o.key).length;
       });
       const chips = [
-        { key: 'all', label: t('cars.filter_all') },
-        ...CAR_STATUS_OPTIONS.map(o => ({...o, label: t('statuses.' + o.key)})),
-        { key: 'vip', label: t('cars.filter_vip') }
+        { key: 'all', label: 'Toate' },
+        ...CAR_STATUS_OPTIONS,
+        { key: 'vip', label: 'VIP' }
       ];
       el('carsChips').innerHTML = chips.map(chip => `
         <button class="chip ${state.carsFilter === chip.key ? 'active' : ''}" data-cars-filter="${chip.key}">
@@ -2462,8 +2296,8 @@
       el('carsCount').textContent = state.cars.length;
       const list = filterCars();
       const c = el('carsList');
-      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(t('common.empty')) + '</div>';
-      c.innerHTML = '<div class="card"><div id="carsInner"></div></div>';
+      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Nimic găsit') + '</div>';
+      c.innerHTML = '<div class="card" style="padding: 10px;"><div id="carsInner"></div></div>';
       el('carsInner').innerHTML = list.map(car => {
         const active = statusKey(car.status);
         const actionButtons = CAR_STATUS_OPTIONS.map(opt => `
@@ -2472,21 +2306,35 @@
                   data-car-id="${car.id}"
                   data-label="${escape(opt.label)}"
                   data-color="${opt.color}">
-            ${escape(t('statuses.' + opt.key))}
+            ${escape(opt.label)}
           </button>
         `).join('');
+
+        const carName = [car.brand, car.model].filter(Boolean).join(' ') || car.model;
+
         return `
           <div class="row car-row" data-row-id="${car.id}" style="cursor:pointer;">
             <div class="row-icon blue">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
             </div>
             <div class="row-body">
-              <div class="row-title">${escape(car.model)}${car.is_vip ? ' <span class="badge purple" style="margin-left:6px;font-size:9px;padding:2px 6px;">VIP</span>' : ''}</div>
-              <div class="row-sub">${escape(car.owner || '')}${car.plate ? '<span class="sep"></span>' + escape(car.plate) : ''}${car.zone ? '<span class="sep"></span>' + escape(car.zone) : ''}</div>
+              <div class="row-title">
+                ${escape(carName)}
+                ${car.is_vip ? ' <span class="badge purple" style="margin-left:8px; font-size:8px; padding:2px 6px;">VIP</span>' : ''}
+              </div>
+              <div class="row-sub">
+                <span style="color: var(--blue); font-weight: 700;">${escape(car.owner || '—')}</span>
+                ${car.plate ? '<span class="sep"></span><span>' + escape(car.plate) + '</span>' : ''}
+                ${car.zone ? '<span class="sep"></span><span style="color: var(--purple); opacity: 0.8;">' + escape(car.zone) + '</span>' : ''}
+              </div>
             </div>
-            <div class="badge ${statusToBadge(car.status)}">${escape(t('statuses.' + statusKey(car.status)))}</div>
-            <div class="car-actions">
+            <div class="badge ${statusToBadge(car.status)}">${escape(car.status || '—')}</div>
+            <div class="car-actions" style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
               ${actionButtons}
+              <button class="action-btn delete" data-action="delete" data-car-id="${car.id}" data-car-label="${escape(car.model)}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+                Șterge
+              </button>
             </div>
           </div>
         `;
@@ -2535,7 +2383,7 @@
         // Verificăm dacă taskul e încă disponibil (prevenire cursă de date)
         const { data: currentTask } = await supa.from('tasks').select('status, assigned_user_id').eq('id', id).single();
         if (currentTask && taskStatusKey(currentTask.status) !== 'available') {
-           alert(t('tasks.already_taken'));
+           alert('Acest task a fost deja preluat de alt utilizator.');
            return await loadData();
         }
 
@@ -2548,12 +2396,12 @@
         }).eq('id', id));
 
         if (error) return alert('Eroare: ' + error.message);
-        showToast(t('tasks.take_success'));
+        console.log('Task preluat cu succes.');
         await loadData();
 
       } else if (action === 'task-complete') {
         const id = btn.dataset.taskId;
-        if (!confirm(t('tasks.finish_confirm'))) return;
+        if (!confirm('Ești sigur că ai finalizat acest task?')) return;
 
         const now = new Date().toISOString();
         const { error } = await withSpinner(() => supa.from('tasks').update({
@@ -2566,7 +2414,7 @@
         }).eq('id', id));
 
         if (error) return alert('Eroare: ' + error.message);
-        showToast(t('tasks.finish_success'));
+        console.log('Task finalizat cu succes.');
         await loadData();
 
       } else if (action === 'task-release') {
@@ -3020,15 +2868,15 @@
 
     // ----- TASK DETAIL -----
     async function showTaskDetail(taskId) {
-      const task = state.tasks.find(x => String(x.id) === String(taskId));
-      if (!task) return;
-      openTaskDetailId = task.id;
+      const t = state.tasks.find(x => String(x.id) === String(taskId));
+      if (!t) return;
+      openTaskDetailId = t.id;
 
-      el('taskDetailTitle').textContent = task.title || '—';
+      el('taskDetailTitle').textContent = t.title || '—';
       const badges = [
-        `<div class="badge ${statusToBadge(task.status)}">${escape(t('common.' + taskStatusKey(task.status)))}</div>`,
-        priorityBadge(task.priority),
-        task.category ? `<div class="badge purple">${escape(task.category)}</div>` : ''
+        `<div class="badge ${statusToBadge(t.status)}">${escape(t.status || '—')}</div>`,
+        priorityBadge(t.priority),
+        t.category ? `<div class="badge purple">${escape(t.category)}</div>` : ''
       ].join(' ');
       el('taskDetailBadges').innerHTML = badges;
 
@@ -3036,11 +2884,11 @@
         <div class="detail-section">
           <div class="detail-section-title">Prezentare</div>
           <div class="detail-grid">
-            ${fieldRow('Termen limită', task.date || task.due_date)}
-            ${fieldRow('Prioritate', task.priority || t('common.normal'))}
-            ${fieldRow('Categorie', task.category)}
-            ${fieldRow('Echipă', task.team)}
-            ${fieldRow('Descriere scurtă', task.event, { wide: true })}
+            ${fieldRow('Termen limită', t.date || t.due_date)}
+            ${fieldRow('Prioritate', t.priority || 'Normală')}
+            ${fieldRow('Categorie', t.category)}
+            ${fieldRow('Echipă', t.team)}
+            ${fieldRow('Descriere scurtă', t.event, { wide: true })}
           </div>
         </div>
 
@@ -3049,12 +2897,12 @@
             Ce trebuie făcut
             <button class="detail-edit-btn" id="taskEditInstructionsBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              ${t('events.add')}
+              Editează
             </button>
           </div>
           <div id="taskInstructionsView">
-            ${task.detailed_description
-              ? `<div class="detail-text">${escape(task.detailed_description)}</div>`
+            ${t.detailed_description
+              ? `<div class="detail-text">${escape(t.detailed_description)}</div>`
               : `<div class="detail-text empty">Nu există instrucțiuni detaliate. Apasă "Editează" pentru a le adăuga.</div>`}
           </div>
         </div>
@@ -3062,12 +2910,12 @@
         <div class="detail-section">
           <div class="detail-section-title">Trasabilitate</div>
           <div class="detail-grid">
-            ${fieldRow('Creat de', task.created_by)}
-            ${fieldRow('Data creării', fmtDateTime(task.created_at))}
-            ${fieldRow(t('tasks.taken_by'), task.assigned_user_name)}
-            ${fieldRow(t('tasks.taken_at'), fmtDateTime(task.started_at))}
-            ${fieldRow(t('tasks.finished_by'), task.completed_by_user_name)}
-            ${fieldRow(t('tasks.finished_at'), fmtDateTime(task.completed_at))}
+            ${fieldRow('Creat de', t.created_by)}
+            ${fieldRow('Data creării', fmtDateTime(t.created_at))}
+            ${fieldRow('Preluat de', t.assigned_to)}
+            ${fieldRow('Preluat la', fmtDateTime(t.assigned_at))}
+            ${fieldRow('Finalizat de', t.completed_by)}
+            ${fieldRow('Finalizat la', fmtDateTime(t.completed_at))}
           </div>
         </div>
 
@@ -3087,44 +2935,44 @@
       `;
 
       // Actions — contextual buttons based on task state
-      const isDone = !!task.is_completed;
-      const sk = taskStatusKey(task.status);
-      const isAssignedToMe = currentUser && String(task.assigned_user_id) === String(currentUser.id);
+      const isDone = !!t.is_completed;
+      const sk = taskStatusKey(t.status);
+      const isAssignedToMe = currentUser && String(t.assigned_user_id) === String(currentUser.id);
       const isAdmin = currentUser && currentUser.email.includes('admin');
 
       let actionsHtml = '';
       if (isDone) {
         actionsHtml = `
-          <button class="btn ghost" data-detail-action="task-reopen" data-task-id="${task.id}">Redeschide</button>
-          <button class="btn danger" data-detail-action="task-delete" data-task-id="${task.id}" data-task-label="${escape(task.title)}">${t('settings.delete_btn')}</button>
+          <button class="btn ghost" data-detail-action="task-reopen" data-task-id="${t.id}">Redeschide</button>
+          <button class="btn danger" data-detail-action="task-delete" data-task-id="${t.id}" data-task-label="${escape(t.title)}">Șterge</button>
         `;
       } else if (sk === 'in_progress') {
         // Butonul "Finisat" apare doar pentru cel responsabil sau admin
         if (isAssignedToMe || isAdmin) {
           actionsHtml += `
-            <button class="btn" data-detail-action="task-finish" data-task-id="${task.id}">${t('tasks.finish_btn')}</button>
+            <button class="btn" data-detail-action="task-finish" data-task-id="${t.id}">Finisat</button>
           `;
         }
         actionsHtml += `
-          <button class="btn danger" data-detail-action="task-delete" data-task-id="${task.id}" data-task-label="${escape(task.title)}">${t('settings.delete_btn')}</button>
+          <button class="btn danger" data-detail-action="task-delete" data-task-id="${t.id}" data-task-label="${escape(t.title)}">Șterge</button>
         `;
       } else {
         actionsHtml = `
-          <button class="btn" data-detail-action="task-take" data-task-id="${task.id}">${t('tasks.take_btn')}</button>
-          <button class="btn danger" data-detail-action="task-delete" data-task-id="${task.id}" data-task-label="${escape(task.title)}">${t('settings.delete_btn')}</button>
+          <button class="btn" data-detail-action="task-take" data-task-id="${t.id}">Iau în lucru</button>
+          <button class="btn danger" data-detail-action="task-delete" data-task-id="${t.id}" data-task-label="${escape(t.title)}">Șterge</button>
         `;
       }
       el('taskDetailActions').innerHTML = actionsHtml;
 
       // Wire edit button + submit
-      el('taskEditInstructionsBtn').onclick = () => enterEditTaskInstructions(task);
-      el('taskUpdateSubmit').onclick = () => submitTaskUpdate(task.id);
+      el('taskEditInstructionsBtn').onclick = () => enterEditTaskInstructions(t);
+      el('taskUpdateSubmit').onclick = () => submitTaskUpdate(t.id);
       el('taskUpdateInput').addEventListener('keydown', (ev) => {
-        if ((ev.metaKey || ev.ctrlKey) && ev.key === 'Enter') { ev.preventDefault(); submitTaskUpdate(task.id); }
+        if ((ev.metaKey || ev.ctrlKey) && ev.key === 'Enter') { ev.preventDefault(); submitTaskUpdate(t.id); }
       });
 
       openModal('task-detail');
-      refreshTaskUpdates(task.id);
+      refreshTaskUpdates(t.id);
     }
 
     function enterEditTaskInstructions(t) {
@@ -3465,17 +3313,17 @@
     function renderTasksChips() {
       const total = state.tasks.length;
       const counts = { all: total };
-      counts.open = state.tasks.filter(t_obj => taskStatusKey(t_obj.status) !== 'completed').length;
-      counts.done = state.tasks.filter(t_obj => taskStatusKey(t_obj.status) === 'completed').length;
+      counts.open = state.tasks.filter(t => taskStatusKey(t.status) !== 'completed').length;
+      counts.done = state.tasks.filter(t => taskStatusKey(t.status) === 'completed').length;
 
       TASK_STATUS_OPTIONS.forEach(o => {
-        counts[o.key] = state.tasks.filter(t_obj => taskStatusKey(t_obj.status) === o.key).length;
+        counts[o.key] = state.tasks.filter(t => taskStatusKey(t.status) === o.key).length;
       });
 
       const chips = [
-        { key: 'all',  label: t('tasks.filter_all') },
-        { key: 'open', label: t('tasks.filter_open') },
-        ...TASK_STATUS_OPTIONS.map(o => ({...o, label: t('common.' + o.key)})),
+        { key: 'all',  label: 'Toate' },
+        { key: 'open', label: 'Deschise' },
+        ...TASK_STATUS_OPTIONS,
       ];
       el('tasksChips').innerHTML = chips.map(chip => `
         <button class="chip ${state.tasksFilter === chip.key ? 'active' : ''}" data-tasks-filter="${chip.key}">
@@ -3489,73 +3337,74 @@
       el('tasksCount').textContent = state.tasks.length;
       const list = filterTasks();
       const c = el('tasksList');
-      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(t('common.empty')) + '</div>';
-      c.innerHTML = '<div class="card"><div id="tasksInner"></div></div>';
-      el('tasksInner').innerHTML = list.map(task => {
-        const sk = taskStatusKey(task.status);
-        const isAssignedToMe = currentUser && task.assigned_user_id === currentUser.id;
-        const isAdmin = currentUser && currentUser.email.includes('admin'); // Simple admin check
+      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Nimic găsit') + '</div>';
+      c.innerHTML = '<div class="card" style="padding: 10px;"><div id="tasksInner"></div></div>';
+      el('tasksInner').innerHTML = list.map(t => {
+        const sk = taskStatusKey(t.status);
+        const isAssignedToMe = currentUser && t.assigned_user_id === currentUser.id;
+        const isAdmin = currentUser && currentUser.email.includes('admin');
 
         let actionButtons = '';
         let assignmentInfo = '';
 
         if (sk === 'available') {
           actionButtons = `
-            <button class="action-btn active-curand" data-action="task-take" data-task-id="${task.id}">
+            <button class="action-btn active-curand" data-action="task-take" data-task-id="${t.id}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
-              ${t('tasks.take_btn')}
+              Iau în lucru
             </button>
           `;
         } else if (sk === 'in_progress') {
           assignmentInfo = `
-            <div class="assign-info">
-              <div class="user">
-                <div class="mini-avatar-placeholder">${(task.assigned_user_name || '?')[0].toUpperCase()}</div>
-                <span>${t('tasks.taken_by')}: <strong>${escape(task.assigned_user_name)}</strong></span>
-              </div>
-              <div class="time">${t('tasks.taken_at')}: ${formatDate(task.started_at)}</div>
+            <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 11px; background: rgba(245,158,11,0.08); padding: 4px 10px; border-radius: 8px; width: fit-content; border: 1px solid rgba(245,158,11,0.2);">
+              ${t.assigned_user_avatar ? `<img src="${t.assigned_user_avatar}" style="width: 16px; height: 16px; border-radius: 50%;">` : `<div style="width: 16px; height: 16px; border-radius: 50%; background: var(--orange); color: #fff; display: grid; place-items: center; font-size: 9px; font-weight: 900;">${(t.assigned_user_name || '?')[0].toUpperCase()}</div>`}
+              <span style="color: var(--orange); font-weight: 700;">${escape(t.assigned_user_name)}</span>
             </div>
           `;
           if (isAssignedToMe || isAdmin) {
             actionButtons += `
-              <button class="action-btn active-sosit" data-action="task-complete" data-task-id="${task.id}">
+              <button class="action-btn active-sosit" data-action="task-complete" data-task-id="${t.id}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                ${t('tasks.finish_btn')}
+                Finisat
               </button>
             `;
           }
           if (isAdmin) {
              actionButtons += `
-              <button class="action-btn ghost" data-action="task-release" data-task-id="${task.id}">
-                ${t('tasks.release_btn')}
+              <button class="action-btn ghost" data-action="task-release" data-task-id="${t.id}">
+                Eliberează
               </button>
              `;
           }
         } else if (sk === 'completed') {
            assignmentInfo = `
-            <div class="assign-info completed">
-              <div class="user">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;color:var(--green)"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                <span>${t('tasks.finished_by')}: <strong>${escape(task.completed_by_user_name || task.assigned_user_name)}</strong></span>
-              </div>
-              <div class="time">${t('tasks.finished_at')}: ${formatDate(task.completed_at)}</div>
+            <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 11px; background: rgba(16,185,129,0.08); padding: 4px 10px; border-radius: 8px; width: fit-content; border: 1px solid rgba(16,185,129,0.2);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px; color:var(--green);"><polyline points="20 6 9 17 4 12"/></svg>
+              <span style="color: var(--green); font-weight: 700;">${escape(t.completed_by_user_name || t.assigned_user_name)}</span>
             </div>
           `;
         }
 
         return `
-          <div class="row task-row" data-row-id="${task.id}" style="cursor:pointer;">
+          <div class="row task-row" data-row-id="${t.id}" style="cursor:pointer;">
             <div class="row-icon ${sk === 'completed' ? 'green' : sk === 'in_progress' ? 'orange' : 'blue'}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${sk === 'completed' ? '<polyline points="20 6 9 17 4 12"/>' : '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'}</svg>
             </div>
             <div class="row-body">
-              <div class="row-title" style="${sk === 'completed' ? 'text-decoration:line-through;color:var(--text-dim);' : ''}">${escape(task.title)}</div>
-              <div class="row-sub">${escape(task.event || '')}${task.date ? '<span class="sep"></span>' + escape(task.date) : ''}</div>
+              <div class="row-title" style="${sk === 'completed' ? 'text-decoration:line-through; opacity: 0.6;' : ''}">${escape(t.title)}</div>
+              <div class="row-sub">
+                <span style="color: var(--blue); opacity: 0.9;">${escape(t.event || 'General')}</span>
+                ${t.date ? '<span class="sep"></span><span style="font-weight: 600;">' + escape(t.date) + '</span>' : ''}
+              </div>
               ${assignmentInfo}
             </div>
-            <div class="badge ${statusToBadge(task.status)}">${escape(t('common.' + sk))}</div>
-            <div class="task-actions">
+            <div class="badge ${statusToBadge(t.status)}">${sk === 'completed' ? 'Finisat' : sk === 'in_progress' ? 'În lucru' : 'Disponibil'}</div>
+            <div class="task-actions" style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
               ${actionButtons}
+              <button class="action-btn delete" data-action="task-delete" data-task-id="${t.id}" data-task-label="${escape(t.title)}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                Șterge
+              </button>
             </div>
           </div>
         `;
@@ -3574,8 +3423,7 @@
     function formatDate(iso) {
       if (!iso) return '—';
       const d = new Date(iso);
-      const locales = { ro: 'ro-RO', ru: 'ru-RU', en: 'en-US' };
-      return d.toLocaleDateString(locales[currentLang] || 'ro-RO', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleDateString('ro-RO', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
     }
 
     // ----- SESSION BOOTSTRAP -----

@@ -5,10 +5,11 @@ const path = require('path');
 
 const PORT = 8080;
 
-// Încărcăm cheia din .env dacă există, altfel folosim o valoare goală
+// Încărcăm cheia din .env dacă există
 let OPENAI_API_KEY = '';
 try {
-  const envContent = fs.readFileSync('.env', 'utf8');
+  const envPath = path.join(__dirname, '.env');
+  const envContent = fs.readFileSync(envPath, 'utf8');
   const match = envContent.match(/OPENAI_API_KEY=(.*)/);
   if (match) OPENAI_API_KEY = match[1].trim();
 } catch (e) {
@@ -21,14 +22,14 @@ const mimeTypes = {
   '.css': 'text/css',
   '.json': 'application/json',
   '.png': 'image/png',
-  '.jpg': 'image/jpg',
+  '.jpg': 'image/jpeg',
   '.gif': 'image/gif',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon'
 };
 
 const server = http.createServer((req, res) => {
-  // --- ENDPOINT NOU PENTRU AI IMPORT ---
+  // --- ENDPOINT PENTRU AI IMPORT ---
   if (req.url === '/api/ai-import' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => { body += chunk.toString(); });
@@ -82,29 +83,40 @@ const server = http.createServer((req, res) => {
   }
 
   // --- SERVIRE FIȘIERE STATICE ---
-  let filePath = '.' + req.url;
-  if (filePath === './') filePath = './index.html';
+  let urlPath = req.url === '/' ? '/index.html' : req.url;
+  urlPath = urlPath.split('?')[0];
 
-  const extname = String(path.extname(filePath)).toLowerCase();
-  const contentType = mimeTypes[extname] || 'application/octet-stream';
+  let filePath = path.join(__dirname, urlPath);
 
-  fs.readFile(filePath, (error, content) => {
-    if (error) {
-      if (error.code === 'ENOENT') {
-        res.writeHead(404, { 'Content-Type': 'text/html' });
-        res.end('<h1>404 - File Not Found</h1>', 'utf-8');
-      } else {
-        res.writeHead(500);
-        res.end(`Server Error: ${error.code}`, 'utf-8');
-      }
-    } else {
-      res.writeHead(200, { 'Content-Type': contentType });
-      res.end(content, 'utf-8');
+  fs.stat(filePath, (err, stats) => {
+    if (!err && stats.isDirectory()) {
+      filePath = path.join(filePath, 'index.html');
     }
+
+    const extname = String(path.extname(filePath)).toLowerCase();
+    const contentType = mimeTypes[extname] || 'application/octet-stream';
+
+    fs.readFile(filePath, (error, content) => {
+      if (error) {
+        if (error.code === 'ENOENT' || error.code === 'EISDIR') {
+          res.writeHead(404, { 'Content-Type': 'text/html' });
+          res.end(`<h1>404 - Fișierul ${urlPath} nu a fost găsit</h1>`, 'utf-8');
+        } else {
+          res.writeHead(500);
+          res.end(`Server Error: ${error.code}`, 'utf-8');
+        }
+      } else {
+        res.writeHead(200, { 'Content-Type': contentType });
+        res.end(content, 'utf-8');
+      }
+    });
   });
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running at http://localhost:${PORT}/`);
-  console.log(`AI Proxy active. API Key is now hidden from the browser.`);
+  console.log(`\n==================================================`);
+  console.log(`🚀 Kultura Web Server pornit!`);
+  console.log(`📍 Local:   http://localhost:${PORT}`);
+  console.log(`📱 Emulator: http://10.0.2.2:${PORT}`);
+  console.log(`==================================================\n`);
 });
