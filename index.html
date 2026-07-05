@@ -669,6 +669,21 @@
       transition: all 0.15s;
     }
     .chip:hover { color: var(--text); }
+    .chip.dept-chip {
+      background: rgba(139, 92, 246, 0.06);
+      border-color: rgba(139, 92, 246, 0.20);
+      color: rgba(196, 181, 253, 0.9);
+      font-weight: 600;
+      padding: 6px 12px;
+      font-size: 11px;
+    }
+    .chip.dept-chip:hover { color: #fff; background: rgba(139, 92, 246, 0.14); border-color: rgba(139, 92, 246, 0.35); }
+    .chip.dept-chip.active {
+      background: linear-gradient(90deg, #8B5CF6, #EC4899);
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 4px 14px rgba(139, 92, 246, 0.30);
+    }
     .chip.active {
       background: linear-gradient(90deg, var(--blue), var(--purple));
       color: #fff;
@@ -1779,6 +1794,7 @@
           </button>
         </div>
         <div class="chips" id="tasksChips"></div>
+        <div class="chips" id="tasksDeptChips" style="margin-top: 4px;"></div>
         <div id="tasksList"></div>
       </section>
 
@@ -2023,8 +2039,17 @@
               <input type="text" name="category" placeholder="Marketing / Logistică / Tehnic...">
             </div>
             <div class="form-field">
-              <label>Echipă / Departament</label>
-              <input type="text" name="team" placeholder="ex: Echipa marketing">
+              <label>Departament</label>
+              <select name="team">
+                <option value="">Alege departamentul...</option>
+                <option value="Management">Management</option>
+                <option value="Parteneriate">Parteneriate</option>
+                <option value="Participanți">Participanți</option>
+                <option value="Marketing">Marketing</option>
+                <option value="Logistică">Logistică</option>
+                <option value="Juridic și Financiar">Juridic și Financiar</option>
+                <option value="Design">Design</option>
+              </select>
             </div>
           </div>
           <div class="form-row">
@@ -2374,7 +2399,7 @@
     const state = {
       cars: [], tasks: [], events: [], notifications: [],
       carsFilter: 'all', carsSearch: '',
-      tasksFilter: 'all', tasksSearch: '',
+      tasksFilter: 'all', tasksSearch: '', tasksDept: 'all',
       eventsFilter: 'all', eventsSearch: ''
     };
 
@@ -2408,6 +2433,7 @@
           renderEventsChips();
           renderCarsChips();
           renderTasksChips();
+          renderTasksDeptChips();
           renderEvents();
           renderCars();
           renderTasks();
@@ -2841,6 +2867,8 @@
       if (cc) { state.carsFilter = cc.dataset.carsFilter; renderCarsChips(); renderCars(); return; }
       const tc = ev.target.closest('[data-tasks-filter]');
       if (tc) { state.tasksFilter = tc.dataset.tasksFilter; renderTasksChips(); renderTasks(); return; }
+      const td = ev.target.closest('[data-tasks-dept]');
+      if (td) { state.tasksDept = td.dataset.tasksDept; renderTasksDeptChips(); renderTasks(); return; }
       const ec = ev.target.closest('[data-events-filter]');
       if (ec) { state.eventsFilter = ec.dataset.eventsFilter; renderEventsChips(); renderEvents(); return; }
     });
@@ -3815,6 +3843,29 @@
       return 'available';
     }
 
+    // Departments used across the app
+    const DEPARTMENTS = [
+      'Management',
+      'Parteneriate',
+      'Participanți',
+      'Marketing',
+      'Logistică',
+      'Juridic și Financiar',
+      'Design'
+    ];
+    // Normalize a task's department for comparison — checks team/category/event.
+    function taskDept(t) {
+      const bag = [t.team, t.category, t.event].filter(Boolean).join(' | ').toLowerCase();
+      if (!bag) return null;
+      const stripDiacritics = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+      const nb = stripDiacritics(bag);
+      for (const d of DEPARTMENTS) {
+        const nd = stripDiacritics(d.toLowerCase());
+        if (nb.includes(nd)) return d;
+      }
+      return null;
+    }
+
     function filterTasks() {
       const q = state.tasksSearch.toLowerCase();
       return state.tasks.filter(t => {
@@ -3824,10 +3875,33 @@
         if (state.tasksFilter !== 'all' && state.tasksFilter !== 'done' && state.tasksFilter !== 'open') {
           if (sk !== state.tasksFilter) return false;
         }
+        if (state.tasksDept && state.tasksDept !== 'all') {
+          if (taskDept(t) !== state.tasksDept) return false;
+        }
         if (!q) return true;
         return (t.title || '').toLowerCase().includes(q) ||
-               (t.event || '').toLowerCase().includes(q);
+               (t.event || '').toLowerCase().includes(q) ||
+               (t.team || '').toLowerCase().includes(q) ||
+               (t.category || '').toLowerCase().includes(q);
       });
+    }
+
+    function renderTasksDeptChips() {
+      const counts = { all: state.tasks.length };
+      DEPARTMENTS.forEach(d => { counts[d] = 0; });
+      state.tasks.forEach(t => {
+        const d = taskDept(t);
+        if (d) counts[d] = (counts[d] || 0) + 1;
+      });
+      const chips = [{ key: 'all', label: 'Toate departamentele' }, ...DEPARTMENTS.map(d => ({ key: d, label: d }))];
+      const target = el('tasksDeptChips');
+      if (!target) return;
+      target.innerHTML = chips.map(chip => `
+        <button class="chip dept-chip ${state.tasksDept === chip.key ? 'active' : ''}" data-tasks-dept="${escape(chip.key)}">
+          ${escape(chip.label)}
+          <span class="count">· ${counts[chip.key] || 0}</span>
+        </button>
+      `).join('');
     }
 
     function renderTasksChips() {
