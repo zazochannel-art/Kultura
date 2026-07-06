@@ -1,0 +1,7 @@
+Server running at http://0.0.0.0:8080/
+Android emulator should use: http://10.0.2.2:8080/index.html
+GET /
+GET /favicon.ico
+GET /index.html
+GET /favicon.ico
+GET /index.html

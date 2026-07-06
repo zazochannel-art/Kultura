@@ -3423,16 +3423,25 @@
       if (inFlightLoad) return inFlightLoad; // dedupe concurrent calls
       inFlightLoad = (async () => {
         try {
-          const [{ data: cars }, { data: tasks }, { data: events }, { data: profiles }] = await Promise.all([
+          // Fetch all data in parallel
+          const results = await Promise.allSettled([
             supa.from('cars').select('*').order('id', { ascending: false }),
             supa.from('tasks').select('*').order('id', { ascending: false }),
             supa.from('events').select('*').order('id', { ascending: false }),
             supa.from('profiles').select('*')
           ]);
-          state.cars = cars || [];
-          state.tasks = tasks || [];
-          state.events = events || [];
-          state.profiles = profiles || [];
+
+          state.cars = results[0].status === 'fulfilled' ? (results[0].value.data || []) : [];
+          state.tasks = results[1].status === 'fulfilled' ? (results[1].value.data || []) : [];
+          state.events = results[2].status === 'fulfilled' ? (results[2].value.data || []) : [];
+          state.profiles = results[3].status === 'fulfilled' ? (results[3].value.data || []) : [];
+
+          // Log errors for debugging (silent in UI)
+          results.forEach((res, i) => {
+            if (res.status === 'rejected' || (res.value && res.value.error)) {
+              console.warn(`Data load warning [${i}]:`, res.reason || res.value.error);
+            }
+          });
 
           renderStats(state.cars, state.tasks, state.events);
           renderHero(state.events);
@@ -3447,6 +3456,8 @@
           renderTasks();
           renderTeam();
           flashLive();
+        } catch (err) {
+          console.error("Critical data load error:", err);
         } finally {
           inFlightLoad = null;
         }
@@ -3492,17 +3503,17 @@
       el('statCars').textContent = (cars || []).length;
       el('statEvents').textContent = (events || []).length;
       el('statCarsConfirmed').textContent = (cars || []).filter(c => (c.status || '').toLowerCase().includes('sosit')).length;
-      el('statTasks').textContent = (tasks || []).filter(t => !t.is_completed).length;
+      el('statTasks').textContent = (tasks || []).filter(tk => !tk.is_completed).length;
 
       // Update labels in stats grid
       const statsGrid = document.querySelector('.stats-grid');
       if (statsGrid) {
         const labels = statsGrid.querySelectorAll('.stat-label');
         if (labels.length >= 4) {
-          labels[0].textContent = translations[currentLang]["home.cars_registered"];
-          labels[1].textContent = translations[currentLang]["home.events_planned"];
-          labels[2].textContent = translations[currentLang]["home.cars_arrived"];
-          labels[3].textContent = translations[currentLang]["home.tasks_open"];
+          labels[0].textContent = t("home.cars_registered");
+          labels[1].textContent = t("home.events_planned");
+          labels[2].textContent = t("home.cars_arrived");
+          labels[3].textContent = t("home.tasks_open");
         }
       }
     }
@@ -3563,7 +3574,7 @@
     }
 
     function renderTopTasks(tasks) {
-      const list = (tasks || []).filter(t => !t.is_completed).slice(0, 4);
+      const list = (tasks || []).filter(tk => !tk.is_completed).slice(0, 4);
       const card = el('topTasksCard');
       if (card) {
         const h3 = card.querySelector('h3');
@@ -3573,16 +3584,16 @@
       }
       const c = el('topTasksList');
       if (!list.length) return c.innerHTML = emptyState(translations[currentLang]["common.nothing_found"]);
-      c.innerHTML = list.map(t => `
+      c.innerHTML = list.map(tk => `
         <div class="row">
-          <div class="row-icon ${statusToBadge(t.status) === 'red' ? 'red' : statusToBadge(t.status) === 'green' ? 'green' : 'orange'}">
+          <div class="row-icon ${statusToBadge(tk.status) === 'red' ? 'red' : statusToBadge(tk.status) === 'green' ? 'green' : 'orange'}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           </div>
           <div class="row-body">
-            <div class="row-title">${escape(t.title)}</div>
-            <div class="row-sub">${escape(t.event || t.date || '')}</div>
+            <div class="row-title">${escape(tk.title)}</div>
+            <div class="row-sub">${escape(tk.event || tk.date || '')}</div>
           </div>
-          <div class="badge ${statusToBadge(t.status)}">${escape(translateStatus(t.status, 'task'))}</div>
+          <div class="badge ${statusToBadge(tk.status)}">${escape(translateStatus(tk.status, 'task'))}</div>
         </div>
       `).join('');
     }
@@ -3794,7 +3805,6 @@
       const q = (state.teamSearch || '').toLowerCase();
       const membersMap = new Map();
 
-      // 1. Începem cu utilizatorul curent (chiar dacă nu e în 'profiles' încă)
       if (currentUser) {
         const name = currentUserName();
         const meta = currentUser.user_metadata || {};
@@ -3805,24 +3815,15 @@
         });
       }
 
-      // 2. Adăugăm toți cei care au un rând în tabela 'profiles'
       (state.profiles || []).forEach(p => {
         if (!p.email) return;
-        // Extragem un nume din email dacă nu avem altceva (tabela profile are momentan doar email și dept)
         const nameFromEmail = p.email.split('@')[0];
-
-        // Dacă există deja (e userul curent), doar îi actualizăm rolul din DB dacă e mai proaspăt
         membersMap.set(p.email, {
           name: membersMap.has(p.email) ? membersMap.get(p.email).name : nameFromEmail,
           email: p.email,
           role: p.department ? t('dept.' + p.department) : 'Member'
         });
       });
-
-      // 3. (Opțional) Adăugăm persoanele din task-uri DOAR DACĂ nu au fost șterse (există în profiles)
-      // Acest pas este acum redundant dacă folosim profiles ca sursă principală de adevăr.
-      // Dacă vrem să vedem și persoane "fantomă" care au task-uri dar nu profil, am păstra codul vechi.
-      // Dar userul vrea ca profilul șters să DISPARĂ.
 
       const members = Array.from(membersMap.values()).filter(m =>
         m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
@@ -3842,7 +3843,6 @@
         const isMe = currentUser && m.email === currentUser.email;
         const isAdmin = currentUser?.email === 'igor.gratii.99@mail.ru';
 
-        // Doar adminul poate interacționa cu cardurile pentru a schimba departamente
         const canInteract = isAdmin;
         const attrs = canInteract ? `data-modal="edit-profile" data-edit-email="${m.email}" data-edit-name="${escape(m.name)}" style="cursor:pointer;"` : '';
 
@@ -3854,8 +3854,6 @@
               <div class="team-role">${escape(m.role)} • ${escape(m.email)}</div>
             </div>
           </div>
-        `;
-      }).join('') + '</div>';
         `;
       }).join('') + '</div>';
     }
@@ -5214,6 +5212,15 @@
 
     // Initial apply of language
     applyLanguage(currentLang);
+
+    // Fail-safe: Always hide splash screen after 4 seconds
+    setTimeout(() => {
+      const splash = el('splashScreen');
+      if (splash && !splash.classList.contains('fade-out')) {
+        console.warn("Fail-safe: Forcing splash screen hide.");
+        splash.classList.add('fade-out');
+      }
+    }, 4000);
   </script>
 </body>
 </html>
