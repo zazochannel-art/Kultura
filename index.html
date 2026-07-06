@@ -981,6 +981,23 @@
     .form-field select:focus {
       border-color: var(--blue);
     }
+    /* Native select uses OS-level popup; force dark colors on options
+       (Chrome/Firefox/Edge respect this on the <option> tag) */
+    .form-field select {
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='1 1 6 6 11 1'/></svg>");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 40px;
+      color-scheme: dark;
+    }
+    .form-field select option,
+    .form-field select optgroup {
+      background-color: #14182b;
+      color: #f8fafc;
+      padding: 8px;
+    }
     .form-check {
       display: flex;
       align-items: center;
@@ -1502,7 +1519,9 @@
       :root {
         --sidebar-w: 260px;
       }
+      /* Use all the horizontal space to the right of the sidebar — no dead area */
       .content { max-width: none; }
+      .app-header { max-width: none; }
     }
 
     @media (min-width: 1600px) {
@@ -2094,24 +2113,18 @@
             <label>Descriere scurtă</label>
             <input type="text" name="event" placeholder="ex: KULTURA Auto Festival">
           </div>
-          <div class="form-row">
-            <div class="form-field">
-              <label>Categorie</label>
-              <input type="text" name="category" placeholder="Marketing / Logistică / Tehnic...">
-            </div>
-            <div class="form-field">
-              <label>Departament</label>
-              <select name="team">
-                <option value="">Alege departamentul...</option>
-                <option value="Management">Management</option>
-                <option value="Parteneriate">Parteneriate</option>
-                <option value="Participanți">Participanți</option>
-                <option value="Marketing">Marketing</option>
-                <option value="Logistică">Logistică</option>
-                <option value="Juridic și Financiar">Juridic și Financiar</option>
-                <option value="Design">Design</option>
-              </select>
-            </div>
+          <div class="form-field">
+            <label>Departament</label>
+            <select name="team">
+              <option value="">Alege departamentul...</option>
+              <option value="Management">Management</option>
+              <option value="Parteneriate">Parteneriate</option>
+              <option value="Participanți">Participanți</option>
+              <option value="Marketing">Marketing</option>
+              <option value="Logistică">Logistică</option>
+              <option value="Juridic și Financiar">Juridic și Financiar</option>
+              <option value="Design">Design</option>
+            </select>
           </div>
           <div class="form-row">
             <div class="form-field">
