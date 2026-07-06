@@ -4213,11 +4213,16 @@
         // Show preview
         el('aiImportCount').textContent = cars.length;
         el('aiImportPreview').innerHTML = cars.map(car => `
-          <div style="padding: 8px; border-bottom: 1px solid rgba(59,130,246,0.2); font-size: 12px; display: flex; align-items: center; gap: 8px;">
-            <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--blue);"></div>
-            <div style="flex: 1;">
-              <div style="font-weight: bold; color: var(--text);">${escape(car.model)}</div>
-              <div style="color: var(--text-dim); font-size: 11px;">${escape(car.owner)} ${car.plate ? ' • ' + escape(car.plate) : ''}</div>
+          <div style="padding: 10px; border-bottom: 1px solid rgba(59,130,246,0.2); font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="font-weight: bold; color: var(--text); font-size: 13px;">${escape(car.owner)}</div>
+              <div style="padding: 2px 6px; background: rgba(59,130,246,0.2); border-radius: 4px; color: var(--blue); font-family: monospace; font-weight: bold;">${escape(car.plate)}</div>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; color: var(--text-dim); font-size: 11px;">
+              <span>📞 ${escape(car.phone)}</span>
+              <span style="opacity: 0.5;">•</span>
+              <span>📍 ${escape(car.zone)}</span>
+              ${car.model && car.model !== '-----' ? `<span style="opacity: 0.5;">•</span><span>🚗 ${escape(car.model)}</span>` : ''}
             </div>
           </div>
         `).join('');
@@ -4566,7 +4571,7 @@
     }
 
     function fieldRow(k, v, opts = {}) {
-      const isEmpty = v == null || v === '' || v === undefined;
+      const isEmpty = v == null || v === '' || v === undefined || v === '-----';
       const val = isEmpty ? '—' : String(v);
       const dim = isEmpty ? 'dim' : '';
       const wide = opts.wide ? 'wide' : '';
