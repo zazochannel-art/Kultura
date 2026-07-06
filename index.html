@@ -1602,8 +1602,8 @@
   <!-- ============ LOGIN VIEW ============ -->
   <div id="loginView">
     <div class="login-card">
-      <h1 id="title">Bun venit</h1>
-      <p class="sub" id="subtitle">Autentifică-te pentru a continua</p>
+      <h1 id="title" data-i18n="login.title">Bun venit</h1>
+      <p class="sub" id="subtitle" data-i18n="login.subtitle">Autentifică-te pentru a continua</p>
 
       <div class="msg" id="msg">
         <svg id="msgIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -1619,20 +1619,20 @@
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
               <circle cx="12" cy="7" r="4"></circle>
             </svg>
-            <input type="text" id="firstName" placeholder="Prenume" autocomplete="given-name">
+            <input type="text" id="firstName" placeholder="Prenume" autocomplete="given-name" data-i18n="login.firstName">
           </div>
           <div class="field">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
               <circle cx="12" cy="7" r="4"></circle>
             </svg>
-            <input type="text" id="lastName" placeholder="Nume" autocomplete="family-name">
+            <input type="text" id="lastName" placeholder="Nume" autocomplete="family-name" data-i18n="login.lastName">
           </div>
           <div class="field">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.79 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
             </svg>
-            <input type="tel" id="phone" placeholder="Nr de Telefon" autocomplete="tel">
+            <input type="tel" id="phone" placeholder="Nr de Telefon" autocomplete="tel" data-i18n="login.phone">
           </div>
         </div>
         <div class="field">
@@ -1640,14 +1640,14 @@
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
             <polyline points="22,6 12,13 2,6"></polyline>
           </svg>
-          <input type="email" id="email" placeholder="Email" required autocomplete="email">
+          <input type="email" id="email" placeholder="Email" required autocomplete="email" data-i18n="login.email">
         </div>
         <div class="field">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
           </svg>
-          <input type="password" id="password" placeholder="Parolă" required minlength="6" autocomplete="current-password">
+          <input type="password" id="password" placeholder="Parolă" required minlength="6" autocomplete="current-password" data-i18n="login.password">
           <button type="button" class="eye" id="togglePwd" aria-label="Arată parola">
             <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -1657,13 +1657,13 @@
         </div>
 
         <button type="submit" class="btn full" id="submitBtn">
-          <span id="btnText">Autentifică-te</span>
+          <span id="btnText" data-i18n="login.submit">Autentifică-te</span>
         </button>
       </form>
 
       <p class="toggle">
-        <span id="toggleText">Nu ai cont?</span>
-        <a id="toggleLink">Înregistrează-te</a>
+        <span id="toggleText" data-i18n="login.noAccount">Nu ai cont?</span>
+        <a id="toggleLink" data-i18n="login.signUp">Înregistrează-te</a>
       </p>
     </div>
   </div>
@@ -1691,23 +1691,23 @@
     </header>
 
     <nav class="tabs">
-      <button class="tab active" data-section="home">
+      <button class="tab active" data-section="home" data-i18n="nav.home">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         Acasă
       </button>
-      <button class="tab" data-section="events">
+      <button class="tab" data-section="events" data-i18n="nav.events">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         Evenimente
       </button>
-      <button class="tab" data-section="cars">
+      <button class="tab" data-section="cars" data-i18n="nav.cars">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
         Mașini
       </button>
-      <button class="tab" data-section="tasks">
+      <button class="tab" data-section="tasks" data-i18n="nav.tasks">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         Taskuri
       </button>
-      <button class="tab" data-section="settings">
+      <button class="tab" data-section="settings" data-i18n="nav.settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         Setări
       </button>
@@ -1715,23 +1715,23 @@
 
     <!-- MOBILE-ONLY BOTTOM NAVIGATION (ExpandableTabs pattern) -->
     <nav class="mobile-tabs" aria-label="Meniu principal">
-      <button class="mtab active" data-section="home" aria-label="Acasă">
+      <button class="mtab active" data-section="home" aria-label="Acasă" data-i18n="nav.home">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         <span class="label">Acasă</span>
       </button>
-      <button class="mtab" data-section="events" aria-label="Evenimente">
+      <button class="mtab" data-section="events" aria-label="Evenimente" data-i18n="nav.events">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         <span class="label">Evenimente</span>
       </button>
-      <button class="mtab" data-section="cars" aria-label="Mașini">
+      <button class="mtab" data-section="cars" aria-label="Mașini" data-i18n="nav.cars">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
         <span class="label">Mașini</span>
       </button>
-      <button class="mtab" data-section="tasks" aria-label="Taskuri">
+      <button class="mtab" data-section="tasks" aria-label="Taskuri" data-i18n="nav.tasks">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         <span class="label">Taskuri</span>
       </button>
-      <button class="mtab" data-section="settings" aria-label="Setări">
+      <button class="mtab" data-section="settings" aria-label="Setări" data-i18n="nav.settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         <span class="label">Setări</span>
       </button>
@@ -1742,7 +1742,7 @@
       <section class="section active" id="section-home">
         <div class="greeting-row">
           <div class="greeting">
-            <p>Bun venit înapoi 👋</p>
+            <p data-i18n="home.welcome">Bun venit înapoi 👋</p>
             <h1 id="greetingEmail">—</h1>
           </div>
         </div>
@@ -1764,7 +1764,7 @@
         </div>
 
         <div class="section-title">
-          <div><h2>Statistici</h2><p>Rezumat live din baza de date</p></div>
+          <div><h2 data-i18n="home.stats">Statistici</h2><p data-i18n="home.stats.sub">Rezumat live din baza de date</p></div>
         </div>
         <div class="stats-grid">
           <div class="stat">
@@ -1829,16 +1829,16 @@
       <!-- EVENTS -->
       <section class="section" id="section-events">
         <div class="section-title">
-          <div><h2>Evenimente</h2><p><span id="eventsCount">0</span> total</p></div>
+          <div><h2 data-i18n="events.title">Evenimente</h2><p><span id="eventsCount">0</span> <span data-i18n="events.total">total</span></p></div>
         </div>
         <div class="toolbar">
           <div class="search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="search" id="eventsSearch" placeholder="Caută eveniment...">
+            <input type="search" id="eventsSearch" data-i18n-placeholder="events.search" placeholder="Caută eveniment...">
           </div>
           <button class="add-btn" data-modal="add-event">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Adaugă
+            <span data-i18n="events.add">Adaugă</span>
           </button>
         </div>
         <div class="chips" id="eventsChips"></div>
@@ -1848,23 +1848,23 @@
       <!-- CARS -->
       <section class="section" id="section-cars">
         <div class="section-title">
-          <div><h2>Mașini invitate</h2><p><span id="carsCount">0</span> mașini în total</p></div>
+          <div><h2 data-i18n="cars.title">Mașini invitate</h2><p><span id="carsCount">0</span> <span data-i18n="cars.count_suffix">mașini în total</span></p></div>
         </div>
         <div class="toolbar">
           <div class="search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="search" id="carsSearch" placeholder="Caută model, proprietar, plăcuță...">
+            <input type="search" id="carsSearch" data-i18n-placeholder="cars.search" placeholder="Caută model, proprietar, plăcuță...">
           </div>
           <button class="add-btn" id="manualRefreshBtn" style="background: var(--surface-elev); color: var(--text-dim); border: 1px solid var(--border);">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
           </button>
           <button class="add-btn" id="aiImportBtn" style="background: linear-gradient(90deg, #8b5cf6, #ec4899);">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
-            AI Import
+            <span data-i18n="cars.ai_import">AI Import</span>
           </button>
           <button class="add-btn" data-modal="add-car">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Adaugă
+            <span data-i18n="cars.add">Adaugă</span>
           </button>
         </div>
         <div class="chips" id="carsChips"></div>
@@ -1874,16 +1874,16 @@
       <!-- TASKS -->
       <section class="section" id="section-tasks">
         <div class="section-title">
-          <div><h2>Taskuri</h2><p><span id="tasksCount">0</span> total</p></div>
+          <div><h2 data-i18n="tasks.title">Taskuri</h2><p><span id="tasksCount">0</span> <span data-i18n="tasks.total">total</span></p></div>
         </div>
         <div class="toolbar">
           <div class="search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="search" id="tasksSearch" placeholder="Caută task...">
+            <input type="search" id="tasksSearch" data-i18n-placeholder="tasks.search" placeholder="Caută task...">
           </div>
           <button class="add-btn" data-modal="add-task">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Adaugă
+            <span data-i18n="tasks.add">Adaugă</span>
           </button>
         </div>
         <div class="chips" id="tasksChips"></div>
@@ -1895,80 +1895,98 @@
       <section class="section" id="section-settings">
         <div class="page-grid-2">
         <div class="setting-block">
-          <div class="setting-label">PROFIL</div>
+          <div class="setting-label" data-i18n="settings.profile">PROFIL</div>
           <form id="profileForm">
             <div class="form-row">
               <div class="form-field">
-                <label>Prenume</label>
-                <input type="text" id="settingsFirstName" placeholder="Prenume">
+                <label data-i18n="settings.profile.firstName">Prenume</label>
+                <input type="text" id="settingsFirstName" data-i18n-placeholder="settings.profile.firstName" placeholder="Prenume">
               </div>
               <div class="form-field">
-                <label>Nume</label>
-                <input type="text" id="settingsLastName" placeholder="Nume">
+                <label data-i18n="settings.profile.lastName">Nume</label>
+                <input type="text" id="settingsLastName" data-i18n-placeholder="settings.profile.lastName" placeholder="Nume">
               </div>
             </div>
             <div class="form-field">
-              <label>Nr de Telefon</label>
-              <input type="tel" id="settingsPhone" placeholder="Telefon">
+              <label data-i18n="settings.profile.phone">Nr de Telefon</label>
+              <input type="tel" id="settingsPhone" data-i18n-placeholder="settings.profile.phone" placeholder="Telefon">
             </div>
             <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
-              <button type="submit" class="btn small" id="saveProfileBtn">Salvează Modificările</button>
+              <button type="submit" class="btn small" id="saveProfileBtn" data-i18n="settings.profile.save">Salvează Modificările</button>
             </div>
           </form>
         </div>
 
         <div class="setting-block">
-          <div class="setting-label">CONT</div>
+          <div class="setting-label" data-i18n="settings.lang">LIMBĂ / LANGUAGE</div>
+          <div class="setting-row">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </div>
+            <div class="txt">
+              <strong data-i18n="settings.lang.title">Schimbă Limba</strong>
+              <span data-i18n="settings.lang.sub">Alege limba preferată pentru interfață</span>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <button class="btn small ghost lang-btn" data-lang="ro">RO</button>
+              <button class="btn small ghost lang-btn" data-lang="en">EN</button>
+              <button class="btn small ghost lang-btn" data-lang="ru">RU</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="setting-block">
+          <div class="setting-label" data-i18n="settings.account">CONT</div>
           <div class="setting-row">
             <div class="icon-box">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             </div>
             <div class="txt">
-              <strong>Email</strong>
+              <strong data-i18n="settings.email">Email</strong>
               <span id="settingsEmail">—</span>
             </div>
           </div>
         </div>
 
         <div class="setting-block">
-          <div class="setting-label">NOTIFICĂRI</div>
+          <div class="setting-label" data-i18n="settings.notifs">NOTIFICĂRI</div>
           <div class="setting-row">
             <div class="icon-box">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             </div>
             <div class="txt">
-              <strong>Notificări Browser</strong>
-              <span id="notifStatus">Dezactivate</span>
+              <strong data-i18n="settings.notifs.browser">Notificări Browser</strong>
+              <span id="notifStatus" data-i18n="settings.notifs.status_off">Dezactivate</span>
             </div>
-            <button class="btn small" id="enableNotifBtn">Activează</button>
+            <button class="btn small" id="enableNotifBtn" data-i18n="settings.notifs.enable">Activează</button>
           </div>
         </div>
 
         <div class="setting-block">
-          <div class="setting-label">SESIUNE</div>
+          <div class="setting-label" data-i18n="settings.session">SESIUNE</div>
           <div class="setting-row">
             <div class="icon-box red">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             </div>
             <div class="txt">
-              <strong>Deconectare</strong>
-              <span>Închide sesiunea și revino la ecranul de login</span>
+              <strong data-i18n="settings.session.title">Deconectare</strong>
+              <span data-i18n="settings.session.sub">Închide sesiunea și revino la ecranul de login</span>
             </div>
-            <button class="btn danger small" id="logoutBtn">Ieși</button>
+            <button class="btn danger small" id="logoutBtn" data-i18n="settings.logout">Ieși</button>
           </div>
         </div>
 
         <div class="setting-block">
-          <div class="setting-label">DATE</div>
+          <div class="setting-label" data-i18n="settings.danger">DATE</div>
           <div class="setting-row">
             <div class="icon-box red">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
             </div>
             <div class="txt">
-              <strong>Șterge toate mașinile</strong>
-              <span>Elimină toate mașinile din baza de date (acțiune ireversibilă)</span>
+              <strong data-i18n="settings.delete_all_cars">Șterge toate mașinile</strong>
+              <span data-i18n="settings.delete_all_cars_help">Elimină toate mașinile din baza de date (acțiune ireversibilă)</span>
             </div>
-            <button class="btn danger small" id="deleteAllCarsBtn">Șterge</button>
+            <button class="btn danger small" id="deleteAllCarsBtn" data-i18n="settings.delete_btn">Șterge</button>
           </div>
         </div>
         </div>
@@ -2270,6 +2288,555 @@
     const supa = createClient(SUPABASE_URL, SUPABASE_ANON, {
       auth: { persistSession: true, autoRefreshToken: true }
     });
+
+    // ==============================================================
+    // I18N SYSTEM
+    // ==============================================================
+    const translations = {
+      ro: {
+        // --- LOGIN ---
+        "login.title": "Bun venit",
+        "login.subtitle": "Autentifică-te pentru a continua",
+        "login.title_signup": "Bine ai venit",
+        "login.subtitle_signup": "Creează un cont pentru echipa ta",
+        "login.firstName": "Prenume",
+        "login.lastName": "Nume",
+        "login.phone": "Nr de Telefon",
+        "login.email": "Email",
+        "login.password": "Parolă",
+        "login.submit": "Autentifică-te",
+        "login.submit_signup": "Creează cont",
+        "login.noAccount": "Nu ai cont?",
+        "login.hasAccount": "Ai deja un cont?",
+        "login.signUp": "Înregistrează-te",
+        "login.signIn": "Autentifică-te",
+        "login.err_short_pwd": "Parola trebuie să aibă minim 6 caractere",
+        "login.signup_success": "Cont creat! Verifică emailul pentru confirmare.",
+        // --- NAV ---
+        "nav.home": "Acasă",
+        "nav.events": "Evenimente",
+        "nav.cars": "Mașini",
+        "nav.tasks": "Taskuri",
+        "nav.settings": "Setări",
+        // --- HOME ---
+        "home.welcome": "Bun venit înapoi 👋",
+        "home.stats": "Statistici",
+        "home.stats.sub": "Rezumat live din baza de date",
+        "home.next_event": "URMĂTORUL EVENIMENT",
+        "home.days_left": "zile rămase",
+        "home.loading": "Se încarcă...",
+        "home.cars_registered": "Mașini înscrise",
+        "home.events_planned": "Evenimente planificate",
+        "home.cars_arrived": "Mașini sosite",
+        "home.tasks_open": "Taskuri deschise",
+        "home.upcoming_events": "Evenimente viitoare",
+        "home.upcoming_sub": "Ce urmează pe agendă",
+        "home.priority_tasks": "Taskuri prioritare",
+        "home.priority_sub": "Ce e activ acum",
+        // --- EVENTS ---
+        "events.title": "Evenimente",
+        "events.total": "total",
+        "events.search": "Caută eveniment...",
+        "events.add": "Adaugă",
+        "events.confirm_delete": "Șterge evenimentul \"{title}\"?",
+        // --- CARS ---
+        "cars.title": "Mașini",
+        "cars.count_suffix": "mașini în total",
+        "cars.search": "Caută model, proprietar sau plăcuță...",
+        "cars.add": "Adaugă",
+        "cars.ai_import": "AI Import",
+        "cars.confirm_delete": "Șterge mașina \"{title}\"?",
+        // --- TASKS ---
+        "tasks.title": "Taskuri",
+        "tasks.total": "total",
+        "tasks.search": "Caută task...",
+        "tasks.add": "Adaugă",
+        "tasks.filter_all": "Toate",
+        "tasks.filter_open": "Deschise",
+        "tasks.filter_done": "Finalizate",
+        "tasks.dept_all": "Toate departamentele",
+        "tasks.confirm_delete": "Șterge taskul \"{title}\"?",
+        "tasks.taken_toast": "Ai preluat taskul.",
+        "tasks.finished_toast": "Task finalizat.",
+        "tasks.reopened_toast": "Task redeschis.",
+        "tasks.deleted_toast": "Task șters.",
+        // --- SETTINGS ---
+        "settings.profile": "PROFIL",
+        "settings.profile.firstName": "Prenume",
+        "settings.profile.lastName": "Nume",
+        "settings.profile.phone": "Nr de Telefon",
+        "settings.profile.save": "Salvează Modificările",
+        "settings.profile.saved": "Profilul a fost actualizat.",
+        "settings.lang": "LIMBĂ",
+        "settings.lang.title": "Schimbă Limba",
+        "settings.lang.sub": "Alege limba preferată pentru interfață",
+        "settings.account": "CONT",
+        "settings.email": "Email",
+        "settings.notifs": "NOTIFICĂRI",
+        "settings.notifs.browser": "Notificări Browser",
+        "settings.notifs.status_off": "Dezactivate",
+        "settings.notifs.status_on": "Activate",
+        "settings.notifs.enable": "Activează",
+        "settings.danger": "ZONĂ PERICULOASĂ",
+        "settings.delete_all_cars": "Șterge toate mașinile",
+        "settings.delete_all_cars_help": "Elimină toate mașinile din baza de date (acțiune ireversibilă)",
+        "settings.delete_btn": "Șterge",
+        "settings.confirm_delete_all": "Ești sigur? Această acțiune va șterge TOATE mașinile și nu poate fi anulată.",
+        "settings.logout": "Ieși",
+        "settings.session": "SESIUNE",
+        "settings.session.title": "Deconectare",
+        "settings.session.sub": "Închide sesiunea și revino la ecranul de login",
+        // --- COMMON ---
+        "common.delete": "Șterge",
+        "common.cancel": "Anulează",
+        "common.save": "Salvează",
+        "common.confirm": "Confirmă",
+        "common.close": "Închide",
+        "common.edit": "Editează",
+        "common.details": "Detalii",
+        "common.nothing_found": "Nimic găsit",
+        "common.days": "zile",
+        "common.error": "Eroare",
+        "common.error_generic": "A apărut o eroare",
+        // --- TASK CARDS / STATUSES ---
+        "task.status.available": "DISPONIBIL",
+        "task.status.in_progress": "ÎN LUCRU",
+        "task.status.completed": "FINISAT",
+        "task.action.take": "Începe lucrul",
+        "task.action.finish": "Finisat",
+        "task.action.reopen": "Redeschide",
+        "task.action.delete": "Șterge",
+        "task.action.locked_prefix": "Lucrează",
+        "task.worked_by": "Lucrat de",
+        "task.finished_by": "Finisat de",
+        "task.due_date": "Termen limită",
+        "task.responsible": "Responsabil",
+        "task.details": "Detalii",
+        "task.locked_msg": "Doar {name} poate finaliza acest task",
+        "task.event_general": "General",
+        "task.priority_urgent": "URGENT",
+        "task.priority_high": "IMPORTANT",
+        "task.priority_normal": "NORMALĂ",
+        "task.priority_low": "SCĂZUTĂ",
+        // --- CAR STATUSES ---
+        "car.status.invited": "Invitat",
+        "car.status.arrived": "Sosit",
+        "car.status.left": "Plecat",
+        "car.status.waiting": "În așteptare",
+        "car.action.delete": "Șterge",
+        // --- MODALS / FORMS ---
+        "modal.add_task.title": "Adaugă task",
+        "modal.add_task.sub": "Ceva de făcut pentru echipa ta.",
+        "modal.add_task.title_field": "Titlu *",
+        "modal.add_task.short_desc": "Descriere scurtă",
+        "modal.add_task.dept": "Departament",
+        "modal.add_task.dept_placeholder": "Alege departamentul...",
+        "modal.add_task.deadline": "Termen limită",
+        "modal.add_task.priority": "Prioritate",
+        "modal.add_task.status": "Status",
+        "modal.add_task.details": "Ce trebuie făcut",
+        "modal.add_task.details_placeholder": "Scrie aici instrucțiuni detaliate...",
+        "modal.add_car.title": "Adaugă mașină",
+        "modal.add_car.sub": "Detalii despre mașina invitată.",
+        "modal.add_event.title": "Adaugă eveniment",
+        "modal.add_event.sub": "Un festival sau eveniment auto.",
+        "modal.ai_import.title": "AI Magic Import",
+        "modal.ai_import.sub": "Încarcă un fișier Excel (.xlsx) sau CSV și AI-ul va extrage automat datele mașinilor.",
+        // --- TOASTS ---
+        "toast.updated": "Actualizat.",
+        "toast.saved": "Salvat.",
+        "toast.deleted": "Șters."
+      },
+      en: {
+        "login.title": "Welcome",
+        "login.subtitle": "Sign in to continue",
+        "login.title_signup": "Welcome",
+        "login.subtitle_signup": "Create an account for your team",
+        "login.firstName": "First Name",
+        "login.lastName": "Last Name",
+        "login.phone": "Phone Number",
+        "login.email": "Email",
+        "login.password": "Password",
+        "login.submit": "Sign In",
+        "login.submit_signup": "Create account",
+        "login.noAccount": "No account?",
+        "login.hasAccount": "Already have an account?",
+        "login.signUp": "Sign Up",
+        "login.signIn": "Sign In",
+        "login.err_short_pwd": "Password must be at least 6 characters",
+        "login.signup_success": "Account created! Check your email for confirmation.",
+        "nav.home": "Home",
+        "nav.events": "Events",
+        "nav.cars": "Cars",
+        "nav.tasks": "Tasks",
+        "nav.settings": "Settings",
+        "home.welcome": "Welcome back 👋",
+        "home.stats": "Statistics",
+        "home.stats.sub": "Live database summary",
+        "home.next_event": "NEXT EVENT",
+        "home.days_left": "days left",
+        "home.loading": "Loading...",
+        "home.cars_registered": "Cars registered",
+        "home.events_planned": "Events planned",
+        "home.cars_arrived": "Cars arrived",
+        "home.tasks_open": "Open tasks",
+        "home.upcoming_events": "Upcoming events",
+        "home.upcoming_sub": "What's on the agenda",
+        "home.priority_tasks": "Priority tasks",
+        "home.priority_sub": "Active now",
+        "events.title": "Events",
+        "events.total": "total",
+        "events.search": "Search event...",
+        "events.add": "Add",
+        "events.confirm_delete": "Delete event \"{title}\"?",
+        "cars.title": "Cars",
+        "cars.count_suffix": "cars total",
+        "cars.search": "Search model, owner or plate...",
+        "cars.add": "Add",
+        "cars.ai_import": "AI Import",
+        "cars.confirm_delete": "Delete car \"{title}\"?",
+        "tasks.title": "Tasks",
+        "tasks.total": "total",
+        "tasks.search": "Search task...",
+        "tasks.add": "Add",
+        "tasks.filter_all": "All",
+        "tasks.filter_open": "Open",
+        "tasks.filter_done": "Completed",
+        "tasks.dept_all": "All departments",
+        "tasks.confirm_delete": "Delete task \"{title}\"?",
+        "tasks.taken_toast": "Task taken.",
+        "tasks.finished_toast": "Task finished.",
+        "tasks.reopened_toast": "Task reopened.",
+        "tasks.deleted_toast": "Task deleted.",
+        "settings.profile": "PROFILE",
+        "settings.profile.firstName": "First Name",
+        "settings.profile.lastName": "Last Name",
+        "settings.profile.phone": "Phone Number",
+        "settings.profile.save": "Save Changes",
+        "settings.profile.saved": "Profile updated.",
+        "settings.lang": "LANGUAGE",
+        "settings.lang.title": "Change Language",
+        "settings.lang.sub": "Choose your preferred language",
+        "settings.account": "ACCOUNT",
+        "settings.email": "Email",
+        "settings.notifs": "NOTIFICATIONS",
+        "settings.notifs.browser": "Browser Notifications",
+        "settings.notifs.status_off": "Disabled",
+        "settings.notifs.status_on": "Enabled",
+        "settings.notifs.enable": "Enable",
+        "settings.danger": "DANGER ZONE",
+        "settings.delete_all_cars": "Delete all cars",
+        "settings.delete_all_cars_help": "Remove every car from the database (irreversible)",
+        "settings.delete_btn": "Delete",
+        "settings.confirm_delete_all": "Are you sure? This will delete ALL cars and cannot be undone.",
+        "settings.logout": "Log Out",
+        "settings.session": "SESSION",
+        "settings.session.title": "Log Out",
+        "settings.session.sub": "End the session and return to the login screen",
+        "common.delete": "Delete",
+        "common.cancel": "Cancel",
+        "common.save": "Save",
+        "common.confirm": "Confirm",
+        "common.close": "Close",
+        "common.edit": "Edit",
+        "common.details": "Details",
+        "common.nothing_found": "Nothing found",
+        "common.days": "days",
+        "common.error": "Error",
+        "common.error_generic": "An error occurred",
+        "task.status.available": "AVAILABLE",
+        "task.status.in_progress": "IN PROGRESS",
+        "task.status.completed": "COMPLETED",
+        "task.action.take": "Start work",
+        "task.action.finish": "Finish",
+        "task.action.reopen": "Reopen",
+        "task.action.delete": "Delete",
+        "task.action.locked_prefix": "Working",
+        "task.worked_by": "Worked by",
+        "task.finished_by": "Finished by",
+        "task.due_date": "Due Date",
+        "task.responsible": "Responsible",
+        "task.details": "Details",
+        "task.locked_msg": "Only {name} can finish this task",
+        "task.event_general": "General",
+        "task.priority_urgent": "URGENT",
+        "task.priority_high": "IMPORTANT",
+        "task.priority_normal": "NORMAL",
+        "task.priority_low": "LOW",
+        "car.status.invited": "Invited",
+        "car.status.arrived": "Arrived",
+        "car.status.left": "Left",
+        "car.status.waiting": "Waiting",
+        "car.action.delete": "Delete",
+        "modal.add_task.title": "Add task",
+        "modal.add_task.sub": "Something for your team to do.",
+        "modal.add_task.title_field": "Title *",
+        "modal.add_task.short_desc": "Short description",
+        "modal.add_task.dept": "Department",
+        "modal.add_task.dept_placeholder": "Choose department...",
+        "modal.add_task.deadline": "Deadline",
+        "modal.add_task.priority": "Priority",
+        "modal.add_task.status": "Status",
+        "modal.add_task.details": "What needs to be done",
+        "modal.add_task.details_placeholder": "Write detailed instructions here...",
+        "modal.add_car.title": "Add car",
+        "modal.add_car.sub": "Details about the invited car.",
+        "modal.add_event.title": "Add event",
+        "modal.add_event.sub": "A festival or auto event.",
+        "modal.ai_import.title": "AI Magic Import",
+        "modal.ai_import.sub": "Upload an Excel (.xlsx) or CSV file and AI will extract car data automatically.",
+        "toast.updated": "Updated.",
+        "toast.saved": "Saved.",
+        "toast.deleted": "Deleted."
+      },
+      ru: {
+        "login.title": "Добро пожаловать",
+        "login.subtitle": "Войдите, чтобы продолжить",
+        "login.title_signup": "Добро пожаловать",
+        "login.subtitle_signup": "Создайте аккаунт для вашей команды",
+        "login.firstName": "Имя",
+        "login.lastName": "Фамилия",
+        "login.phone": "Номер телефона",
+        "login.email": "Email",
+        "login.password": "Пароль",
+        "login.submit": "Войти",
+        "login.submit_signup": "Создать аккаунт",
+        "login.noAccount": "Нет аккаунта?",
+        "login.hasAccount": "Уже есть аккаунт?",
+        "login.signUp": "Регистрация",
+        "login.signIn": "Войти",
+        "login.err_short_pwd": "Пароль должен быть не менее 6 символов",
+        "login.signup_success": "Аккаунт создан! Проверьте почту для подтверждения.",
+        "nav.home": "Главная",
+        "nav.events": "События",
+        "nav.cars": "Машины",
+        "nav.tasks": "Задачи",
+        "nav.settings": "Настройки",
+        "home.welcome": "С возвращением 👋",
+        "home.stats": "Статистика",
+        "home.stats.sub": "Живой свод данных",
+        "home.next_event": "СЛЕДУЮЩЕЕ СОБЫТИЕ",
+        "home.days_left": "дней осталось",
+        "home.loading": "Загрузка...",
+        "home.cars_registered": "Машин зарегистрировано",
+        "home.events_planned": "Запланировано событий",
+        "home.cars_arrived": "Машин прибыло",
+        "home.tasks_open": "Открытых задач",
+        "home.upcoming_events": "Предстоящие события",
+        "home.upcoming_sub": "Что в повестке дня",
+        "home.priority_tasks": "Приоритетные задачи",
+        "home.priority_sub": "Активно сейчас",
+        "events.title": "События",
+        "events.total": "всего",
+        "events.search": "Поиск события...",
+        "events.add": "Добавить",
+        "events.confirm_delete": "Удалить событие \"{title}\"?",
+        "cars.title": "Машины",
+        "cars.count_suffix": "машин всего",
+        "cars.search": "Поиск модели, владельца или номера...",
+        "cars.add": "Добавить",
+        "cars.ai_import": "AI Импорт",
+        "cars.confirm_delete": "Удалить машину \"{title}\"?",
+        "tasks.title": "Задачи",
+        "tasks.total": "всего",
+        "tasks.search": "Поиск задачи...",
+        "tasks.add": "Добавить",
+        "tasks.filter_all": "Все",
+        "tasks.filter_open": "Открытые",
+        "tasks.filter_done": "Завершённые",
+        "tasks.dept_all": "Все отделы",
+        "tasks.confirm_delete": "Удалить задачу \"{title}\"?",
+        "tasks.taken_toast": "Задача взята.",
+        "tasks.finished_toast": "Задача завершена.",
+        "tasks.reopened_toast": "Задача снова открыта.",
+        "tasks.deleted_toast": "Задача удалена.",
+        "settings.profile": "ПРОФИЛЬ",
+        "settings.profile.firstName": "Имя",
+        "settings.profile.lastName": "Фамилия",
+        "settings.profile.phone": "Номер телефона",
+        "settings.profile.save": "Сохранить изменения",
+        "settings.profile.saved": "Профиль обновлён.",
+        "settings.lang": "ЯЗЫК",
+        "settings.lang.title": "Сменить язык",
+        "settings.lang.sub": "Выберите предпочитаемый язык",
+        "settings.account": "АККАУНТ",
+        "settings.email": "Email",
+        "settings.notifs": "УВЕДОМЛЕНИЯ",
+        "settings.notifs.browser": "Уведомления браузера",
+        "settings.notifs.status_off": "Отключены",
+        "settings.notifs.status_on": "Включены",
+        "settings.notifs.enable": "Включить",
+        "settings.danger": "ОПАСНАЯ ЗОНА",
+        "settings.delete_all_cars": "Удалить все машины",
+        "settings.delete_all_cars_help": "Удалить все машины из базы (необратимо)",
+        "settings.delete_btn": "Удалить",
+        "settings.confirm_delete_all": "Вы уверены? Все машины будут удалены безвозвратно.",
+        "settings.logout": "Выйти",
+        "settings.session": "СЕССИЯ",
+        "settings.session.title": "Выход",
+        "settings.session.sub": "Закрыть сессию и вернуться на экран входа",
+        "common.delete": "Удалить",
+        "common.cancel": "Отмена",
+        "common.save": "Сохранить",
+        "common.confirm": "Подтвердить",
+        "common.close": "Закрыть",
+        "common.edit": "Изменить",
+        "common.details": "Детали",
+        "common.nothing_found": "Ничего не найдено",
+        "common.days": "дней",
+        "common.error": "Ошибка",
+        "common.error_generic": "Произошла ошибка",
+        "task.status.available": "ДОСТУПНО",
+        "task.status.in_progress": "В РАБОТЕ",
+        "task.status.completed": "ЗАВЕРШЕНО",
+        "task.action.take": "Начать работу",
+        "task.action.finish": "Завершить",
+        "task.action.reopen": "Открыть снова",
+        "task.action.delete": "Удалить",
+        "task.action.locked_prefix": "Выполняет",
+        "task.worked_by": "Выполняет",
+        "task.finished_by": "Завершил",
+        "task.due_date": "Срок",
+        "task.responsible": "Ответственный",
+        "task.details": "Детали",
+        "task.locked_msg": "Только {name} может завершить это задание",
+        "task.event_general": "Общий",
+        "task.priority_urgent": "СРОЧНО",
+        "task.priority_high": "ВАЖНО",
+        "task.priority_normal": "ОБЫЧНЫЙ",
+        "task.priority_low": "НИЗКИЙ",
+        "car.status.invited": "Приглашён",
+        "car.status.arrived": "Прибыл",
+        "car.status.left": "Уехал",
+        "car.status.waiting": "Ожидание",
+        "car.action.delete": "Удалить",
+        "modal.add_task.title": "Добавить задачу",
+        "modal.add_task.sub": "Что-то для вашей команды.",
+        "modal.add_task.title_field": "Заголовок *",
+        "modal.add_task.short_desc": "Краткое описание",
+        "modal.add_task.dept": "Отдел",
+        "modal.add_task.dept_placeholder": "Выберите отдел...",
+        "modal.add_task.deadline": "Срок",
+        "modal.add_task.priority": "Приоритет",
+        "modal.add_task.status": "Статус",
+        "modal.add_task.details": "Что нужно сделать",
+        "modal.add_task.details_placeholder": "Напишите подробные инструкции здесь...",
+        "modal.add_car.title": "Добавить машину",
+        "modal.add_car.sub": "Детали приглашённой машины.",
+        "modal.add_event.title": "Добавить событие",
+        "modal.add_event.sub": "Фестиваль или авто-мероприятие.",
+        "modal.ai_import.title": "AI Magic Import",
+        "modal.ai_import.sub": "Загрузите файл Excel (.xlsx) или CSV и AI автоматически извлечёт данные машин.",
+        "toast.updated": "Обновлено.",
+        "toast.saved": "Сохранено.",
+        "toast.deleted": "Удалено."
+      }
+    };
+
+    let currentLang = localStorage.getItem('kultura_lang') || 'ro';
+
+    // Helper: get translated string with {param} interpolation
+    function t(key, params) {
+      const pack = translations[currentLang] || translations.ro;
+      let val = pack[key];
+      if (val == null) val = translations.ro[key];       // fallback to RO
+      if (val == null) return key;                        // last resort — show the key
+      if (params) {
+        for (const [k, v] of Object.entries(params)) {
+          val = val.replace(new RegExp('\\{' + k + '\\}', 'g'), v);
+        }
+      }
+      return val;
+    }
+
+    function applyLanguage(lang) {
+      currentLang = lang;
+      localStorage.setItem('kultura_lang', lang);
+
+      // Text content — <h1 data-i18n="key">…</h1>
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.dataset.i18n;
+        const txt = t(key);
+        if (el.tagName === 'INPUT' && (el.type === 'submit' || el.type === 'button')) {
+          el.value = txt;
+        } else if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+          // For inputs/textareas without data-i18n-placeholder, put translation in placeholder
+          el.placeholder = txt;
+        } else {
+          el.textContent = txt;
+        }
+      });
+
+      // Placeholder — <input data-i18n-placeholder="key">
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        el.placeholder = t(el.dataset.i18nPlaceholder);
+      });
+
+      // Title/tooltip — <button data-i18n-title="key">
+      document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        el.title = t(el.dataset.i18nTitle);
+      });
+
+      // Aria-label — <button data-i18n-aria="key">
+      document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+        el.setAttribute('aria-label', t(el.dataset.i18nAria));
+      });
+
+      // Update active state on language buttons
+      document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.lang === lang);
+        if (btn.dataset.lang === lang) {
+          btn.style.background = 'var(--blue)';
+          btn.style.color = '#fff';
+        } else {
+          btn.style.background = 'transparent';
+          btn.style.color = 'var(--text-dim)';
+        }
+      });
+
+      // Toggle login/signup text via isSignUp flag if applicable
+      if (typeof isSignUp !== 'undefined') {
+        const titleEl = el('title'); const subtitleEl = el('subtitle');
+        const btnTextEl = el('btnText'); const toggleTextEl = el('toggleText');
+        const toggleLinkEl = el('toggleLink');
+        if (titleEl)      titleEl.textContent      = t(isSignUp ? 'login.title_signup' : 'login.title');
+        if (subtitleEl)   subtitleEl.textContent   = t(isSignUp ? 'login.subtitle_signup' : 'login.subtitle');
+        if (btnTextEl)    btnTextEl.textContent    = t(isSignUp ? 'login.submit_signup' : 'login.submit');
+        if (toggleTextEl) toggleTextEl.textContent = t(isSignUp ? 'login.hasAccount' : 'login.noAccount');
+        if (toggleLinkEl) toggleLinkEl.textContent = t(isSignUp ? 'login.signIn' : 'login.signUp');
+      }
+
+      // Re-render dynamic lists to apply new language
+      if (typeof currentUser !== 'undefined' && currentUser) {
+        try {
+          if (typeof renderTasks === 'function')       renderTasks();
+          if (typeof renderCars === 'function')        renderCars();
+          if (typeof renderEvents === 'function')      renderEvents();
+          if (typeof renderTasksChips === 'function')  renderTasksChips();
+          if (typeof renderCarsChips === 'function')   renderCarsChips();
+          if (typeof renderEventsChips === 'function') renderEventsChips();
+          if (typeof renderTasksDeptChips === 'function') renderTasksDeptChips();
+          if (typeof renderUpcoming === 'function')    renderUpcoming(state?.events || []);
+          if (typeof renderTopTasks === 'function')    renderTopTasks(state?.tasks || []);
+          if (typeof renderStats === 'function')       renderStats(state?.cars || [], state?.tasks || [], state?.events || []);
+          if (typeof renderHero === 'function')        renderHero(state?.events || []);
+        } catch (_) {}
+      }
+    }
+
+    document.addEventListener('click', (e) => {
+      const langBtn = e.target.closest('.lang-btn');
+      if (langBtn) {
+        applyLanguage(langBtn.dataset.lang);
+      }
+    });
+
+    // Apply the persisted language as soon as the DOM is parsed
+    document.addEventListener('DOMContentLoaded', () => applyLanguage(currentLang));
+    // Also run immediately in case DOMContentLoaded already fired
+    if (document.readyState !== 'loading') {
+      queueMicrotask(() => applyLanguage(currentLang));
+    }
 
     const el = (id) => document.getElementById(id);
     let isSignUp = false;
@@ -2648,13 +3215,30 @@
       el('statEvents').textContent = (events || []).length;
       el('statCarsConfirmed').textContent = (cars || []).filter(c => (c.status || '').toLowerCase().includes('sosit')).length;
       el('statTasks').textContent = (tasks || []).filter(t => !t.is_completed).length;
+
+      // Update labels in stats grid
+      const statsGrid = document.querySelector('.stats-grid');
+      if (statsGrid) {
+        const labels = statsGrid.querySelectorAll('.stat-label');
+        if (labels.length >= 4) {
+          labels[0].textContent = translations[currentLang]["home.cars_registered"];
+          labels[1].textContent = translations[currentLang]["home.events_planned"];
+          labels[2].textContent = translations[currentLang]["home.cars_arrived"];
+          labels[3].textContent = translations[currentLang]["home.tasks_open"];
+        }
+      }
     }
 
     function renderHero(events) {
       const list = events || [];
+      const heroBadge = document.querySelector('.hero-badge');
+      if (heroBadge) heroBadge.innerHTML = `<span class="dot"></span>${translations[currentLang]["home.next_event"]}`;
+      const heroMetaLabel = document.querySelector('.hero-meta .l');
+      if (heroMetaLabel) heroMetaLabel.textContent = translations[currentLang]["home.days_left"];
+
       if (!list.length) {
-        el('heroTitle').textContent = 'Niciun eveniment planificat';
-        el('heroSub').textContent = 'Adaugă unul din aplicația mobilă';
+        el('heroTitle').textContent = translations[currentLang]["home.nothing_found"];
+        el('heroSub').textContent = translations[currentLang]["home.loading"];
         el('heroDate').textContent = '';
         el('heroLocation').textContent = '';
         el('heroDays').textContent = '—';
@@ -2677,8 +3261,15 @@
 
     function renderUpcoming(events) {
       const list = (events || []).slice(0, 4);
+      const card = el('upcomingEventsCard');
+      if (card) {
+        const h3 = card.querySelector('h3');
+        if (h3) h3.textContent = translations[currentLang]["home.upcoming_events"];
+        const p = card.querySelector('p');
+        if (p) p.textContent = translations[currentLang]["home.upcoming_sub"];
+      }
       const c = el('upcomingEventsList');
-      if (!list.length) return c.innerHTML = emptyState('Niciun eveniment');
+      if (!list.length) return c.innerHTML = emptyState(translations[currentLang]["common.nothing_found"]);
       c.innerHTML = list.map(e => `
         <div class="row">
           <div class="row-icon blue">
@@ -2695,8 +3286,15 @@
 
     function renderTopTasks(tasks) {
       const list = (tasks || []).filter(t => !t.is_completed).slice(0, 4);
+      const card = el('topTasksCard');
+      if (card) {
+        const h3 = card.querySelector('h3');
+        if (h3) h3.textContent = translations[currentLang]["home.priority_tasks"];
+        const p = card.querySelector('p');
+        if (p) p.textContent = translations[currentLang]["home.priority_sub"];
+      }
       const c = el('topTasksList');
-      if (!list.length) return c.innerHTML = emptyState('Niciun task deschis');
+      if (!list.length) return c.innerHTML = emptyState(translations[currentLang]["common.nothing_found"]);
       c.innerHTML = list.map(t => `
         <div class="row">
           <div class="row-icon ${statusToBadge(t.status) === 'red' ? 'red' : statusToBadge(t.status) === 'green' ? 'green' : 'orange'}">
@@ -2759,7 +3357,7 @@
       el('eventsCount').textContent = state.events.length;
       const list = filterEvents();
       const c = el('eventsList');
-      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Nimic găsit') + '</div>';
+      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(translations[currentLang]["common.nothing_found"]) + '</div>';
       c.innerHTML = '<div class="page-grid-2">' + list.map(e => {
         const active = eventStatusKey(e.status);
         const buttons = EVENT_STATUS_OPTIONS.map(opt => `
@@ -2782,14 +3380,14 @@
               </div>
               <div style="text-align:right;">
                 <div class="badge ${statusToBadge(e.status)}">${escape(e.status || '—')}</div>
-                ${e.days_left != null ? `<div style="margin-top:10px;color:var(--text-dim);font-size:11px;">${e.days_left} zile</div>` : ''}
+                ${e.days_left != null ? `<div style="margin-top:10px;color:var(--text-dim);font-size:11px;">${e.days_left} ${translations[currentLang]["common.days"]}</div>` : ''}
               </div>
             </div>
             <div class="event-actions">
               ${buttons}
               <button class="action-btn delete" data-action="event-delete" data-event-id="${e.id}" data-event-label="${escape(e.title)}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-                Șterge
+                ${translations[currentLang]["common.delete"]}
               </button>
             </div>
           </div>
@@ -2864,19 +3462,26 @@
       el('carsCount').textContent = state.cars.length;
       const list = filterCars();
       const c = el('carsList');
-      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Nimic găsit') + '</div>';
+      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(translations[currentLang]["common.nothing_found"]) + '</div>';
       c.innerHTML = '<div class="page-grid-2" id="carsInner"></div>';
       el('carsInner').innerHTML = list.map(car => {
         const active = statusKey(car.status);
-        const actionButtons = CAR_STATUS_OPTIONS.map(opt => `
-          <button class="action-btn ${active === opt.key ? 'active-' + opt.key : ''}"
-                  data-action="status"
-                  data-car-id="${car.id}"
-                  data-label="${escape(opt.label)}"
-                  data-color="${opt.color}">
-            ${escape(opt.label)}
-          </button>
-        `).join('');
+        const actionButtons = CAR_STATUS_OPTIONS.map(opt => {
+          let label = opt.label;
+          if (opt.key === 'invitat') label = translations[currentLang]["car.status.invited"];
+          if (opt.key === 'sosit')   label = translations[currentLang]["car.status.arrived"];
+          if (opt.key === 'plecat')  label = translations[currentLang]["car.status.left"];
+
+          return `
+            <button class="action-btn ${active === opt.key ? 'active-' + opt.key : ''}"
+                    data-action="status"
+                    data-car-id="${car.id}"
+                    data-label="${escape(opt.label)}"
+                    data-color="${opt.color}">
+              ${escape(label)}
+            </button>
+          `;
+        }).join('');
 
         const carName = [car.brand, car.model].filter(Boolean).join(' ') || car.model;
 
@@ -3098,37 +3703,34 @@
             Extract car details from the following text and return a JSON object with a "cars" key containing an array of car objects.
             Fields for each car object:
             - model (string)
-            - owner (string)
-            - plate (string)
-            - zone (string)
+            - owner (string - full name)
+            - plate (string - license plate number, e.g. "B 123 ABC")
+            - zone (string - parking zone if mentioned)
             - status (string: "Invitat", "Sosit", "Plecat", or "În așteptare")
-            - status_color (string: HEX)
-            - is_vip (boolean)
-            - phone (string)
+            - status_color (string: HEX, e.g., #3B82F6 for Invitat, #10B981 for Sosit)
+            - is_vip (boolean - true if mentioned as VIP or special guest)
+            - phone (string - phone number / contact)
             - email (string)
             - brand (string)
             - city (string)
+
+            Instructions:
+            - "plate" must contain the LICENSE PLATE (număr de înmatriculare).
+            - "phone" must contain the PHONE NUMBER (numărul de telefon).
+            - "owner" is the person's name.
+            - Ensure all fields are extracted accurately from the text and put in their respective places.
 
             Data to process:
             ${chunk}
           `;
 
-          // Apel direct la OpenAI (GitHub Pages nu are backend pentru /api/ai-import)
-          const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          // Apelăm serverul nostru local pentru a procesa cererea (proxy)
+          const response = await fetch('/api/ai-import', {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${OPENAI_API_KEY}`
+              'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-              model: 'gpt-4o-mini',
-              response_format: { type: 'json_object' },
-              temperature: 0.1,
-              messages: [
-                { role: 'system', content: 'Ești un asistent care extrage date de mașini și returnează JSON strict.' },
-                { role: 'user', content: prompt }
-              ]
-            })
+            body: JSON.stringify({ prompt })
           });
 
           if (!response.ok) {
@@ -3215,7 +3817,7 @@
       try {
         // Import cars to Supabase
         for (const car of cars) {
-          // Ensure phone/contact consistency
+          // Ensure phone/contact consistency for database fields
           if (car.phone && !car.contact) car.contact = car.phone;
           if (car.contact && !car.phone) car.phone = car.contact;
 
@@ -4021,11 +4623,11 @@
     function renderTasksDeptChips() {
       const counts = { all: state.tasks.length };
       DEPARTMENTS.forEach(d => { counts[d] = 0; });
-      state.tasks.forEach(t => {
-        const d = taskDept(t);
+      state.tasks.forEach(tk => {
+        const d = taskDept(tk);
         if (d) counts[d] = (counts[d] || 0) + 1;
       });
-      const chips = [{ key: 'all', label: 'Toate departamentele' }, ...DEPARTMENTS.map(d => ({ key: d, label: d }))];
+      const chips = [{ key: 'all', label: t('tasks.dept_all') }, ...DEPARTMENTS.map(d => ({ key: d, label: d }))];
       const target = el('tasksDeptChips');
       if (!target) return;
       target.innerHTML = chips.map(chip => `
@@ -4039,17 +4641,24 @@
     function renderTasksChips() {
       const total = state.tasks.length;
       const counts = { all: total };
-      counts.open = state.tasks.filter(t => taskStatusKey(t.status) !== 'completed').length;
-      counts.done = state.tasks.filter(t => taskStatusKey(t.status) === 'completed').length;
+      counts.open = state.tasks.filter(tk => taskStatusKey(tk.status) !== 'completed').length;
+      counts.done = state.tasks.filter(tk => taskStatusKey(tk.status) === 'completed').length;
 
       TASK_STATUS_OPTIONS.forEach(o => {
-        counts[o.key] = state.tasks.filter(t => taskStatusKey(t.status) === o.key).length;
+        counts[o.key] = state.tasks.filter(tk => taskStatusKey(tk.status) === o.key).length;
       });
 
+      const statusLabel = (k) => {
+        if (k === 'available')   return t('task.status.available');
+        if (k === 'in_progress') return t('task.status.in_progress');
+        if (k === 'completed')   return t('task.status.completed');
+        return k;
+      };
       const chips = [
-        { key: 'all',  label: 'Toate' },
-        { key: 'open', label: 'Deschise' },
-        ...TASK_STATUS_OPTIONS,
+        { key: 'all',  label: t('tasks.filter_all') },
+        { key: 'open', label: t('tasks.filter_open') },
+        ...TASK_STATUS_OPTIONS.map(o => ({ key: o.key, label: statusLabel(o.key) })),
+        { key: 'done', label: t('tasks.filter_done') }
       ];
       el('tasksChips').innerHTML = chips.map(chip => `
         <button class="chip ${state.tasksFilter === chip.key ? 'active' : ''}" data-tasks-filter="${chip.key}">
@@ -4063,14 +4672,14 @@
       el('tasksCount').textContent = state.tasks.length;
       const list = filterTasks();
       const c = el('tasksList');
-      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState('Nimic găsit') + '</div>';
+      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(translations[currentLang]["common.nothing_found"]) + '</div>';
 
       const priorityMeta = (p) => {
         const key = (p || '').toLowerCase();
-        if (key.includes('urgent')) return { cls: 'pri-urgent', label: 'URGENT', mark: '+' };
-        if (key.includes('ridicat') || key.includes('important') || key.includes('high')) return { cls: 'pri-high', label: 'IMPORTANT', mark: '+' };
-        if (key.includes('scăzut') || key.includes('scazut') || key.includes('low')) return { cls: 'pri-low', label: 'SCĂZUTĂ', mark: '' };
-        return null;
+        if (key.includes('urgent')) return { cls: 'priority-urgent', label: translations[currentLang]["task.priority_urgent"], mark: '+' };
+        if (key.includes('ridicat') || key.includes('important') || key.includes('high')) return { cls: 'priority-high', label: translations[currentLang]["task.priority_high"], mark: '+' };
+        if (key.includes('scăzut') || key.includes('scazut') || key.includes('low')) return { cls: 'priority-low', label: translations[currentLang]["task.priority_normal"], mark: '' }; // Assuming normal for low in this specific UI logic
+        return { cls: 'priority-normal', label: translations[currentLang]["task.priority_normal"], mark: '' };
       };
 
       const iconClock = '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>';
@@ -4079,15 +4688,27 @@
       const iconDots  = '<circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/>';
       const iconCal   = '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>';
       const iconUser  = '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>';
-      const iconTrash = '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>';
       const iconUndo  = '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/>';
 
       c.innerHTML = '<div class="tk-grid">' + list.map(t => {
         const sk = taskStatusKey(t.status);
         const iconClass = sk === 'completed' ? 'done' : sk === 'in_progress' ? 'progress' : 'available';
         const iconSvg   = sk === 'completed' ? iconCheck : iconClock;
-        const statusLabel = sk === 'completed' ? 'FINISAT' : sk === 'in_progress' ? 'ÎN LUCRU' : 'DISPONIBIL';
-        const statusCls   = sk === 'completed' ? 'stat-done' : sk === 'in_progress' ? 'stat-progress' : 'stat-available';
+
+        let statusLabel = translations[currentLang]["task.status.available"];
+        let statusCls   = 'stat-available';
+        let badgeClass  = 'blue';
+
+        if (sk === 'completed') {
+           statusLabel = translations[currentLang]["task.status.completed"];
+           statusCls   = 'stat-done';
+           badgeClass  = 'green';
+        } else if (sk === 'in_progress') {
+           statusLabel = translations[currentLang]["task.status.in_progress"];
+           statusCls   = 'stat-progress';
+           badgeClass  = 'orange';
+        }
+
         const pri = priorityMeta(t.priority);
         const responsibleRaw = t.assigned_user_name || '—';
         const responsible = escape(responsibleRaw);
@@ -4099,25 +4720,25 @@
         if (sk === 'available') {
           primaryBtn = `<button class="tk-btn blue" data-action="task-take" data-task-id="${t.id}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${iconPlay}</svg>
-            Începe lucrul
+            ${translations[currentLang]["task.action.take"]}
           </button>`;
         } else if (sk === 'in_progress') {
           if (isOwner) {
             primaryBtn = `<button class="tk-btn green" data-action="task-complete" data-task-id="${t.id}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${iconCheck}</svg>
-              Finisat
+              ${translations[currentLang]["task.action.finish"]}
             </button>`;
           } else {
             // Someone else is working on it → show a disabled locked chip instead
-            primaryBtn = `<div class="tk-btn locked" title="Doar ${escape(responsibleRaw)} poate finaliza acest task">
+            primaryBtn = `<div class="tk-btn locked" title="${translations[currentLang]["task.locked_msg"].replace('{name}', responsibleRaw)}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              Lucrează ${escape((responsibleRaw || '').split('@')[0])}
+              ${translations[currentLang]["task.worked_by"]} ${escape((responsibleRaw || '').split('@')[0])}
             </div>`;
           }
         } else {
           primaryBtn = `<button class="tk-btn blue" data-action="task-reopen" data-task-id="${t.id}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${iconUndo}</svg>
-            Redeschide
+            ${translations[currentLang]["task.action.reopen"]}
           </button>`;
         }
 
@@ -4129,8 +4750,8 @@
               </div>
               <div class="tk-badges">
                 ${t.category ? `<span class="tk-badge cat">${escape(t.category)}</span>` : ''}
-                ${pri ? `<span class="tk-badge ${pri.cls}">${pri.label}${pri.mark ? ' <span style="opacity:0.75">' + pri.mark + '</span>' : ''}</span>` : ''}
-                <span class="tk-badge ${statusCls}">${statusLabel}</span>
+                ${pri ? `<span class="tk-badge ${pri.cls === 'priority-urgent' ? 'pri-urgent' : pri.cls === 'priority-high' ? 'pri-high' : 'pri-normal'}">${pri.label}${pri.mark ? ' <span style="opacity:0.75">' + pri.mark + '</span>' : ''}</span>` : ''}
+                <span class="tk-badge stat-${badgeClass}">${statusLabel}</span>
               </div>
             </div>
 
@@ -4145,14 +4766,14 @@
               <div class="tk-info-cell">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconCal}</svg>
                 <div class="cell-body">
-                  <div class="cell-k">Termen limită</div>
+                  <div class="cell-k">${translations[currentLang]["task.due_date"]}</div>
                   <div class="cell-v">${escape(t.date || '—')}</div>
                 </div>
               </div>
               <div class="tk-info-cell">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconUser}</svg>
                 <div class="cell-body">
-                  <div class="cell-k">Responsabil</div>
+                  <div class="cell-k">${sk === 'completed' ? translations[currentLang]["task.finished_by"] : translations[currentLang]["task.worked_by"]}</div>
                   <div class="cell-v">${responsible}</div>
                 </div>
               </div>
@@ -4162,7 +4783,7 @@
 
             <div class="tk-actions">
               ${primaryBtn}
-              <button class="tk-btn dots" data-row-id="${t.id}" data-open-detail="1" title="Detalii">
+              <button class="tk-btn dots" data-row-id="${t.id}" data-open-detail="1" title="${translations[currentLang]["task.details"]}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${iconDots}</svg>
               </button>
             </div>
@@ -4204,6 +4825,9 @@
       if (event === 'SIGNED_OUT') leaveApp();
       else if (event === 'SIGNED_IN' && session?.user) enterApp(session.user);
     });
+
+    // Initial apply of language
+    applyLanguage(currentLang);
   </script>
 </body>
 </html>
