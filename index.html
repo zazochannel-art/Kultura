@@ -3840,14 +3840,22 @@
       target.innerHTML = '<div class="team-grid">' + members.map(m => {
         const initials = m.name.substring(0, 2).toUpperCase();
         const isMe = currentUser && m.email === currentUser.email;
+        const isAdmin = currentUser?.email === 'igor.gratii.99@mail.ru';
+
+        // Doar adminul poate interacționa cu cardurile pentru a schimba departamente
+        const canInteract = isAdmin;
+        const attrs = canInteract ? `data-modal="edit-profile" data-edit-email="${m.email}" data-edit-name="${escape(m.name)}" style="cursor:pointer;"` : '';
+
         return `
-          <div class="team-card" data-modal="edit-profile" data-edit-email="${m.email}" data-edit-name="${escape(m.name)}" style="cursor:pointer;">
+          <div class="team-card" ${attrs}>
             <div class="team-avatar">${initials}</div>
             <div class="team-info">
               <div class="team-name">${escape(m.name)} ${isMe ? '<span style="font-size:10px; opacity:0.6; font-weight:normal;">(Tu)</span>' : ''}</div>
               <div class="team-role">${escape(m.role)} • ${escape(m.email)}</div>
             </div>
           </div>
+        `;
+      }).join('') + '</div>';
         `;
       }).join('') + '</div>';
     }
