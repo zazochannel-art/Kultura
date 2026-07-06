@@ -2339,7 +2339,7 @@
         <h2>AI Magic Import</h2>
         <p class="sub-help">Încarcă un fișier Excel (.xlsx) sau CSV și AI-ul va extrage automat datele mașinilor.</p>
         <div class="modal-msg" id="modal-ai-import-msg"></div>
-        
+
         <div id="aiImportFileSection">
           <div class="form-field">
             <label>Selectează fișier</label>
@@ -3329,7 +3329,7 @@
 
     el('deleteAllCarsBtn').addEventListener('click', async () => {
       if (!confirm('Ești sigur că vrei să ștergi TOATE mașinile din baza de date?\n\nAceastă acțiune este ireversibilă!')) return;
-      
+
       try {
         const { error } = await supa.from('cars').delete().neq('id', 0);
         if (error) {
@@ -3457,6 +3457,25 @@
           state.tasks = results[1].status === 'fulfilled' ? (results[1].value.data || []) : [];
           state.events = results[2].status === 'fulfilled' ? (results[2].value.data || []) : [];
           state.profiles = results[3].status === 'fulfilled' ? (results[3].value.data || []) : [];
+
+          // Admins can fetch the full list of users from Auth
+          const isAdmin = currentUser?.email === 'igor.gratii.99@mail.ru';
+          if (isAdmin) {
+            try {
+              const { data: { session } } = await supa.auth.getSession();
+              const res = await fetch('/api/admin/users', {
+                headers: { 'Authorization': `Bearer ${session?.access_token}` }
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (data.users) {
+                  state.authUsers = data.users;
+                }
+              }
+            } catch (err) {
+              console.warn("Could not fetch admin user list:", err);
+            }
+          }
 
           // Log errors for debugging (silent in UI)
           results.forEach((res, i) => {
@@ -3848,6 +3867,20 @@
         });
       });
 
+      // Add users from Supabase Auth (if available)
+      if (state.authUsers) {
+        state.authUsers.forEach(u => {
+          if (!u.email || membersMap.has(u.email)) return;
+          const meta = u.user_metadata || {};
+          const name = meta.full_name || u.email.split('@')[0];
+          membersMap.set(u.email, {
+            name: name,
+            email: u.email,
+            role: meta.department ? t('dept.' + meta.department) : 'Member'
+          });
+        });
+      }
+
       const members = Array.from(membersMap.values()).filter(m =>
         m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
       );
@@ -4059,7 +4092,7 @@
       const fileInput = el('aiImportFile');
       const statusDiv = el('aiImportStatus');
       const file = fileInput.files[0];
-      
+
       if (!file) {
         statusDiv.textContent = 'Te rog selectează un fișier.';
         statusDiv.style.color = 'var(--red)';
@@ -4069,7 +4102,7 @@
       statusDiv.textContent = 'Se citește fișierul...';
       statusDiv.style.color = 'var(--text-dim)';
       el('aiImportProcessBtn').disabled = true;
-      
+
       try {
         if (typeof XLSX === 'undefined') {
           throw new Error('Biblioteca Excel (XLSX) nu s-a încărcat. Verifică conexiunea la internet.');
@@ -4084,7 +4117,7 @@
         } else {
           text = await file.text();
         }
-        
+
         statusDiv.textContent = 'AI analizează datele...';
         el('aiProgressBarContainer').style.display = 'block';
         el('aiProgressBar').style.width = '0%';
@@ -4195,7 +4228,7 @@
         el('aiImportProcessBtn').style.display = 'none';
         el('aiImportConfirmBtn').style.display = 'inline-block';
         el('aiImportConfirmBtn').disabled = false;
-        
+
         // Store cars for import
         window.pendingCars = cars;
       } catch (err) {
@@ -4210,13 +4243,13 @@
     el('aiImportConfirmBtn').addEventListener('click', async () => {
       const statusDiv = el('aiImportStatus');
       const cars = window.pendingCars || [];
-      
+
       if (cars.length === 0) return;
 
       statusDiv.textContent = 'Se importă mașinile...';
       statusDiv.style.color = 'var(--text-dim)';
       el('aiImportConfirmBtn').disabled = true;
-      
+
       try {
         // Import cars to Supabase
         for (const car of cars) {
@@ -4226,11 +4259,11 @@
 
           await supa.from('cars').insert(car);
         }
-        
+
         statusDiv.textContent = `Au fost importate ${cars.length} mașini cu succes!`;
         statusDiv.style.color = 'var(--green)';
         await loadData();
-        
+
         setTimeout(() => {
           closeModal(document.getElementById('modal-ai-import'));
         }, 1500);
