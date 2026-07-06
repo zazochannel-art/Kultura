@@ -227,6 +227,8 @@
       max-width: 1280px;
       margin: 0 auto;
       gap: 16px;
+      position: relative;
+      z-index: 10;
     }
     .app-brand {
       display: flex;
@@ -777,9 +779,9 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 8px 16px;
-      border-radius: 10px;
-      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 10px;
       font-weight: 800;
       letter-spacing: 0.5px;
       text-transform: uppercase;
@@ -797,18 +799,18 @@
     .tk-badge.stat-done { color: #10B981; border-color: rgba(16, 185, 129, 0.35); background: rgba(16, 185, 129, 0.06); margin-left: auto; }
 
     .tk-title {
-      font-size: 22px;
-      font-weight: 900;
-      letter-spacing: -0.4px;
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
       color: var(--text);
-      margin-bottom: 6px;
+      margin-bottom: 5px;
       line-height: 1.2;
     }
     .tk-title.done { text-decoration: line-through; opacity: 0.55; }
     .tk-sub {
-      font-size: 13px;
+      font-size: 12px;
       color: var(--text-dim);
-      margin-bottom: 16px;
+      margin-bottom: 14px;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -826,18 +828,18 @@
     .tk-info-cell {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 14px 16px;
+      gap: 10px;
+      padding: 10px 12px;
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 14px;
+      border-radius: 12px;
       background: rgba(255, 255, 255, 0.015);
       min-width: 0;
     }
-    .tk-info-cell svg { width: 20px; height: 20px; color: var(--text-dim); flex-shrink: 0; }
+    .tk-info-cell svg { width: 16px; height: 16px; color: var(--text-dim); flex-shrink: 0; }
     .tk-info-cell .cell-body { min-width: 0; flex: 1; }
-    .tk-info-cell .cell-k { font-size: 12px; color: var(--text-dim); margin-bottom: 3px; }
+    .tk-info-cell .cell-k { font-size: 10px; color: var(--text-dim); margin-bottom: 2px; }
     .tk-info-cell .cell-v {
-      font-size: 15px;
+      font-size: 13px;
       font-weight: 700;
       color: #F59E0B;
       overflow: hidden;
@@ -857,19 +859,19 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
-      padding: 11px 20px;
-      border-radius: 12px;
+      gap: 6px;
+      padding: 9px 16px;
+      border-radius: 11px;
       border: 1.5px solid;
       background: transparent;
       font-family: inherit;
-      font-size: 14px;
+      font-size: 12px;
       font-weight: 800;
       cursor: pointer;
       transition: background 0.15s, box-shadow 0.2s, transform 0.1s;
       white-space: nowrap;
       flex: 1;
-      min-width: 100px;
+      min-width: 90px;
     }
     .tk-btn:hover { transform: translateY(-1px); }
     .tk-btn:active { transform: translateY(0); }
@@ -913,6 +915,39 @@
       .tk-title { font-size: 18px; }
       .tk-btn { min-width: 0; padding: 10px 12px; font-size: 13px; }
     }
+
+    /* TEAM CARD */
+    .team-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    @media (min-width: 700px) {
+      .team-grid { grid-template-columns: 1fr 1fr; }
+    }
+    .team-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 18px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .team-avatar {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: var(--blue);
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+      font-size: 18px;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .team-info { min-width: 0; flex: 1; }
+    .team-name { font-weight: 800; font-size: 15px; margin-bottom: 2px; }
+    .team-role { font-size: 12px; color: var(--text-dim); }
 
     /* EVENT ACTIONS */
     .event-actions {
@@ -1686,7 +1721,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           <span class="notif-badge" id="notifBellBadge"></span>
         </button>
-        <div class="avatar" id="avatarBadge">?</div>
+        <button class="notif-btn" id="headerLogoutBtn" data-i18n-title="settings.logout">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+        <div class="avatar" id="avatarBadge" data-modal="edit-profile">?</div>
       </div>
     </header>
 
@@ -1706,6 +1744,10 @@
       <button class="tab" data-section="tasks" data-i18n="nav.tasks">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         Taskuri
+      </button>
+      <button class="tab" data-section="team" data-i18n="nav.team">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Echipa
       </button>
       <button class="tab" data-section="settings" data-i18n="nav.settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1730,6 +1772,10 @@
       <button class="mtab" data-section="tasks" aria-label="Taskuri" data-i18n="nav.tasks">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         <span class="label">Taskuri</span>
+      </button>
+      <button class="mtab" data-section="team" aria-label="Echipa" data-i18n="nav.team">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span class="label">Echipa</span>
       </button>
       <button class="mtab" data-section="settings" aria-label="Setări" data-i18n="nav.settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1891,6 +1937,20 @@
         <div id="tasksList"></div>
       </section>
 
+      <!-- TEAM -->
+      <section class="section" id="section-team">
+        <div class="section-title">
+          <div><h2 data-i18n="team.title">Echipa Kultura</h2><p><span id="teamCount">0</span> <span data-i18n="team.total">membri</span></p></div>
+        </div>
+        <div class="toolbar">
+          <div class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="search" id="teamSearch" data-i18n-placeholder="team.search" placeholder="Caută membru...">
+          </div>
+        </div>
+        <div id="teamList"></div>
+      </section>
+
       <!-- SETTINGS -->
       <section class="section" id="section-settings">
         <div class="page-grid-2">
@@ -1992,6 +2052,34 @@
         </div>
       </section>
     </main>
+
+    <!-- MODAL: User Profile / Department -->
+    <div class="modal-backdrop" id="modal-edit-profile" data-modal-name="edit-profile">
+      <div class="modal">
+        <h2 data-i18n="modal.profile.title">Profilul meu</h2>
+        <p class="sub-help" data-i18n="modal.profile.sub">Alege departamentul de care ești responsabil.</p>
+        <form id="form-edit-profile">
+          <div class="form-field">
+            <label data-i18n="modal.add_task.dept">Departament</label>
+            <select id="profileDeptSelect" required>
+              <option value="" data-i18n="modal.add_task.dept_placeholder">Alege departamentul...</option>
+              <option value="Management" data-i18n="dept.Management">Management</option>
+              <option value="Parteneriate" data-i18n="dept.Parteneriate">Parteneriate</option>
+              <option value="Participanți" data-i18n="dept.Participanți">Participanți</option>
+              <option value="Marketing" data-i18n="dept.Marketing">Marketing</option>
+              <option value="Logistică" data-i18n="dept.Logistică">Logistică</option>
+              <option value="Juridic și Financiar" data-i18n="dept.Juridic și Financiar">Juridic și Financiar</option>
+              <option value="Design" data-i18n="dept.Design">Design</option>
+            </select>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn danger small" id="deleteProfileBtn" style="display:none; margin-right:auto;">Șterge Profil</button>
+            <button type="button" class="btn ghost" data-close data-i18n="common.cancel">Anulează</button>
+            <button type="submit" class="btn" data-i18n="common.save">Salvează</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <!-- MODAL: Add Car -->
     <div class="modal-backdrop" id="modal-add-car" data-modal-name="add-car">
@@ -2147,16 +2235,16 @@
             <input type="text" name="event" placeholder="ex: KULTURA Auto Festival">
           </div>
           <div class="form-field">
-            <label>Departament</label>
+            <label data-i18n="modal.add_task.dept">Departament</label>
             <select name="team">
-              <option value="">Alege departamentul...</option>
-              <option value="Management">Management</option>
-              <option value="Parteneriate">Parteneriate</option>
-              <option value="Participanți">Participanți</option>
-              <option value="Marketing">Marketing</option>
-              <option value="Logistică">Logistică</option>
-              <option value="Juridic și Financiar">Juridic și Financiar</option>
-              <option value="Design">Design</option>
+              <option value="" data-i18n="modal.add_task.dept_placeholder">Alege departamentul...</option>
+              <option value="Management" data-i18n="dept.Management">Management</option>
+              <option value="Parteneriate" data-i18n="dept.Parteneriate">Parteneriate</option>
+              <option value="Participanți" data-i18n="dept.Participanți">Participanți</option>
+              <option value="Marketing" data-i18n="dept.Marketing">Marketing</option>
+              <option value="Logistică" data-i18n="dept.Logistică">Logistică</option>
+              <option value="Juridic și Financiar" data-i18n="dept.Juridic și Financiar">Juridic și Financiar</option>
+              <option value="Design" data-i18n="dept.Design">Design</option>
             </select>
           </div>
           <div class="form-row">
@@ -2317,7 +2405,12 @@
         "nav.events": "Evenimente",
         "nav.cars": "Mașini",
         "nav.tasks": "Taskuri",
+        "nav.team": "Echipa",
         "nav.settings": "Setări",
+        // --- TEAM ---
+        "team.title": "Echipa Kultura",
+        "team.total": "membri",
+        "team.search": "Caută membru...",
         // --- HOME ---
         "home.welcome": "Bun venit înapoi 👋",
         "home.stats": "Statistici",
@@ -2445,7 +2538,24 @@
         // --- TOASTS ---
         "toast.updated": "Actualizat.",
         "toast.saved": "Salvat.",
-        "toast.deleted": "Șters."
+        "toast.deleted": "Șters.",
+        // --- PROFILE MODAL ---
+        "modal.profile.title": "Profilul meu",
+        "modal.profile.sub": "Alege departamentul de care ești responsabil.",
+        // --- DEPARTMENTS ---
+        "dept.Management": "Management",
+        "dept.Parteneriate": "Parteneriate",
+        "dept.Participanți": "Participanți",
+        "dept.Marketing": "Marketing",
+        "dept.Logistică": "Logistică",
+        "dept.Juridic și Financiar": "Juridic și Financiar",
+        "dept.Design": "Design",
+        // --- EVENT STATUS ---
+        "event.status.planned": "Planificat",
+        "event.status.soon": "În curând",
+        "event.status.active": "Activ",
+        "event.status.finished": "Finalizat",
+        "event.status.cancelled": "Anulat"
       },
       en: {
         "login.title": "Welcome",
@@ -2469,7 +2579,12 @@
         "nav.events": "Events",
         "nav.cars": "Cars",
         "nav.tasks": "Tasks",
+        "nav.team": "Team",
         "nav.settings": "Settings",
+        // --- TEAM ---
+        "team.title": "Kultura Team",
+        "team.total": "members",
+        "team.search": "Search member...",
         "home.welcome": "Welcome back 👋",
         "home.stats": "Statistics",
         "home.stats.sub": "Live database summary",
@@ -2587,7 +2702,24 @@
         "modal.ai_import.sub": "Upload an Excel (.xlsx) or CSV file and AI will extract car data automatically.",
         "toast.updated": "Updated.",
         "toast.saved": "Saved.",
-        "toast.deleted": "Deleted."
+        "toast.deleted": "Deleted.",
+        // --- PROFILE MODAL ---
+        "modal.profile.title": "My Profile",
+        "modal.profile.sub": "Choose the department you are responsible for.",
+        // --- DEPARTMENTS ---
+        "dept.Management": "Management",
+        "dept.Parteneriate": "Partnerships",
+        "dept.Participanți": "Participants",
+        "dept.Marketing": "Marketing",
+        "dept.Logistică": "Logistics",
+        "dept.Juridic și Financiar": "Legal & Financial",
+        "dept.Design": "Design",
+        // --- EVENT STATUS ---
+        "event.status.planned": "Planned",
+        "event.status.soon": "Soon",
+        "event.status.active": "Active",
+        "event.status.finished": "Finished",
+        "event.status.cancelled": "Cancelled"
       },
       ru: {
         "login.title": "Добро пожаловать",
@@ -2611,7 +2743,12 @@
         "nav.events": "События",
         "nav.cars": "Машины",
         "nav.tasks": "Задачи",
+        "nav.team": "Команда",
         "nav.settings": "Настройки",
+        // --- TEAM ---
+        "team.title": "Команда Kultura",
+        "team.total": "участники",
+        "team.search": "Поиск участника...",
         "home.welcome": "С возвращением 👋",
         "home.stats": "Статистика",
         "home.stats.sub": "Живой свод данных",
@@ -2729,7 +2866,24 @@
         "modal.ai_import.sub": "Загрузите файл Excel (.xlsx) или CSV и AI автоматически извлечёт данные машин.",
         "toast.updated": "Обновлено.",
         "toast.saved": "Сохранено.",
-        "toast.deleted": "Удалено."
+        "toast.deleted": "Удалено.",
+        // --- PROFILE MODAL ---
+        "modal.profile.title": "Мой профиль",
+        "modal.profile.sub": "Выберите отдел, за который вы отвечаете.",
+        // --- DEPARTMENTS ---
+        "dept.Management": "Менеджмент",
+        "dept.Parteneriate": "Партнерство",
+        "dept.Participanți": "Участники",
+        "dept.Marketing": "Маркетинг",
+        "dept.Logistică": "Логистика",
+        "dept.Juridic și Financiar": "Юридический и Финансовый",
+        "dept.Design": "Дизайн",
+        // --- EVENT STATUS ---
+        "event.status.planned": "Запланировано",
+        "event.status.soon": "Скоро",
+        "event.status.active": "Активно",
+        "event.status.finished": "Завершено",
+        "event.status.cancelled": "Отменено"
       }
     };
 
@@ -2747,6 +2901,31 @@
         }
       }
       return val;
+    }
+
+    // Helper to translate statuses from DB
+    function translateStatus(status, type) {
+      if (!status) return '—';
+      const s = status.toLowerCase();
+      if (type === 'car') {
+        if (s.includes('sosit')) return t('car.status.arrived');
+        if (s.includes('plecat')) return t('car.status.left');
+        if (s.includes('invitat')) return t('car.status.invited');
+        if (s.includes('așteptare') || s.includes('asteptare') || s.includes('waiting')) return t('car.status.waiting');
+      }
+      if (type === 'task') {
+        if (s === 'available' || s.includes('disponibil')) return t('task.status.available');
+        if (s === 'in_progress' || s.includes('lucru') || s.includes('progres')) return t('task.status.in_progress');
+        if (s === 'completed' || s.includes('finisat') || s.includes('finalizat')) return t('task.status.completed');
+      }
+      if (type === 'event') {
+        if (s.includes('planificat')) return t('event.status.planned');
+        if (s.includes('curând') || s.includes('curand')) return t('event.status.soon');
+        if (s.includes('activ')) return t('event.status.active');
+        if (s.includes('finalizat')) return t('event.status.finished');
+        if (s.includes('anulat')) return t('event.status.cancelled');
+      }
+      return status;
     }
 
     function applyLanguage(lang) {
@@ -2815,6 +2994,7 @@
           if (typeof renderTasksChips === 'function')  renderTasksChips();
           if (typeof renderCarsChips === 'function')   renderCarsChips();
           if (typeof renderEventsChips === 'function') renderEventsChips();
+          if (typeof renderTeam === 'function')        renderTeam();
           if (typeof renderTasksDeptChips === 'function') renderTasksDeptChips();
           if (typeof renderUpcoming === 'function')    renderUpcoming(state?.events || []);
           if (typeof renderTopTasks === 'function')    renderTopTasks(state?.tasks || []);
@@ -2864,11 +3044,11 @@
     el('toggleLink').addEventListener('click', (e) => {
       e.preventDefault();
       isSignUp = !isSignUp;
-      el('title').textContent = isSignUp ? 'Bine ai venit' : 'Bun venit';
-      el('subtitle').textContent = isSignUp ? 'Creează un cont pentru echipa ta' : 'Autentifică-te pentru a continua';
-      el('btnText').textContent = isSignUp ? 'Creează cont' : 'Autentifică-te';
-      el('toggleText').textContent = isSignUp ? 'Ai deja un cont?' : 'Nu ai cont?';
-      el('toggleLink').textContent = isSignUp ? 'Autentifică-te' : 'Înregistrează-te';
+      el('title').textContent = t(isSignUp ? 'login.title_signup' : 'login.title');
+      el('subtitle').textContent = t(isSignUp ? 'login.subtitle_signup' : 'login.subtitle');
+      el('btnText').textContent = t(isSignUp ? 'login.submit_signup' : 'login.submit');
+      el('toggleText').textContent = t(isSignUp ? 'login.hasAccount' : 'login.noAccount');
+      el('toggleLink').textContent = t(isSignUp ? 'login.signIn' : 'login.signUp');
       el('password').autocomplete = isSignUp ? 'new-password' : 'current-password';
       el('signUpFields').style.display = isSignUp ? 'block' : 'none';
 
@@ -2933,7 +3113,7 @@
         showMsg('error', err.message || 'A apărut o eroare');
       } finally {
         btn.disabled = false;
-        el('btnText').textContent = originalText;
+        btn.textContent = originalText;
       }
     });
 
@@ -2950,6 +3130,7 @@
       el('settingsFirstName').value = meta.first_name || '';
       el('settingsLastName').value = meta.last_name || '';
       el('settingsPhone').value = meta.phone || '';
+      if (el('profileDeptSelect')) el('profileDeptSelect').value = meta.department || '';
 
       el('avatarBadge').textContent = (meta.first_name?.[0] || email[0] || '?').toUpperCase();
       loadData();
@@ -2980,9 +3161,86 @@
       t.addEventListener('click', () => selectSection(t.dataset.section));
     });
 
-    el('logoutBtn').addEventListener('click', async () => {
-      await supa.auth.signOut();
-      leaveApp();
+    document.querySelectorAll('#logoutBtn, #headerLogoutBtn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await supa.auth.signOut();
+        leaveApp();
+      });
+    });
+
+    el('form-edit-profile').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = e.target.querySelector('button[type="submit"]');
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '...';
+
+      const dept = el('profileDeptSelect').value;
+      try {
+        const isAdmin = currentUser?.email === 'igor.gratii.99@mail.ru';
+        const isMe = userBeingEdited === currentUser?.email;
+
+        if (!isAdmin && !isMe) throw new Error("Nu ai permisiunea de a modifica acest profil.");
+
+        // 1. Dacă edităm propriul profil, actualizăm și Auth Metadata
+        if (isMe) {
+          await supa.auth.updateUser({ data: { department: dept } });
+        }
+
+        // 2. Salvăm în tabela publică 'profiles'
+        const { error } = await supa
+          .from('profiles')
+          .upsert({ email: userBeingEdited, department: dept }, { onConflict: 'email' });
+
+        if (error) throw error;
+
+        showToast(t('toast.saved'));
+        closeModal(el('modal-edit-profile'));
+        loadData();
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    });
+
+    el('deleteProfileBtn').addEventListener('click', async () => {
+      if (!confirm(`Ești sigur că vrei să ștergi DEFINITIV utilizatorul ${userBeingEdited}?\n\nAceastă acțiune va șterge:\n1. Contul de login (Auth)\n2. Datele de profil (Tabelă)\n\nAcțiunea este ireversibilă!`)) return;
+
+      const btn = el('deleteProfileBtn');
+      btn.disabled = true;
+      const originalText = btn.textContent;
+      btn.textContent = "Se șterge...";
+
+      try {
+        // 1. Încercăm ștergerea din Supabase Auth via Proxy
+        const authRes = await fetch('/api/admin/delete-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: userBeingEdited })
+        });
+
+        const authData = await authRes.json();
+
+        // Dacă eroarea este "User not found", nu ne oprim, mergem mai departe la pasul 2
+        if (!authRes.ok && authData.error !== "User not found in Auth") {
+          throw new Error("Eroare la ștergerea contului Auth: " + (authData.error || "Server error"));
+        }
+
+        // 2. Ștergem datele din tabela 'profiles'
+        const { error: dbError } = await supa.from('profiles').delete().eq('email', userBeingEdited);
+        if (dbError) throw dbError;
+
+        showToast("Utilizator eliminat complet.");
+        closeModal(el('modal-edit-profile'));
+        await loadData();
+      } catch (err) {
+        alert("Eroare: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
     });
 
     el('profileForm').addEventListener('submit', async (e) => {
@@ -3128,10 +3386,11 @@
 
     // ----- STATE for filters / search -----
     const state = {
-      cars: [], tasks: [], events: [], notifications: [],
+      cars: [], tasks: [], events: [], notifications: [], team: [],
       carsFilter: 'all', carsSearch: '',
       tasksFilter: 'all', tasksSearch: '', tasksDept: 'all',
-      eventsFilter: 'all', eventsSearch: ''
+      eventsFilter: 'all', eventsSearch: '',
+      teamSearch: ''
     };
 
     // Live badge flash on successful fetch
@@ -3149,14 +3408,17 @@
       if (inFlightLoad) return inFlightLoad; // dedupe concurrent calls
       inFlightLoad = (async () => {
         try {
-          const [{ data: cars }, { data: tasks }, { data: events }] = await Promise.all([
+          const [{ data: cars }, { data: tasks }, { data: events }, { data: profiles }] = await Promise.all([
             supa.from('cars').select('*').order('id', { ascending: false }),
             supa.from('tasks').select('*').order('id', { ascending: false }),
-            supa.from('events').select('*').order('id', { ascending: false })
+            supa.from('events').select('*').order('id', { ascending: false }),
+            supa.from('profiles').select('*')
           ]);
           state.cars = cars || [];
           state.tasks = tasks || [];
           state.events = events || [];
+          state.profiles = profiles || [];
+
           renderStats(state.cars, state.tasks, state.events);
           renderHero(state.events);
           renderUpcoming(state.events);
@@ -3168,6 +3430,7 @@
           renderEvents();
           renderCars();
           renderTasks();
+          renderTeam();
           flashLive();
         } finally {
           inFlightLoad = null;
@@ -3279,7 +3542,7 @@
             <div class="row-title">${escape(e.title)}</div>
             <div class="row-sub">${escape(e.date || '')}${e.location ? '<span class="sep"></span>' + escape(e.location) : ''}</div>
           </div>
-          <div class="badge ${statusToBadge(e.status)}">${escape(e.status || '—')}</div>
+          <div class="badge ${statusToBadge(e.status)}">${escape(translateStatus(e.status, 'event'))}</div>
         </div>
       `).join('');
     }
@@ -3304,7 +3567,7 @@
             <div class="row-title">${escape(t.title)}</div>
             <div class="row-sub">${escape(t.event || t.date || '')}</div>
           </div>
-          <div class="badge ${statusToBadge(t.status)}">${escape(t.status || '—')}</div>
+          <div class="badge ${statusToBadge(t.status)}">${escape(translateStatus(t.status, 'task'))}</div>
         </div>
       `).join('');
     }
@@ -3343,7 +3606,7 @@
       EVENT_STATUS_OPTIONS.forEach(o => {
         counts[o.key] = state.events.filter(e => eventStatusKey(e.status) === o.key).length;
       });
-      const chips = [{ key: 'all', label: 'Toate' }, ...EVENT_STATUS_OPTIONS];
+      const chips = [{ key: 'all', label: t('tasks.filter_all') }, ...EVENT_STATUS_OPTIONS.map(o => ({ key: o.key, label: translateStatus(o.label, 'event') }))];
       c.innerHTML = chips.map(chip => `
         <button class="chip ${state.eventsFilter === chip.key ? 'active' : ''}"
                 data-events-filter="${chip.key}">
@@ -3365,7 +3628,7 @@
                   data-action="event-status"
                   data-event-id="${e.id}"
                   data-label="${escape(opt.label)}"
-                  data-color="${opt.color}">${escape(opt.label)}</button>
+                  data-color="${opt.color}">${escape(translateStatus(opt.label, 'event'))}</button>
         `).join('');
         return `
           <div class="card">
@@ -3379,7 +3642,7 @@
                 </div>
               </div>
               <div style="text-align:right;">
-                <div class="badge ${statusToBadge(e.status)}">${escape(e.status || '—')}</div>
+                <div class="badge ${statusToBadge(e.status)}">${escape(translateStatus(e.status, 'event'))}</div>
                 ${e.days_left != null ? `<div style="margin-top:10px;color:var(--text-dim);font-size:11px;">${e.days_left} ${translations[currentLang]["common.days"]}</div>` : ''}
               </div>
             </div>
@@ -3446,8 +3709,8 @@
         counts[o.key] = state.cars.filter(c => statusKey(c.status) === o.key).length;
       });
       const chips = [
-        { key: 'all', label: 'Toate' },
-        ...CAR_STATUS_OPTIONS,
+        { key: 'all', label: t('tasks.filter_all') },
+        ...CAR_STATUS_OPTIONS.map(o => ({ key: o.key, label: translateStatus(o.label, 'car') })),
         { key: 'vip', label: 'VIP' }
       ];
       el('carsChips').innerHTML = chips.map(chip => `
@@ -3502,7 +3765,7 @@
                   ${car.zone ? '<span class="sep"></span><span style="color: var(--purple); opacity: 0.8;">' + escape(car.zone) + '</span>' : ''}
                 </div>
               </div>
-              <div class="badge ${statusToBadge(car.status)}">${escape(car.status || '—')}</div>
+              <div class="badge ${statusToBadge(car.status)}">${escape(translateStatus(car.status, 'car'))}</div>
             </div>
             <div class="car-actions" style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px; margin-top: 12px; display:flex; flex-wrap:wrap; gap:6px;">
               ${actionButtons}
@@ -3510,6 +3773,68 @@
           </div>
         `;
       }).join('');
+    }
+
+    function renderTeam() {
+      const q = (state.teamSearch || '').toLowerCase();
+      const membersMap = new Map();
+
+      // 1. Începem cu utilizatorul curent (chiar dacă nu e în 'profiles' încă)
+      if (currentUser) {
+        const name = currentUserName();
+        const meta = currentUser.user_metadata || {};
+        membersMap.set(currentUser.email, {
+          name: name === currentUser.email ? name.split('@')[0] : name,
+          email: currentUser.email,
+          role: meta.department ? t('dept.' + meta.department) : 'Admin'
+        });
+      }
+
+      // 2. Adăugăm toți cei care au un rând în tabela 'profiles'
+      (state.profiles || []).forEach(p => {
+        if (!p.email) return;
+        // Extragem un nume din email dacă nu avem altceva (tabela profile are momentan doar email și dept)
+        const nameFromEmail = p.email.split('@')[0];
+
+        // Dacă există deja (e userul curent), doar îi actualizăm rolul din DB dacă e mai proaspăt
+        membersMap.set(p.email, {
+          name: membersMap.has(p.email) ? membersMap.get(p.email).name : nameFromEmail,
+          email: p.email,
+          role: p.department ? t('dept.' + p.department) : 'Member'
+        });
+      });
+
+      // 3. (Opțional) Adăugăm persoanele din task-uri DOAR DACĂ nu au fost șterse (există în profiles)
+      // Acest pas este acum redundant dacă folosim profiles ca sursă principală de adevăr.
+      // Dacă vrem să vedem și persoane "fantomă" care au task-uri dar nu profil, am păstra codul vechi.
+      // Dar userul vrea ca profilul șters să DISPARĂ.
+
+      const members = Array.from(membersMap.values()).filter(m =>
+        m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
+      );
+
+      const target = el('teamList');
+      if (!target) return;
+      el('teamCount').textContent = members.length;
+
+      if (!members.length) {
+        target.innerHTML = '<div class="card">' + emptyState(t("common.nothing_found")) + '</div>';
+        return;
+      }
+
+      target.innerHTML = '<div class="team-grid">' + members.map(m => {
+        const initials = m.name.substring(0, 2).toUpperCase();
+        const isMe = currentUser && m.email === currentUser.email;
+        return `
+          <div class="team-card" data-modal="edit-profile" data-edit-email="${m.email}" data-edit-name="${escape(m.name)}" style="cursor:pointer;">
+            <div class="team-avatar">${initials}</div>
+            <div class="team-info">
+              <div class="team-name">${escape(m.name)} ${isMe ? '<span style="font-size:10px; opacity:0.6; font-weight:normal;">(Tu)</span>' : ''}</div>
+              <div class="team-role">${escape(m.role)} • ${escape(m.email)}</div>
+            </div>
+          </div>
+        `;
+      }).join('') + '</div>';
     }
 
     // Delegate clicks — cars/tasks/events actions
@@ -3601,10 +3926,12 @@
     });
 
     // Search inputs
-    ['cars', 'tasks', 'events'].forEach(k => {
-      el(k + 'Search').addEventListener('input', (e) => {
+    ['cars', 'tasks', 'events', 'team'].forEach(k => {
+      const input = el(k + 'Search');
+      if (!input) return;
+      input.addEventListener('input', (e) => {
         state[k + 'Search'] = e.target.value;
-        ({ cars: renderCars, tasks: renderTasks, events: renderEvents }[k])();
+        ({ cars: renderCars, tasks: renderTasks, events: renderEvents, team: renderTeam }[k])();
       });
     });
 
@@ -3620,9 +3947,41 @@
       const msg = m.querySelector('.modal-msg');
       if (msg) msg.classList.remove('show');
     }
+    let userBeingEdited = null;
+
     document.addEventListener('click', (ev) => {
       const opener = ev.target.closest('[data-modal]');
-      if (opener) { openModal(opener.dataset.modal); return; }
+      if (opener) {
+        const modalName = opener.dataset.modal;
+        if (modalName === 'edit-profile') {
+          userBeingEdited = opener.dataset.editEmail || currentUser?.email;
+          const userName = opener.dataset.editName || 'Profilul meu';
+          const titleEl = document.querySelector('#modal-edit-profile h2');
+          if (titleEl) titleEl.textContent = userBeingEdited === currentUser?.email ? t('modal.profile.title') : userName;
+
+          // Restricted logic: Show delete button and allow editing ONLY if it's "Me" or "Admin"
+          const isMe = userBeingEdited === currentUser?.email;
+          // ADMIN Check: Change this email to your real admin email
+          const isAdmin = currentUser?.email === 'igor.gratii.99@mail.ru';
+
+          const deleteBtn = el('deleteProfileBtn');
+          if (deleteBtn) {
+            // Show delete button only if you are Admin and editing SOMEONE ELSE
+            deleteBtn.style.display = (isAdmin && !isMe) ? 'block' : 'none';
+          }
+
+          // Disable form if not allowed to edit
+          const form = el('form-edit-profile');
+          if (form) {
+            const canEdit = isMe || isAdmin;
+            form.querySelectorAll('input, select, button[type="submit"]').forEach(ctrl => {
+              ctrl.disabled = !canEdit;
+            });
+          }
+        }
+        openModal(modalName);
+        return;
+      }
       if (ev.target.matches('.modal-backdrop')) { closeModal(ev.target); return; }
       const closeBtn = ev.target.closest('[data-close]');
       if (closeBtn) { closeModal(closeBtn.closest('.modal-backdrop')); return; }
@@ -4627,7 +4986,7 @@
         const d = taskDept(tk);
         if (d) counts[d] = (counts[d] || 0) + 1;
       });
-      const chips = [{ key: 'all', label: t('tasks.dept_all') }, ...DEPARTMENTS.map(d => ({ key: d, label: d }))];
+      const chips = [{ key: 'all', label: t('tasks.dept_all') }, ...DEPARTMENTS.map(d => ({ key: d, label: t('dept.' + d) }))];
       const target = el('tasksDeptChips');
       if (!target) return;
       target.innerHTML = chips.map(chip => `
@@ -4690,90 +5049,90 @@
       const iconUser  = '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>';
       const iconUndo  = '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/>';
 
-      c.innerHTML = '<div class="tk-grid">' + list.map(t => {
-        const sk = taskStatusKey(t.status);
+      c.innerHTML = '<div class="tk-grid">' + list.map(tk => {
+        const sk = taskStatusKey(tk.status);
         const iconClass = sk === 'completed' ? 'done' : sk === 'in_progress' ? 'progress' : 'available';
         const iconSvg   = sk === 'completed' ? iconCheck : iconClock;
 
-        let statusLabel = translations[currentLang]["task.status.available"];
+        let statusLabel = t('task.status.available');
         let statusCls   = 'stat-available';
         let badgeClass  = 'blue';
 
         if (sk === 'completed') {
-           statusLabel = translations[currentLang]["task.status.completed"];
+           statusLabel = t('task.status.completed');
            statusCls   = 'stat-done';
            badgeClass  = 'green';
         } else if (sk === 'in_progress') {
-           statusLabel = translations[currentLang]["task.status.in_progress"];
+           statusLabel = t('task.status.in_progress');
            statusCls   = 'stat-progress';
            badgeClass  = 'orange';
         }
 
-        const pri = priorityMeta(t.priority);
-        const responsibleRaw = t.assigned_user_name || '—';
+        const pri = priorityMeta(tk.priority);
+        const responsibleRaw = tk.assigned_user_name || '—';
         const responsible = escape(responsibleRaw);
 
         // Contextual primary action based on state + ownership
         const myId = currentUser?.id || null;
-        const isOwner = !!myId && t.assigned_user_id === myId;
+        const isOwner = !!myId && tk.assigned_user_id === myId;
         let primaryBtn = '';
         if (sk === 'available') {
-          primaryBtn = `<button class="tk-btn blue" data-action="task-take" data-task-id="${t.id}">
+          primaryBtn = `<button class="tk-btn blue" data-action="task-take" data-task-id="${tk.id}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${iconPlay}</svg>
-            ${translations[currentLang]["task.action.take"]}
+            ${t("task.action.take")}
           </button>`;
         } else if (sk === 'in_progress') {
           if (isOwner) {
-            primaryBtn = `<button class="tk-btn green" data-action="task-complete" data-task-id="${t.id}">
+            primaryBtn = `<button class="tk-btn green" data-action="task-complete" data-task-id="${tk.id}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${iconCheck}</svg>
-              ${translations[currentLang]["task.action.finish"]}
+              ${t("task.action.finish")}
             </button>`;
           } else {
             // Someone else is working on it → show a disabled locked chip instead
-            primaryBtn = `<div class="tk-btn locked" title="${translations[currentLang]["task.locked_msg"].replace('{name}', responsibleRaw)}">
+            primaryBtn = `<div class="tk-btn locked" title="${t("task.locked_msg", { name: responsibleRaw })}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              ${translations[currentLang]["task.worked_by"]} ${escape((responsibleRaw || '').split('@')[0])}
+              ${t("task.worked_by")} ${escape((responsibleRaw || '').split('@')[0])}
             </div>`;
           }
         } else {
-          primaryBtn = `<button class="tk-btn blue" data-action="task-reopen" data-task-id="${t.id}">
+          primaryBtn = `<button class="tk-btn blue" data-action="task-reopen" data-task-id="${tk.id}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${iconUndo}</svg>
-            ${translations[currentLang]["task.action.reopen"]}
+            ${t("task.action.reopen")}
           </button>`;
         }
 
         return `
-          <div class="tk-card task-row" data-row-id="${t.id}">
+          <div class="tk-card task-row" data-row-id="${tk.id}">
             <div class="tk-head">
               <div class="tk-status-icon ${iconClass}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${iconSvg}</svg>
               </div>
               <div class="tk-badges">
-                ${t.category ? `<span class="tk-badge cat">${escape(t.category)}</span>` : ''}
+                ${tk.category ? `<span class="tk-badge cat">${escape(tk.category)}</span>` : ''}
                 ${pri ? `<span class="tk-badge ${pri.cls === 'priority-urgent' ? 'pri-urgent' : pri.cls === 'priority-high' ? 'pri-high' : 'pri-normal'}">${pri.label}${pri.mark ? ' <span style="opacity:0.75">' + pri.mark + '</span>' : ''}</span>` : ''}
                 <span class="tk-badge stat-${badgeClass}">${statusLabel}</span>
               </div>
             </div>
 
-            <div class="tk-title ${sk === 'completed' ? 'done' : ''}">${escape(t.title)}</div>
+            <div class="tk-title ${sk === 'completed' ? 'done' : ''}">${escape(tk.title)}</div>
             <div class="tk-sub">
-              ${t.event ? `<span class="event">${escape(t.event)}</span>` : ''}
-              ${t.event && t.date ? '<span class="sep">•</span>' : ''}
-              ${t.date ? `<span>${escape(t.date)}</span>` : ''}
+              ${tk.event ? `<span class="event">${escape(tk.event)}</span>` : ''}
+              ${tk.event && tk.date ? '<span class="sep">•</span>' : ''}
+              ${tk.date ? `<span>${escape(tk.date)}</span>` : ''}
             </div>
 
             <div class="tk-info-grid">
               <div class="tk-info-cell">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconCal}</svg>
                 <div class="cell-body">
-                  <div class="cell-k">${translations[currentLang]["task.due_date"]}</div>
-                  <div class="cell-v">${escape(t.date || '—')}</div>
+                  <div class="cell-k">${t("task.due_date")}</div>
+                  <div class="cell-v">${escape(tk.date || '—')}</div>
                 </div>
               </div>
               <div class="tk-info-cell">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconUser}</svg>
                 <div class="cell-body">
-                  <div class="cell-k">${sk === 'completed' ? translations[currentLang]["task.finished_by"] : translations[currentLang]["task.worked_by"]}</div>
+                  <div class="cell-k">${sk === 'completed' ? t("task.finished_by") : t("task.worked_by")}</div>
                   <div class="cell-v">${responsible}</div>
                 </div>
               </div>
@@ -4783,7 +5142,7 @@
 
             <div class="tk-actions">
               ${primaryBtn}
-              <button class="tk-btn dots" data-row-id="${t.id}" data-open-detail="1" title="${translations[currentLang]["task.details"]}">
+              <button class="tk-btn dots" data-row-id="${tk.id}" data-open-detail="1" title="${t("task.details")}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${iconDots}</svg>
               </button>
             </div>
@@ -4809,16 +5168,20 @@
 
     // ----- SESSION BOOTSTRAP -----
     (async () => {
-      const { data: { session } } = await supa.auth.getSession();
-      if (session?.user) {
-        enterApp(session.user);
+      try {
+        const { data: { session } } = await supa.auth.getSession();
+        if (session?.user) {
+          enterApp(session.user);
+        }
+      } catch (err) {
+        console.error("Bootstrap error:", err);
+      } finally {
+        // Hide splash screen after a short delay
+        setTimeout(() => {
+          const splash = el('splashScreen');
+          if (splash) splash.classList.add('fade-out');
+        }, 1200);
       }
-
-      // Hide splash screen after a short delay
-      setTimeout(() => {
-        const splash = el('splashScreen');
-        if (splash) splash.classList.add('fade-out');
-      }, 1200);
     })();
 
     supa.auth.onAuthStateChange((event, session) => {
