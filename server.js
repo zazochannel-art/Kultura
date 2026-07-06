@@ -126,6 +126,59 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // --- API: ADMIN LIST USERS ---
+  if (req.url === '/api/admin/users' && req.method === 'GET') {
+    const authToken = req.headers['authorization'];
+    if (!authToken) {
+      res.writeHead(401);
+      return res.end(JSON.stringify({ error: "Unauthorized" }));
+    }
+
+    // Verify user is admin
+    const verifyReq = https.request({
+      hostname: 'knphmxxokowwkruimdus.supabase.co',
+      path: '/auth/v1/user',
+      method: 'GET',
+      headers: { 'apikey': SUPABASE_ANON, 'Authorization': authToken }
+    }, verifyRes => {
+      let verifyBody = '';
+      verifyRes.on('data', d => verifyBody += d);
+      verifyRes.on('end', () => {
+        try {
+          const user = JSON.parse(verifyBody);
+          if (user.email !== 'igor.gratii.99@mail.ru') {
+            res.writeHead(403);
+            return res.end(JSON.stringify({ error: "Forbidden" }));
+          }
+
+          // Authorized -> Fetch users
+          if (!SUPABASE_SERVICE_ROLE_KEY) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: "Service Role Key missing" }));
+          }
+          const listReq = https.request({
+            hostname: 'knphmxxokowwkruimdus.supabase.co',
+            path: '/auth/v1/admin/users',
+            method: 'GET',
+            headers: { 'apikey': SUPABASE_SERVICE_ROLE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` }
+          }, listRes => {
+            let listBody = '';
+            listRes.on('data', d => listBody += d);
+            listRes.on('end', () => {
+              res.writeHead(listRes.statusCode, { 'Content-Type': 'application/json' });
+              res.end(listBody);
+            });
+          });
+          listReq.end();
+        } catch (e) {
+          res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+        }
+      });
+    });
+    verifyReq.end();
+    return;
+  }
+
   // --- API: ADMIN DELETE USER ---
   if (req.url === '/api/admin/delete-user' && req.method === 'POST') {
     let body = '';
