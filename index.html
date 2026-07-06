@@ -2380,6 +2380,27 @@
     </div>
   </div>
 
+  <!-- Guaranteed splash hide: runs no matter what happens in the module. -->
+  <script>
+    (function () {
+      const hide = () => {
+        const s = document.getElementById('splashScreen');
+        if (s) s.classList.add('fade-out');
+      };
+      // Hard fail-safe — 2.5s max, no matter what
+      setTimeout(hide, 2500);
+      // Catch any uncaught error / rejection and hide immediately
+      window.addEventListener('error', (e) => {
+        console.error('Uncaught error, hiding splash:', e.error || e.message);
+        hide();
+      });
+      window.addEventListener('unhandledrejection', (e) => {
+        console.error('Unhandled rejection, hiding splash:', e.reason);
+        hide();
+      });
+    })();
+  </script>
+
   <script type="module">
     import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
