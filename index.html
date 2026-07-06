@@ -4160,61 +4160,34 @@
             ${chunk}
           `;
 
-          // GitHub Pages e static, deci apelăm OpenAI direct.
-          // Cheia se ține în localStorage — user o setează o dată prin dialog.
-          let apiKey = localStorage.getItem('kultura_openai_key');
-          if (!apiKey) {
-            apiKey = prompt(
-              'Pentru AI Import ai nevoie de o cheie OpenAI (începe cu sk-...).\n' +
-              'Cheia se salvează doar în browser-ul tău, nu în cod.\n' +
-              'Ia una de aici: https://platform.openai.com/api-keys'
-            );
-            if (!apiKey || !apiKey.startsWith('sk-')) {
-              throw new Error('Nu ai furnizat o cheie OpenAI validă. Import anulat.');
-            }
-            localStorage.setItem('kultura_openai_key', apiKey.trim());
-          }
-
-          const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${apiKey.trim()}`
-            },
-            body: JSON.stringify({
-              model: 'gpt-4o-mini',
-              response_format: { type: 'json_object' },
-              temperature: 0.1,
-              messages: [
-                { role: 'system', content: 'You are an assistant that extracts car data and returns strict JSON.' },
-                { role: 'user',   content: prompt }
-              ]
-            })
+          // Call the Supabase Edge Function `ai-import` — the OpenAI key stays
+          // server-side (set as a Vault secret) so it never leaves Supabase.
+          // JWT auth is enforced: only signed-in users can invoke.
+          const invokeRes = await supa.functions.invoke('ai-import', {
+            body: { prompt }
           });
 
-          // If OpenAI rejected the key, clear it so user is asked again next time
-          if (response.status === 401) {
-            localStorage.removeItem('kultura_openai_key');
+          if (invokeRes.error) {
+            // Try to extract a useful message from Supabase FunctionsHttpError
+            let msg = invokeRes.error.message || 'Apel către Edge Function eșuat.';
+            try {
+              const ctx = invokeRes.error.context;
+              if (ctx) {
+                const errText = typeof ctx.text === 'function' ? await ctx.text() : null;
+                if (errText) {
+                  try {
+                    const parsed = JSON.parse(errText);
+                    msg = parsed.error?.message || parsed.error || errText;
+                  } catch { msg = errText; }
+                }
+              }
+            } catch {}
+            throw new Error(`Lotul ${i+1}: ${msg}`);
           }
 
-          if (!response.ok) {
-            let errorMessage = `Eroare server la lotul ${i+1}`;
-            const contentType = response.headers.get("content-type");
-            if (contentType && contentType.indexOf("application/json") !== -1) {
-              try {
-                const errJson = await response.json();
-                errorMessage = errJson.error?.message || errJson.error || errorMessage;
-              } catch(e) {}
-            } else {
-              errorMessage = `Server Error (${response.status}): Serverul nu a returnat JSON.`;
-            }
-            throw new Error(errorMessage);
-          }
-
-          const resultJson = await response.json();
-
-          if (!resultJson.choices || !resultJson.choices[0] || !resultJson.choices[0].message) {
-             throw new Error("Răspuns AI invalid de la server.");
+          const resultJson = invokeRes.data;
+          if (!resultJson || !resultJson.choices || !resultJson.choices[0] || !resultJson.choices[0].message) {
+             throw new Error("Răspuns AI invalid.");
           }
 
           const rawContent = resultJson.choices[0].message.content;
