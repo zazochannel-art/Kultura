@@ -3146,7 +3146,17 @@
       if (el('profileDeptSelect')) el('profileDeptSelect').value = meta.department || '';
 
       el('avatarBadge').textContent = (meta.first_name?.[0] || email[0] || '?').toUpperCase();
-      loadData();
+
+      // Ensure profile exists in public table for team visibility
+      supa.from('profiles').upsert({
+        email: email,
+        full_name: meta.full_name || email.split('@')[0],
+        department: meta.department || ''
+      }, { onConflict: 'email' }).then(({error}) => {
+        if (error) console.warn("Error auto-creating profile:", error);
+        loadData();
+      });
+
       startPolling();
     }
     function leaveApp() {
@@ -3205,7 +3215,11 @@
         // 2. Salvăm în tabela publică 'profiles'
         const { error } = await supa
           .from('profiles')
-          .upsert({ email: userBeingEdited, department: dept }, { onConflict: 'email' });
+          .upsert({
+            email: userBeingEdited,
+            department: dept,
+            full_name: isMe ? (currentUser.user_metadata?.full_name || userBeingEdited.split('@')[0]) : undefined
+          }, { onConflict: 'email' });
 
         if (error) throw error;
 
@@ -3280,6 +3294,14 @@
         });
         if (error) throw error;
         currentUser = data.user;
+
+        // Sync with profiles table
+        await supa.from('profiles').upsert({
+          email: currentUser.email,
+          full_name: currentUser.user_metadata.full_name,
+          department: currentUser.user_metadata.department || ''
+        }, { onConflict: 'email' });
+
         showToast('Profil actualizat cu succes!');
         el('greetingEmail').textContent = currentUser.user_metadata.full_name || currentUser.email;
         el('avatarBadge').textContent = (first_name[0] || currentUser.email[0]).toUpperCase();
@@ -3817,9 +3839,10 @@
 
       (state.profiles || []).forEach(p => {
         if (!p.email) return;
-        const nameFromEmail = p.email.split('@')[0];
+        const fallbackName = p.email.split('@')[0];
+        const name = p.full_name || fallbackName;
         membersMap.set(p.email, {
-          name: membersMap.has(p.email) ? membersMap.get(p.email).name : nameFromEmail,
+          name: name,
           email: p.email,
           role: p.department ? t('dept.' + p.department) : 'Member'
         });
