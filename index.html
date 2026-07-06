@@ -1430,7 +1430,7 @@
       /* Hide the top desktop tabs on mobile — replaced by bottom pill nav */
       .tabs { display: none; }
 
-      /* Bottom floating pill nav — icon-only, tab-ul selectat se extinde cu label */
+      /* Bottom floating pill nav — matching ExpandableTabs design */
       .mobile-tabs {
         display: flex;
         position: fixed;
@@ -1438,56 +1438,65 @@
         right: 16px;
         bottom: calc(12px + env(safe-area-inset-bottom, 0px));
         z-index: 100;
-        gap: 4px;
-        padding: 6px;
+        gap: 8px;
+        padding: 4px;
         background: rgba(20, 24, 43, 0.85);
         border: 1px solid var(--border);
-        border-radius: 22px;
+        border-radius: 16px; /* rounded-2xl approximation */
         backdrop-filter: blur(20px) saturate(160%);
         -webkit-backdrop-filter: blur(20px) saturate(160%);
-        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
-        justify-content: space-between;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        justify-content: space-around;
+        align-items: center;
       }
       .mtab {
+        position: relative;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         gap: 0;
-        padding: 10px 8px;
-        min-width: 40px;
-        border-radius: 16px;
+        padding: 8px; /* matching initial 0.5rem */
+        border-radius: 12px; /* rounded-xl */
         border: none;
         background: transparent;
         color: var(--text-dim);
         cursor: pointer;
         font-family: inherit;
-        font-size: 12px;
-        font-weight: 700;
-        transition: gap 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
-                    padding 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
-                    color 0.2s, background 0.25s;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1); /* duration: 0.6 matching Framer transition */
         flex-shrink: 0;
       }
-      .mtab:hover:not(.active) { color: var(--text); }
-      .mtab.active {
-        color: #fff;
-        background: linear-gradient(90deg, var(--blue), var(--purple));
-        box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
-        gap: 6px;
-        padding: 10px 14px;
-      }
-      .mtab svg { width: 18px; height: 18px; flex-shrink: 0; }
+      .mtab svg { width: 20px; height: 20px; flex-shrink: 0; }
       .mtab .label {
         max-width: 0;
         opacity: 0;
         overflow: hidden;
         white-space: nowrap;
-        transition: max-width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-                    opacity 0.25s ease 0.1s;
+        transition: max-width 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+                    opacity 0.4s ease 0.1s;
+      }
+
+      .mtab:hover:not(.active) { color: var(--text); background: rgba(255, 255, 255, 0.04); }
+
+      .mtab.active {
+        color: #fff;
+        background: linear-gradient(90deg, var(--blue), var(--purple));
+        box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
+        gap: 8px; /* matching animate 0.5rem gap */
+        padding: 8px 16px; /* matching animate 1rem padding */
       }
       .mtab.active .label {
-        max-width: 100px;
+        max-width: 120px;
         opacity: 1;
+      }
+
+      /* Separator matching the component logic */
+      .m-sep {
+        width: 1.2px;
+        height: 24px;
+        background: var(--border);
+        margin: 0 4px;
       }
     }
     @media (max-width: 500px) {
