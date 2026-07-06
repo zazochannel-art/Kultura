@@ -4160,14 +4160,42 @@
             ${chunk}
           `;
 
-          // Apelăm serverul nostru local pentru a procesa cererea (proxy)
-          const response = await fetch('/api/ai-import', {
+          // GitHub Pages e static, deci apelăm OpenAI direct.
+          // Cheia se ține în localStorage — user o setează o dată prin dialog.
+          let apiKey = localStorage.getItem('kultura_openai_key');
+          if (!apiKey) {
+            apiKey = prompt(
+              'Pentru AI Import ai nevoie de o cheie OpenAI (începe cu sk-...).\n' +
+              'Cheia se salvează doar în browser-ul tău, nu în cod.\n' +
+              'Ia una de aici: https://platform.openai.com/api-keys'
+            );
+            if (!apiKey || !apiKey.startsWith('sk-')) {
+              throw new Error('Nu ai furnizat o cheie OpenAI validă. Import anulat.');
+            }
+            localStorage.setItem('kultura_openai_key', apiKey.trim());
+          }
+
+          const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey.trim()}`
             },
-            body: JSON.stringify({ prompt })
+            body: JSON.stringify({
+              model: 'gpt-4o-mini',
+              response_format: { type: 'json_object' },
+              temperature: 0.1,
+              messages: [
+                { role: 'system', content: 'You are an assistant that extracts car data and returns strict JSON.' },
+                { role: 'user',   content: prompt }
+              ]
+            })
           });
+
+          // If OpenAI rejected the key, clear it so user is asked again next time
+          if (response.status === 401) {
+            localStorage.removeItem('kultura_openai_key');
+          }
 
           if (!response.ok) {
             let errorMessage = `Eroare server la lotul ${i+1}`;
