@@ -3679,6 +3679,87 @@
       flashTimer = setTimeout(() => b.classList.remove('flash'), 700);
     }
 
+    // ------------ INVISIBLE POLLING PIPELINE ------------
+    // Goal: refresh data every 1s in the background WITHOUT touching the DOM
+    // when nothing changed. When something DID change, re-render only the
+    // affected slice(s) and preserve scroll + input focus across the re-render.
+    // No spinners, no flicker, no dropped inputs, no dropped modals.
+
+    // Fingerprint helper — stable, cheap digest over the fields that actually
+    // affect what the user sees. If two fetches yield the same fingerprint,
+    // the corresponding renderer is skipped entirely.
+    const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','contact','owner','model','brand','is_vip','category','additional_notes','year','city','email','transport_info','social_links','responsible_person','modifications','photos'];
+    const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','detailed_description','event','created_by','created_at'];
+    const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','image_url'];
+    const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
+
+    function makeFp(list, fields) {
+      if (!Array.isArray(list) || list.length === 0) return '0';
+      let out = String(list.length) + '|';
+      for (const item of list) {
+        for (const f of fields) {
+          const v = item[f];
+          out += (v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v)) + ',';
+        }
+        out += '~';
+      }
+      return out;
+    }
+
+    // Track last-rendered fingerprint per slice
+    const _fp = { cars: '', tasks: '', events: '', profiles: '', stats: '' };
+
+    // Wrapper that preserves scroll position + input focus around a re-render.
+    // Falls back gracefully if the focused element can't be found afterwards.
+    function withPreservedUI(fn) {
+      const scrollY = window.scrollY, scrollX = window.scrollX;
+      const active = document.activeElement;
+      const focusSnap = (active && active !== document.body) ? {
+        tag: active.tagName,
+        id: active.id || null,
+        selStart: (active.selectionStart != null) ? active.selectionStart : null,
+        selEnd: (active.selectionEnd != null) ? active.selectionEnd : null,
+        val: active.value != null ? active.value : null,
+        // Stable identifiers for buttons/inputs inside cards
+        taskId: active.dataset ? (active.dataset.taskId || active.dataset.rowId) : null,
+        carId:  active.dataset ? (active.dataset.carId  || active.dataset.rowId) : null,
+        eventId:active.dataset ? (active.dataset.eventId|| active.dataset.rowId) : null,
+        action: active.dataset ? (active.dataset.action || active.dataset.detailAction) : null,
+        name: active.getAttribute ? active.getAttribute('name') : null
+      } : null;
+
+      fn();
+
+      // Restore scroll (window scroll is preserved by innerHTML on children,
+      // but restore explicitly for safety when many rows are re-rendered).
+      if (window.scrollY !== scrollY || window.scrollX !== scrollX) {
+        window.scrollTo({ left: scrollX, top: scrollY, behavior: 'instant' });
+      }
+
+      // Best-effort focus restore
+      if (!focusSnap) return;
+      let target = null;
+      if (focusSnap.id) target = document.getElementById(focusSnap.id);
+      if (!target && focusSnap.name) target = document.querySelector(`[name="${focusSnap.name}"]`);
+      if (!target && (focusSnap.taskId || focusSnap.carId || focusSnap.eventId) && focusSnap.action) {
+        const idSel = focusSnap.taskId  ? `[data-task-id="${focusSnap.taskId}"]`
+                    : focusSnap.carId   ? `[data-car-id="${focusSnap.carId}"]`
+                    :                     `[data-event-id="${focusSnap.eventId}"]`;
+        target = document.querySelector(`${idSel}[data-action="${focusSnap.action}"], ${idSel}[data-detail-action="${focusSnap.action}"]`);
+      }
+      if (target && typeof target.focus === 'function') {
+        try { target.focus({ preventScroll: true }); } catch (_) {}
+        if (target.setSelectionRange && focusSnap.selStart != null) {
+          try { target.setSelectionRange(focusSnap.selStart, focusSnap.selEnd); } catch (_) {}
+        }
+      }
+    }
+
+    // Silent error backoff — if consecutive fetches fail, skip a few cycles
+    // instead of hammering. Never bubble errors into the UI as toasts.
+    let _consecutiveErrors = 0;
+    let _lastErrorAt = 0;
+
     let inFlightLoad = null;
     async function loadData() {
       if (inFlightLoad) return inFlightLoad; // dedupe concurrent calls
@@ -3692,10 +3773,17 @@
             supa.from('profiles').select('*')
           ]);
 
-          state.cars = results[0].status === 'fulfilled' ? (results[0].value.data || []) : [];
-          state.tasks = results[1].status === 'fulfilled' ? (results[1].value.data || []) : [];
-          state.events = results[2].status === 'fulfilled' ? (results[2].value.data || []) : [];
-          state.profiles = results[3].status === 'fulfilled' ? (results[3].value.data || []) : [];
+          // Only overwrite each slice if the fetch succeeded; otherwise keep
+          // the previous data on screen (requirement: no wipe on transient error).
+          const nextCars     = results[0].status === 'fulfilled' && !results[0].value.error ? (results[0].value.data || []) : null;
+          const nextTasks    = results[1].status === 'fulfilled' && !results[1].value.error ? (results[1].value.data || []) : null;
+          const nextEvents   = results[2].status === 'fulfilled' && !results[2].value.error ? (results[2].value.data || []) : null;
+          const nextProfiles = results[3].status === 'fulfilled' && !results[3].value.error ? (results[3].value.data || []) : null;
+
+          if (nextCars     !== null) state.cars     = nextCars;
+          if (nextTasks    !== null) state.tasks    = nextTasks;
+          if (nextEvents   !== null) state.events   = nextEvents;
+          if (nextProfiles !== null) state.profiles = nextProfiles;
 
           // Admins can fetch the full list of users from Auth
           const isAdmin = currentUser?.email === 'igor.gratii.99@mail.ru';
@@ -3712,52 +3800,105 @@
                 }
               }
             } catch (err) {
-              console.warn("Could not fetch admin user list:", err);
+              // silent — non-critical
             }
           }
 
-          // Log errors for debugging (silent in UI)
-          results.forEach((res, i) => {
-            if (res.status === 'rejected' || (res.value && res.value.error)) {
-              console.warn(`Data load warning [${i}]:`, res.reason || res.value.error);
+          // Log errors ONCE per condition, not every second
+          const anyErr = results.some((res, i) =>
+            res.status === 'rejected' || (res.value && res.value.error)
+          );
+          if (anyErr) {
+            _consecutiveErrors++;
+            const now = Date.now();
+            if (now - _lastErrorAt > 30000) {   // throttle console noise
+              console.warn('Data load: some slices failed', results);
+              _lastErrorAt = now;
+            }
+          } else {
+            _consecutiveErrors = 0;
+          }
+
+          // Compute new fingerprints — this is the "diff" step. Only when the
+          // fingerprint of a slice changes do we touch the DOM for that slice.
+          const newFp = {
+            cars:     makeFp(state.cars,     CAR_FP_FIELDS),
+            tasks:    makeFp(state.tasks,    TASK_FP_FIELDS),
+            events:   makeFp(state.events,   EVENT_FP_FIELDS),
+            profiles: makeFp(state.profiles, PROF_FP_FIELDS)
+          };
+          const carsChanged   = newFp.cars     !== _fp.cars;
+          const tasksChanged  = newFp.tasks    !== _fp.tasks;
+          const eventsChanged = newFp.events   !== _fp.events;
+          const profsChanged  = newFp.profiles !== _fp.profiles;
+          const anyChanged    = carsChanged || tasksChanged || eventsChanged || profsChanged;
+
+          // Persist new fingerprints upfront so we don't accidentally re-render
+          // the same state twice if a renderer synchronously triggers another poll.
+          _fp.cars     = newFp.cars;
+          _fp.tasks    = newFp.tasks;
+          _fp.events   = newFp.events;
+          _fp.profiles = newFp.profiles;
+
+          // If NOTHING changed, exit immediately. No DOM touched at all → zero
+          // flicker, zero focus loss, zero scroll reset. This is the hot path
+          // for every idle second where the DB is unchanged.
+          if (!anyChanged) return;
+
+          // Wrap all conditional renders in a single focus/scroll snapshot so
+          // even a data-driven update doesn't drop the user's caret or scroll.
+          withPreservedUI(() => {
+            // Stats reflect all three data types
+            const statsFp = newFp.cars + '|' + newFp.tasks + '|' + newFp.events;
+            if (statsFp !== _fp.stats) {
+              _fp.stats = statsFp;
+              try { renderStats(state.cars, state.tasks, state.events); } catch (_) {}
+            }
+            if (eventsChanged) {
+              try { renderHero(state.events); } catch (_) {}
+              try { renderUpcoming(state.events); } catch (_) {}
+              try { renderEventsChips(); } catch (_) {}
+              try { renderEvents(); } catch (_) {}
+            }
+            if (tasksChanged) {
+              try { renderTopTasks(state.tasks); } catch (_) {}
+              try { renderTasksChips(); } catch (_) {}
+              try { renderTasksDeptChips(); } catch (_) {}
+              try { renderTasks(); } catch (_) {}
+            }
+            if (carsChanged) {
+              try { renderCarsChips(); } catch (_) {}
+              try { renderCars(); } catch (_) {}
+            }
+            if (profsChanged) {
+              try { renderTeam(); } catch (_) {}
+            }
+
+            // Live-refresh OPEN detail modals only if the underlying data
+            // actually changed AND the user isn't typing inside them.
+            const isTyping = (root) => {
+              const a = document.activeElement;
+              return a && root?.contains(a) && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT');
+            };
+            if (carsChanged && openCarDetailId != null) {
+              const modal = document.getElementById('modal-car-detail');
+              if (modal && modal.classList.contains('show') && !isTyping(modal)) {
+                try { showCarDetail(openCarDetailId); } catch (_) {}
+              }
+            }
+            if (tasksChanged && openTaskDetailId != null) {
+              const modal = document.getElementById('modal-task-detail');
+              if (modal && modal.classList.contains('show') && !isTyping(modal)) {
+                try { showTaskDetail(openTaskDetailId); } catch (_) {}
+              }
             }
           });
 
-          renderStats(state.cars, state.tasks, state.events);
-          renderHero(state.events);
-          renderUpcoming(state.events);
-          renderTopTasks(state.tasks);
-          renderEventsChips();
-          renderCarsChips();
-          renderTasksChips();
-          renderTasksDeptChips();
-          renderEvents();
-          renderCars();
-          renderTasks();
-          renderTeam();
-
-          // Live-refresh any OPEN detail modal so external edits show up instantly.
-          // Skip if the user is currently typing inside the modal (their input is preserved).
-          const isTyping = (root) => {
-            const a = document.activeElement;
-            return a && root?.contains(a) && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT');
-          };
-          if (openCarDetailId != null) {
-            const modal = document.getElementById('modal-car-detail');
-            if (modal && modal.classList.contains('show') && !isTyping(modal)) {
-              try { showCarDetail(openCarDetailId); } catch (_) {}
-            }
-          }
-          if (openTaskDetailId != null) {
-            const modal = document.getElementById('modal-task-detail');
-            if (modal && modal.classList.contains('show') && !isTyping(modal)) {
-              try { showTaskDetail(openTaskDetailId); } catch (_) {}
-            }
-          }
-
           flashLive();
         } catch (err) {
-          console.error("Critical data load error:", err);
+          _consecutiveErrors++;
+          _lastErrorAt = Date.now();
+          if (_consecutiveErrors <= 1) console.error('Critical data load error:', err);
         } finally {
           inFlightLoad = null;
         }
@@ -3766,41 +3907,62 @@
     }
 
     // ----- POLLING (every 1s) -----
-    // Aggressive 1s poll so changes made by other users appear within a second.
-    // Only skips if user is ACTIVELY typing/saving; passive detail modals still refresh.
-    // `inFlightLoad` dedupe prevents pile-up if a fetch takes >1s.
+    // Recursive setTimeout instead of setInterval so a slow fetch cannot
+    // pile up follow-up ticks. Backoff on repeated errors keeps the network
+    // quiet without ever surfacing a spinner or toast to the user.
     let pollTimer = null;
+    let _pollBooted = false;
     function shouldSkipPoll() {
-      if (document.hidden) return true; // tab in background — save battery + bandwidth
+      if (document.hidden) return true; // tab in background → pause polling
       if (document.querySelector('.action-btn.loading')) return true; // save in progress
-      if (inFlightLoad) return true;
-      // Only skip modals where the user is CURRENTLY typing.
-      // Detail-view modals (car-detail, task-detail) are read-mostly — poll runs and
-      // the detail is re-rendered from fresh state, so external edits show up.
+      if (inFlightLoad) return true;    // requirement #9 — never overlap
+      // Only skip when the user is CURRENTLY typing inside an open modal.
+      // Detail modals in read mode are diffed and only refreshed when data changed.
       const focused = document.activeElement;
       if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA' || focused.tagName === 'SELECT')) {
         const inModal = focused.closest('.modal-backdrop.show');
-        if (inModal) return true; // user is typing inside an open modal — don't clobber
+        if (inModal) return true;
       }
       return false;
     }
-    function startPolling() {
-      if (pollTimer) return;
-      pollTimer = setInterval(async () => {
-        if (shouldSkipPoll()) return;
-        try {
-          await loadData();
-        } catch (err) {
-          console.warn('Polling refresh failed:', err);
+    function _scheduleNextPoll() {
+      if (!_pollBooted) return; // stopped
+      // Backoff on repeated errors: 1s → 2s → 4s → 8s (cap 15s). Zero when healthy.
+      const delay = _consecutiveErrors === 0
+        ? 1000
+        : Math.min(15000, 1000 * Math.pow(2, _consecutiveErrors - 1));
+      pollTimer = setTimeout(async () => {
+        if (!_pollBooted) return;
+        if (!shouldSkipPoll()) {
+          try { await loadData(); }
+          catch (_) { /* swallowed — loadData handles its own logging */ }
         }
-      }, 1000);
+        _scheduleNextPoll();
+      }, delay);
+    }
+    function startPolling() {
+      if (_pollBooted) return;
+      _pollBooted = true;
+      _scheduleNextPoll();
     }
     function stopPolling() {
-      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      _pollBooted = false;
+      if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
     }
-    // Also refresh immediately when the user returns to the tab
+    // Cleanup on page unmount (requirement #10 — no memory leaks / dangling timers)
+    window.addEventListener('beforeunload', stopPolling);
+    window.addEventListener('pagehide', stopPolling);
+
+    // Pause when hidden, resume immediately when the user returns.
+    // Requirement #8: refetchIntervalInBackground=false + refetchOnWindowFocus=true.
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && el('appView').classList.contains('show') && !shouldSkipPoll()) {
+      if (document.hidden) return; // already paused via shouldSkipPoll()
+      if (el('appView') && el('appView').classList.contains('show') && !shouldSkipPoll()) {
+        loadData().catch(() => {});
+      }
+    });
+    window.addEventListener('focus', () => {
+      if (!document.hidden && el('appView') && el('appView').classList.contains('show') && !shouldSkipPoll()) {
         loadData().catch(() => {});
       }
     });
