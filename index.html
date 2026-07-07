@@ -3517,6 +3517,26 @@
           renderCars();
           renderTasks();
           renderTeam();
+
+          // Live-refresh any OPEN detail modal so external edits show up instantly.
+          // Skip if the user is currently typing inside the modal (their input is preserved).
+          const isTyping = (root) => {
+            const a = document.activeElement;
+            return a && root?.contains(a) && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT');
+          };
+          if (openCarDetailId != null) {
+            const modal = document.getElementById('modal-car-detail');
+            if (modal && modal.classList.contains('show') && !isTyping(modal)) {
+              try { showCarDetail(openCarDetailId); } catch (_) {}
+            }
+          }
+          if (openTaskDetailId != null) {
+            const modal = document.getElementById('modal-task-detail');
+            if (modal && modal.classList.contains('show') && !isTyping(modal)) {
+              try { showTaskDetail(openTaskDetailId); } catch (_) {}
+            }
+          }
+
           flashLive();
         } catch (err) {
           console.error("Critical data load error:", err);
@@ -3529,15 +3549,21 @@
 
     // ----- POLLING (every 1s) -----
     // Aggressive 1s poll so changes made by other users appear within a second.
-    // Skips refresh if the user is actively working (a modal is open, an action
-    // is in flight, or the tab is hidden) so nothing they're touching gets clobbered.
+    // Only skips if user is ACTIVELY typing/saving; passive detail modals still refresh.
     // `inFlightLoad` dedupe prevents pile-up if a fetch takes >1s.
     let pollTimer = null;
     function shouldSkipPoll() {
       if (document.hidden) return true; // tab in background — save battery + bandwidth
-      if (document.querySelector('.modal-backdrop.show')) return true; // form open
       if (document.querySelector('.action-btn.loading')) return true; // save in progress
       if (inFlightLoad) return true;
+      // Only skip modals where the user is CURRENTLY typing.
+      // Detail-view modals (car-detail, task-detail) are read-mostly — poll runs and
+      // the detail is re-rendered from fresh state, so external edits show up.
+      const focused = document.activeElement;
+      if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA' || focused.tagName === 'SELECT')) {
+        const inModal = focused.closest('.modal-backdrop.show');
+        if (inModal) return true; // user is typing inside an open modal — don't clobber
+      }
       return false;
     }
     function startPolling() {
@@ -3549,7 +3575,7 @@
         } catch (err) {
           console.warn('Polling refresh failed:', err);
         }
-      }, 30000);
+      }, 1000);
     }
     function stopPolling() {
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
