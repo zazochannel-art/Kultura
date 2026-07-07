@@ -4190,23 +4190,37 @@
             Fields for each car object:
             - model (string)
             - owner (string - full name of the person)
-            - plate (string - VEHICLE LICENSE PLATE, e.g. "B 123 ABC", "MD IE 442", "CJ 07 XYZ")
+            - plate (string - VEHICLE LICENSE PLATE / NUMĂR DE ÎNMATRICULARE)
             - zone (string - parking zone if mentioned)
             - status (string: "Invitat", "Sosit", "Plecat", or "În așteptare")
             - status_color (string: HEX, e.g., #3B82F6 for Invitat, #10B981 for Sosit)
             - is_vip (boolean - true if mentioned as VIP or special guest)
-            - phone (string - PERSONAL PHONE NUMBER, digits with optional +country code, e.g. "+373 79 123 456", "0712345678")
+            - phone (string - PERSONAL PHONE NUMBER / NUMĂR DE TELEFON)
             - email (string)
             - brand (string - manufacturer, e.g. "BMW", "Audi", "Toyota")
             - city (string)
 
+            COLUMN / LABEL HINTS — recognize these headers in the source:
+            - Plate column labels: "placă", "placa", "placuță", "placuta", "nr. înmatriculare", "nr inmatriculare", "număr de înmatriculare", "matriculă", "matricula", "plate", "license plate", "reg. no", "номер"
+            - Phone column labels: "telefon", "nr. telefon", "număr de telefon", "contact", "phone", "mobile", "gsm", "тел", "телефон"
+            - If the source has TABULAR data (Excel/CSV rows), match values to columns by header. Do NOT mix a phone column into the plate field.
+
+            PLATE FORMATS to look for (short alphanumeric, mixing letters + digits, usually 5-9 chars):
+            - Moldova: "CE 007", "MD IE 442", "CE PT 442", "IE MD 123", "AB CD 123"
+            - Romania: "B 123 ABC", "CJ 05 XYZ", "MM 12 ABC", "IF 01 AAA"
+            - Generic Europe: "AA 123 BB", "1234 ABC"
+
+            PHONE FORMATS to look for (7+ digits, may have +, spaces, dashes):
+            - "+373 79 123 456", "079 123 456", "079-123-456", "0712345678", "+40 712 345 678"
+
             CRITICAL FIELD SEPARATION — do NOT swap these two:
-            - "plate" = VEHICLE REGISTRATION / LICENSE PLATE ONLY. Format: usually 2-3 letters + numbers + letters (short alphanumeric). Never put a phone number here.
-            - "phone" = PERSONAL PHONE NUMBER ONLY. Format: 7+ digits, may start with "+" or "0". Never put a license plate here.
-            - If a token is a long sequence of digits (7+), it's a phone number → goes to "phone".
-            - If a token is short alphanumeric mixing letters and numbers (like "B123ABC"), it's a plate → goes to "plate".
+            - "plate" MUST be a vehicle license plate. It contains letters AND digits (or is 5-9 alphanumeric chars). NEVER put a phone number in "plate".
+            - "phone" MUST be a phone number. It has 7+ digits and may start with "+" or "0". NEVER put a license plate in "phone".
+            - Test: if a value has 7+ pure digits (only digits, +, -, spaces) → it's a phone → "phone" field.
+            - Test: if a value is short and mixes letters with digits (like "CE 007", "B 123 ABC") → it's a plate → "plate" field.
             - "owner" is the person's name (not the car brand, not a plate, not a phone).
-            - If a field is not present in the text, omit it or set it to empty string — do NOT reuse another field's value.
+            - If a field is genuinely not present in the source, set it to empty string "". Do NOT copy another field's value to fill a blank.
+            - It is REQUIRED that if the source has both a plate and a phone, BOTH are extracted into their correct fields.
 
             Data to process:
             ${chunk}
@@ -4303,17 +4317,30 @@
         statusDiv.style.color = 'var(--green)';
         setTimeout(() => { el('aiProgressBarContainer').style.display = 'none'; }, 1000);
 
-        // Show preview
+        // Show preview — display plate and phone in separate labeled slots so
+        // the user can verify the AI put each value in the correct field.
         el('aiImportCount').textContent = cars.length;
-        el('aiImportPreview').innerHTML = cars.map(car => `
-          <div style="padding: 8px; border-bottom: 1px solid rgba(59,130,246,0.2); font-size: 12px; display: flex; align-items: center; gap: 8px;">
-            <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--blue);"></div>
-            <div style="flex: 1;">
-              <div style="font-weight: bold; color: var(--text);">${escape(car.model)}</div>
-              <div style="color: var(--text-dim); font-size: 11px;">${escape(car.owner)} ${car.plate ? ' • ' + escape(car.plate) : ''}</div>
+        el('aiImportPreview').innerHTML = cars.map(car => {
+          const plateChip = car.plate
+            ? `<span style="background: rgba(59,130,246,0.15); color: var(--blue); padding: 2px 6px; border-radius: 4px; font-family: monospace;">Placă: ${escape(car.plate)}</span>`
+            : `<span style="background: rgba(255,255,255,0.05); color: var(--text-mute); padding: 2px 6px; border-radius: 4px; font-style: italic;">Placă lipsă</span>`;
+          const phoneChip = car.phone
+            ? `<span style="background: rgba(16,185,129,0.15); color: var(--green); padding: 2px 6px; border-radius: 4px; font-family: monospace;">Tel: ${escape(car.phone)}</span>`
+            : `<span style="background: rgba(255,255,255,0.05); color: var(--text-mute); padding: 2px 6px; border-radius: 4px; font-style: italic;">Tel lipsă</span>`;
+          return `
+            <div style="padding: 10px; border-bottom: 1px solid rgba(59,130,246,0.2); font-size: 12px; display: flex; align-items: center; gap: 8px;">
+              <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex-shrink: 0;"></div>
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-weight: bold; color: var(--text);">${escape(car.model || '—')}</div>
+                <div style="color: var(--text-dim); font-size: 11px; margin-top: 2px;">${escape(car.owner || '—')}</div>
+                <div style="display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; font-size: 10px;">
+                  ${plateChip}
+                  ${phoneChip}
+                </div>
+              </div>
             </div>
-          </div>
-        `).join('');
+          `;
+        }).join('');
 
         // Switch to preview mode
         el('aiImportFileSection').style.display = 'none';
