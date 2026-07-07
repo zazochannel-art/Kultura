@@ -4933,7 +4933,8 @@
     function priorityBadge(p) {
       const map = { 'urgenta': 'red', 'ridicata': 'orange', 'normala': 'blue', 'scazuta': 'green' };
       const key = (p || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      return `<div class="badge ${map[key] || 'blue'}">${escape(p || 'Normală')}</div>`;
+      const label = typeof localizePriority === 'function' ? localizePriority(p) : (p || 'Normală');
+      return `<div class="badge ${map[key] || 'blue'}">${escape(label)}</div>`;
     }
 
     // ----- TASK DETAIL -----
@@ -4944,9 +4945,9 @@
 
       el('taskDetailTitle').textContent = task.title || '—';
       const badges = [
-        `<div class="badge ${statusToBadge(task.status)}">${escape(task.status || '—')}</div>`,
+        `<div class="badge ${statusToBadge(task.status)}">${escape(task.status ? localizeTaskStatus(task.status) : '—')}</div>`,
         priorityBadge(task.priority),
-        task.category ? `<div class="badge purple">${escape(task.category)}</div>` : ''
+        task.category ? `<div class="badge purple">${escape(localizeDept(task.category))}</div>` : ''
       ].join(' ');
       el('taskDetailBadges').innerHTML = badges;
 
@@ -4955,9 +4956,9 @@
           <div class="detail-section-title">${escape(t('task.detail.section_overview'))}</div>
           <div class="detail-grid">
             ${fieldRow(t('task.detail.due_date'), task.date || task.due_date)}
-            ${fieldRow(t('task.detail.priority'), task.priority || t('task.priority_normal'))}
-            ${fieldRow(t('task.detail.category'), task.category)}
-            ${fieldRow(t('task.detail.team'), task.team)}
+            ${fieldRow(t('task.detail.priority'), task.priority ? localizePriority(task.priority) : t('task.priority_normal'))}
+            ${fieldRow(t('task.detail.category'), task.category ? localizeDept(task.category) : task.category)}
+            ${fieldRow(t('task.detail.team'), task.team ? localizeDept(task.team) : task.team)}
             ${fieldRow(t('task.detail.short_desc'), task.event, { wide: true })}
           </div>
         </div>
@@ -5126,9 +5127,9 @@
       const title = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
       el('carDetailTitle').textContent = title;
       const badges = [
-        `<div class="badge ${statusToBadge(c.status)}">${escape(c.status || '—')}</div>`,
+        `<div class="badge ${statusToBadge(c.status)}">${escape(c.status ? localizeCarStatus(c.status) : '—')}</div>`,
         c.is_vip ? `<div class="badge purple">VIP</div>` : '',
-        c.category ? `<div class="badge blue">${escape(c.category)}</div>` : ''
+        c.category ? `<div class="badge blue">${escape(localizeDept(c.category))}</div>` : ''
       ].filter(Boolean).join(' ');
       el('carDetailBadges').innerHTML = badges;
 
@@ -5164,7 +5165,7 @@
             ${fieldRow(t('car.detail.brand'), c.brand)}
             ${fieldRow(t('car.detail.model'), c.model)}
             ${fieldRow(t('car.detail.year'), c.year)}
-            ${fieldRow(t('car.detail.category'), c.category)}
+            ${fieldRow(t('car.detail.category'), c.category ? localizeDept(c.category) : c.category)}
             ${fieldRow(t('car.detail.plate'), c.plate)}
           </div>
         </div>
@@ -5420,6 +5421,44 @@
       if (s.includes('работ')) return 'in_progress';
       if (s.includes('заверш')) return 'completed';
       return 'available';
+    }
+
+    // Return a translated label for a raw task status stored in DB (e.g. "completed" -> "FINISAT" / "COMPLETED" / "ЗАВЕРШЕНО").
+    function localizeTaskStatus(status) {
+      return t('task.status.' + taskStatusKey(status));
+    }
+
+    // Return a translated label for a raw priority (e.g. "urgenta" / "Urgentă" -> "URGENT").
+    function localizePriority(priority) {
+      if (!priority) return t('task.priority_normal');
+      const p = String(priority).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      if (p.includes('urgent') || p.includes('срочн')) return t('task.priority_urgent');
+      if (p.includes('important') || p.includes('ridicat') || p.includes('high') || p.includes('важн')) return t('task.priority_high');
+      if (p.includes('scazut') || p.includes('low') || p.includes('низк')) return t('task.priority_low');
+      if (p.includes('normal') || p.includes('обычн')) return t('task.priority_normal');
+      return String(priority);
+    }
+
+    // Translate a department name (RO canonical) to the current language, or return it unchanged if it's a custom value.
+    function localizeDept(dept) {
+      if (!dept) return dept;
+      const key = 'dept.' + String(dept).trim();
+      const val = t(key);
+      return val === key ? dept : val;
+    }
+
+    // Same for car statuses.
+    function carStatusKey(status) {
+      const s = (status || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      if (s.includes('invit') || s.includes('пригла')) return 'invited';
+      if (s.includes('sosit') || s.includes('arriv') || s.includes('приб')) return 'arrived';
+      if (s.includes('plecat') || s.includes('left') || s.includes('уех')) return 'left';
+      if (s.includes('astept') || s.includes('waiting') || s.includes('ожид')) return 'waiting';
+      return null;
+    }
+    function localizeCarStatus(status) {
+      const k = carStatusKey(status);
+      return k ? t('car.status.' + k) : (status || '—');
     }
 
     // Departments used across the app
