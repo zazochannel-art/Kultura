@@ -3022,6 +3022,8 @@
       // Re-render dynamic lists to apply new language
       if (typeof currentUser !== 'undefined' && currentUser) {
         try {
+          // Force refresh hashes on language change to ensure re-render
+          lastDataHash = { cars: '', tasks: '', events: '', profiles: '', authUsers: '' };
           if (typeof renderTasks === 'function')       renderTasks();
           if (typeof renderCars === 'function')        renderCars();
           if (typeof renderEvents === 'function')      renderEvents();
@@ -3462,6 +3464,8 @@
     }
 
     let inFlightLoad = null;
+    let lastDataHash = { cars: '', tasks: '', events: '', profiles: '', authUsers: '' };
+
     async function loadData() {
       if (inFlightLoad) return inFlightLoad; // dedupe concurrent calls
       inFlightLoad = (async () => {
@@ -3474,12 +3478,13 @@
             supa.from('profiles').select('*')
           ]);
 
-          state.cars = results[0].status === 'fulfilled' ? (results[0].value.data || []) : [];
-          state.tasks = results[1].status === 'fulfilled' ? (results[1].value.data || []) : [];
-          state.events = results[2].status === 'fulfilled' ? (results[2].value.data || []) : [];
-          state.profiles = results[3].status === 'fulfilled' ? (results[3].value.data || []) : [];
+          const newCars = results[0].status === 'fulfilled' ? (results[0].value.data || []) : state.cars;
+          const newTasks = results[1].status === 'fulfilled' ? (results[1].value.data || []) : state.tasks;
+          const newEvents = results[2].status === 'fulfilled' ? (results[2].value.data || []) : state.events;
+          const newProfiles = results[3].status === 'fulfilled' ? (results[3].value.data || []) : state.profiles;
 
           // Admins can fetch the full list of users from Auth
+          let newAuthUsers = state.authUsers;
           const isAdmin = currentUser?.email === 'igor.gratii.99@mail.ru';
           if (isAdmin) {
             try {
@@ -3489,13 +3494,62 @@
               });
               if (res.ok) {
                 const data = await res.json();
-                if (data.users) {
-                  state.authUsers = data.users;
-                }
+                if (data.users) newAuthUsers = data.users;
               }
             } catch (err) {
               console.warn("Could not fetch admin user list:", err);
             }
+          }
+
+          // Simple hash check using stringify
+          const hCars = JSON.stringify(newCars);
+          const hTasks = JSON.stringify(newTasks);
+          const hEvents = JSON.stringify(newEvents);
+          const hProfiles = JSON.stringify(newProfiles);
+          const hAuthUsers = JSON.stringify(newAuthUsers);
+
+          const changed = {
+            cars: hCars !== lastDataHash.cars,
+            tasks: hTasks !== lastDataHash.tasks,
+            events: hEvents !== lastDataHash.events,
+            profiles: hProfiles !== lastDataHash.profiles,
+            authUsers: hAuthUsers !== lastDataHash.authUsers
+          };
+
+          if (changed.cars) { state.cars = newCars; lastDataHash.cars = hCars; }
+          if (changed.tasks) { state.tasks = newTasks; lastDataHash.tasks = hTasks; }
+          if (changed.events) { state.events = newEvents; lastDataHash.events = hEvents; }
+          if (changed.profiles) { state.profiles = newProfiles; lastDataHash.profiles = hProfiles; }
+          if (changed.authUsers) { state.authUsers = newAuthUsers; lastDataHash.authUsers = hAuthUsers; }
+
+          const anyChanged = Object.values(changed).some(v => v);
+
+          if (anyChanged) {
+            renderStats(state.cars, state.tasks, state.events);
+            renderHero(state.events);
+
+            if (changed.events) {
+              renderUpcoming(state.events);
+              renderEventsChips();
+              renderEvents();
+            }
+
+            if (changed.cars) {
+              renderCarsChips();
+              renderCars();
+            }
+
+            if (changed.tasks) {
+              renderTopTasks(state.tasks);
+              renderTasksChips();
+              renderTasksDeptChips();
+              renderTasks();
+            }
+
+            if (changed.profiles || changed.authUsers) {
+              renderTeam();
+            }
+            flashLive();
           }
 
           // Log errors for debugging (silent in UI)
@@ -3505,19 +3559,6 @@
             }
           });
 
-          renderStats(state.cars, state.tasks, state.events);
-          renderHero(state.events);
-          renderUpcoming(state.events);
-          renderTopTasks(state.tasks);
-          renderEventsChips();
-          renderCarsChips();
-          renderTasksChips();
-          renderTasksDeptChips();
-          renderEvents();
-          renderCars();
-          renderTasks();
-          renderTeam();
-          flashLive();
         } catch (err) {
           console.error("Critical data load error:", err);
         } finally {
@@ -3529,30 +3570,32 @@
 
     // ----- POLLING (every 1s) -----
     // Aggressive 1s poll so changes made by other users appear within a second.
-    // Skips refresh if the user is actively working (a modal is open, an action
-    // is in flight, or the tab is hidden) so nothing they're touching gets clobbered.
-    // `inFlightLoad` dedupe prevents pile-up if a fetch takes >1s.
+    // Skips refresh if the user is actively working (an action is in flight
+    // or the tab is hidden) so nothing they're touching gets clobbered.
+    // Uses recursive timeout to avoid request overlap.
     let pollTimer = null;
     function shouldSkipPoll() {
-      if (document.hidden) return true; // tab in background — save battery + bandwidth
-      if (document.querySelector('.modal-backdrop.show')) return true; // form open
+      if (document.hidden) return true; // tab in background
       if (document.querySelector('.action-btn.loading')) return true; // save in progress
       if (inFlightLoad) return true;
       return false;
     }
     function startPolling() {
       if (pollTimer) return;
-      pollTimer = setInterval(async () => {
-        if (shouldSkipPoll()) return;
-        try {
-          await loadData();
-        } catch (err) {
-          console.warn('Polling refresh failed:', err);
+      const poll = async () => {
+        if (!shouldSkipPoll()) {
+          try {
+            await loadData();
+          } catch (err) {
+            console.warn('Polling refresh failed:', err);
+          }
         }
-      }, 30000);
+        pollTimer = setTimeout(poll, 1000);
+      };
+      poll();
     }
     function stopPolling() {
-      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
     }
     // Also refresh immediately when the user returns to the tab
     document.addEventListener('visibilitychange', () => {
@@ -3562,10 +3605,15 @@
     });
 
     function renderStats(cars, tasks, events) {
-      el('statCars').textContent = (cars || []).length;
-      el('statEvents').textContent = (events || []).length;
-      el('statCarsConfirmed').textContent = (cars || []).filter(c => (c.status || '').toLowerCase().includes('sosit')).length;
-      el('statTasks').textContent = (tasks || []).filter(tk => !tk.is_completed).length;
+      const nCars = String((cars || []).length);
+      const nEvents = String((events || []).length);
+      const nArrived = String((cars || []).filter(c => (c.status || '').toLowerCase().includes('sosit')).length);
+      const nTasks = String((tasks || []).filter(tk => !tk.is_completed).length);
+
+      if (el('statCars').textContent !== nCars) el('statCars').textContent = nCars;
+      if (el('statEvents').textContent !== nEvents) el('statEvents').textContent = nEvents;
+      if (el('statCarsConfirmed').textContent !== nArrived) el('statCarsConfirmed').textContent = nArrived;
+      if (el('statTasks').textContent !== nTasks) el('statTasks').textContent = nTasks;
 
       // Update labels in stats grid
       const statsGrid = document.querySelector('.stats-grid');
@@ -3583,24 +3631,26 @@
     function renderHero(events) {
       const list = events || [];
       const heroBadge = document.querySelector('.hero-badge');
-      if (heroBadge) heroBadge.innerHTML = `<span class="dot"></span>${translations[currentLang]["home.next_event"]}`;
+      if (heroBadge) heroBadge.innerHTML = `<span class="dot"></span>${t("home.next_event")}`;
       const heroMetaLabel = document.querySelector('.hero-meta .l');
-      if (heroMetaLabel) heroMetaLabel.textContent = translations[currentLang]["home.days_left"];
+      if (heroMetaLabel) heroMetaLabel.textContent = t("home.days_left");
 
       if (!list.length) {
-        el('heroTitle').textContent = translations[currentLang]["home.nothing_found"];
-        el('heroSub').textContent = translations[currentLang]["home.loading"];
+        el('heroTitle').textContent = t("home.nothing_found");
+        el('heroSub').textContent = t("home.loading");
         el('heroDate').textContent = '';
         el('heroLocation').textContent = '';
         el('heroDays').textContent = '—';
         return;
       }
       const e = list[0];
-      el('heroTitle').textContent = e.title || '—';
-      el('heroSub').textContent = e.subtitle || '';
-      el('heroDate').innerHTML = calendarIcon() + (e.date || '');
-      el('heroLocation').innerHTML = pinIcon() + (e.location || '');
-      el('heroDays').textContent = e.days_left ?? '—';
+      if (el('heroTitle').textContent !== (e.title || '—')) el('heroTitle').textContent = e.title || '—';
+      if (el('heroSub').textContent !== (e.subtitle || '')) el('heroSub').textContent = e.subtitle || '';
+      const dateHtml = calendarIcon() + (e.date || '');
+      if (el('heroDate').innerHTML !== dateHtml) el('heroDate').innerHTML = dateHtml;
+      const locHtml = pinIcon() + (e.location || '');
+      if (el('heroLocation').innerHTML !== locHtml) el('heroLocation').innerHTML = locHtml;
+      if (el('heroDays').textContent !== String(e.days_left ?? '—')) el('heroDays').textContent = e.days_left ?? '—';
     }
 
     function calendarIcon() {
@@ -3615,14 +3665,15 @@
       const card = el('upcomingEventsCard');
       if (card) {
         const h3 = card.querySelector('h3');
-        if (h3) h3.textContent = translations[currentLang]["home.upcoming_events"];
+        if (h3) h3.textContent = t("home.upcoming_events");
         const p = card.querySelector('p');
-        if (p) p.textContent = translations[currentLang]["home.upcoming_sub"];
+        if (p) p.textContent = t("home.upcoming_sub");
       }
       const c = el('upcomingEventsList');
-      if (!list.length) return c.innerHTML = emptyState(translations[currentLang]["common.nothing_found"]);
-      c.innerHTML = list.map(e => `
-        <div class="row">
+      if (!list.length) return c.innerHTML = emptyState(t("common.nothing_found"));
+
+      const html = list.map(e => `
+        <div class="row" data-event-id="${e.id}">
           <div class="row-icon blue">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
           </div>
@@ -3633,6 +3684,26 @@
           <div class="badge ${statusToBadge(e.status)}">${escape(translateStatus(e.status, 'event'))}</div>
         </div>
       `).join('');
+
+      if (c.innerHTML === '' || c.innerHTML.includes('empty')) {
+        c.innerHTML = html;
+      } else {
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        Array.from(c.children).forEach(child => {
+          if (!temp.querySelector(`[data-event-id="${child.dataset.eventId}"]`)) child.remove();
+        });
+        Array.from(temp.children).forEach((newChild, i) => {
+          const id = newChild.dataset.eventId;
+          const existing = c.querySelector(`[data-event-id="${id}"]`);
+          if (existing) {
+            if (existing.innerHTML !== newChild.innerHTML) existing.innerHTML = newChild.innerHTML;
+            if (c.children[i] !== existing) c.insertBefore(existing, c.children[i]);
+          } else {
+            c.insertBefore(newChild, c.children[i] || null);
+          }
+        });
+      }
     }
 
     function renderTopTasks(tasks) {
@@ -3640,14 +3711,15 @@
       const card = el('topTasksCard');
       if (card) {
         const h3 = card.querySelector('h3');
-        if (h3) h3.textContent = translations[currentLang]["home.priority_tasks"];
+        if (h3) h3.textContent = t("home.priority_tasks");
         const p = card.querySelector('p');
-        if (p) p.textContent = translations[currentLang]["home.priority_sub"];
+        if (p) p.textContent = t("home.priority_sub");
       }
       const c = el('topTasksList');
-      if (!list.length) return c.innerHTML = emptyState(translations[currentLang]["common.nothing_found"]);
-      c.innerHTML = list.map(tk => `
-        <div class="row">
+      if (!list.length) return c.innerHTML = emptyState(t("common.nothing_found"));
+
+      const html = list.map(tk => `
+        <div class="row" data-task-id="${tk.id}">
           <div class="row-icon ${statusToBadge(tk.status) === 'red' ? 'red' : statusToBadge(tk.status) === 'green' ? 'green' : 'orange'}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           </div>
@@ -3658,6 +3730,26 @@
           <div class="badge ${statusToBadge(tk.status)}">${escape(translateStatus(tk.status, 'task'))}</div>
         </div>
       `).join('');
+
+      if (c.innerHTML === '' || c.innerHTML.includes('empty')) {
+        c.innerHTML = html;
+      } else {
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        Array.from(c.children).forEach(child => {
+          if (!temp.querySelector(`[data-task-id="${child.dataset.taskId}"]`)) child.remove();
+        });
+        Array.from(temp.children).forEach((newChild, i) => {
+          const id = newChild.dataset.taskId;
+          const existing = c.querySelector(`[data-task-id="${id}"]`);
+          if (existing) {
+            if (existing.innerHTML !== newChild.innerHTML) existing.innerHTML = newChild.innerHTML;
+            if (c.children[i] !== existing) c.insertBefore(existing, c.children[i]);
+          } else {
+            c.insertBefore(newChild, c.children[i] || null);
+          }
+        });
+      }
     }
 
     const EVENT_STATUS_OPTIONS = [
@@ -3709,7 +3801,8 @@
       const list = filterEvents();
       const c = el('eventsList');
       if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(translations[currentLang]["common.nothing_found"]) + '</div>';
-      c.innerHTML = '<div class="page-grid-2">' + list.map(e => {
+
+      const html = '<div class="page-grid-2">' + list.map(e => {
         const active = eventStatusKey(e.status);
         const buttons = EVENT_STATUS_OPTIONS.map(opt => `
           <button class="action-btn ${active === opt.key ? 'active-' + opt.key : ''}"
@@ -3719,19 +3812,19 @@
                   data-color="${opt.color}">${escape(translateStatus(opt.label, 'event'))}</button>
         `).join('');
         return `
-          <div class="card">
+          <div class="card" data-event-id="${e.id}">
             <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
               <div style="flex:1;">
-                <div style="font-size:18px;font-weight:900;letter-spacing:-0.3px;">${escape(e.title)}</div>
-                ${e.subtitle ? `<div style="color:var(--text-dim);font-size:13px;margin-top:4px;">${escape(e.subtitle)}</div>` : ''}
-                <div style="display:flex;gap:14px;margin-top:12px;font-size:12px;color:var(--text-dim);flex-wrap:wrap;">
+                <div style="font-size:18px;font-weight:900;letter-spacing:-0.3px;" class="event-title">${escape(e.title)}</div>
+                ${e.subtitle ? `<div style="color:var(--text-dim);font-size:13px;margin-top:4px;" class="event-subtitle">${escape(e.subtitle)}</div>` : ''}
+                <div style="display:flex;gap:14px;margin-top:12px;font-size:12px;color:var(--text-dim);flex-wrap:wrap;" class="event-meta">
                   <span style="display:inline-flex;align-items:center;gap:6px;">${calendarIcon()}${escape(e.date || '—')}</span>
                   ${e.location ? `<span style="display:inline-flex;align-items:center;gap:6px;">${pinIcon()}${escape(e.location)}</span>` : ''}
                 </div>
               </div>
               <div style="text-align:right;">
-                <div class="badge ${statusToBadge(e.status)}">${escape(translateStatus(e.status, 'event'))}</div>
-                ${e.days_left != null ? `<div style="margin-top:10px;color:var(--text-dim);font-size:11px;">${e.days_left} ${translations[currentLang]["common.days"]}</div>` : ''}
+                <div class="badge ${statusToBadge(e.status)} event-badge">${escape(translateStatus(e.status, 'event'))}</div>
+                ${e.days_left != null ? `<div style="margin-top:10px;color:var(--text-dim);font-size:11px;" class="event-days">${e.days_left} ${translations[currentLang]["common.days"]}</div>` : ''}
               </div>
             </div>
             <div class="event-actions">
@@ -3744,6 +3837,35 @@
           </div>
         `;
       }).join('') + '</div>';
+
+      if (c.innerHTML === '' || c.innerHTML.includes('empty')) {
+        c.innerHTML = html;
+      } else {
+        // Selective update to avoid flash
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        const newGrid = temp.querySelector('.page-grid-2');
+        const oldGrid = c.querySelector('.page-grid-2');
+
+        if (!oldGrid) { c.innerHTML = html; return; }
+
+        // Sync order and content
+        Array.from(newGrid.children).forEach((newChild, i) => {
+          const id = newChild.dataset.eventId;
+          const existing = oldGrid.querySelector(`[data-event-id="${id}"]`);
+          if (existing) {
+            if (existing.innerHTML !== newChild.innerHTML) existing.innerHTML = newChild.innerHTML;
+            if (oldGrid.children[i] !== existing) oldGrid.insertBefore(existing, oldGrid.children[i]);
+          } else {
+            oldGrid.insertBefore(newChild, oldGrid.children[i] || null);
+          }
+        });
+
+        // Remove old items that are no longer in newGrid
+        Array.from(oldGrid.children).forEach(child => {
+          if (!newGrid.querySelector(`[data-event-id="${child.dataset.eventId}"]`)) child.remove();
+        });
+      }
     }
     // Add CSS entries for event status colors dynamically (uses same var pattern)
     (function addEventColors() {
@@ -3814,8 +3936,8 @@
       const list = filterCars();
       const c = el('carsList');
       if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(translations[currentLang]["common.nothing_found"]) + '</div>';
-      c.innerHTML = '<div class="page-grid-2" id="carsInner"></div>';
-      el('carsInner').innerHTML = list.map(car => {
+
+      const html = list.map(car => {
         const active = statusKey(car.status);
         const actionButtons = CAR_STATUS_OPTIONS.map(opt => {
           let label = opt.label;
@@ -3861,6 +3983,34 @@
           </div>
         `;
       }).join('');
+
+      let inner = c.querySelector('#carsInner');
+      if (!inner) {
+        c.innerHTML = '<div class="page-grid-2" id="carsInner"></div>';
+        inner = c.querySelector('#carsInner');
+      }
+
+      // Selective update
+      const temp = document.createElement('div');
+      temp.innerHTML = html;
+
+      // Sync order and content
+      Array.from(temp.children).forEach((newChild, i) => {
+        const id = newChild.dataset.rowId;
+        const existing = inner.querySelector(`[data-row-id="${id}"]`);
+        if (existing) {
+          if (existing.innerHTML !== newChild.innerHTML) existing.innerHTML = newChild.innerHTML;
+          if (inner.children[i] !== existing) inner.insertBefore(existing, inner.children[i]);
+        } else {
+          inner.insertBefore(newChild, inner.children[i] || null);
+        }
+      });
+
+      // Remove old
+      Array.from(inner.children).forEach(child => {
+        const id = child.dataset.rowId;
+        if (!temp.querySelector(`[data-row-id="${id}"]`)) child.remove();
+      });
     }
 
     function renderTeam() {
@@ -3915,7 +4065,7 @@
         return;
       }
 
-      target.innerHTML = '<div class="team-grid">' + members.map(m => {
+      const html = '<div class="team-grid">' + members.map(m => {
         const initials = m.name.substring(0, 2).toUpperCase();
         const isMe = currentUser && m.email === currentUser.email;
         const isAdmin = currentUser?.email === 'igor.gratii.99@mail.ru';
@@ -3924,7 +4074,7 @@
         const attrs = canInteract ? `data-modal="edit-profile" data-edit-email="${m.email}" data-edit-name="${escape(m.name)}" style="cursor:pointer;"` : '';
 
         return `
-          <div class="team-card" ${attrs}>
+          <div class="team-card" ${attrs} data-member-email="${m.email}">
             <div class="team-avatar">${initials}</div>
             <div class="team-info">
               <div class="team-name">${escape(m.name)} ${isMe ? '<span style="font-size:10px; opacity:0.6; font-weight:normal;">(Tu)</span>' : ''}</div>
@@ -3933,6 +4083,29 @@
           </div>
         `;
       }).join('') + '</div>';
+
+      if (target.innerHTML === '' || target.innerHTML.includes('empty')) {
+        target.innerHTML = html;
+      } else {
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        const newGrid = temp.querySelector('.team-grid');
+        const oldGrid = target.querySelector('.team-grid');
+        if (!oldGrid) { target.innerHTML = html; return; }
+        Array.from(newGrid.children).forEach((newChild, i) => {
+          const email = newChild.dataset.memberEmail;
+          const existing = oldGrid.querySelector(`[data-member-email="${email}"]`);
+          if (existing) {
+            if (existing.innerHTML !== newChild.innerHTML) existing.innerHTML = newChild.innerHTML;
+            if (oldGrid.children[i] !== existing) oldGrid.insertBefore(existing, oldGrid.children[i]);
+          } else {
+            oldGrid.insertBefore(newChild, oldGrid.children[i] || null);
+          }
+        });
+        Array.from(oldGrid.children).forEach(child => {
+          if (!newGrid.querySelector(`[data-member-email="${child.dataset.memberEmail}"]`)) child.remove();
+        });
+      }
     }
 
     // Delegate clicks — cars/tasks/events actions
@@ -5136,7 +5309,7 @@
         const key = (p || '').toLowerCase();
         if (key.includes('urgent')) return { cls: 'priority-urgent', label: translations[currentLang]["task.priority_urgent"], mark: '+' };
         if (key.includes('ridicat') || key.includes('important') || key.includes('high')) return { cls: 'priority-high', label: translations[currentLang]["task.priority_high"], mark: '+' };
-        if (key.includes('scăzut') || key.includes('scazut') || key.includes('low')) return { cls: 'priority-low', label: translations[currentLang]["task.priority_normal"], mark: '' }; // Assuming normal for low in this specific UI logic
+        if (key.includes('scăzut') || key.includes('scazut') || key.includes('low')) return { cls: 'priority-low', label: translations[currentLang]["task.priority_normal"], mark: '' };
         return { cls: 'priority-normal', label: translations[currentLang]["task.priority_normal"], mark: '' };
       };
 
@@ -5148,7 +5321,7 @@
       const iconUser  = '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>';
       const iconUndo  = '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/>';
 
-      c.innerHTML = '<div class="tk-grid">' + list.map(tk => {
+      const html = '<div class="tk-grid">' + list.map(tk => {
         const sk = taskStatusKey(tk.status);
         const iconClass = sk === 'completed' ? 'done' : sk === 'in_progress' ? 'progress' : 'available';
         const iconSvg   = sk === 'completed' ? iconCheck : iconClock;
@@ -5171,7 +5344,6 @@
         const responsibleRaw = tk.assigned_user_name || '—';
         const responsible = escape(responsibleRaw);
 
-        // Contextual primary action based on state + ownership
         const myId = currentUser?.id || null;
         const isOwner = !!myId && tk.assigned_user_id === myId;
         let primaryBtn = '';
@@ -5187,7 +5359,6 @@
               ${t("task.action.finish")}
             </button>`;
           } else {
-            // Someone else is working on it → show a disabled locked chip instead
             primaryBtn = `<div class="tk-btn locked" title="${t("task.locked_msg", { name: responsibleRaw })}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               ${t("task.worked_by")} ${escape((responsibleRaw || '').split('@')[0])}
@@ -5212,14 +5383,12 @@
                 <span class="tk-badge stat-${badgeClass}">${statusLabel}</span>
               </div>
             </div>
-
             <div class="tk-title ${sk === 'completed' ? 'done' : ''}">${escape(tk.title)}</div>
             <div class="tk-sub">
               ${tk.event ? `<span class="event">${escape(tk.event)}</span>` : ''}
               ${tk.event && tk.date ? '<span class="sep">•</span>' : ''}
               ${tk.date ? `<span>${escape(tk.date)}</span>` : ''}
             </div>
-
             <div class="tk-info-grid">
               <div class="tk-info-cell">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconCal}</svg>
@@ -5236,9 +5405,7 @@
                 </div>
               </div>
             </div>
-
             <div class="tk-divider"></div>
-
             <div class="tk-actions">
               ${primaryBtn}
               <button class="tk-btn dots" data-row-id="${tk.id}" data-open-detail="1" title="${t("task.details")}">
@@ -5248,6 +5415,29 @@
           </div>
         `;
       }).join('') + '</div>';
+
+      if (c.innerHTML === '' || c.innerHTML.includes('empty')) {
+        c.innerHTML = html;
+      } else {
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        const newGrid = temp.querySelector('.tk-grid');
+        const oldGrid = c.querySelector('.tk-grid');
+        if (!oldGrid) { c.innerHTML = html; return; }
+        Array.from(newGrid.children).forEach((newChild, i) => {
+          const id = newChild.dataset.rowId;
+          const existing = oldGrid.querySelector(`[data-row-id="${id}"]`);
+          if (existing) {
+            if (existing.innerHTML !== newChild.innerHTML) existing.innerHTML = newChild.innerHTML;
+            if (oldGrid.children[i] !== existing) oldGrid.insertBefore(existing, oldGrid.children[i]);
+          } else {
+            oldGrid.insertBefore(newChild, oldGrid.children[i] || null);
+          }
+        });
+        Array.from(oldGrid.children).forEach(child => {
+          if (!newGrid.querySelector(`[data-row-id="${child.dataset.rowId}"]`)) child.remove();
+        });
+      }
     }
 
     function emptyState(text) {
