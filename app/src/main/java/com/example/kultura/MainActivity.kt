@@ -23,8 +23,10 @@ class MainActivity : AppCompatActivity() {
 
         webView.webViewClient = WebViewClient()
         
-        // 10.0.2.2 este adresa specială pentru a accesa localhost-ul calculatorului din emulator
-        webView.loadUrl("http://10.0.2.2:8080")
+        // Production URL — hosted on GitHub Pages. Works on real devices and emulator alike.
+        // For local dev, swap to "http://10.0.2.2:8080" (emulator only) after
+        // starting `node server.js` and set usesCleartextTraffic="true" in the manifest.
+        webView.loadUrl("https://zazochannel-art.github.io/Kultura/")
     }
 
     override fun onBackPressed() {

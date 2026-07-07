@@ -2164,14 +2164,22 @@
             <textarea name="additional_notes" rows="4"
               placeholder="Scrie aici informații suplimentare despre mașină, proprietar, transport, amplasare sau cerințe speciale..."></textarea>
           </div>
-          <div class="form-field">
-            <label>Status inițial</label>
-            <select name="status">
-              <option value="Invitat">Invitat</option>
-              <option value="Sosit">Sosit</option>
-              <option value="Plecat">Plecat</option>
-              <option value="În așteptare">În așteptare</option>
-            </select>
+          <div class="form-row">
+            <div class="form-field">
+              <label>Status inițial</label>
+              <select name="status">
+                <option value="Invitat">Invitat</option>
+                <option value="Sosit">Sosit</option>
+                <option value="Plecat">Plecat</option>
+                <option value="În așteptare">În așteptare</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label data-i18n="modal.add_car.event">Eveniment</label>
+              <select name="event_id" id="addCarEventSelect" data-populate="events">
+                <option value="" data-i18n="modal.add_car.event_none">— Fără eveniment —</option>
+              </select>
+            </div>
           </div>
           <label class="form-check">
             <input type="checkbox" name="is_vip">
@@ -2275,13 +2283,21 @@
               </select>
             </div>
           </div>
-          <div class="form-field">
-            <label>Status</label>
-            <select name="status">
-              <option value="available">Disponibil</option>
-              <option value="in_progress">În lucru</option>
-              <option value="completed">Finisat</option>
-            </select>
+          <div class="form-row">
+            <div class="form-field">
+              <label>Status</label>
+              <select name="status">
+                <option value="available">Disponibil</option>
+                <option value="in_progress">În lucru</option>
+                <option value="completed">Finisat</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label data-i18n="modal.add_task.event">Eveniment</label>
+              <select name="event_id" id="addTaskEventSelect" data-populate="events">
+                <option value="" data-i18n="modal.add_task.event_none">— Fără eveniment —</option>
+              </select>
+            </div>
           </div>
           <div class="form-field">
             <label>Ce trebuie făcut</label>
@@ -2563,6 +2579,10 @@
         "modal.add_task.status": "Status",
         "modal.add_task.details": "Ce trebuie făcut",
         "modal.add_task.details_placeholder": "Scrie aici instrucțiuni detaliate...",
+        "modal.add_task.event": "Eveniment",
+        "modal.add_task.event_none": "— Fără eveniment —",
+        "modal.add_car.event": "Eveniment",
+        "modal.add_car.event_none": "— Fără eveniment —",
         "modal.add_car.title": "Adaugă mașină",
         "modal.add_car.sub": "Detalii despre mașina invitată.",
         "modal.add_event.title": "Adaugă eveniment",
@@ -2648,6 +2668,7 @@
         "car.detail.notes_empty": "Nicio observație. Apasă \"Editează\" pentru a adăuga.",
         "car.detail.notes_placeholder": "Scrie observații despre mașină, transport, cerințe...",
         "car.detail.notes_saved": "Detaliile mașinii au fost actualizate.",
+        "car.detail.event": "Eveniment",
         "car.detail.action_confirm": "Confirmă participarea",
         "car.detail.action_reject": "Respinge",
         "car.detail.confirm_delete": "Șterge \"{label}\"?\nAcțiune ireversibilă.",
@@ -2791,6 +2812,10 @@
         "modal.add_task.status": "Status",
         "modal.add_task.details": "What needs to be done",
         "modal.add_task.details_placeholder": "Write detailed instructions here...",
+        "modal.add_task.event": "Event",
+        "modal.add_task.event_none": "— No event —",
+        "modal.add_car.event": "Event",
+        "modal.add_car.event_none": "— No event —",
         "modal.add_car.title": "Add car",
         "modal.add_car.sub": "Details about the invited car.",
         "modal.add_event.title": "Add event",
@@ -2875,6 +2900,7 @@
         "car.detail.notes_empty": "No notes. Click \"Edit\" to add.",
         "car.detail.notes_placeholder": "Write notes about the vehicle, transport, requirements...",
         "car.detail.notes_saved": "Vehicle details updated.",
+        "car.detail.event": "Event",
         "car.detail.action_confirm": "Confirm participation",
         "car.detail.action_reject": "Reject",
         "car.detail.confirm_delete": "Delete \"{label}\"?\nThis action cannot be undone.",
@@ -3018,6 +3044,10 @@
         "modal.add_task.status": "Статус",
         "modal.add_task.details": "Что нужно сделать",
         "modal.add_task.details_placeholder": "Напишите подробные инструкции здесь...",
+        "modal.add_task.event": "Событие",
+        "modal.add_task.event_none": "— Без события —",
+        "modal.add_car.event": "Событие",
+        "modal.add_car.event_none": "— Без события —",
         "modal.add_car.title": "Добавить машину",
         "modal.add_car.sub": "Детали приглашённой машины.",
         "modal.add_event.title": "Добавить событие",
@@ -3102,6 +3132,7 @@
         "car.detail.notes_empty": "Нет заметок. Нажмите \"Изменить\", чтобы добавить.",
         "car.detail.notes_placeholder": "Напишите заметки о машине, транспорте, требованиях...",
         "car.detail.notes_saved": "Данные машины обновлены.",
+        "car.detail.event": "Событие",
         "car.detail.action_confirm": "Подтвердить участие",
         "car.detail.action_reject": "Отклонить",
         "car.detail.confirm_delete": "Удалить \"{label}\"?\nЭто действие необратимо.",
@@ -3424,10 +3455,10 @@
 
       const dept = el('profileDeptSelect').value;
       try {
-        const isAdmin = currentUser?.email === 'igor.gratii.99@mail.ru';
+        const admin = isAdmin();
         const isMe = userBeingEdited === currentUser?.email;
 
-        if (!isAdmin && !isMe) throw new Error("Nu ai permisiunea de a modifica acest profil.");
+        if (!admin && !isMe) throw new Error("Nu ai permisiunea de a modifica acest profil.");
 
         // 1. Dacă edităm propriul profil, actualizăm și Auth Metadata
         if (isMe) {
@@ -3465,23 +3496,35 @@
       btn.textContent = "Se șterge...";
 
       try {
-        // 1. Încercăm ștergerea din Supabase Auth via Proxy
-        const authRes = await fetch('/api/admin/delete-user', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: userBeingEdited })
+        // Call the admin-delete-user Edge Function — it verifies the caller's
+        // is_admin flag server-side and does both the Auth delete and the
+        // profile row cleanup with the service role key (which never leaves
+        // Supabase). Fetching /api/admin/* only worked with the local dev
+        // server and 404'd on GitHub Pages.
+        const invokeRes = await supa.functions.invoke('admin-delete-user', {
+          body: { email: userBeingEdited }
         });
 
-        const authData = await authRes.json();
-
-        // Dacă eroarea este "User not found", nu ne oprim, mergem mai departe la pasul 2
-        if (!authRes.ok && authData.error !== "User not found in Auth") {
-          throw new Error("Eroare la ștergerea contului Auth: " + (authData.error || "Server error"));
+        if (invokeRes.error) {
+          // Try to surface the JSON error the function returned
+          let msg = invokeRes.error.message || 'Edge function call failed.';
+          try {
+            const ctx = invokeRes.error.context;
+            if (ctx) {
+              const txt = typeof ctx.text === 'function' ? await ctx.text() : null;
+              if (txt) {
+                try { const p = JSON.parse(txt); msg = p.error || txt; }
+                catch { msg = txt; }
+              }
+            }
+          } catch (_) {}
+          // "User not found" is not fatal — profile row cleanup below still runs.
+          if (!/not found/i.test(msg)) throw new Error(msg);
         }
 
-        // 2. Ștergem datele din tabela 'profiles'
-        const { error: dbError } = await supa.from('profiles').delete().eq('email', userBeingEdited);
-        if (dbError) throw dbError;
+        // Best-effort profile row cleanup in case the function couldn't reach the DB.
+        // (The function already does this; a second delete is idempotent.)
+        await supa.from('profiles').delete().eq('email', userBeingEdited);
 
         showToast("Utilizator eliminat complet.");
         closeModal(el('modal-edit-profile'));
@@ -3679,6 +3722,16 @@
       flashTimer = setTimeout(() => b.classList.remove('flash'), 700);
     }
 
+    // Admin flag now lives in profiles.is_admin (backfilled via migration).
+    // Reads from state.profiles — returns false until profiles are loaded,
+    // which is the safe default (non-admin UI). Never trusts a hardcoded email.
+    function isAdmin() {
+      if (!currentUser || !currentUser.email) return false;
+      const email = currentUser.email.toLowerCase();
+      const p = (state.profiles || []).find(x => (x.email || '').toLowerCase() === email);
+      return !!(p && p.is_admin);
+    }
+
     // ------------ INVISIBLE POLLING PIPELINE ------------
     // Goal: refresh data every 1s in the background WITHOUT touching the DOM
     // when nothing changed. When something DID change, re-render only the
@@ -3688,8 +3741,8 @@
     // Fingerprint helper — stable, cheap digest over the fields that actually
     // affect what the user sees. If two fetches yield the same fingerprint,
     // the corresponding renderer is skipped entirely.
-    const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','contact','owner','model','brand','is_vip','category','additional_notes','year','city','email','transport_info','social_links','responsible_person','modifications','photos'];
-    const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','detailed_description','event','created_by','created_at'];
+    const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','contact','owner','model','brand','is_vip','category','additional_notes','year','city','email','transport_info','social_links','responsible_person','modifications','photos','event_id'];
+    const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','detailed_description','event','event_id','created_by','created_at'];
     const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','image_url'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
 
@@ -3785,21 +3838,16 @@
           if (nextEvents   !== null) state.events   = nextEvents;
           if (nextProfiles !== null) state.profiles = nextProfiles;
 
-          // Admins can fetch the full list of users from Auth
-          const isAdmin = currentUser?.email === 'igor.gratii.99@mail.ru';
-          if (isAdmin) {
+          // Admins can fetch the full list of auth users via the edge function.
+          // The edge function re-verifies is_admin server-side, so we can only
+          // call it after profiles have loaded (isAdmin() reads from state.profiles).
+          if (isAdmin()) {
             try {
-              const { data: { session } } = await supa.auth.getSession();
-              const res = await fetch('/api/admin/users', {
-                headers: { 'Authorization': `Bearer ${session?.access_token}` }
-              });
-              if (res.ok) {
-                const data = await res.json();
-                if (data.users) {
-                  state.authUsers = data.users;
-                }
+              const { data, error } = await supa.functions.invoke('admin-list-users');
+              if (!error && data && Array.isArray(data.users)) {
+                state.authUsers = data.users;
               }
-            } catch (err) {
+            } catch (_) {
               // silent — non-critical
             }
           }
@@ -4327,9 +4375,9 @@
       target.innerHTML = '<div class="team-grid">' + members.map(m => {
         const initials = m.name.substring(0, 2).toUpperCase();
         const isMe = currentUser && m.email === currentUser.email;
-        const isAdmin = currentUser?.email === 'igor.gratii.99@mail.ru';
+        const admin = isAdmin();
 
-        const canInteract = isAdmin;
+        const canInteract = admin;
         const attrs = canInteract ? `data-modal="edit-profile" data-edit-email="${m.email}" data-edit-name="${escape(m.name)}" style="cursor:pointer;"` : '';
 
         return `
@@ -4445,7 +4493,22 @@
     // Modal open/close
     function openModal(name) {
       const m = document.getElementById('modal-' + name);
-      if (m) m.classList.add('show');
+      if (!m) return;
+      // Populate any [data-populate="events"] selects inside this modal with
+      // the current events list, preserving the "no event" placeholder option.
+      m.querySelectorAll('select[data-populate="events"]').forEach(sel => {
+        const currentVal = sel.value;
+        // Drop everything except the first (placeholder) option
+        while (sel.options.length > 1) sel.remove(1);
+        (state.events || []).forEach(ev => {
+          const opt = document.createElement('option');
+          opt.value = ev.id;
+          opt.textContent = ev.title || ('#' + ev.id);
+          sel.appendChild(opt);
+        });
+        if (currentVal) sel.value = currentVal;
+      });
+      m.classList.add('show');
     }
     function closeModal(m) {
       m.classList.remove('show');
@@ -4468,19 +4531,19 @@
 
           // Restricted logic: Show delete button and allow editing ONLY if it's "Me" or "Admin"
           const isMe = userBeingEdited === currentUser?.email;
-          // ADMIN Check: Change this email to your real admin email
-          const isAdmin = currentUser?.email === 'igor.gratii.99@mail.ru';
+          // Admin check now backed by profiles.is_admin (no more hardcoded email).
+          const admin = isAdmin();
 
           const deleteBtn = el('deleteProfileBtn');
           if (deleteBtn) {
             // Show delete button only if you are Admin and editing SOMEONE ELSE
-            deleteBtn.style.display = (isAdmin && !isMe) ? 'block' : 'none';
+            deleteBtn.style.display = (admin && !isMe) ? 'block' : 'none';
           }
 
           // Disable form if not allowed to edit
           const form = el('form-edit-profile');
           if (form) {
-            const canEdit = isMe || isAdmin;
+            const canEdit = isMe || admin;
             form.querySelectorAll('input, select, button[type="submit"]').forEach(ctrl => {
               ctrl.disabled = !canEdit;
             });
@@ -4790,6 +4853,7 @@
 
       try {
         const yearRaw = fd.get('year');
+        const eventIdRaw = fd.get('event_id');
         const { error } = await supa.from('cars').insert({
           brand: (fd.get('brand') || '').trim() || null,
           model: fd.get('model').trim(),
@@ -4805,6 +4869,7 @@
           responsible_person: (fd.get('responsible_person') || '').trim() || null,
           additional_notes: (fd.get('additional_notes') || '').trim() || null,
           contact: (fd.get('phone') || '').trim() || null,
+          event_id: eventIdRaw ? parseInt(eventIdRaw, 10) : null,
           status, status_color: statusColor,
           is_vip: fd.get('is_vip') === 'on'
         });
@@ -4873,6 +4938,7 @@
       try {
         const me = currentUserEmail();
         const myName = currentUserName();
+        const eventIdRaw = fd.get('event_id');
         const { error } = await supa.from('tasks').insert({
           title: fd.get('title').trim(),
           event: (fd.get('event') || '').trim(),
@@ -4882,6 +4948,7 @@
           priority: fd.get('priority') || 'Normală',
           detailed_description: (fd.get('detailed_description') || '').trim() || null,
           created_by: myName,
+          event_id: eventIdRaw ? parseInt(eventIdRaw, 10) : null,
           status,
           status_color: map[status] || '#3B82F6',
           is_completed: status === 'completed',
@@ -5121,6 +5188,11 @@
             ${fieldRow(t('task.detail.priority'), task.priority ? localizePriority(task.priority) : t('task.priority_normal'))}
             ${fieldRow(t('task.detail.category'), task.category ? localizeDept(task.category) : task.category)}
             ${fieldRow(t('task.detail.team'), task.team ? localizeDept(task.team) : task.team)}
+            ${fieldRow(t('car.detail.event'), (() => {
+              if (!task.event_id) return task.event || null;
+              const ev = (state.events || []).find(e => String(e.id) === String(task.event_id));
+              return ev ? ev.title : (task.event || '#' + task.event_id);
+            })())}
             ${fieldRow(t('task.detail.short_desc'), task.event, { wide: true })}
           </div>
         </div>
@@ -5329,6 +5401,11 @@
             ${fieldRow(t('car.detail.year'), c.year)}
             ${fieldRow(t('car.detail.category'), c.category ? localizeDept(c.category) : c.category)}
             ${fieldRow(t('car.detail.plate'), c.plate)}
+            ${fieldRow(t('car.detail.event'), (() => {
+              if (!c.event_id) return null;
+              const ev = (state.events || []).find(e => String(e.id) === String(c.event_id));
+              return ev ? ev.title : ('#' + c.event_id);
+            })())}
           </div>
         </div>
 
