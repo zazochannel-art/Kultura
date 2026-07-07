@@ -4189,22 +4189,24 @@
             Extract car details from the following text and return a JSON object with a "cars" key containing an array of car objects.
             Fields for each car object:
             - model (string)
-            - owner (string - full name)
-            - plate (string - license plate number, e.g. "B 123 ABC")
+            - owner (string - full name of the person)
+            - plate (string - VEHICLE LICENSE PLATE, e.g. "B 123 ABC", "MD IE 442", "CJ 07 XYZ")
             - zone (string - parking zone if mentioned)
             - status (string: "Invitat", "Sosit", "Plecat", or "În așteptare")
             - status_color (string: HEX, e.g., #3B82F6 for Invitat, #10B981 for Sosit)
             - is_vip (boolean - true if mentioned as VIP or special guest)
-            - phone (string - phone number / contact)
+            - phone (string - PERSONAL PHONE NUMBER, digits with optional +country code, e.g. "+373 79 123 456", "0712345678")
             - email (string)
-            - brand (string)
+            - brand (string - manufacturer, e.g. "BMW", "Audi", "Toyota")
             - city (string)
 
-            Instructions:
-            - "plate" must contain the LICENSE PLATE (număr de înmatriculare).
-            - "phone" must contain the PHONE NUMBER (numărul de telefon).
-            - "owner" is the person's name.
-            - Ensure all fields are extracted accurately from the text and put in their respective places.
+            CRITICAL FIELD SEPARATION — do NOT swap these two:
+            - "plate" = VEHICLE REGISTRATION / LICENSE PLATE ONLY. Format: usually 2-3 letters + numbers + letters (short alphanumeric). Never put a phone number here.
+            - "phone" = PERSONAL PHONE NUMBER ONLY. Format: 7+ digits, may start with "+" or "0". Never put a license plate here.
+            - If a token is a long sequence of digits (7+), it's a phone number → goes to "phone".
+            - If a token is short alphanumeric mixing letters and numbers (like "B123ABC"), it's a plate → goes to "plate".
+            - "owner" is the person's name (not the car brand, not a plate, not a phone).
+            - If a field is not present in the text, omit it or set it to empty string — do NOT reuse another field's value.
 
             Data to process:
             ${chunk}
