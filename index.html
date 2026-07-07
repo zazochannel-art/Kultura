@@ -3850,7 +3850,10 @@
                 <div class="row-sub" style="margin-top:2px;">
                   <span style="color: var(--blue); font-weight: 700;">${escape(car.owner || '—')}</span>
                   ${car.plate ? '<span class="sep"></span><span>' + escape(car.plate) + '</span>' : ''}
-                  ${car.zone ? '<span class="sep"></span><span style="color: var(--purple); opacity: 0.8;">' + escape(car.zone) + '</span>' : ''}
+                  <span class="sep"></span>
+                  <span style="color: ${car.zone ? 'var(--purple)' : 'var(--text-mute)'}; opacity: ${car.zone ? '0.9' : '0.7'}; font-style: ${car.zone ? 'normal' : 'italic'};">
+                    ${car.zone ? escape(car.zone) : 'Zona'}
+                  </span>
                 </div>
               </div>
               <div class="badge ${statusToBadge(car.status)}">${escape(translateStatus(car.status, 'car'))}</div>
@@ -4828,6 +4831,21 @@
         </div>
 
         <div class="detail-section">
+          <div class="detail-section-title" style="display:flex; align-items:center;">
+            Zona
+            <button class="detail-edit-btn" id="carEditZoneBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              Editează
+            </button>
+          </div>
+          <div id="carZoneView">
+            ${c.zone
+              ? `<div class="detail-text">${escape(c.zone)}</div>`
+              : `<div class="detail-text empty">Zona nu este completată. Apasă "Editează" pentru a scrie zona plasată.</div>`}
+          </div>
+        </div>
+
+        <div class="detail-section">
           <div class="detail-section-title">Mașină</div>
           <div class="detail-grid">
             ${fieldRow('Marcă', c.brand)}
@@ -4835,7 +4853,6 @@
             ${fieldRow('An fabricație', c.year)}
             ${fieldRow('Categorie', c.category)}
             ${fieldRow('Plăcuță', c.plate)}
-            ${fieldRow('Zonă parcare', c.zone)}
           </div>
         </div>
 
@@ -4913,6 +4930,39 @@
           showCarDetail(c.id);
         };
         el('carNotesInput').focus();
+      };
+
+      // Zone inline editor
+      el('carEditZoneBtn').onclick = () => {
+        const view = el('carZoneView');
+        view.innerHTML = `
+          <input type="text" class="detail-textarea" id="carZoneInput"
+            style="min-height:auto; padding:12px 14px;"
+            placeholder="ex: A1, VIP, Terasa etc."
+            value="${escape(c.zone || '')}">
+          <div class="detail-inline-actions">
+            <button class="btn ghost small" id="carZoneCancel">Anulează</button>
+            <button class="btn small" id="carZoneSave">Salvează</button>
+          </div>`;
+        el('carEditZoneBtn').style.display = 'none';
+        el('carZoneCancel').onclick = () => showCarDetail(c.id);
+        el('carZoneSave').onclick = async () => {
+          const btn = el('carZoneSave'); btn.disabled = true;
+          const newVal = el('carZoneInput').value.trim();
+          const { error } = await supa.from('cars').update({ zone: newVal || null }).eq('id', c.id);
+          if (error) { showToast('Eroare: ' + error.message, 'error'); btn.disabled = false; return; }
+          showToast('Zona a fost actualizată.');
+          c.zone = newVal;
+          await loadData();
+          showCarDetail(c.id);
+        };
+        const zi = el('carZoneInput');
+        zi.focus();
+        zi.setSelectionRange(zi.value.length, zi.value.length);
+        zi.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') { ev.preventDefault(); el('carZoneSave').click(); }
+          if (ev.key === 'Escape') { ev.preventDefault(); el('carZoneCancel').click(); }
+        });
       };
 
       openModal('car-detail');
