@@ -4452,6 +4452,21 @@
         }
         if (openTaskDetailId != null) refreshTaskUpdates(openTaskDetailId);
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (payload) => {
+        // Local-first: patch state.profiles so Team page updates without a full reload
+        if (!state.profiles) state.profiles = [];
+        const { eventType, new: nu, old: ou } = payload;
+        if (eventType === 'INSERT') {
+          state.profiles.push(nu);
+          sendAppNotification("Utilizator nou", `${nu.full_name || nu.email} s-a alăturat echipei.`);
+        } else if (eventType === 'UPDATE') {
+          const idx = state.profiles.findIndex(p => p.email === nu.email);
+          if (idx >= 0) state.profiles[idx] = nu; else state.profiles.push(nu);
+        } else if (eventType === 'DELETE') {
+          state.profiles = state.profiles.filter(p => p.email !== (ou?.email));
+        }
+        if (typeof renderTeam === 'function') renderTeam();
+      })
       .subscribe();
 
     // ==============================================================
