@@ -4249,6 +4249,46 @@
           }
         }
 
+        // Client-side sanitizer: even with a strict prompt, the AI sometimes puts
+        // the phone in `plate` (and leaves `phone` empty) or vice versa. Detect
+        // and move each value to the correct field based on format.
+        const looksLikePhone = (s) => {
+          if (!s) return false;
+          const digits = String(s).replace(/\D/g, '');
+          // A phone is 7+ digits and >=60% of the string is digits/+/-/space/()
+          if (digits.length < 7) return false;
+          const cleanChars = String(s).replace(/[\d+\-\s().]/g, '');
+          return cleanChars.length === 0;
+        };
+        const looksLikePlate = (s) => {
+          if (!s) return false;
+          const str = String(s).trim();
+          if (str.length < 3 || str.length > 12) return false;
+          // Plates mix letters and digits; must contain at least one letter.
+          const hasLetter = /[A-Za-z]/.test(str);
+          const hasDigit = /\d/.test(str);
+          const digits = str.replace(/\D/g, '');
+          // Reject if it's effectively a phone number (too many digits, no letters)
+          if (!hasLetter) return false;
+          if (digits.length >= 7 && !hasLetter) return false;
+          return hasLetter && hasDigit;
+        };
+        for (const car of allExtractedCars) {
+          const p = car.plate, ph = car.phone;
+          // Case 1: plate holds a phone number and phone is empty → swap
+          if (looksLikePhone(p) && !looksLikePlate(p)) {
+            if (!ph || !looksLikePhone(ph)) {
+              car.phone = p;
+              car.plate = looksLikePlate(ph) ? ph : '';
+            }
+          }
+          // Case 2: phone holds a plate and plate is empty → swap
+          else if (looksLikePlate(ph) && !looksLikePhone(ph) && !p) {
+            car.plate = ph;
+            car.phone = '';
+          }
+        }
+
         const cars = allExtractedCars;
         el('aiProgressBar').style.width = '100%';
 
