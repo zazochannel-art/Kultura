@@ -74,10 +74,20 @@ const mimeTypes = {
   '.ico': 'image/x-icon',
 };
 
+const MAX_BODY_BYTES = 1_000_000;
+
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
-    req.on('data', (chunk) => (body += chunk.toString()));
+    let size = 0;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        req.destroy();
+        return reject(new Error('Payload too large'));
+      }
+      body += chunk.toString();
+    });
     req.on('end', () => {
       try {
         resolve(body ? JSON.parse(body) : {});
@@ -87,6 +97,12 @@ function readJsonBody(req) {
     });
     req.on('error', reject);
   });
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (s) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]
+  ));
 }
 
 function verifyAdmin(authToken) {
@@ -129,6 +145,9 @@ function handleAiImport(req, res) {
   readJsonBody(req)
     .then(({ prompt }) => {
       if (!OPENAI_API_KEY) return jsonResponse(res, 500, { error: 'OPENAI_API_KEY missing on server' });
+      if (typeof prompt !== 'string' || !prompt.trim()) {
+        return jsonResponse(res, 400, { error: 'prompt required' });
+      }
       const aiReqData = JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [
@@ -162,7 +181,11 @@ function handleAiImport(req, res) {
       aiReq.write(aiReqData);
       aiReq.end();
     })
-    .catch(() => jsonResponse(res, 400, { error: 'Invalid JSON' }));
+    .catch((e) => {
+      const msg = e && e.message === 'Payload too large' ? e.message : 'Invalid JSON';
+      const code = msg === 'Payload too large' ? 413 : 400;
+      jsonResponse(res, code, { error: msg });
+    });
 }
 
 async function handleAdminListUsers(req, res) {
@@ -201,11 +224,13 @@ async function handleAdminDeleteUser(req, res) {
   let payload;
   try {
     payload = await readJsonBody(req);
-  } catch (_) {
-    return jsonResponse(res, 400, { error: 'Invalid JSON' });
+  } catch (e) {
+    const msg = e && e.message === 'Payload too large' ? e.message : 'Invalid JSON';
+    const code = msg === 'Payload too large' ? 413 : 400;
+    return jsonResponse(res, code, { error: msg });
   }
   const { email } = payload;
-  if (!email) return jsonResponse(res, 400, { error: 'email required' });
+  if (!email || typeof email !== 'string') return jsonResponse(res, 400, { error: 'email required' });
 
   const listReq = https.request(
     {
@@ -264,8 +289,8 @@ function serveStatic(req, res) {
 
   fs.stat(filePath, (err, stats) => {
     if (err) {
-      res.writeHead(404, { 'Content-Type': 'text/html' });
-      return res.end(`<h1>404 - ${urlPath} not found</h1>`);
+      res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end(`<h1>404 - ${escapeHtml(urlPath)} not found</h1>`);
     }
     if (stats.isDirectory()) filePath = path.join(filePath, 'index.html');
     const ext = String(path.extname(filePath)).toLowerCase();

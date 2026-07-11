@@ -3287,15 +3287,15 @@
     const el = (id) => document.getElementById(id);
     let isSignUp = false;
     let currentUser = null;
+    let authState = { email: null };
 
     // ----- AUTH UI -----
-    const currentUserEmail = () => (supa.auth._currentSession?.user?.email) || (authState.email) || '—';
+    const currentUserEmail = () => currentUser?.email || authState.email || '—';
     const currentUserName = () => {
-      const u = currentUser || supa.auth._currentSession?.user;
-      if (!u) return '—';
+      const u = currentUser;
+      if (!u) return authState.email || '—';
       return u.user_metadata?.full_name || u.email;
     };
-    let authState = { email: null };
 
     function showMsg(kind, text) {
       const m = el('msg');
@@ -3379,7 +3379,7 @@
         showMsg('error', err.message || 'A apărut o eroare');
       } finally {
         btn.disabled = false;
-        btn.textContent = originalText;
+        el('btnText').textContent = originalText;
       }
     });
 
@@ -3398,7 +3398,7 @@
       el('settingsPhone').value = meta.phone || '';
       if (el('profileDeptSelect')) el('profileDeptSelect').value = meta.department || '';
 
-      el('avatarBadge').textContent = (meta.first_name?.[0] || email[0] || '?').toUpperCase();
+      el('avatarBadge').textContent = (meta.first_name?.charAt(0) || email.charAt(0) || '?').toUpperCase();
 
       // Ensure profile exists in public table for team visibility
       supa.from('profiles').upsert({
@@ -3569,7 +3569,7 @@
 
         showToast('Profil actualizat cu succes!');
         el('greetingEmail').textContent = currentUser.user_metadata.full_name || currentUser.email;
-        el('avatarBadge').textContent = (first_name[0] || currentUser.email[0]).toUpperCase();
+        el('avatarBadge').textContent = (first_name.charAt(0) || currentUser.email.charAt(0) || '?').toUpperCase();
       } catch (err) {
         alert('Eroare la actualizare: ' + err.message);
       } finally {
@@ -5038,6 +5038,12 @@
       const btn = el('enableNotifBtn');
       const status = el('notifStatus');
       if (!btn || !status) return;
+      if (!("Notification" in window)) {
+        status.textContent = "Nesuportat";
+        status.style.color = "var(--text-mute)";
+        btn.style.display = "none";
+        return;
+      }
 
       if (Notification.permission === "granted") {
         status.textContent = "Activate";
@@ -5063,7 +5069,7 @@
       if (bell) bell.classList.add('has-unread');
 
       // 1. Browser Push (Forțăm apariția pentru test, chiar dacă tab-ul e vizibil)
-      if (Notification.permission === "granted") {
+      if ("Notification" in window && Notification.permission === "granted") {
         try {
           new Notification(title, {
             body,
@@ -5243,7 +5249,7 @@
       const isDone = !!task.is_completed;
       const sk = taskStatusKey(task.status);
       const isAssignedToMe = currentUser && String(task.assigned_user_id) === String(currentUser.id);
-      const isAdmin = currentUser && currentUser.email && currentUser.email.includes('admin');
+      const admin = isAdmin();
 
       let actionsHtml = '';
       if (isDone) {
@@ -5253,7 +5259,7 @@
         `;
       } else if (sk === 'in_progress') {
         // Butonul "Finisat" apare doar pentru cel responsabil sau admin
-        if (isAssignedToMe || isAdmin) {
+        if (isAssignedToMe || admin) {
           actionsHtml += `
             <button class="btn" data-detail-action="task-finish" data-task-id="${task.id}">${escape(t('task.action.finish'))}</button>
           `;
@@ -5319,7 +5325,7 @@
       const me = currentUserEmail();
       c.innerHTML = data.map(u => `
         <div class="update">
-          <div class="update-avatar">${escape((u.user_name || u.user_email || '?')[0].toUpperCase())}</div>
+          <div class="update-avatar">${escape(((u.user_name || u.user_email || '?').charAt(0) || '?').toUpperCase())}</div>
           <div class="update-body">
             <div class="update-head">
               <span class="update-name">${escape(u.user_name || u.user_email || 'Anonim')}</span>
