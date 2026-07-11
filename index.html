@@ -3705,7 +3705,8 @@
 
     // ----- STATE for filters / search -----
     const state = {
-      cars: [], tasks: [], events: [], notifications: [], team: [],
+      cars: [], tasks: [], events: [], profiles: [], notifications: [], team: [],
+      authUsers: null,
       carsFilter: 'all', carsSearch: '',
       tasksFilter: 'all', tasksSearch: '', tasksDept: 'all',
       eventsFilter: 'all', eventsSearch: '',
@@ -4037,13 +4038,13 @@
     function renderHero(events) {
       const list = events || [];
       const heroBadge = document.querySelector('.hero-badge');
-      if (heroBadge) heroBadge.innerHTML = `<span class="dot"></span>${translations[currentLang]["home.next_event"]}`;
+      if (heroBadge) heroBadge.innerHTML = `<span class="dot"></span>${t("home.next_event")}`;
       const heroMetaLabel = document.querySelector('.hero-meta .l');
-      if (heroMetaLabel) heroMetaLabel.textContent = translations[currentLang]["home.days_left"];
+      if (heroMetaLabel) heroMetaLabel.textContent = t("home.days_left");
 
       if (!list.length) {
-        el('heroTitle').textContent = translations[currentLang]["home.nothing_found"];
-        el('heroSub').textContent = translations[currentLang]["home.loading"];
+        el('heroTitle').textContent = t("common.nothing_found");
+        el('heroSub').textContent = t("home.loading");
         el('heroDate').textContent = '';
         el('heroLocation').textContent = '';
         el('heroDays').textContent = '—';
@@ -4069,12 +4070,12 @@
       const card = el('upcomingEventsCard');
       if (card) {
         const h3 = card.querySelector('h3');
-        if (h3) h3.textContent = translations[currentLang]["home.upcoming_events"];
+        if (h3) h3.textContent = t("home.upcoming_events");
         const p = card.querySelector('p');
-        if (p) p.textContent = translations[currentLang]["home.upcoming_sub"];
+        if (p) p.textContent = t("home.upcoming_sub");
       }
       const c = el('upcomingEventsList');
-      if (!list.length) return c.innerHTML = emptyState(translations[currentLang]["common.nothing_found"]);
+      if (!list.length) return c.innerHTML = emptyState(t("common.nothing_found"));
       c.innerHTML = list.map(e => `
         <div class="row">
           <div class="row-icon blue">
@@ -4094,12 +4095,12 @@
       const card = el('topTasksCard');
       if (card) {
         const h3 = card.querySelector('h3');
-        if (h3) h3.textContent = translations[currentLang]["home.priority_tasks"];
+        if (h3) h3.textContent = t("home.priority_tasks");
         const p = card.querySelector('p');
-        if (p) p.textContent = translations[currentLang]["home.priority_sub"];
+        if (p) p.textContent = t("home.priority_sub");
       }
       const c = el('topTasksList');
-      if (!list.length) return c.innerHTML = emptyState(translations[currentLang]["common.nothing_found"]);
+      if (!list.length) return c.innerHTML = emptyState(t("common.nothing_found"));
       c.innerHTML = list.map(tk => `
         <div class="row">
           <div class="row-icon ${statusToBadge(tk.status) === 'red' ? 'red' : statusToBadge(tk.status) === 'green' ? 'green' : 'orange'}">
@@ -4162,7 +4163,7 @@
       el('eventsCount').textContent = state.events.length;
       const list = filterEvents();
       const c = el('eventsList');
-      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(translations[currentLang]["common.nothing_found"]) + '</div>';
+      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(t("common.nothing_found")) + '</div>';
       c.innerHTML = '<div class="page-grid-2">' + list.map(e => {
         const active = eventStatusKey(e.status);
         const buttons = EVENT_STATUS_OPTIONS.map(opt => `
@@ -4185,14 +4186,14 @@
               </div>
               <div style="text-align:right;">
                 <div class="badge ${statusToBadge(e.status)}">${escape(translateStatus(e.status, 'event'))}</div>
-                ${e.days_left != null ? `<div style="margin-top:10px;color:var(--text-dim);font-size:11px;">${e.days_left} ${translations[currentLang]["common.days"]}</div>` : ''}
+                ${e.days_left != null ? `<div style="margin-top:10px;color:var(--text-dim);font-size:11px;">${e.days_left} ${t("common.days")}</div>` : ''}
               </div>
             </div>
             <div class="event-actions">
               ${buttons}
               <button class="action-btn delete" data-action="event-delete" data-event-id="${e.id}" data-event-label="${escape(e.title)}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-                ${translations[currentLang]["common.delete"]}
+                ${t("common.delete")}
               </button>
             </div>
           </div>
@@ -4267,15 +4268,15 @@
       el('carsCount').textContent = state.cars.length;
       const list = filterCars();
       const c = el('carsList');
-      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(translations[currentLang]["common.nothing_found"]) + '</div>';
+      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(t("common.nothing_found")) + '</div>';
       c.innerHTML = '<div class="page-grid-2" id="carsInner"></div>';
       el('carsInner').innerHTML = list.map(car => {
         const active = statusKey(car.status);
         const actionButtons = CAR_STATUS_OPTIONS.map(opt => {
           let label = opt.label;
-          if (opt.key === 'invitat') label = translations[currentLang]["car.status.invited"];
-          if (opt.key === 'sosit')   label = translations[currentLang]["car.status.arrived"];
-          if (opt.key === 'plecat')  label = translations[currentLang]["car.status.left"];
+          if (opt.key === 'invitat') label = t("car.status.invited");
+          if (opt.key === 'sosit')   label = t("car.status.arrived");
+          if (opt.key === 'plecat')  label = t("car.status.left");
 
           return `
             <button class="action-btn ${active === opt.key ? 'active-' + opt.key : ''}"
@@ -4330,7 +4331,7 @@
         membersMap.set(currentUser.email, {
           name: name === currentUser.email ? name.split('@')[0] : name,
           email: currentUser.email,
-          role: meta.department ? t('dept.' + meta.department) : 'Admin'
+          role: meta.department ? localizeDept(meta.department) : 'Member'
         });
       }
 
@@ -4341,7 +4342,7 @@
         membersMap.set(p.email, {
           name: name,
           email: p.email,
-          role: p.department ? t('dept.' + p.department) : 'Member'
+          role: p.department ? localizeDept(p.department) : 'Member'
         });
       });
 
@@ -4354,7 +4355,7 @@
           membersMap.set(u.email, {
             name: name,
             email: u.email,
-            role: meta.department ? t('dept.' + meta.department) : 'Member'
+            role: meta.department ? localizeDept(meta.department) : 'Member'
           });
         });
       }
@@ -4378,7 +4379,7 @@
         const admin = isAdmin();
 
         const canInteract = admin;
-        const attrs = canInteract ? `data-modal="edit-profile" data-edit-email="${m.email}" data-edit-name="${escape(m.name)}" style="cursor:pointer;"` : '';
+        const attrs = canInteract ? `data-modal="edit-profile" data-edit-email="${escape(m.email)}" data-edit-name="${escape(m.name)}" style="cursor:pointer;"` : '';
 
         return `
           <div class="team-card" ${attrs}>
@@ -5133,19 +5134,21 @@
       t._timer = setTimeout(() => t.classList.remove('show'), 2600);
     }
 
+    // NOTE: both fmt helpers return PLAIN text — callers are responsible for
+    // escaping (they all pass the result through escape()).
     function fmtDateTime(v) {
       if (!v) return '—';
       try {
         const d = new Date(v);
-        if (isNaN(d)) return escape(String(v));
+        if (isNaN(d)) return String(v);
         return d.toLocaleString('ro-RO', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-      } catch { return escape(String(v)); }
+      } catch { return String(v); }
     }
 
     function fmtRelative(v) {
       if (!v) return '';
       const d = new Date(v);
-      if (isNaN(d)) return escape(String(v));
+      if (isNaN(d)) return String(v);
       const diff = (Date.now() - d.getTime()) / 1000;
       if (diff < 60) return 'acum câteva secunde';
       if (diff < 3600) return `acum ${Math.floor(diff/60)} min`;
@@ -5801,14 +5804,14 @@
       el('tasksCount').textContent = state.tasks.length;
       const list = filterTasks();
       const c = el('tasksList');
-      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(translations[currentLang]["common.nothing_found"]) + '</div>';
+      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(t("common.nothing_found")) + '</div>';
 
       const priorityMeta = (p) => {
         const key = (p || '').toLowerCase();
-        if (key.includes('urgent')) return { cls: 'priority-urgent', label: translations[currentLang]["task.priority_urgent"], mark: '+' };
-        if (key.includes('ridicat') || key.includes('important') || key.includes('high')) return { cls: 'priority-high', label: translations[currentLang]["task.priority_high"], mark: '+' };
-        if (key.includes('scăzut') || key.includes('scazut') || key.includes('low')) return { cls: 'priority-low', label: translations[currentLang]["task.priority_normal"], mark: '' }; // Assuming normal for low in this specific UI logic
-        return { cls: 'priority-normal', label: translations[currentLang]["task.priority_normal"], mark: '' };
+        if (key.includes('urgent')) return { cls: 'priority-urgent', label: t("task.priority_urgent"), mark: '+' };
+        if (key.includes('ridicat') || key.includes('important') || key.includes('high')) return { cls: 'priority-high', label: t("task.priority_high"), mark: '+' };
+        if (key.includes('scăzut') || key.includes('scazut') || key.includes('low')) return { cls: 'priority-low', label: t("task.priority_normal"), mark: '' }; // Assuming normal for low in this specific UI logic
+        return { cls: 'priority-normal', label: t("task.priority_normal"), mark: '' };
       };
 
       const iconClock = '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>';
@@ -5853,13 +5856,13 @@
           </button>`;
         } else if (sk === 'in_progress') {
           if (isOwner) {
-            primaryBtn = `<button class="tk-btn green" data-action="task-complete" data-task-id="${tk.id}">
+            primaryBtn = `<button class="tk-btn green" data-action="task-finish" data-task-id="${tk.id}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${iconCheck}</svg>
               ${t("task.action.finish")}
             </button>`;
           } else {
             // Someone else is working on it → show a disabled locked chip instead
-            primaryBtn = `<div class="tk-btn locked" title="${t("task.locked_msg", { name: responsibleRaw })}">
+            primaryBtn = `<div class="tk-btn locked" title="${escape(t("task.locked_msg", { name: responsibleRaw }))}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               ${t("task.worked_by")} ${escape((responsibleRaw || '').split('@')[0])}
             </div>`;

@@ -280,6 +280,12 @@ async function handleAdminDeleteUser(req, res) {
 function serveStatic(req, res) {
   let urlPath = req.url === '/' ? '/index.html' : req.url;
   urlPath = urlPath.split('?')[0];
+  try {
+    urlPath = decodeURIComponent(urlPath);
+  } catch (_) {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    return res.end('Bad Request');
+  }
   const safePath = path.normalize(urlPath).replace(/^([/\\.]+)+/, '');
   let filePath = path.join(__dirname, safePath);
   if (!filePath.startsWith(__dirname)) {
