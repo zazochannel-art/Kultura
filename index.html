@@ -3630,15 +3630,23 @@
         return false;
       }
 
-      const { error } = await supa.from('tasks').update({
+      // Atomic guard: only claim the task if it's still unassigned, so two
+      // users clicking simultaneously can't both take it. The row count tells
+      // us whether WE won the race.
+      const { data: claimed, error } = await supa.from('tasks').update({
         status: 'in_progress',
         status_color: '#F59E0B',
         assigned_user_id: currentUser.id,
         assigned_user_name: currentUserName(),
         started_at: new Date().toISOString()
-      }).eq('id', taskId);
+      }).eq('id', taskId).is('assigned_user_id', null).select('id');
 
       if (error) { alert('Eroare: ' + error.message); return false; }
+      if (!claimed || claimed.length === 0) {
+        alert('Acest task a fost deja preluat de alt utilizator.');
+        await loadData();
+        return false;
+      }
       showToast('Ai preluat taskul.');
       return true;
     }
@@ -4824,16 +4832,28 @@
       el('aiImportConfirmBtn').disabled = true;
 
       try {
-        // Ensure phone/contact consistency for database fields
-        for (const car of cars) {
-          if (car.phone && !car.contact) car.contact = car.phone;
-          if (car.contact && !car.phone) car.phone = car.contact;
-        }
+        // Map AI output onto uniform, whitelisted rows: a stray key invented
+        // by the model would otherwise reject a whole batch ("column not
+        // found"), and NOT NULL columns need string fallbacks.
+        const rows = cars.map(c => ({
+          model: c.model || '',
+          owner: c.owner || '',
+          plate: c.plate || '',
+          zone: c.zone || '',
+          status: c.status || 'Invitat',
+          status_color: c.status_color || '#3B82F6',
+          is_vip: c.is_vip === true,
+          phone: c.phone || c.contact || null,
+          email: c.email || null,
+          brand: c.brand || null,
+          city: c.city || null,
+          contact: c.contact || c.phone || null
+        }));
         // Bulk insert in batches instead of one request per row — far fewer
         // round-trips, and a failed batch actually surfaces its error.
         const BATCH = 100;
-        for (let i = 0; i < cars.length; i += BATCH) {
-          const { error } = await supa.from('cars').insert(cars.slice(i, i + BATCH));
+        for (let i = 0; i < rows.length; i += BATCH) {
+          const { error } = await supa.from('cars').insert(rows.slice(i, i + BATCH));
           if (error) throw new Error(`Lotul ${Math.floor(i / BATCH) + 1}: ${error.message}`);
         }
 
