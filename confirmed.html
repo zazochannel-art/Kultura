@@ -312,16 +312,34 @@
       document.getElementById('statusDetail').textContent = 'Deschide aplicația și înregistrează-te din nou pentru a primi un email de confirmare nou.';
     });
 
+    // Neutral state for direct visits without any auth params — we can't know
+    // whether the email was confirmed, so don't claim success.
+    function showNeutral() {
+      const icon = document.getElementById('statusIcon');
+      icon.className = 'status-icon loading';
+      icon.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:none">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>`;
+      document.getElementById('statusTitle').textContent = 'Pagina de confirmare';
+      document.getElementById('statusSubtitle').textContent = 'Ai ajuns aici fără un link de confirmare.';
+      document.getElementById('statusDetail').textContent = 'Dacă ai deschis linkul din emailul de înregistrare, contul tău este deja activ — deschide aplicația și autentifică-te.';
+      document.getElementById('ctaBox').style.display = 'block';
+      document.getElementById('ctaPrimaryText').textContent = 'Deschide aplicația';
+    }
+
     // Decide state from the URL params.
     const p = parseParams();
     if (p.error || p.error_description || p.error_code) {
       showError(p.error_description || p.error || 'Ceva a mers greșit.');
-    } else if (p.access_token || p.type === 'signup' || p.type === 'recovery' || p.type === 'invite' || p.confirmed === '1') {
+    } else if (p.access_token || p.code || p.token_hash ||
+               p.type === 'signup' || p.type === 'recovery' || p.type === 'invite' || p.confirmed === '1') {
+      // access_token → implicit flow; code → PKCE flow; token_hash → verify link.
       showSuccess();
     } else {
-      // No auth params — probably direct visit. Show success anyway; if user got here,
-      // the click already ran through Supabase.
-      showSuccess();
+      showNeutral();
     }
   </script>
 </body>

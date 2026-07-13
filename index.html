@@ -4824,13 +4824,17 @@
       el('aiImportConfirmBtn').disabled = true;
 
       try {
-        // Import cars to Supabase
+        // Ensure phone/contact consistency for database fields
         for (const car of cars) {
-          // Ensure phone/contact consistency for database fields
           if (car.phone && !car.contact) car.contact = car.phone;
           if (car.contact && !car.phone) car.phone = car.contact;
-
-          await supa.from('cars').insert(car);
+        }
+        // Bulk insert in batches instead of one request per row — far fewer
+        // round-trips, and a failed batch actually surfaces its error.
+        const BATCH = 100;
+        for (let i = 0; i < cars.length; i += BATCH) {
+          const { error } = await supa.from('cars').insert(cars.slice(i, i + BATCH));
+          if (error) throw new Error(`Lotul ${Math.floor(i / BATCH) + 1}: ${error.message}`);
         }
 
         statusDiv.textContent = `Au fost importate ${cars.length} mașini cu succes!`;
