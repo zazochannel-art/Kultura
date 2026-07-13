@@ -1,16 +1,26 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
+// Release signing is read from keystore.properties (see
+// keystore.properties.example). Without it, release builds stay unsigned —
+// debug builds are unaffected.
+def keystorePropsFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+
 android {
     namespace 'com.example.kultura'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.kultura"
+        // Play Store rejects com.example.* — GitHub-Pages-derived id instead.
+        applicationId "io.github.zazochannelart.kultura"
         minSdk 24
         targetSdk 34
-        versionCode 2
-        versionName "1.1"
+        versionCode 3
+        versionName "1.2"
     }
 
     compileOptions {
@@ -22,9 +32,25 @@ android {
         jvmTarget = '17'
     }
 
+    signingConfigs {
+        release {
+            if (keystorePropsFile.exists()) {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (keystorePropsFile.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

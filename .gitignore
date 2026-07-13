@@ -28,3 +28,8 @@ yarn-error.log*
 !.env.example
 server.log
 server_err.log
+
+# Release signing — never commit
+keystore.properties
+*.jks
+*.keystore
