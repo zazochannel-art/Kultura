@@ -121,6 +121,8 @@
           if (typeof renderCarsChips === 'function')   renderCarsChips();
           if (typeof renderEventsChips === 'function') renderEventsChips();
           if (typeof renderTeam === 'function')        renderTeam();
+          if (typeof updatePushUI === 'function')      updatePushUI();
+          if (typeof updateNotifUI === 'function')     updateNotifUI();
           if (typeof renderTasksDeptChips === 'function') renderTasksDeptChips();
           if (typeof renderUpcoming === 'function')    renderUpcoming(state?.events || []);
           if (typeof renderTopTasks === 'function')    renderTopTasks(state?.tasks || []);
@@ -1782,7 +1784,24 @@
           return;
         }
 
-        statusDiv.textContent = `Analiză completă! Am găsit ${cars.length} mașini.`;
+        // Duplicate detection: flag rows whose plate already exists in the DB
+        // or appears twice in the file. Flagged rows are shown in the preview
+        // but skipped at import.
+        const normPlate = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const existingPlates = new Set(
+          (state.cars || []).map(x => normPlate(x.plate)).filter(p => p.length >= 3)
+        );
+        const seenInFile = new Set();
+        let dupCount = 0;
+        for (const car of cars) {
+          const p = normPlate(car.plate);
+          car._dup = p.length >= 3 && (existingPlates.has(p) || seenInFile.has(p));
+          if (p.length >= 3) seenInFile.add(p);
+          if (car._dup) dupCount++;
+        }
+
+        statusDiv.textContent = `Analiză completă! Am găsit ${cars.length} mașini` +
+          (dupCount ? ` (${dupCount} dubluri — vor fi sărite la import).` : '.');
         statusDiv.style.color = 'var(--green)';
         setTimeout(() => { el('aiProgressBarContainer').style.display = 'none'; }, 1000);
 
@@ -1796,15 +1815,19 @@
           const phoneChip = car.phone
             ? `<span style="background: rgba(16,185,129,0.15); color: var(--green); padding: 2px 6px; border-radius: 4px; font-family: monospace;">Tel: ${escape(car.phone)}</span>`
             : `<span style="background: rgba(255,255,255,0.05); color: var(--text-mute); padding: 2px 6px; border-radius: 4px; font-style: italic;">Tel lipsă</span>`;
+          const dupChip = car._dup
+            ? `<span style="background: rgba(245,158,11,0.18); color: var(--orange); padding: 2px 6px; border-radius: 4px; font-weight: 700;">DUBLURĂ — se sare</span>`
+            : '';
           return `
-            <div style="padding: 10px; border-bottom: 1px solid rgba(59,130,246,0.2); font-size: 12px; display: flex; align-items: center; gap: 8px;">
-              <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex-shrink: 0;"></div>
+            <div style="padding: 10px; border-bottom: 1px solid rgba(59,130,246,0.2); font-size: 12px; display: flex; align-items: center; gap: 8px; ${car._dup ? 'opacity: 0.55;' : ''}">
+              <div style="width: 6px; height: 6px; border-radius: 50%; background: ${car._dup ? 'var(--orange)' : 'var(--blue)'}; flex-shrink: 0;"></div>
               <div style="flex: 1; min-width: 0;">
                 <div style="font-weight: bold; color: var(--text);">${escape(car.model || '—')}</div>
                 <div style="color: var(--text-dim); font-size: 11px; margin-top: 2px;">${escape(car.owner || '—')}</div>
                 <div style="display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; font-size: 10px;">
                   ${plateChip}
                   ${phoneChip}
+                  ${dupChip}
                 </div>
               </div>
             </div>
@@ -1840,10 +1863,19 @@
       el('aiImportConfirmBtn').disabled = true;
 
       try {
+        // Skip rows flagged as duplicates during the preview step.
+        const fresh = cars.filter(c => !c._dup);
+        const skipped = cars.length - fresh.length;
+        if (fresh.length === 0) {
+          statusDiv.textContent = 'Toate mașinile din fișier există deja — nimic de importat.';
+          statusDiv.style.color = 'var(--orange)';
+          el('aiImportConfirmBtn').disabled = false;
+          return;
+        }
         // Map AI output onto uniform, whitelisted rows: a stray key invented
         // by the model would otherwise reject a whole batch ("column not
         // found"), and NOT NULL columns need string fallbacks.
-        const rows = cars.map(c => ({
+        const rows = fresh.map(c => ({
           model: c.model || '',
           owner: c.owner || '',
           plate: c.plate || '',
@@ -1865,7 +1897,8 @@
           if (error) throw new Error(`Lotul ${Math.floor(i / BATCH) + 1}: ${error.message}`);
         }
 
-        statusDiv.textContent = `Au fost importate ${cars.length} mașini cu succes!`;
+        statusDiv.textContent = `Au fost importate ${rows.length} mașini cu succes!` +
+          (skipped ? ` ${skipped} dubluri au fost sărite.` : '');
         statusDiv.style.color = 'var(--green)';
         await loadData();
 
@@ -2135,6 +2168,92 @@
 
     el('enableNotifBtn').addEventListener('click', requestNotificationPermission);
 
+    // ----- WEB PUSH (notifications while the app is closed) -----
+    // Public VAPID key — safe to embed; the matching private key lives only
+    // in the send-push Edge Function secrets.
+    const VAPID_PUBLIC_KEY = 'BDxoYrWZYVICRD_0BtDEI5yGlWBL7_RLB1aU2hpMnjKBk6NbojHoJ8Zu5xB7DixaQe_uPI5xkw9ek5PtgW7Dxpk';
+    const pushSupported = () =>
+      'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
+    function urlBase64ToUint8Array(base64) {
+      const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+      const b64 = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const raw = atob(b64);
+      return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+    }
+
+    async function updatePushUI() {
+      const btn = el('pushToggleBtn');
+      const status = el('pushStatus');
+      if (!btn || !status) return;
+      if (!pushSupported()) {
+        status.textContent = t('settings.push.unsupported');
+        status.style.color = 'var(--text-mute)';
+        btn.style.display = 'none';
+        return;
+      }
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = reg ? await reg.pushManager.getSubscription() : null;
+      if (sub && Notification.permission === 'granted') {
+        status.textContent = t('settings.push.status_on');
+        status.style.color = 'var(--green)';
+        btn.textContent = t('settings.push.disable');
+        btn.dataset.state = 'on';
+      } else {
+        status.textContent = t('settings.push.status_off');
+        status.style.color = 'var(--text-mute)';
+        btn.textContent = t('settings.push.enable');
+        btn.dataset.state = 'off';
+      }
+    }
+
+    async function enablePush() {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') throw new Error(t('settings.notifs.status_off'));
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+      }
+      const json = sub.toJSON();
+      const { error } = await supa.from('push_subscriptions').upsert({
+        endpoint: sub.endpoint,
+        p256dh: json.keys.p256dh,
+        auth: json.keys.auth,
+        user_email: currentUser?.email || null,
+      }, { onConflict: 'endpoint' });
+      if (error) throw error;
+    }
+
+    async function disablePush() {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = reg ? await reg.pushManager.getSubscription() : null;
+      if (sub) {
+        await supa.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
+        await sub.unsubscribe();
+      }
+    }
+
+    el('pushToggleBtn').addEventListener('click', async () => {
+      const btn = el('pushToggleBtn');
+      const turningOn = btn.dataset.state !== 'on';
+      btn.disabled = true;
+      try {
+        if (turningOn) { await enablePush(); showToast(t('settings.push.enabled_toast')); }
+        else { await disablePush(); showToast(t('settings.push.disabled_toast')); }
+      } catch (err) {
+        uiAlert(t('settings.push.error') + ': ' + (err.message || err));
+      } finally {
+        btn.disabled = false;
+        updatePushUI();
+      }
+    });
+
+    setTimeout(updatePushUI, 1200);
+
     function renderNotifications() {
       const list = el('notifsList');
       if (!list) return;
@@ -2339,7 +2458,16 @@
             <button class="btn small" id="taskUpdateSubmit">${escape(t('task.detail.add_update'))}</button>
           </div>
         </div>
+
+        <div class="detail-section">
+          <div class="detail-section-title">${escape(t('history.title'))}</div>
+          <div id="taskHistoryList" class="history-list">
+            <div class="empty" style="color:var(--text-mute);font-size:12px;">${escape(t('history.loading'))}</div>
+          </div>
+        </div>
       `;
+
+      loadActivityLog('task', task.id, 'taskHistoryList');
 
       // Actions — contextual buttons based on task state
       const isDone = !!task.is_completed;
@@ -2406,6 +2534,43 @@
         showTaskDetail(task.id);
       };
       el('taskInstructionsInput').focus();
+    }
+
+    // Render the audit trail for one entity into a container. Rows are
+    // populated server-side by DB triggers (read-only for the client).
+    async function loadActivityLog(entity, entityId, containerId) {
+      const c = el(containerId);
+      if (!c) return;
+      const { data, error } = await supa.from('activity_log')
+        .select('*').eq('entity', entity).eq('entity_id', entityId)
+        .order('id', { ascending: false }).limit(50);
+      if (!el(containerId)) return; // modal may have switched entities
+      if (error) {
+        c.innerHTML = `<div class="empty" style="color:var(--red);font-size:12px;">${escape(error.message)}</div>`;
+        return;
+      }
+      if (!data.length) {
+        c.innerHTML = `<div class="empty" style="color:var(--text-mute);font-size:12px;">${escape(t('history.empty'))}</div>`;
+        return;
+      }
+      const who = (e) => escape((e || '').split('@')[0] || t('history.nobody'));
+      const dash = (v) => (v && v.trim()) ? escape(v) : '—';
+      c.innerHTML = data.map(row => {
+        let line;
+        switch (row.action) {
+          case 'created':  line = `<strong>${who(row.user_email)}</strong> ${escape(t('history.created'))}`; break;
+          case 'deleted':  line = `<strong>${who(row.user_email)}</strong> ${escape(t('history.deleted'))}`; break;
+          case 'status':   line = `<strong>${who(row.user_email)}</strong> ${escape(t('history.status'))}: ${dash(row.old_value)} → ${dash(row.new_value)}`; break;
+          case 'zone':     line = `<strong>${who(row.user_email)}</strong> ${escape(t('history.zone'))}: ${dash(row.old_value)} → ${dash(row.new_value)}`; break;
+          case 'assigned': line = `<strong>${who(row.user_email)}</strong> ${escape(t('history.assigned'))}: ${dash(row.old_value)} → ${dash(row.new_value)}`; break;
+          default:         line = `<strong>${who(row.user_email)}</strong> ${escape(row.action)}`;
+        }
+        return `<div class="history-item">
+          <div class="history-dot"></div>
+          <div class="history-body"><div class="history-line">${line}</div>
+          <div class="history-time">${escape(fmtRelative(row.created_at))}</div></div>
+        </div>`;
+      }).join('');
     }
 
     async function refreshTaskUpdates(taskId) {
@@ -2566,7 +2731,16 @@
               : `<div class="detail-text empty">${escape(t('car.detail.notes_empty'))}</div>`}
           </div>
         </div>
+
+        <div class="detail-section">
+          <div class="detail-section-title">${escape(t('history.title'))}</div>
+          <div id="carHistoryList" class="history-list">
+            <div class="empty" style="color:var(--text-mute);font-size:12px;">${escape(t('history.loading'))}</div>
+          </div>
+        </div>
       `;
+
+      loadActivityLog('car', c.id, 'carHistoryList');
 
       el('carDetailActions').innerHTML = `
         <button class="btn ghost" data-detail-action="car-status" data-car-id="${c.id}" data-label="Sosit" data-color="#10B981">${escape(t('car.detail.action_confirm'))}</button>
