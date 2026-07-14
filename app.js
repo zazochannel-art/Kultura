@@ -271,6 +271,7 @@
       if (el('profileDeptSelect')) el('profileDeptSelect').value = meta.department || '';
 
       el('avatarBadge').textContent = (meta.first_name?.charAt(0) || email.charAt(0) || '?').toUpperCase();
+      updateAvatarUI(); // upgrades to the photo if profiles are already in state
 
       // Ensure profile exists in public table for team visibility
       supa.from('profiles').upsert({
@@ -409,6 +410,76 @@
       }
     });
 
+    // ----- PROFILE PHOTO -----
+    const myProfile = () => (state.profiles || [])
+      .find(p => (p.email || '').toLowerCase() === (currentUser?.email || '').toLowerCase());
+
+    // Sync every avatar spot (header badge + settings preview) with the
+    // profile row; falls back to the initial letter when no photo is set.
+    function updateAvatarUI() {
+      const url = myProfile()?.avatar_url;
+      const initial = (currentUser?.user_metadata?.first_name?.charAt(0)
+        || currentUser?.email?.charAt(0) || '?').toUpperCase();
+      [['avatarBadge', initial], ['settingsAvatarPreview', initial]].forEach(([id, fb]) => {
+        const node = el(id);
+        if (!node) return;
+        if (url) node.innerHTML = `<img src="${escape(url)}" alt="">`;
+        else node.textContent = fb;
+      });
+    }
+
+    // Center-crop to a square and resize — avatars always render in circles.
+    async function squareAvatar(file, size = 256, quality = 0.85) {
+      const bmp = await createImageBitmap(file);
+      const side = Math.min(bmp.width, bmp.height);
+      const sx = (bmp.width - side) / 2, sy = (bmp.height - side) / 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      canvas.getContext('2d').drawImage(bmp, sx, sy, side, side, 0, 0, size, size);
+      if (bmp.close) bmp.close();
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
+      if (!blob) throw new Error('Formatul imaginii nu este suportat.');
+      return blob;
+    }
+
+    el('avatarChangeBtn').addEventListener('click', () => el('avatarFileInput').click());
+    el('avatarFileInput').addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!file || !currentUser) return;
+      const btn = el('avatarChangeBtn');
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = t('settings.profile.photo_uploading');
+      try {
+        const blob = await squareAvatar(file);
+        // New filename every time → no stale CDN/browser cache to fight.
+        const path = `${currentUser.id}/avatar-${Date.now()}.jpg`;
+        const { error: upErr } = await supa.storage.from('avatars')
+          .upload(path, blob, { contentType: 'image/jpeg' });
+        if (upErr) throw upErr;
+        const url = supa.storage.from('avatars').getPublicUrl(path).data.publicUrl;
+
+        const prev = myProfile()?.avatar_url;
+        const { error: dbErr } = await supa.from('profiles')
+          .update({ avatar_url: url }).eq('email', currentUser.email);
+        if (dbErr) throw dbErr;
+
+        // Best-effort cleanup of the replaced file.
+        const prevPath = (prev || '').split('/avatars/')[1];
+        if (prevPath) supa.storage.from('avatars').remove([decodeURIComponent(prevPath)]);
+
+        await loadData();
+        updateAvatarUI();
+        showToast(t('settings.profile.photo_saved'));
+      } catch (err) {
+        uiAlert(t('settings.profile.photo_error') + ': ' + (err.message || err));
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    });
+
     el('profileForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = el('saveProfileBtn');
@@ -441,7 +512,7 @@
 
         showToast('Profil actualizat cu succes!');
         el('greetingEmail').textContent = currentUser.user_metadata.full_name || currentUser.email;
-        el('avatarBadge').textContent = (first_name.charAt(0) || currentUser.email.charAt(0) || '?').toUpperCase();
+        updateAvatarUI();
       } catch (err) {
         uiAlert('Eroare la actualizare: ' + err.message);
       } finally {
@@ -858,6 +929,7 @@
               // (danger zone, event delete buttons) once we know who we are.
               try { applyAdminUI(); } catch (_) {}
               try { renderEvents(); } catch (_) {}
+              try { updateAvatarUI(); } catch (_) {}
             }
 
             // Live-refresh OPEN detail modals only if the underlying data
@@ -1281,7 +1353,8 @@
         membersMap.set(p.email, {
           name: name,
           email: p.email,
-          role: p.department ? localizeDept(p.department) : 'Member'
+          role: p.department ? localizeDept(p.department) : 'Member',
+          avatar: p.avatar_url || null
         });
       });
 
@@ -1322,7 +1395,7 @@
 
         return `
           <div class="team-card" ${attrs}>
-            <div class="team-avatar">${initials}</div>
+            <div class="team-avatar">${m.avatar ? `<img src="${escape(m.avatar)}" alt="" loading="lazy">` : initials}</div>
             <div class="team-info">
               <div class="team-name">${escape(m.name)} ${isMe ? '<span style="font-size:10px; opacity:0.6; font-weight:normal;">(Tu)</span>' : ''}</div>
               <div class="team-role">${escape(m.role)} • ${escape(m.email)}</div>

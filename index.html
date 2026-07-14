@@ -353,6 +353,15 @@
         <div class="page-grid-2">
         <div class="setting-block">
           <div class="setting-label" data-i18n="settings.profile">PROFIL</div>
+          <div class="avatar-row">
+            <div class="avatar-preview" id="settingsAvatarPreview">?</div>
+            <div class="txt">
+              <strong data-i18n="settings.profile.photo">Poza de profil</strong>
+              <span data-i18n="settings.profile.photo_help">JPG sau PNG, decupată automat pătrat</span>
+            </div>
+            <button type="button" class="btn small ghost" id="avatarChangeBtn" data-i18n="settings.profile.photo_change">Schimbă poza</button>
+            <input type="file" id="avatarFileInput" accept="image/*" style="display:none">
+          </div>
           <form id="profileForm">
             <div class="form-row">
               <div class="form-field">
