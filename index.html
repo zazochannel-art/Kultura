@@ -12,6 +12,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Bungee&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script>
+    // Apply the saved theme before first paint to avoid a flash.
+    (function () {
+      try {
+        var th = localStorage.getItem('kultura_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', th);
+      } catch (e) {}
+    })();
+  </script>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -402,6 +411,23 @@
               <button class="btn small ghost lang-btn" data-lang="ro">RO</button>
               <button class="btn small ghost lang-btn" data-lang="en">EN</button>
               <button class="btn small ghost lang-btn" data-lang="ru">RU</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="setting-block">
+          <div class="setting-label" data-i18n="settings.theme">TEMĂ</div>
+          <div class="setting-row">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            </div>
+            <div class="txt">
+              <strong data-i18n="settings.theme.title">Aspect</strong>
+              <span data-i18n="settings.theme.sub">Alege tema deschisă sau întunecată</span>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <button class="btn small ghost theme-btn" data-theme-choice="dark" data-i18n="settings.theme.dark">Întunecată</button>
+              <button class="btn small ghost theme-btn" data-theme-choice="light" data-i18n="settings.theme.light">Deschisă</button>
             </div>
           </div>
         </div>

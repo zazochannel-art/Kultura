@@ -149,7 +149,32 @@
       if (langBtn) {
         applyLanguage(langBtn.dataset.lang);
       }
+      const themeBtn = e.target.closest('.theme-btn');
+      if (themeBtn) {
+        applyTheme(themeBtn.dataset.themeChoice);
+      }
     });
+
+    // ----- THEME (light / dark) -----
+    function currentTheme() {
+      return document.documentElement.getAttribute('data-theme') || 'dark';
+    }
+    function updateThemeButtons() {
+      const th = currentTheme();
+      document.querySelectorAll('.theme-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.themeChoice === th);
+      });
+    }
+    function applyTheme(theme) {
+      const th = theme === 'light' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', th);
+      try { localStorage.setItem('kultura_theme', th); } catch (_) {}
+      // Keep the browser UI (status bar) in sync.
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', th === 'light' ? '#eef1f7' : '#07080d');
+      updateThemeButtons();
+    }
+    updateThemeButtons();
 
     // Apply the persisted language as soon as the DOM is parsed
     document.addEventListener('DOMContentLoaded', () => applyLanguage(currentLang));

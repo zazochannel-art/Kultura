@@ -16,6 +16,15 @@
       --red: #ef4444;
       --orange: #f59e0b;
       --teal: #14b8a6;
+      --fill-1: var(--fill-1);
+      --fill-2: var(--fill-2);
+      --fill-3: var(--fill-3);
+      --fill-4: var(--fill-4);
+      --fill-5: var(--fill-5);
+      --card-grad: var(--card-grad);
+      --card-grad-strong: var(--card-grad-strong);
+      --card-grad-solid: var(--card-grad-solid);
+      --blob-opacity: 1;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { min-height: 100%; }
@@ -64,7 +73,7 @@
       width: 100%;
       max-width: 440px;
       padding: 44px 32px 36px;
-      background: linear-gradient(160deg, rgba(26,31,53,0.90), rgba(14,17,32,0.80));
+      background: var(--card-grad);
       border: 1px solid var(--border);
       border-radius: 32px;
       backdrop-filter: blur(24px);
@@ -100,7 +109,7 @@
       align-items: center;
       gap: 12px;
       padding: 14px 16px;
-      background: rgba(255,255,255,0.02);
+      background: var(--fill-1);
       border: 1px solid var(--border);
       border-radius: 16px;
       margin-bottom: 12px;
@@ -174,7 +183,7 @@
       border: 1px solid var(--border);
       box-shadow: none;
     }
-    .btn.ghost:hover:not(:disabled) { background: rgba(255,255,255,0.04); }
+    .btn.ghost:hover:not(:disabled) { background: var(--fill-3); }
     .btn.danger {
       background: transparent;
       color: var(--red);
@@ -284,7 +293,7 @@
     .tabs {
       display: flex;
       gap: 6px;
-      background: rgba(20,24,43,0.6);
+      background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 6px;
@@ -448,7 +457,7 @@
       border-radius: 12px;
     }
     .row:hover {
-      background: rgba(255,255,255,0.03);
+      background: var(--fill-2);
     }
     .row:last-child { border-bottom: none; }
     .row-icon {
@@ -962,7 +971,7 @@
       animation: fadeIn 0.2s ease;
     }
     .modal {
-      background: linear-gradient(160deg, rgba(26,31,53,0.95), rgba(14,17,32,0.90));
+      background: var(--card-grad-strong);
       border: 1px solid var(--border);
       border-radius: 24px;
       padding: 28px;
@@ -1000,7 +1009,7 @@
     .form-field textarea,
     .form-field select {
       padding: 12px 14px;
-      background: rgba(255,255,255,0.02);
+      background: var(--fill-1);
       border: 1px solid var(--border);
       border-radius: 12px;
       color: var(--text);
@@ -1027,7 +1036,7 @@
     }
     .form-field select option,
     .form-field select optgroup {
-      background-color: #14182b;
+      background-color: var(--surface-solid);
       color: #f8fafc;
       padding: 8px;
     }
@@ -1036,7 +1045,7 @@
       align-items: center;
       gap: 10px;
       padding: 12px 14px;
-      background: rgba(255,255,255,0.02);
+      background: var(--fill-1);
       border: 1px solid var(--border);
       border-radius: 12px;
       margin-bottom: 14px;
@@ -1096,7 +1105,7 @@
     .detail-head-badges { display: flex; gap: 8px; flex-wrap: wrap; }
     .detail-close {
       width: 36px; height: 36px;
-      background: rgba(255,255,255,0.05);
+      background: var(--fill-4);
       border: 1px solid var(--border);
       border-radius: 12px;
       color: var(--text-dim);
@@ -1160,7 +1169,7 @@
     .detail-field.wide { grid-column: 1 / -1; }
 
     .detail-text {
-      background: rgba(255,255,255,0.02);
+      background: var(--fill-1);
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 14px 16px;
@@ -1176,7 +1185,7 @@
     .detail-textarea {
       display: block;
       width: 100%;
-      background: rgba(255,255,255,0.02);
+      background: var(--fill-1);
       border: 1px solid var(--blue);
       border-radius: 12px;
       padding: 14px 16px;
@@ -1205,7 +1214,7 @@
       transition: color 0.15s, background 0.15s, border-color 0.15s;
       margin-left: auto;
     }
-    .detail-edit-btn:hover { color: var(--text); border-color: var(--border-strong); background: rgba(255,255,255,0.04); }
+    .detail-edit-btn:hover { color: var(--text); border-color: var(--border-strong); background: var(--fill-3); }
     .detail-edit-btn svg { width: 12px; height: 12px; }
 
     .detail-inline-actions {
@@ -1265,7 +1274,7 @@
     }
     .update-composer textarea {
       flex: 1;
-      background: rgba(255,255,255,0.02);
+      background: var(--fill-1);
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 10px 14px;
@@ -1294,7 +1303,7 @@
       width: 200px;
       height: 130px;
       border-radius: 12px;
-      background: rgba(255,255,255,0.03);
+      background: var(--fill-2);
       border: 1px solid var(--border);
       object-fit: cover;
       cursor: zoom-in;
@@ -1380,7 +1389,7 @@
       gap: 5px;
       padding: 5px 10px;
       border: 1px solid var(--border);
-      background: rgba(255,255,255,0.02);
+      background: var(--fill-1);
       color: var(--text-dim);
       font-family: inherit;
       font-size: 11px;
@@ -1390,7 +1399,7 @@
       transition: all 0.15s;
       white-space: nowrap;
     }
-    .action-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+    .action-btn:hover { color: var(--text); background: var(--fill-5); }
     .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .action-btn.active-invitat { color: var(--blue); border-color: rgba(59,130,246,0.4); background: rgba(59,130,246,0.12); }
     .action-btn.active-sosit { color: var(--green); border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.12); }
@@ -1645,7 +1654,7 @@
 .ui-dialog-backdrop.show { opacity: 1; pointer-events: auto; }
 .ui-dialog {
   width: 100%; max-width: 400px;
-  background: linear-gradient(160deg, rgba(26,31,53,0.97), rgba(14,17,32,0.95));
+  background: var(--card-grad-solid);
   border: 1px solid var(--border-strong);
   border-radius: 20px;
   padding: 24px;
@@ -1660,7 +1669,7 @@
 .ui-dialog-btn {
   padding: 10px 18px; border-radius: 12px; font-size: 14px; font-weight: 700;
   font-family: inherit; cursor: pointer; border: 1px solid var(--border);
-  background: rgba(255,255,255,0.04); color: var(--text-dim);
+  background: var(--fill-3); color: var(--text-dim);
   transition: background 0.15s, color 0.15s, transform 0.1s;
 }
 .ui-dialog-btn:hover { background: rgba(255,255,255,0.08); color: var(--text); }
@@ -1694,7 +1703,7 @@
   width: 120px; height: 130px;
   border-radius: 14px;
   border: 1.5px dashed var(--border-strong);
-  background: rgba(255,255,255,0.02);
+  background: var(--fill-1);
   color: var(--text-dim);
   font-family: inherit; font-size: 11px; font-weight: 600;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
@@ -1800,3 +1809,36 @@
   .event-picker { max-width: 160px; padding: 5px 8px; }
   .event-picker select { max-width: 120px; font-size: 12px; }
 }
+
+/* ============ LIGHT THEME ============ */
+:root[data-theme="light"] {
+  --bg: #eef1f7;
+  --surface: rgba(255,255,255,0.78);
+  --surface-solid: #ffffff;
+  --surface-elev: #ffffff;
+  --border: rgba(15,23,42,0.12);
+  --border-strong: rgba(15,23,42,0.22);
+  --text: #0f172a;
+  --text-dim: #475569;
+  --text-mute: #94a3b8;
+  --fill-1: rgba(15,23,42,0.03);
+  --fill-2: rgba(15,23,42,0.05);
+  --fill-3: rgba(15,23,42,0.06);
+  --fill-4: rgba(15,23,42,0.07);
+  --fill-5: rgba(15,23,42,0.09);
+  --card-grad: linear-gradient(160deg, #ffffff, #f4f7fc);
+  --card-grad-strong: linear-gradient(160deg, #ffffff, #eef2f9);
+  --card-grad-solid: linear-gradient(160deg, #ffffff, #eef2f9);
+  color-scheme: light;
+}
+:root[data-theme="light"] body::before { opacity: 0.14; }
+:root[data-theme="light"] body::after  { opacity: 0.10; }
+:root[data-theme="light"] .login-card,
+:root[data-theme="light"] .card,
+:root[data-theme="light"] .modal,
+:root[data-theme="light"] .ui-dialog { box-shadow: 0 20px 50px rgba(15,23,42,0.10); }
+/* Solid dropdown options on light */
+:root[data-theme="light"] select option { background: #ffffff; color: var(--text); }
+
+/* Theme picker (Settings) */
+.theme-btn.active { background: var(--blue); color: #fff; }
