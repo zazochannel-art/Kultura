@@ -123,6 +123,7 @@
           if (typeof renderTeam === 'function')        renderTeam();
           if (typeof updatePushUI === 'function')      updatePushUI();
           if (typeof updateNotifUI === 'function')     updateNotifUI();
+          if (typeof updatePushLang === 'function')    updatePushLang();
           if (typeof renderTasksDeptChips === 'function') renderTasksDeptChips();
           if (typeof renderUpcoming === 'function')    renderUpcoming(state?.events || []);
           if (typeof renderTopTasks === 'function')    renderTopTasks(state?.tasks || []);
@@ -2704,8 +2705,21 @@
         p256dh: json.keys.p256dh,
         auth: json.keys.auth,
         user_email: currentUser?.email || null,
+        lang: currentLang,   // deliver notifications in the chosen language
       }, { onConflict: 'endpoint' });
       if (error) throw error;
+    }
+
+    // Keep the stored subscription language in sync when the user switches
+    // language, so future push notifications arrive translated.
+    async function updatePushLang() {
+      try {
+        if (!pushSupported() || !currentUser) return;
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = reg ? await reg.pushManager.getSubscription() : null;
+        if (!sub) return;
+        await supa.from('push_subscriptions').update({ lang: currentLang }).eq('endpoint', sub.endpoint);
+      } catch (_) { /* best-effort */ }
     }
 
     async function disablePush() {
@@ -2733,6 +2747,8 @@
     });
 
     setTimeout(updatePushUI, 1200);
+    // Align an existing subscription's language with the current UI on open.
+    setTimeout(updatePushLang, 2500);
 
     function renderNotifications() {
       const list = el('notifsList');
