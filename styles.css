@@ -1763,3 +1763,40 @@
 .history-line strong { color: var(--text); font-weight: 700; }
 .history-time { font-size: 11px; color: var(--text-mute); margin-top: 2px; }
 .history-loading { color: var(--text-mute); font-size: 12px; padding: 6px 0; }
+
+/* ============ QUICK CONTACT BUTTONS ============ */
+.btn.contact-wa { color: #25D366; border-color: rgba(37,211,102,0.35); }
+.btn.contact-wa:hover { background: rgba(37,211,102,0.10); }
+.btn.contact-wa svg, .btn.ghost svg { flex-shrink: 0; }
+#carDetailActions .btn { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ============ ROLE BADGES ============ */
+.role-badge {
+  font-size: 9px; font-weight: 800; letter-spacing: 0.3px;
+  padding: 2px 7px; border-radius: 100px; text-transform: uppercase;
+  vertical-align: middle;
+}
+.role-badge.admin { background: rgba(139,92,246,0.18); color: var(--purple); border: 1px solid rgba(139,92,246,0.35); }
+.role-badge.staff { background: rgba(59,130,246,0.15); color: var(--blue); border: 1px solid rgba(59,130,246,0.30); }
+
+/* ============ ACTIVE EVENT PICKER (header) ============ */
+.event-picker {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px 10px;
+  max-width: 240px;
+}
+.event-picker svg { width: 16px; height: 16px; color: var(--text-mute); flex-shrink: 0; }
+.event-picker select {
+  background: transparent; border: none; outline: none;
+  color: var(--text); font-family: inherit; font-size: 13px; font-weight: 600;
+  max-width: 190px; cursor: pointer;
+  text-overflow: ellipsis;
+}
+.event-picker select option { background: var(--surface-solid); color: var(--text); }
+@media (max-width: 560px) {
+  .event-picker { max-width: 160px; padding: 5px 8px; }
+  .event-picker select { max-width: 120px; font-size: 12px; }
+}
