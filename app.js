@@ -360,6 +360,9 @@
       document.querySelectorAll('.section').forEach(s => {
         s.classList.toggle('active', s.id === 'section-' + name);
       });
+      // The active-event picker lives only on the Home page.
+      const picker = document.querySelector('.event-picker');
+      if (picker) picker.style.display = (name === 'home') ? 'inline-flex' : 'none';
       // Scroll top of content when switching sections on mobile
       window.scrollTo({ top: 0, behavior: 'smooth' });
       if (name === 'map') loadMap();
