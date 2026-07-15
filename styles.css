@@ -27,6 +27,8 @@
       overflow-x: hidden;
       position: relative;
       -webkit-font-smoothing: antialiased;
+      /* Kill double-tap-to-zoom (and the 300ms tap delay); pinch-zoom stays. */
+      touch-action: manipulation;
     }
     body::before, body::after {
       content: "";
