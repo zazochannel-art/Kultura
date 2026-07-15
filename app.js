@@ -397,7 +397,52 @@
             <p class="map-empty-hint">${escape(t('map.empty_hint'))}</p>
           </div>`;
       }
+      renderZones();
     }
+
+    // Interactive zone breakdown, derived live from car data (respects the
+    // active-event filter). Each card expands to list its cars.
+    function renderZones() {
+      const panel = el('zonePanel');
+      if (!panel) return;
+      const byZone = new Map();
+      activeCars().forEach(c => {
+        const z = (c.zone || '').trim();
+        if (!z) return;
+        if (!byZone.has(z)) byZone.set(z, []);
+        byZone.get(z).push(c);
+      });
+      if (!byZone.size) {
+        panel.innerHTML = `<div class="card">${emptyState(t('map.zones.empty'))}</div>`;
+        return;
+      }
+      const zones = [...byZone.keys()].sort((a, b) => a.localeCompare(b, 'ro'));
+      panel.innerHTML = '<div class="zone-grid">' + zones.map(z => {
+        const cars = byZone.get(z);
+        const arrived = cars.filter(c => statusKey(c.status) === 'sosit').length;
+        const rows = cars.map(c => {
+          const color = CAR_STATUS_OPTIONS.find(o => o.key === statusKey(c.status))?.color || '#3B82F6';
+          const name = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
+          return `<div class="zone-car-row" data-zone-car="${c.id}">
+            <span class="z-status" style="background:${color}"></span>
+            <span class="z-name">${escape(name)}${c.plate ? ' · ' + escape(c.plate) : ''}</span>
+          </div>`;
+        }).join('');
+        return `<div class="zone-card" data-zone="${escape(z)}">
+          <div class="zone-name"><span class="zone-dot"></span>${escape(z)}</div>
+          <div class="zone-count">${cars.length}</div>
+          <div class="zone-stats"><span>${arrived} ${escape(t('map.zones.arrived'))}</span></div>
+          <div class="zone-cars">${rows}</div>
+        </div>`;
+      }).join('') + '</div>';
+    }
+    // Zone card: toggle expand; inner car row: open the car detail.
+    el('zonePanel').addEventListener('click', (e) => {
+      const carRow = e.target.closest('[data-zone-car]');
+      if (carRow) { e.stopPropagation(); showCarDetail(carRow.dataset.zoneCar); return; }
+      const card = e.target.closest('.zone-card');
+      if (card) card.classList.toggle('open');
+    });
     el('mapUploadBtn').addEventListener('click', () => el('mapFileInput').click());
     // Lazy-load the vendored pdf.js only when a PDF is actually chosen.
     let _pdfjsLoading = null;
@@ -1032,6 +1077,8 @@
       try { renderCars(); } catch (_) {}
       try { renderTasksChips(); } catch (_) {}
       try { renderTasks(); } catch (_) {}
+      try { renderZones(); } catch (_) {}
+      try { renderTeam(); } catch (_) {}
     }
 
     // Live badge flash on successful fetch
@@ -1261,10 +1308,12 @@
               try { renderTasksChips(); } catch (_) {}
               try { renderTasksDeptChips(); } catch (_) {}
               try { renderTasks(); } catch (_) {}
+              try { renderTeam(); } catch (_) {}   // workload depends on tasks
             }
             if (carsChanged) {
               try { renderCarsChips(); } catch (_) {}
               try { renderCars(); } catch (_) {}
+              try { renderZones(); } catch (_) {}   // zone panel depends on cars
             }
             if (profsChanged) {
               try { renderTeam(); } catch (_) {}
@@ -1761,6 +1810,57 @@
             </div>
           </div>
         `;
+      }).join('') + '</div>';
+
+      renderWorkload(membersMap);
+    }
+
+    // Per-member task workload: in-progress (assigned) + completed, with a
+    // completion-rate bar. Respects the active-event filter.
+    function renderWorkload(membersMap) {
+      const panel = el('workloadPanel');
+      if (!panel) return;
+      const tasks = activeTasks();
+      const stat = new Map(); // name → { inProgress, done, avatar }
+      const bump = (name, key) => {
+        if (!name) return;
+        if (!stat.has(name)) stat.set(name, { inProgress: 0, done: 0, avatar: null });
+        stat.get(name)[key]++;
+      };
+      tasks.forEach(tk => {
+        if (tk.is_completed) bump(tk.completed_by_user_name, 'done');
+        else if (tk.assigned_user_name) bump(tk.assigned_user_name, 'inProgress');
+      });
+      // Attach avatars where we can match by display name.
+      if (membersMap) {
+        for (const m of membersMap.values()) {
+          if (stat.has(m.name) && m.avatar) stat.get(m.name).avatar = m.avatar;
+        }
+      }
+      const rows = [...stat.entries()]
+        .map(([name, s]) => ({ name, ...s, total: s.inProgress + s.done }))
+        .filter(r => r.total > 0)
+        .sort((a, b) => b.total - a.total);
+      if (!rows.length) {
+        panel.innerHTML = `<div class="card">${emptyState(t('team.workload.empty'))}</div>`;
+        return;
+      }
+      panel.innerHTML = '<div class="workload-list">' + rows.map(r => {
+        const rate = r.total ? Math.round((r.done / r.total) * 100) : 0;
+        const initials = r.name.substring(0, 2).toUpperCase();
+        return `<div class="workload-row">
+          <div class="workload-avatar">${r.avatar ? `<img src="${escape(r.avatar)}" alt="" loading="lazy">` : initials}</div>
+          <div class="workload-info">
+            <div class="workload-name">${escape(r.name)}</div>
+            <div class="workload-bar"><span style="width:${rate}%"></span></div>
+            <div class="workload-stats">
+              <span>${r.inProgress} ${escape(t('team.workload.inprogress'))}</span>
+              <span>${r.done} ${escape(t('team.workload.done'))}</span>
+              <span>${rate}%</span>
+            </div>
+          </div>
+          <div class="workload-badge"><div class="num">${r.total}</div><div class="lbl">total</div></div>
+        </div>`;
       }).join('') + '</div>';
     }
 
