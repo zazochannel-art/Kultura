@@ -153,7 +153,37 @@
       if (themeBtn) {
         applyTheme(themeBtn.dataset.themeChoice);
       }
+      const accentBtn = e.target.closest('.accent-swatch');
+      if (accentBtn) {
+        applyAccent(accentBtn.dataset.accent);
+      }
     });
+
+    // ----- ACCENT COLOR -----
+    const ACCENTS = {
+      blue:   ['#3b82f6', '#06b6d4', 'rgba(59,130,246,0.38)'],
+      purple: ['#8b5cf6', '#ec4899', 'rgba(139,92,246,0.38)'],
+      green:  ['#10b981', '#14b8a6', 'rgba(16,185,129,0.38)'],
+      orange: ['#f59e0b', '#ef4444', 'rgba(245,158,11,0.38)'],
+      pink:   ['#ec4899', '#8b5cf6', 'rgba(236,72,153,0.38)']
+    };
+    function currentAccent() { return localStorage.getItem('kultura_accent') || 'blue'; }
+    function updateAccentButtons() {
+      const a = currentAccent();
+      document.querySelectorAll('.accent-swatch').forEach(b => {
+        b.classList.toggle('active', b.dataset.accent === a);
+      });
+    }
+    function applyAccent(name) {
+      const a = ACCENTS[name] || ACCENTS.blue;
+      const r = document.documentElement.style;
+      r.setProperty('--accent', a[0]);
+      r.setProperty('--accent-2', a[1]);
+      r.setProperty('--accent-glow', a[2]);
+      try { localStorage.setItem('kultura_accent', name); } catch (_) {}
+      updateAccentButtons();
+    }
+    updateAccentButtons();
 
     // ----- THEME (light / dark) -----
     function currentTheme() {
@@ -332,9 +362,85 @@
       });
       // Scroll top of content when switching sections on mobile
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (name === 'map') loadMap();
     }
     document.querySelectorAll('.tab, .mtab').forEach(t => {
       t.addEventListener('click', () => selectSection(t.dataset.section));
+    });
+
+    // ----- ZONE MAP -----
+    let _mapUrl = null;
+    async function loadMap() {
+      const { data } = await supa.from('ui_settings').select('value').eq('key', 'zone_map_url').maybeSingle();
+      _mapUrl = data?.value || null;
+      renderMap();
+    }
+    function renderMap() {
+      const staff = roleAtLeast('staff');
+      const actions = el('mapActions');
+      if (actions) actions.style.display = staff ? 'flex' : 'none';
+      const delBtn = el('mapDeleteBtn');
+      if (delBtn) delBtn.style.display = (staff && _mapUrl) ? 'inline-flex' : 'none';
+      const uploadLabel = el('mapUploadBtn').querySelector('span');
+      if (uploadLabel) uploadLabel.textContent = _mapUrl ? t('map.replace') : t('map.upload');
+
+      const container = el('mapContainer');
+      if (!container) return;
+      if (_mapUrl) {
+        container.innerHTML = `<div class="map-image-wrap"><img src="${escape(_mapUrl)}" alt="Harta zonelor" id="mapImage"></div>`;
+        el('mapImage').onclick = () => openLightbox(_mapUrl);
+      } else {
+        container.innerHTML = `
+          <div class="map-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+            <p>${escape(t('map.empty'))}</p>
+            <p class="map-empty-hint">${escape(t('map.empty_hint'))}</p>
+          </div>`;
+      }
+    }
+    el('mapUploadBtn').addEventListener('click', () => el('mapFileInput').click());
+    el('mapFileInput').addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      const status = el('mapStatus');
+      status.style.display = 'block';
+      status.textContent = t('map.uploading');
+      status.style.color = 'var(--text-dim)';
+      try {
+        // Downscale wide maps to keep them light while staying readable.
+        const blob = await downscaleImage(file, 2400, 0.85);
+        const path = `zone-map-${Date.now()}.jpg`;
+        const { error: upErr } = await supa.storage.from('maps')
+          .upload(path, blob, { contentType: 'image/jpeg' });
+        if (upErr) throw upErr;
+        const url = supa.storage.from('maps').getPublicUrl(path).data.publicUrl;
+        const prev = _mapUrl;
+        const { error: dbErr } = await supa.from('ui_settings')
+          .upsert({ key: 'zone_map_url', value: url, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        if (dbErr) throw dbErr;
+        // Best-effort cleanup of the replaced map.
+        const prevPath = (prev || '').split('/maps/')[1];
+        if (prevPath) supa.storage.from('maps').remove([decodeURIComponent(prevPath)]);
+        _mapUrl = url;
+        renderMap();
+        status.textContent = t('map.saved');
+        status.style.color = 'var(--green)';
+        setTimeout(() => { status.style.display = 'none'; }, 1500);
+      } catch (err) {
+        status.textContent = t('map.upload_error') + ': ' + (err.message || err);
+        status.style.color = 'var(--red)';
+      }
+    });
+    el('mapDeleteBtn').addEventListener('click', async () => {
+      if (!_mapUrl || !(await uiConfirm(t('map.confirm_delete')))) return;
+      const prevPath = (_mapUrl || '').split('/maps/')[1];
+      const { error } = await supa.from('ui_settings').delete().eq('key', 'zone_map_url');
+      if (error) return uiAlert('Eroare: ' + error.message);
+      if (prevPath) supa.storage.from('maps').remove([decodeURIComponent(prevPath)]);
+      _mapUrl = null;
+      renderMap();
+      showToast(t('map.deleted'));
     });
 
     document.querySelectorAll('#logoutBtn, #headerLogoutBtn').forEach(btn => {

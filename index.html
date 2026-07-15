@@ -13,11 +13,25 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Bungee&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <script>
-    // Apply the saved theme before first paint to avoid a flash.
+    // Apply the saved theme + accent before first paint to avoid a flash.
     (function () {
       try {
         var th = localStorage.getItem('kultura_theme') || 'dark';
         document.documentElement.setAttribute('data-theme', th);
+        var accents = {
+          blue:   ['#3b82f6', '#06b6d4', 'rgba(59,130,246,0.38)'],
+          purple: ['#8b5cf6', '#ec4899', 'rgba(139,92,246,0.38)'],
+          green:  ['#10b981', '#14b8a6', 'rgba(16,185,129,0.38)'],
+          orange: ['#f59e0b', '#ef4444', 'rgba(245,158,11,0.38)'],
+          pink:   ['#ec4899', '#8b5cf6', 'rgba(236,72,153,0.38)']
+        };
+        var a = accents[localStorage.getItem('kultura_accent')] ;
+        if (a) {
+          var r = document.documentElement.style;
+          r.setProperty('--accent', a[0]);
+          r.setProperty('--accent-2', a[1]);
+          r.setProperty('--accent-glow', a[2]);
+        }
       } catch (e) {}
     })();
   </script>
@@ -158,6 +172,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span data-i18n="nav.team">Echipa</span>
       </button>
+      <button class="tab" data-section="map">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+        <span data-i18n="nav.map">Hartă</span>
+      </button>
       <button class="tab" data-section="settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         <span data-i18n="nav.settings">Setări</span>
@@ -187,6 +205,10 @@
       <button class="mtab" data-section="team" aria-label="Echipa">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span class="label" data-i18n="nav.team">Echipa</span>
+      </button>
+      <button class="mtab" data-section="map" aria-label="Hartă">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+        <span class="label" data-i18n="nav.map">Hartă</span>
       </button>
     </nav>
 
@@ -362,6 +384,31 @@
         <div id="teamList"></div>
       </section>
 
+      <!-- MAP -->
+      <section class="section" id="section-map">
+        <div class="section-title">
+          <div><h2 data-i18n="map.title">Harta zonelor</h2><p data-i18n="map.sub">Planul de parcare cu toate zonele</p></div>
+          <div id="mapActions" style="display:none; gap:6px;">
+            <input type="file" id="mapFileInput" accept="image/*" style="display:none">
+            <button class="add-btn" id="mapUploadBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span data-i18n="map.upload">Încarcă harta</span>
+            </button>
+            <button class="add-btn" id="mapDeleteBtn" style="background: var(--surface-elev); color: var(--red); border: 1px solid rgba(239,68,68,0.35); display:none;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="mapStatus" style="font-size:13px; color:var(--text-dim); margin-bottom:10px; display:none;"></div>
+        <div id="mapContainer">
+          <div class="map-empty" id="mapEmpty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+            <p data-i18n="map.empty">Nicio hartă încărcată încă.</p>
+            <p class="map-empty-hint" data-i18n="map.empty_hint">Un administrator poate încărca planul zonelor.</p>
+          </div>
+        </div>
+      </section>
+
       <!-- SETTINGS -->
       <section class="section" id="section-settings">
         <div class="page-grid-2">
@@ -428,6 +475,22 @@
             <div style="display: flex; gap: 4px;">
               <button class="btn small ghost theme-btn" data-theme-choice="dark" data-i18n="settings.theme.dark">Întunecată</button>
               <button class="btn small ghost theme-btn" data-theme-choice="light" data-i18n="settings.theme.light">Deschisă</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+            </div>
+            <div class="txt">
+              <strong data-i18n="settings.accent.title">Culoare accent</strong>
+              <span data-i18n="settings.accent.sub">Culoarea principală a aplicației</span>
+            </div>
+            <div class="accent-swatches" id="accentSwatches">
+              <button class="accent-swatch" data-accent="blue"   style="background:#3b82f6" aria-label="Albastru"></button>
+              <button class="accent-swatch" data-accent="purple" style="background:#8b5cf6" aria-label="Mov"></button>
+              <button class="accent-swatch" data-accent="green"  style="background:#10b981" aria-label="Verde"></button>
+              <button class="accent-swatch" data-accent="orange" style="background:#f59e0b" aria-label="Portocaliu"></button>
+              <button class="accent-swatch" data-accent="pink"   style="background:#ec4899" aria-label="Roz"></button>
             </div>
           </div>
         </div>

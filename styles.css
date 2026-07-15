@@ -25,6 +25,9 @@
       --card-grad-strong: var(--card-grad-strong);
       --card-grad-solid: var(--card-grad-solid);
       --blob-opacity: 1;
+      --accent: #3b82f6;
+      --accent-2: #06b6d4;
+      --accent-glow: rgba(59,130,246,0.38);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { min-height: 100%; }
@@ -165,15 +168,15 @@
       font-weight: 700;
       font-family: inherit;
       color: #fff;
-      background: linear-gradient(90deg, var(--blue), var(--cyan));
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
       border: none;
       border-radius: 14px;
       cursor: pointer;
       text-decoration: none;
       transition: transform 0.15s, box-shadow 0.2s, opacity 0.15s;
-      box-shadow: 0 10px 24px rgba(59,130,246,0.35);
+      box-shadow: 0 10px 24px var(--accent-glow);
     }
-    .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(59,130,246,0.45); }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 14px 30px var(--accent-glow); }
     .btn:active:not(:disabled) { transform: translateY(0); }
     .btn:disabled { opacity: 0.6; cursor: not-allowed; }
     .btn.full { width: 100%; padding: 16px 24px; border-radius: 16px; margin-top: 8px; }
@@ -191,7 +194,7 @@
       box-shadow: none;
     }
     .btn.danger:hover:not(:disabled) { background: rgba(239,68,68,0.08); }
-    .btn.small { padding: 8px 14px; font-size: 13px; border-radius: 10px; box-shadow: 0 4px 12px rgba(59,130,246,0.25); }
+    .btn.small { padding: 8px 14px; font-size: 13px; border-radius: 10px; box-shadow: 0 4px 12px var(--accent-glow); }
 
     .spinner {
       width: 20px; height: 20px;
@@ -1675,7 +1678,7 @@
 .ui-dialog-btn:hover { background: rgba(255,255,255,0.08); color: var(--text); }
 .ui-dialog-btn:active { transform: translateY(1px); }
 .ui-dialog-btn.primary {
-  background: linear-gradient(90deg, var(--blue), var(--cyan));
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
   border: none; color: #fff;
   box-shadow: 0 8px 20px rgba(59,130,246,0.35);
 }
@@ -1842,3 +1845,35 @@
 
 /* Theme picker (Settings) */
 .theme-btn.active { background: var(--blue); color: #fff; }
+
+/* ============ ACCENT SWATCHES ============ */
+.accent-swatches { display: flex; gap: 6px; }
+.accent-swatch {
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 2px solid transparent; cursor: pointer; padding: 0;
+  transition: transform 0.12s, border-color 0.12s;
+}
+.accent-swatch:hover { transform: scale(1.12); }
+.accent-swatch.active { border-color: var(--text); }
+
+/* ============ ZONE MAP PAGE ============ */
+#mapContainer { position: relative; }
+.map-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; text-align: center;
+  padding: 60px 24px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 20px;
+  background: var(--fill-1);
+  color: var(--text-mute);
+}
+.map-empty svg { width: 56px; height: 56px; opacity: 0.6; }
+.map-empty p { font-size: 14px; color: var(--text-dim); }
+.map-empty .map-empty-hint { font-size: 12px; color: var(--text-mute); }
+.map-image-wrap {
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--surface-solid);
+}
+.map-image-wrap img { width: 100%; height: auto; display: block; cursor: zoom-in; }
