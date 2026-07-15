@@ -389,7 +389,7 @@
         <div class="section-title">
           <div><h2 data-i18n="map.title">Harta zonelor</h2><p data-i18n="map.sub">Planul de parcare cu toate zonele</p></div>
           <div id="mapActions" style="display:none; gap:6px;">
-            <input type="file" id="mapFileInput" accept="image/*" style="display:none">
+            <input type="file" id="mapFileInput" accept="image/*,application/pdf,.pdf" style="display:none">
             <button class="add-btn" id="mapUploadBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               <span data-i18n="map.upload">Încarcă harta</span>
@@ -564,6 +564,28 @@
     </main>
 
     <!-- MODAL: User Profile / Department -->
+    <!-- MAP CROP / RESIZE EDITOR -->
+    <div class="modal-backdrop" id="modal-map-crop" data-modal-name="map-crop">
+      <div class="modal" style="max-width: 680px;">
+        <h2 data-i18n="map.crop.title">Ajustează harta</h2>
+        <p class="sub-help" data-i18n="map.crop.sub">Trage și redimensionează dreptunghiul pentru a alege ce se va afișa.</p>
+        <div class="cropper" id="cropStage">
+          <img id="cropImage" alt="" draggable="false">
+          <div class="crop-box" id="cropBox">
+            <div class="crop-handle nw" data-handle="nw"></div>
+            <div class="crop-handle ne" data-handle="ne"></div>
+            <div class="crop-handle sw" data-handle="sw"></div>
+            <div class="crop-handle se" data-handle="se"></div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn ghost small" id="cropReset" data-i18n="map.crop.reset">Toată harta</button>
+          <button type="button" class="btn ghost" id="cropCancel" data-i18n="common.cancel">Anulează</button>
+          <button type="button" class="btn" id="cropConfirm" data-i18n="map.crop.confirm">Încarcă</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal-backdrop" id="modal-edit-profile" data-modal-name="edit-profile">
       <div class="modal">
         <h2 data-i18n="modal.profile.title">Profilul meu</h2>

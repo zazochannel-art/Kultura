@@ -399,17 +399,76 @@
       }
     }
     el('mapUploadBtn').addEventListener('click', () => el('mapFileInput').click());
+    // Lazy-load the vendored pdf.js only when a PDF is actually chosen.
+    let _pdfjsLoading = null;
+    function ensurePdfJs() {
+      if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+      if (_pdfjsLoading) return _pdfjsLoading;
+      _pdfjsLoading = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'vendor/pdf.min.js';
+        s.onload = () => {
+          try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js'; } catch (_) {}
+          resolve(window.pdfjsLib);
+        };
+        s.onerror = () => { _pdfjsLoading = null; reject(new Error('Nu s-a putut încărca cititorul PDF.')); };
+        document.head.appendChild(s);
+      });
+      return _pdfjsLoading;
+    }
+
+    // Turn any chosen file into an image data URL. PDFs render their first
+    // page to a canvas at high resolution.
+    async function fileToImageSrc(file) {
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+      if (!isPdf) {
+        return await new Promise((res, rej) => {
+          const fr = new FileReader();
+          fr.onload = () => res(fr.result);
+          fr.onerror = () => rej(new Error('Nu s-a putut citi fișierul.'));
+          fr.readAsDataURL(file);
+        });
+      }
+      const st = el('mapStatus');
+      st.style.display = 'block'; st.style.color = 'var(--text-dim)';
+      st.textContent = t('map.pdf_rendering');
+      const pdfjs = await ensurePdfJs();
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjs.getDocument({ data: buf }).promise;
+      const page = await pdf.getPage(1);
+      const scale = Math.min(3, 2400 / page.getViewport({ scale: 1 }).width);
+      const viewport = page.getViewport({ scale: Math.max(1, scale) });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      st.style.display = 'none';
+      return canvas.toDataURL('image/jpeg', 0.9);
+    }
+
     el('mapFileInput').addEventListener('change', async (e) => {
       const file = e.target.files && e.target.files[0];
       e.target.value = '';
       if (!file) return;
       const status = el('mapStatus');
-      status.style.display = 'block';
-      status.textContent = t('map.uploading');
-      status.style.color = 'var(--text-dim)';
       try {
-        // Downscale wide maps to keep them light while staying readable.
-        const blob = await downscaleImage(file, 2400, 0.85);
+        const src = await fileToImageSrc(file);
+        openMapCropper(src); // upload happens after the user confirms the crop
+      } catch (err) {
+        status.style.display = 'block';
+        status.style.color = 'var(--red)';
+        status.textContent = t('map.upload_error') + ': ' + (err.message || err);
+      }
+    });
+
+    // Upload a finished map blob and record its URL.
+    async function uploadMapBlob(blob) {
+      const status = el('mapStatus');
+      status.style.display = 'block';
+      status.style.color = 'var(--text-dim)';
+      status.textContent = t('map.uploading');
+      try {
         const path = `zone-map-${Date.now()}.jpg`;
         const { error: upErr } = await supa.storage.from('maps')
           .upload(path, blob, { contentType: 'image/jpeg' });
@@ -419,7 +478,6 @@
         const { error: dbErr } = await supa.from('ui_settings')
           .upsert({ key: 'zone_map_url', value: url, updated_at: new Date().toISOString() }, { onConflict: 'key' });
         if (dbErr) throw dbErr;
-        // Best-effort cleanup of the replaced map.
         const prevPath = (prev || '').split('/maps/')[1];
         if (prevPath) supa.storage.from('maps').remove([decodeURIComponent(prevPath)]);
         _mapUrl = url;
@@ -431,6 +489,87 @@
         status.textContent = t('map.upload_error') + ': ' + (err.message || err);
         status.style.color = 'var(--red)';
       }
+    }
+
+    // ----- MAP CROP EDITOR -----
+    // Lets the user drag/resize a rectangle over the image to choose the
+    // visible region before upload. Output is downscaled to <=2400px JPEG.
+    let _crop = null; // { box:{x,y,w,h}, dispW, dispH }
+    function openMapCropper(src) {
+      const img = el('cropImage');
+      img.onload = () => {
+        const stage = el('cropStage');
+        const dispW = img.clientWidth, dispH = img.clientHeight;
+        _crop = { dispW, dispH, natW: img.naturalWidth, natH: img.naturalHeight,
+                  offX: (stage.clientWidth - dispW) / 2, offY: (stage.clientHeight - dispH) / 2 };
+        setCropBox(0, 0, dispW, dispH);
+      };
+      img.src = src;
+      openModal('map-crop');
+    }
+    function setCropBox(x, y, w, h) {
+      const c = _crop; if (!c) return;
+      // clamp within the displayed image
+      w = Math.max(40, Math.min(w, c.dispW));
+      h = Math.max(40, Math.min(h, c.dispH));
+      x = Math.max(0, Math.min(x, c.dispW - w));
+      y = Math.max(0, Math.min(y, c.dispH - h));
+      c.box = { x, y, w, h };
+      const box = el('cropBox');
+      box.style.left = (c.offX + x) + 'px';
+      box.style.top = (c.offY + y) + 'px';
+      box.style.width = w + 'px';
+      box.style.height = h + 'px';
+    }
+    (function wireCropDrag() {
+      const box = el('cropBox');
+      let mode = null, sx = 0, sy = 0, orig = null;
+      const onDown = (e) => {
+        if (!_crop) return;
+        const handle = e.target.closest('.crop-handle');
+        mode = handle ? handle.dataset.handle : 'move';
+        const p = e.touches ? e.touches[0] : e;
+        sx = p.clientX; sy = p.clientY; orig = { ..._crop.box };
+        e.preventDefault();
+        document.addEventListener('pointermove', onMove);
+        document.addEventListener('pointerup', onUp);
+      };
+      const onMove = (e) => {
+        if (!mode || !_crop) return;
+        const dx = e.clientX - sx, dy = e.clientY - sy;
+        let { x, y, w, h } = orig;
+        if (mode === 'move') { setCropBox(x + dx, y + dy, w, h); return; }
+        if (mode.includes('e')) w = orig.w + dx;
+        if (mode.includes('s')) h = orig.h + dy;
+        if (mode.includes('w')) { w = orig.w - dx; x = orig.x + dx; }
+        if (mode.includes('n')) { h = orig.h - dy; y = orig.y + dy; }
+        setCropBox(x, y, w, h);
+      };
+      const onUp = () => {
+        mode = null;
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+      };
+      box.addEventListener('pointerdown', onDown);
+    })();
+    el('cropReset').addEventListener('click', () => {
+      if (_crop) setCropBox(0, 0, _crop.dispW, _crop.dispH);
+    });
+    el('cropCancel').addEventListener('click', () => closeModal(el('modal-map-crop')));
+    el('cropConfirm').addEventListener('click', async () => {
+      const c = _crop; if (!c || !c.box) return;
+      const scale = c.natW / c.dispW; // display px → natural px
+      const sxp = c.box.x * scale, syp = c.box.y * scale;
+      const swp = c.box.w * scale, shp = c.box.h * scale;
+      // Downscale the cropped region so the longest side is <=2400px.
+      const out = Math.min(1, 2400 / Math.max(swp, shp));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(swp * out);
+      canvas.height = Math.round(shp * out);
+      canvas.getContext('2d').drawImage(el('cropImage'), sxp, syp, swp, shp, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85));
+      closeModal(el('modal-map-crop'));
+      if (blob) uploadMapBlob(blob);
     });
     el('mapDeleteBtn').addEventListener('click', async () => {
       if (!_mapUrl || !(await uiConfirm(t('map.confirm_delete')))) return;
