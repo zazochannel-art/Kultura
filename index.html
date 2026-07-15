@@ -835,6 +835,20 @@
             </div>
           </div>
           <div class="form-field">
+            <label data-i18n="modal.add_task.assignee">Responsabil</label>
+            <select name="assigned_to" id="addTaskAssignee" data-populate="members">
+              <option value="" data-i18n="modal.add_task.assignee_none">— Oricine (disponibil tuturor) —</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label data-i18n="modal.add_task.checklist">Listă de verificare</label>
+            <div id="addTaskChecklist" class="checklist-edit"></div>
+            <div class="checklist-add-row">
+              <input type="text" id="addTaskChecklistInput" data-i18n-placeholder="modal.add_task.checklist_ph" placeholder="Adaugă un punct și apasă +">
+              <button type="button" class="btn ghost small" id="addTaskChecklistBtn">+</button>
+            </div>
+          </div>
+          <div class="form-field">
             <label>Ce trebuie făcut</label>
             <textarea name="detailed_description" rows="5"
               placeholder="Scrie aici instrucțiuni detaliate despre ce trebuie să facă utilizatorul pentru realizarea acestui task..."></textarea>
