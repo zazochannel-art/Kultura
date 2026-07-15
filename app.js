@@ -321,6 +321,14 @@
 
     el('avatarBadge').addEventListener('click', () => selectSection('settings'));
 
+    // Active-event picker: scope cars/tasks/stats to the chosen event.
+    el('activeEventSelect').addEventListener('change', (e) => {
+      state.activeEventId = e.target.value || '';
+      if (state.activeEventId) localStorage.setItem('kultura_active_event', state.activeEventId);
+      else localStorage.removeItem('kultura_active_event');
+      applyActiveEvent();
+    });
+
     el('form-edit-profile').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = e.target.querySelector('button[type="submit"]');
@@ -341,13 +349,16 @@
         }
 
         // 2. Salvăm în tabela publică 'profiles'
-        const { error } = await supa
-          .from('profiles')
-          .upsert({
-            email: userBeingEdited,
-            department: dept,
-            full_name: isMe ? (currentUser.user_metadata?.full_name || userBeingEdited.split('@')[0]) : undefined
-          }, { onConflict: 'email' });
+        const row = {
+          email: userBeingEdited,
+          department: dept,
+          full_name: isMe ? (currentUser.user_metadata?.full_name || userBeingEdited.split('@')[0]) : undefined
+        };
+        // Only admins may change roles, and never demote themselves by accident.
+        if (admin && el('profileRoleField').style.display !== 'none') {
+          row.role = el('profileRoleSelect').value;
+        }
+        const { error } = await supa.from('profiles').upsert(row, { onConflict: 'email' });
 
         if (error) throw error;
 
@@ -708,8 +719,50 @@
       carsFilter: 'all', carsSearch: '',
       tasksFilter: 'all', tasksSearch: '', tasksDept: 'all',
       eventsFilter: 'all', eventsSearch: '',
-      teamSearch: ''
+      teamSearch: '',
+      activeEventId: localStorage.getItem('kultura_active_event') || ''
     };
+
+    // ----- ACTIVE EVENT FILTER -----
+    // When an event is selected in the header, cars/tasks/stats are scoped to
+    // it. Empty string = all events.
+    function matchesActiveEvent(row) {
+      if (!state.activeEventId) return true;
+      return String(row.event_id) === String(state.activeEventId);
+    }
+    function activeCars()  { return (state.cars  || []).filter(matchesActiveEvent); }
+    function activeTasks() { return (state.tasks || []).filter(matchesActiveEvent); }
+
+    function populateEventPicker() {
+      const sel = el('activeEventSelect');
+      if (!sel) return;
+      const prev = state.activeEventId;
+      // Rebuild options (keep the "all" placeholder = first option).
+      while (sel.options.length > 1) sel.remove(1);
+      (state.events || []).forEach(ev => {
+        const opt = document.createElement('option');
+        opt.value = String(ev.id);
+        opt.textContent = ev.title || ('#' + ev.id);
+        sel.appendChild(opt);
+      });
+      // If the previously selected event vanished, fall back to "all".
+      if (prev && !(state.events || []).some(e => String(e.id) === String(prev))) {
+        state.activeEventId = '';
+        localStorage.removeItem('kultura_active_event');
+      }
+      sel.value = state.activeEventId;
+    }
+
+    function applyActiveEvent() {
+      try { renderStats(state.cars, state.tasks, state.events); } catch (_) {}
+      try { renderHero(state.events); } catch (_) {}
+      try { renderUpcoming(state.events); } catch (_) {}
+      try { renderTopTasks(state.tasks); } catch (_) {}
+      try { renderCarsChips(); } catch (_) {}
+      try { renderCars(); } catch (_) {}
+      try { renderTasksChips(); } catch (_) {}
+      try { renderTasks(); } catch (_) {}
+    }
 
     // Live badge flash on successful fetch
     let flashTimer = null;
@@ -724,19 +777,36 @@
     // Admin flag now lives in profiles.is_admin (backfilled via migration).
     // Reads from state.profiles — returns false until profiles are loaded,
     // which is the safe default (non-admin UI). Never trusts a hardcoded email.
-    // Show/hide UI that only admins may use. DB policies enforce the same
-    // rules server-side; this just keeps the buttons honest.
+    // ----- ROLES: member < staff < admin -----
+    const ROLE_RANK = { member: 0, staff: 1, admin: 2 };
+    function currentProfile() {
+      if (!currentUser || !currentUser.email) return null;
+      const email = currentUser.email.toLowerCase();
+      return (state.profiles || []).find(x => (x.email || '').toLowerCase() === email) || null;
+    }
+    function currentRole() {
+      const p = currentProfile();
+      if (!p) return 'member';
+      if (p.role && ROLE_RANK[p.role] != null) return p.role;
+      return p.is_admin ? 'admin' : 'member';
+    }
+    // True if the current user's role is at least `level`.
+    function roleAtLeast(level) {
+      return (ROLE_RANK[currentRole()] ?? 0) >= (ROLE_RANK[level] ?? 0);
+    }
+    function isAdmin() { return currentRole() === 'admin'; }
+
+    // Show/hide UI by role. DB policies enforce the destructive ones
+    // server-side; this keeps the buttons honest for everyone else.
     function applyAdminUI() {
       const admin = isAdmin();
+      const staff = roleAtLeast('staff');
       const dz = el('dangerZoneBlock');
       if (dz) dz.style.display = admin ? 'block' : 'none';
-    }
-
-    function isAdmin() {
-      if (!currentUser || !currentUser.email) return false;
-      const email = currentUser.email.toLowerCase();
-      const p = (state.profiles || []).find(x => (x.email || '').toLowerCase() === email);
-      return !!(p && p.is_admin);
+      // Add buttons (cars/events/tasks) are for staff and admins only.
+      document.querySelectorAll('.add-btn[data-modal], #aiImportBtn').forEach(b => {
+        b.style.display = staff ? '' : 'none';
+      });
     }
 
     // ------------ INVISIBLE POLLING PIPELINE ------------
@@ -910,6 +980,7 @@
               try { renderStats(state.cars, state.tasks, state.events); } catch (_) {}
             }
             if (eventsChanged) {
+              try { populateEventPicker(); } catch (_) {}
               try { renderHero(state.events); } catch (_) {}
               try { renderUpcoming(state.events); } catch (_) {}
               try { renderEventsChips(); } catch (_) {}
@@ -1029,10 +1100,13 @@
     });
 
     function renderStats(cars, tasks, events) {
-      el('statCars').textContent = (cars || []).length;
-      el('statEvents').textContent = (events || []).length;
-      el('statCarsConfirmed').textContent = (cars || []).filter(c => (c.status || '').toLowerCase().includes('sosit')).length;
-      el('statTasks').textContent = (tasks || []).filter(tk => !tk.is_completed).length;
+      // Cars/tasks respect the active-event filter; events count stays global.
+      const scopedCars = activeCars();
+      const scopedTasks = activeTasks();
+      el('statCars').textContent = scopedCars.length;
+      el('statEvents').textContent = (events || state.events || []).length;
+      el('statCarsConfirmed').textContent = scopedCars.filter(c => (c.status || '').toLowerCase().includes('sosit')).length;
+      el('statTasks').textContent = scopedTasks.filter(tk => !tk.is_completed).length;
 
       // Update labels in stats grid
       const statsGrid = document.querySelector('.stats-grid');
@@ -1048,7 +1122,12 @@
     }
 
     function renderHero(events) {
-      const list = events || [];
+      let list = events || [];
+      // If an event is selected in the header, feature it as the hero.
+      if (state.activeEventId) {
+        const sel = list.filter(e => String(e.id) === String(state.activeEventId));
+        if (sel.length) list = sel;
+      }
       const heroBadge = document.querySelector('.hero-badge');
       if (heroBadge) heroBadge.innerHTML = `<span class="dot"></span>${t("home.next_event")}`;
       const heroMetaLabel = document.querySelector('.hero-meta .l');
@@ -1078,7 +1157,9 @@
     }
 
     function renderUpcoming(events) {
-      const list = (events || []).slice(0, 4);
+      let src = events || [];
+      if (state.activeEventId) src = src.filter(e => String(e.id) === String(state.activeEventId));
+      const list = src.slice(0, 4);
       const card = el('upcomingEventsCard');
       if (card) {
         const h3 = card.querySelector('h3');
@@ -1103,7 +1184,7 @@
     }
 
     function renderTopTasks(tasks) {
-      const list = (tasks || []).filter(tk => !tk.is_completed).slice(0, 4);
+      const list = activeTasks().filter(tk => !tk.is_completed).slice(0, 4);
       const card = el('topTasksCard');
       if (card) {
         const h3 = card.querySelector('h3');
@@ -1242,7 +1323,7 @@
 
     function filterCars() {
       const q = state.carsSearch.toLowerCase();
-      return state.cars.filter(car => {
+      return activeCars().filter(car => {
         if (state.carsFilter === 'vip' && !car.is_vip) return false;
         if (state.carsFilter !== 'all' && state.carsFilter !== 'vip') {
           if (statusKey(car.status) !== state.carsFilter) return false;
@@ -1356,6 +1437,7 @@
           name: name,
           email: p.email,
           role: p.department ? localizeDept(p.department) : 'Member',
+          sysRole: (p.role && ['admin','staff','member'].includes(p.role)) ? p.role : (p.is_admin ? 'admin' : 'member'),
           avatar: p.avatar_url || null
         });
       });
@@ -1395,11 +1477,16 @@
         const canInteract = admin;
         const attrs = canInteract ? `data-modal="edit-profile" data-edit-email="${escape(m.email)}" data-edit-name="${escape(m.name)}" style="cursor:pointer;"` : '';
 
+        const roleBadge = m.sysRole === 'admin'
+          ? `<span class="role-badge admin">${escape(t('role.admin'))}</span>`
+          : m.sysRole === 'staff'
+            ? `<span class="role-badge staff">${escape(t('role.staff'))}</span>`
+            : '';
         return `
           <div class="team-card" ${attrs}>
             <div class="team-avatar">${m.avatar ? `<img src="${escape(m.avatar)}" alt="" loading="lazy">` : initials}</div>
             <div class="team-info">
-              <div class="team-name">${escape(m.name)} ${isMe ? '<span style="font-size:10px; opacity:0.6; font-weight:normal;">(Tu)</span>' : ''}</div>
+              <div class="team-name">${escape(m.name)} ${isMe ? '<span style="font-size:10px; opacity:0.6; font-weight:normal;">(Tu)</span>' : ''} ${roleBadge}</div>
               <div class="team-role">${escape(m.role)} • ${escape(m.email)}</div>
             </div>
           </div>
@@ -1553,6 +1640,16 @@
           if (deleteBtn) {
             // Show delete button only if you are Admin and editing SOMEONE ELSE
             deleteBtn.style.display = (admin && !isMe) ? 'block' : 'none';
+          }
+
+          // Role selector: visible only to admins; preselect the target's role.
+          const roleField = el('profileRoleField');
+          if (roleField) {
+            roleField.style.display = admin ? 'block' : 'none';
+            if (admin) {
+              const tp = (state.profiles || []).find(p => (p.email || '').toLowerCase() === (userBeingEdited || '').toLowerCase());
+              el('profileRoleSelect').value = (tp && tp.role) ? tp.role : (tp && tp.is_admin ? 'admin' : 'member');
+            }
           }
 
           // Disable form if not allowed to edit
@@ -2474,12 +2571,16 @@
       const sk = taskStatusKey(task.status);
       const isAssignedToMe = currentUser && String(task.assigned_user_id) === String(currentUser.id);
       const admin = isAdmin();
+      // Only staff/admin may delete tasks (DB enforces it too).
+      const delBtn = roleAtLeast('staff')
+        ? `<button class="btn danger" data-detail-action="task-delete" data-task-id="${task.id}" data-task-label="${escape(task.title)}">${escape(t('task.action.delete'))}</button>`
+        : '';
 
       let actionsHtml = '';
       if (isDone) {
         actionsHtml = `
           <button class="btn ghost" data-detail-action="task-reopen" data-task-id="${task.id}">${escape(t('task.action.reopen'))}</button>
-          <button class="btn danger" data-detail-action="task-delete" data-task-id="${task.id}" data-task-label="${escape(task.title)}">${escape(t('task.action.delete'))}</button>
+          ${delBtn}
         `;
       } else if (sk === 'in_progress') {
         // Butonul "Finisat" apare doar pentru cel responsabil sau admin
@@ -2488,13 +2589,11 @@
             <button class="btn" data-detail-action="task-finish" data-task-id="${task.id}">${escape(t('task.action.finish'))}</button>
           `;
         }
-        actionsHtml += `
-          <button class="btn danger" data-detail-action="task-delete" data-task-id="${task.id}" data-task-label="${escape(task.title)}">${escape(t('task.action.delete'))}</button>
-        `;
+        actionsHtml += delBtn;
       } else {
         actionsHtml = `
           <button class="btn" data-detail-action="task-take" data-task-id="${task.id}">${escape(t('task.action.take'))}</button>
-          <button class="btn danger" data-detail-action="task-delete" data-task-id="${task.id}" data-task-label="${escape(task.title)}">${escape(t('task.action.delete'))}</button>
+          ${delBtn}
         `;
       }
       el('taskDetailActions').innerHTML = actionsHtml;
@@ -2617,6 +2716,47 @@
       if (error) { showToast('Eroare: ' + error.message, 'error'); return; }
       input.value = '';
       refreshTaskUpdates(taskId);
+    }
+
+    // Normalize a phone to international digits (Moldova default: +373).
+    // Local numbers like 0XXXXXXXX or 6XXXXXXX get the 373 country code.
+    function normalizePhone(raw) {
+      let d = String(raw || '').replace(/[^\d+]/g, '');
+      if (!d) return '';
+      if (d.startsWith('+')) return d.slice(1).replace(/\D/g, '');
+      d = d.replace(/\D/g, '');
+      if (d.startsWith('00')) return d.slice(2);
+      if (d.startsWith('373')) return d;
+      if (d.startsWith('0')) {
+        const rest = d.slice(1);
+        return rest.startsWith('373') ? rest : '373' + rest; // 0 + local (guard double-code)
+      }
+      if (d.length >= 7 && d.length <= 9) return '373' + d;  // bare local number
+      return d;
+    }
+
+    // WhatsApp + Call buttons for a car's owner, with a pre-filled message.
+    function contactButtons(c) {
+      const phone = normalizePhone(c.phone || c.contact);
+      if (!phone) return '';
+      const ev = (state.events || []).find(e => String(e.id) === String(c.event_id));
+      const carName = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '';
+      const parts = [`Bună${c.owner ? ' ' + c.owner : ''}!`];
+      if (ev?.title) parts.push(`Vă contactăm în legătură cu evenimentul ${ev.title}.`);
+      if (carName) parts.push(`Mașină: ${carName}${c.plate ? ' (' + c.plate + ')' : ''}.`);
+      if (c.zone) parts.push(`Zona dvs. de parcare: ${c.zone}.`);
+      const msg = encodeURIComponent(parts.join(' '));
+      const wa = `https://wa.me/${phone}?text=${msg}`;
+      const tel = `tel:+${phone}`;
+      return `
+        <a class="btn ghost contact-wa" href="${wa}" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm5.8 14.01c-.24.68-1.42 1.31-1.96 1.35-.5.05-.96.23-3.23-.67-2.73-1.08-4.45-3.88-4.58-4.06-.13-.18-1.1-1.46-1.1-2.79 0-1.33.7-1.98.94-2.25.24-.27.53-.34.7-.34.18 0 .35 0 .5.01.16.01.38-.06.59.45.24.58.81 2 .88 2.14.07.14.12.31.02.49-.09.18-.14.29-.28.45-.14.16-.29.36-.42.48-.14.14-.28.29-.12.56.16.27.71 1.17 1.53 1.9 1.05.94 1.94 1.23 2.21 1.37.27.14.43.12.59-.07.16-.18.68-.79.86-1.07.18-.27.36-.22.6-.13.24.09 1.55.73 1.81.86.27.14.44.2.5.31.07.11.07.63-.17 1.31z"/></svg>
+          WhatsApp
+        </a>
+        <a class="btn ghost" href="${tel}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          ${escape(t('car.contact.call'))}
+        </a>`;
     }
 
     // ----- CAR DETAIL -----
@@ -2742,10 +2882,12 @@
 
       loadActivityLog('car', c.id, 'carHistoryList');
 
+      const canDelete = roleAtLeast('staff');
       el('carDetailActions').innerHTML = `
+        ${contactButtons(c)}
         <button class="btn ghost" data-detail-action="car-status" data-car-id="${c.id}" data-label="Sosit" data-color="#10B981">${escape(t('car.detail.action_confirm'))}</button>
         <button class="btn ghost" data-detail-action="car-status" data-car-id="${c.id}" data-label="Plecat" data-color="#8B5CF6">${escape(t('car.detail.action_reject'))}</button>
-        <button class="btn danger" data-detail-action="car-delete" data-car-id="${c.id}" data-car-label="${escape(title)}">${escape(t('car.action.delete'))}</button>
+        ${canDelete ? `<button class="btn danger" data-detail-action="car-delete" data-car-id="${c.id}" data-car-label="${escape(title)}">${escape(t('car.action.delete'))}</button>` : ''}
       `;
 
       el('carEditNotesBtn').onclick = () => {
@@ -3093,7 +3235,7 @@
 
     function filterTasks() {
       const q = state.tasksSearch.toLowerCase();
-      return state.tasks.filter(t => {
+      return activeTasks().filter(t => {
         const sk = taskStatusKey(t.status);
         if (state.tasksFilter === 'done' && sk !== 'completed') return false;
         if (state.tasksFilter === 'open' && sk === 'completed') return false;
