@@ -2941,6 +2941,62 @@
       return `<div class="badge ${map[key] || 'blue'}">${escape(label)}</div>`;
     }
 
+    // Render + wire the editable checklist inside an open task detail. Any
+    // change (toggle / add / delete) persists the whole array and re-mounts.
+    function mountTaskChecklist(task) {
+      const box = el('taskChecklistSection');
+      if (!box) return;
+      const cl = (Array.isArray(task.checklist) ? task.checklist : []).map(x => ({ ...x }));
+      const done = cl.filter(x => x && x.done).length;
+      box.innerHTML = `
+        <div class="detail-section-title">${escape(t('task.detail.checklist'))}${cl.length ? ` · ${done}/${cl.length}` : ''}</div>
+        <div class="checklist-view">
+          ${cl.map((it, i) => `
+            <div class="checklist-item ${it && it.done ? 'done' : ''}">
+              <input type="checkbox" data-check-idx="${i}" ${it && it.done ? 'checked' : ''}>
+              <span>${escape(it ? it.text : '')}</span>
+              <button type="button" class="checklist-del" data-check-del="${i}" aria-label="Șterge">&times;</button>
+            </div>`).join('')}
+        </div>
+        <div class="checklist-add-row" style="margin-top:8px;">
+          <input type="text" id="taskChecklistInput" placeholder="${escape(t('modal.add_task.checklist_ph'))}">
+          <button type="button" class="btn ghost small" id="taskChecklistAddBtn">+</button>
+        </div>`;
+
+      const save = async (next) => {
+        const { error } = await supa.from('tasks').update({ checklist: next }).eq('id', task.id);
+        if (error) { showToast('Eroare: ' + error.message, 'error'); return false; }
+        task.checklist = next;
+        mountTaskChecklist(task);
+        return true;
+      };
+      box.querySelectorAll('input[data-check-idx]').forEach(cb => {
+        cb.addEventListener('change', () => {
+          const idx = parseInt(cb.dataset.checkIdx, 10);
+          const next = cl.map(x => ({ ...x }));
+          if (!next[idx]) return;
+          next[idx].done = cb.checked;
+          save(next);
+        });
+      });
+      box.querySelectorAll('[data-check-del]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.checkDel, 10);
+          save(cl.filter((_, i) => i !== idx));
+        });
+      });
+      const addItem = () => {
+        const input = el('taskChecklistInput');
+        const v = (input.value || '').trim();
+        if (!v) return;
+        save([...cl, { text: v, done: false }]);
+      };
+      el('taskChecklistAddBtn').addEventListener('click', addItem);
+      el('taskChecklistInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); addItem(); }
+      });
+    }
+
     // ----- TASK DETAIL -----
     async function showTaskDetail(taskId) {
       const task = state.tasks.find(x => String(x.id) === String(taskId));
@@ -2987,21 +3043,7 @@
           </div>
         </div>
 
-        ${(() => {
-          const cl = Array.isArray(task.checklist) ? task.checklist : [];
-          if (!cl.length) return '';
-          const doneCount = cl.filter(x => x && x.done).length;
-          return `<div class="detail-section">
-            <div class="detail-section-title">${escape(t('task.detail.checklist'))} · ${doneCount}/${cl.length}</div>
-            <div class="checklist-view" id="taskChecklistView">
-              ${cl.map((it, i) => `
-                <label class="checklist-item ${it && it.done ? 'done' : ''}">
-                  <input type="checkbox" data-check-idx="${i}" ${it && it.done ? 'checked' : ''}>
-                  <span>${escape(it ? it.text : '')}</span>
-                </label>`).join('')}
-            </div>
-          </div>`;
-        })()}
+        <div class="detail-section" id="taskChecklistSection"></div>
 
         <div class="detail-section">
           <div class="detail-section-title">${escape(t('task.detail.section_trace'))}</div>
@@ -3039,22 +3081,8 @@
 
       loadActivityLog('task', task.id, 'taskHistoryList');
 
-      // Checklist: toggling an item persists the whole array back to the task.
-      const clView = el('taskChecklistView');
-      if (clView) {
-        clView.querySelectorAll('input[data-check-idx]').forEach(cb => {
-          cb.addEventListener('change', async () => {
-            const idx = parseInt(cb.dataset.checkIdx, 10);
-            const cl = (Array.isArray(task.checklist) ? task.checklist : []).map(x => ({ ...x }));
-            if (!cl[idx]) return;
-            cl[idx].done = cb.checked;
-            cb.closest('.checklist-item').classList.toggle('done', cb.checked);
-            const { error } = await supa.from('tasks').update({ checklist: cl }).eq('id', task.id);
-            if (error) { showToast('Eroare: ' + error.message, 'error'); cb.checked = !cb.checked; return; }
-            task.checklist = cl;
-          });
-        });
-      }
+      // Editable checklist: toggle done, add and delete items (all persisted).
+      mountTaskChecklist(task);
 
       // Actions — contextual buttons based on task state
       const isDone = !!task.is_completed;
