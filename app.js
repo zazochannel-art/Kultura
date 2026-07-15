@@ -1140,7 +1140,7 @@
     // affect what the user sees. If two fetches yield the same fingerprint,
     // the corresponding renderer is skipped entirely.
     const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','contact','owner','model','brand','is_vip','category','additional_notes','year','city','email','transport_info','social_links','responsible_person','modifications','photos','event_id'];
-    const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','detailed_description','event','event_id','created_by','created_at'];
+    const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','detailed_description','event','event_id','created_by','created_at','checklist'];
     const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','image_url'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
 
@@ -1984,6 +1984,21 @@
         });
         if (currentVal) sel.value = currentVal;
       });
+      // Populate [data-populate="members"] selects with the team (by email).
+      m.querySelectorAll('select[data-populate="members"]').forEach(sel => {
+        const currentVal = sel.value;
+        while (sel.options.length > 1) sel.remove(1);
+        const seen = new Set();
+        (state.profiles || []).forEach(p => {
+          if (!p.email || seen.has(p.email)) return;
+          seen.add(p.email);
+          const opt = document.createElement('option');
+          opt.value = p.email;
+          opt.textContent = p.full_name || p.email.split('@')[0];
+          sel.appendChild(opt);
+        });
+        if (currentVal) sel.value = currentVal;
+      });
       m.classList.add('show');
     }
     function closeModal(m) {
@@ -2477,6 +2492,37 @@
       }
     });
 
+    // ----- ADD-TASK CHECKLIST BUILDER -----
+    window._newTaskChecklist = [];
+    function renderNewTaskChecklist() {
+      const box = el('addTaskChecklist');
+      if (!box) return;
+      box.innerHTML = (window._newTaskChecklist || []).map((item, i) => `
+        <div class="checklist-edit-row">
+          <span>${escape(item)}</span>
+          <button type="button" class="checklist-del" data-cl-del="${i}" aria-label="Șterge">&times;</button>
+        </div>`).join('');
+    }
+    function addNewTaskChecklistItem() {
+      const input = el('addTaskChecklistInput');
+      const v = (input.value || '').trim();
+      if (!v) return;
+      window._newTaskChecklist.push(v);
+      input.value = '';
+      input.focus();
+      renderNewTaskChecklist();
+    }
+    el('addTaskChecklistBtn').addEventListener('click', addNewTaskChecklistItem);
+    el('addTaskChecklistInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); addNewTaskChecklistItem(); }
+    });
+    el('addTaskChecklist').addEventListener('click', (e) => {
+      const del = e.target.closest('[data-cl-del]');
+      if (!del) return;
+      window._newTaskChecklist.splice(parseInt(del.dataset.clDel, 10), 1);
+      renderNewTaskChecklist();
+    });
+
     // Add Task
     el('form-add-task').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -2495,6 +2541,13 @@
         const me = currentUserEmail();
         const myName = currentUserName();
         const eventIdRaw = fd.get('event_id');
+        // Chosen assignee (email) → the task is earmarked for that person and
+        // only they get the push notification (targeted by the DB trigger).
+        const assigneeEmail = (fd.get('assigned_to') || '').trim() || null;
+        const assigneeName = assigneeEmail
+          ? ((state.profiles || []).find(p => (p.email || '').toLowerCase() === assigneeEmail.toLowerCase())?.full_name
+             || assigneeEmail.split('@')[0])
+          : null;
         const { error } = await supa.from('tasks').insert({
           title: fd.get('title').trim(),
           event: (fd.get('event') || '').trim(),
@@ -2505,6 +2558,9 @@
           detailed_description: (fd.get('detailed_description') || '').trim() || null,
           created_by: myName,
           event_id: eventIdRaw ? parseInt(eventIdRaw, 10) : null,
+          assigned_to: assigneeEmail,
+          assigned_user_name: assigneeName,
+          checklist: (window._newTaskChecklist || []).map(x => ({ text: x, done: false })),
           status,
           status_color: map[status] || '#3B82F6',
           is_completed: status === 'completed',
@@ -2515,6 +2571,8 @@
           } : {})
         });
         if (error) throw error;
+        window._newTaskChecklist = [];
+        renderNewTaskChecklist();
         closeModal(document.getElementById('modal-add-task'));
         await loadData();
       } catch (err) {
@@ -2929,6 +2987,22 @@
           </div>
         </div>
 
+        ${(() => {
+          const cl = Array.isArray(task.checklist) ? task.checklist : [];
+          if (!cl.length) return '';
+          const doneCount = cl.filter(x => x && x.done).length;
+          return `<div class="detail-section">
+            <div class="detail-section-title">${escape(t('task.detail.checklist'))} · ${doneCount}/${cl.length}</div>
+            <div class="checklist-view" id="taskChecklistView">
+              ${cl.map((it, i) => `
+                <label class="checklist-item ${it && it.done ? 'done' : ''}">
+                  <input type="checkbox" data-check-idx="${i}" ${it && it.done ? 'checked' : ''}>
+                  <span>${escape(it ? it.text : '')}</span>
+                </label>`).join('')}
+            </div>
+          </div>`;
+        })()}
+
         <div class="detail-section">
           <div class="detail-section-title">${escape(t('task.detail.section_trace'))}</div>
           <div class="detail-grid">
@@ -2964,6 +3038,23 @@
       `;
 
       loadActivityLog('task', task.id, 'taskHistoryList');
+
+      // Checklist: toggling an item persists the whole array back to the task.
+      const clView = el('taskChecklistView');
+      if (clView) {
+        clView.querySelectorAll('input[data-check-idx]').forEach(cb => {
+          cb.addEventListener('change', async () => {
+            const idx = parseInt(cb.dataset.checkIdx, 10);
+            const cl = (Array.isArray(task.checklist) ? task.checklist : []).map(x => ({ ...x }));
+            if (!cl[idx]) return;
+            cl[idx].done = cb.checked;
+            cb.closest('.checklist-item').classList.toggle('done', cb.checked);
+            const { error } = await supa.from('tasks').update({ checklist: cl }).eq('id', task.id);
+            if (error) { showToast('Eroare: ' + error.message, 'error'); cb.checked = !cb.checked; return; }
+            task.checklist = cl;
+          });
+        });
+      }
 
       // Actions — contextual buttons based on task state
       const isDone = !!task.is_completed;
