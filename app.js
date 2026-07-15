@@ -1620,6 +1620,8 @@
       if (msg) msg.classList.remove('show');
     }
     let userBeingEdited = null;
+    // Primary admin — role is locked (also enforced by a DB trigger).
+    const PRIMARY_ADMIN_EMAIL = 'igor.gratii.99@mail.ru';
 
     document.addEventListener('click', (ev) => {
       const opener = ev.target.closest('[data-modal]');
@@ -1659,6 +1661,14 @@
             form.querySelectorAll('input, select, button[type="submit"]').forEach(ctrl => {
               ctrl.disabled = !canEdit;
             });
+          }
+
+          // The primary admin's role is locked: disable the selector and hide
+          // the delete button, no matter who is viewing. (DB enforces it too.)
+          const isPrimary = (userBeingEdited || '').toLowerCase() === PRIMARY_ADMIN_EMAIL;
+          if (isPrimary) {
+            el('profileRoleSelect').disabled = true;
+            if (deleteBtn) deleteBtn.style.display = 'none';
           }
         }
         openModal(modalName);
