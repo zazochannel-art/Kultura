@@ -1,8 +1,9 @@
 // Kultura service worker.
-// Strategy: network-first for everything same-origin (the app must never be
-// stale), falling back to the last cached copy when offline. Bump the cache
-// version to invalidate old entries after a deploy.
-const CACHE = 'kultura-v2';
+// Strategy: stale-while-revalidate for same-origin GETs. The app shell is
+// served from cache immediately (instant startup), while a fresh copy is
+// fetched in the background and used on the next load. Bump the cache version
+// to force a clean refresh after a deploy.
+const CACHE = 'kultura-v3';
 const PRECACHE = [
   './',
   './index.html',
@@ -13,13 +14,21 @@ const PRECACHE = [
   './manifest.json',
   './logo.png',
   './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon-512.png',
+  './vendor/fonts/fonts.css',
+  './vendor/fonts/inter-400.woff2',
+  './vendor/fonts/inter-500.woff2',
+  './vendor/fonts/inter-600.woff2',
+  './vendor/fonts/inter-700.woff2',
+  './vendor/fonts/inter-800.woff2',
+  './vendor/fonts/inter-900.woff2'
 ];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
+    // Precache best-effort: a single missing asset must not abort the install.
     caches.open(CACHE)
-      .then((c) => c.addAll(PRECACHE))
+      .then((c) => Promise.allSettled(PRECACHE.map((u) => c.add(u))))
       .then(() => self.skipWaiting())
   );
 });
@@ -34,23 +43,29 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  // Never intercept API traffic (Supabase, fonts, etc.) — only same-origin GET.
+  // Never intercept API traffic (Supabase, etc.) — only same-origin GET.
   if (e.request.method !== 'GET' || url.origin !== self.location.origin) return;
 
+  // Stale-while-revalidate: answer instantly from cache, refresh in the
+  // background for next time. Falls back to the network (then the cached
+  // shell) when there's no cached copy yet.
   e.respondWith(
-    fetch(e.request)
-      .then((res) => {
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, copy));
-        }
-        return res;
+    caches.open(CACHE).then((cache) =>
+      cache.match(e.request).then((cached) => {
+        const network = fetch(e.request)
+          .then((res) => {
+            if (res && res.ok) cache.put(e.request, res.clone());
+            return res;
+          })
+          .catch(() => null);
+        return (
+          cached ||
+          network.then((res) =>
+            res || (e.request.mode === 'navigate' ? cache.match('./index.html') : Response.error())
+          )
+        );
       })
-      .catch(() =>
-        caches.match(e.request).then((hit) =>
-          hit || (e.request.mode === 'navigate' ? caches.match('./index.html') : Response.error())
-        )
-      )
+    )
   );
 });
 
