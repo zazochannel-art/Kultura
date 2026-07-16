@@ -2219,3 +2219,163 @@
   background: #ef4444;
   box-shadow: 0 0 0 2px var(--bg);
 }
+
+/* ===== Gate — offline check-in overlay ===== */
+.gate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2200;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  transform: translateY(100%);
+  transition: transform 0.25s ease;
+  visibility: hidden;
+}
+.gate-overlay.show { transform: translateY(0); visibility: visible; }
+.gate-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.gate-head .gate-close, .gate-head .gate-sync-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.gate-head .gate-close svg, .gate-head .gate-sync-btn svg { width: 20px; height: 20px; }
+.gate-sync-btn.spinning svg { animation: gate-spin 0.9s linear infinite; }
+@keyframes gate-spin { to { transform: rotate(360deg); } }
+.gate-title { flex: 1; min-width: 0; }
+.gate-title h2 { font-size: 18px; font-weight: 800; color: var(--text); margin: 0; }
+.gate-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+.gate-sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-mute); }
+.gate-sync.online  .gate-sync-dot { background: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,0.18); }
+.gate-sync.offline .gate-sync-dot { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.18); }
+.gate-sync.syncing .gate-sync-dot { background: #f59e0b; animation: gate-pulse 1s ease-in-out infinite; }
+.gate-sync.has-pending { color: #f59e0b; }
+@keyframes gate-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+.gate-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 16px;
+  padding: 0 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.gate-search svg { width: 20px; height: 20px; color: var(--text-mute); flex-shrink: 0; }
+.gate-search input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 16px;
+  padding: 15px 0;
+  outline: none;
+}
+.gate-search input::placeholder { color: var(--text-mute); }
+.gate-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px calc(16px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.gate-empty, .gate-more { text-align: center; color: var(--text-mute); font-size: 14px; padding: 28px 12px; }
+.gate-more { padding: 12px; font-size: 12px; }
+.gate-car {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.gate-car.arrived { opacity: 0.6; }
+.gate-car-info { flex: 1; min-width: 0; }
+.gate-plate {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.gate-vip {
+  font-size: 10px;
+  font-weight: 800;
+  color: #f59e0b;
+  border: 1px solid rgba(245,158,11,0.4);
+  background: rgba(245,158,11,0.1);
+  padding: 1px 6px;
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+}
+.gate-car-sub { font-size: 13px; color: var(--text-dim); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gate-zone {
+  width: 72px;
+  flex-shrink: 0;
+  padding: 9px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: center;
+}
+.gate-zone::placeholder { color: var(--text-mute); }
+.gate-arrive {
+  flex-shrink: 0;
+  min-width: 76px;
+  height: 44px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #10b981, #06b6d4);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gate-arrive:active { transform: scale(0.96); }
+.gate-arrive.done {
+  background: transparent;
+  border: 1px solid rgba(16,185,129,0.5);
+  color: #10b981;
+  min-width: 44px;
+  padding: 0;
+}
+.gate-arrive.done svg { width: 20px; height: 20px; }
+@media (max-width: 420px) {
+  .gate-zone { width: 58px; }
+  .gate-car-sub { font-size: 12px; }
+}

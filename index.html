@@ -348,6 +348,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             <span data-i18n="cars.export">Export</span>
           </button>
+          <button class="add-btn" id="gateOpenBtn" style="background: linear-gradient(90deg, #10b981, #06b6d4);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>
+            <span data-i18n="gate.open">Poartă</span>
+          </button>
           <button class="add-btn" data-modal="add-car">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <span data-i18n="cars.add">Adaugă</span>
@@ -923,6 +927,27 @@
           </div>
         </form>
       </div>
+    </div>
+
+    <!-- GATE — offline check-in overlay -->
+    <div class="gate-overlay" id="gateOverlay" aria-hidden="true">
+      <div class="gate-head">
+        <button class="gate-close" id="gateCloseBtn" aria-label="Închide">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <div class="gate-title">
+          <h2 data-i18n="gate.title">Poartă — Check-in</h2>
+          <span class="gate-sync" id="gateSync"></span>
+        </div>
+        <button class="gate-sync-btn" id="gateSyncBtn" title="Sincronizează">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+      </div>
+      <div class="gate-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" id="gateSearch" data-i18n-placeholder="gate.search_ph" placeholder="Caută după număr, model, proprietar...">
+      </div>
+      <div class="gate-results" id="gateResults"></div>
     </div>
 
     <!-- MODAL: Task Detail -->

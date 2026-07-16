@@ -344,6 +344,13 @@
         loadData();
       });
 
+      // Hydrate cars from the offline cache so the gate works even if we
+      // opened the app with no connection (a stored session logs us straight in).
+      if (!(state.cars || []).length) {
+        const cached = loadCachedCars();
+        if (cached.length) state.cars = cached;
+      }
+
       loadDepartments();
       startPolling();
     }
@@ -1271,6 +1278,8 @@
       if (dz) dz.style.display = admin ? 'block' : 'none';
       const deptBlock = el('deptSettingsBlock');
       if (deptBlock) deptBlock.style.display = admin ? 'block' : 'none';
+      const gateBtn = el('gateOpenBtn');
+      if (gateBtn) gateBtn.style.display = staff ? '' : 'none';
       // Add buttons (cars/events/tasks) are for staff and admins only.
       document.querySelectorAll('.add-btn[data-modal], #aiImportBtn').forEach(b => {
         b.style.display = staff ? '' : 'none';
@@ -1382,6 +1391,13 @@
           if (nextTasks    !== null) state.tasks    = nextTasks;
           if (nextEvents   !== null) state.events   = nextEvents;
           if (nextProfiles !== null) state.profiles = nextProfiles;
+
+          // Persist the car list so the offline gate check-in can look cars up
+          // with no connection (the PWA shell is cached; the data is not).
+          if (nextCars !== null) cacheCarsOffline(nextCars);
+          // Opportunistically drain any queued gate check-ins.
+          flushOutbox();
+          updateGateSyncUI();
 
           // Admins can fetch the full list of auth users via the edge function.
           // The edge function re-verifies is_admin server-side, so we can only
@@ -1570,6 +1586,225 @@
         loadData().catch(() => {});
       }
     });
+
+    // ============================================================
+    //  OFFLINE GATE QUEUE — check cars in at the gate with no signal.
+    //  Cars are cached locally for lookup; check-in actions go into a
+    //  persisted outbox and sync automatically when the network returns.
+    // ============================================================
+    const GATE_CACHE_KEY = 'kultura_cache_cars';
+    const GATE_OUTBOX_KEY = 'kultura_outbox';
+
+    function cacheCarsOffline(cars) {
+      try {
+        // Store a lean copy — enough for gate lookup + optimistic display.
+        const lean = (cars || []).map(c => ({
+          id: c.id, plate: c.plate, brand: c.brand, model: c.model,
+          owner: c.owner, zone: c.zone, status: c.status, status_color: c.status_color,
+          is_vip: c.is_vip, phone: c.phone, event_id: c.event_id
+        }));
+        localStorage.setItem(GATE_CACHE_KEY, JSON.stringify(lean));
+      } catch (_) {}
+    }
+    function loadCachedCars() {
+      try { return JSON.parse(localStorage.getItem(GATE_CACHE_KEY) || '[]'); }
+      catch (_) { return []; }
+    }
+    function getOutbox() {
+      try { return JSON.parse(localStorage.getItem(GATE_OUTBOX_KEY) || '[]'); }
+      catch (_) { return []; }
+    }
+    function saveOutbox(box) {
+      try { localStorage.setItem(GATE_OUTBOX_KEY, JSON.stringify(box)); } catch (_) {}
+    }
+    // Queue a car mutation. Multiple pending updates for the same car merge into
+    // one, so a plate zone edit + arrival collapse to a single sync.
+    function enqueueAction(action) {
+      const box = getOutbox();
+      if (action.type === 'car-update') {
+        const existing = box.find(a => a.type === 'car-update' && String(a.carId) === String(action.carId));
+        if (existing) {
+          existing.patch = { ...existing.patch, ...action.patch };
+          existing.ts = Date.now();
+        } else {
+          box.push({ id: 'a' + Date.now() + Math.random().toString(36).slice(2, 6), tries: 0, ts: Date.now(), ...action });
+        }
+      } else {
+        box.push({ id: 'a' + Date.now() + Math.random().toString(36).slice(2, 6), tries: 0, ts: Date.now(), ...action });
+      }
+      saveOutbox(box);
+    }
+
+    // Apply a patch to the in-memory + cached car so every surface reflects it
+    // immediately, even with no network.
+    function applyLocalCarPatch(carId, patch) {
+      const car = (state.cars || []).find(c => String(c.id) === String(carId));
+      if (car) Object.assign(car, patch);
+      const cached = loadCachedCars();
+      const cc = cached.find(c => String(c.id) === String(carId));
+      if (cc) { Object.assign(cc, patch); try { localStorage.setItem(GATE_CACHE_KEY, JSON.stringify(cached)); } catch (_) {} }
+      else cacheCarsOffline(state.cars);
+      try { renderCars(); renderCarsChips(); renderZones(); renderStats(state.cars, state.tasks, state.events); } catch (_) {}
+    }
+
+    let _flushing = false;
+    async function flushOutbox() {
+      if (_flushing || !navigator.onLine) return;
+      const box = getOutbox();
+      if (!box.length) return;
+      _flushing = true; updateGateSyncUI();
+      let flushedAny = false;
+      for (const action of box.slice()) {
+        try {
+          if (action.type === 'car-update') {
+            const { error } = await supa.from('cars').update(action.patch).eq('id', action.carId);
+            if (error) throw error;
+          }
+          // Success (or the row is gone) — drop it from the queue.
+          const cur = getOutbox().filter(a => a.id !== action.id);
+          saveOutbox(cur);
+          flushedAny = true;
+        } catch (e) {
+          const cur = getOutbox();
+          const a = cur.find(x => x.id === action.id);
+          if (a) { a.tries = (a.tries || 0) + 1; saveOutbox(cur); }
+          break; // likely offline again — stop and retry on the next trigger
+        }
+      }
+      _flushing = false;
+      updateGateSyncUI();
+      if (flushedAny && navigator.onLine) loadData().catch(() => {});
+    }
+
+    function pendingCount() { return getOutbox().length; }
+
+    function updateGateSyncUI() {
+      const pill = el('gateSync');
+      const online = navigator.onLine;
+      const pending = pendingCount();
+      if (pill) {
+        const mode = _flushing ? 'syncing' : (online ? 'online' : 'offline');
+        let label;
+        if (_flushing) label = t('gate.syncing');
+        else if (!online) label = t('gate.offline') + (pending ? ' · ' + pending : '');
+        else if (pending) label = t('gate.pending', { n: pending });
+        else label = t('gate.online');
+        pill.className = 'gate-sync ' + mode + (pending ? ' has-pending' : '');
+        pill.innerHTML = `<span class="gate-sync-dot"></span>${escape(label)}`;
+      }
+      const btn = el('gateSyncBtn');
+      if (btn) {
+        btn.classList.toggle('spinning', _flushing);
+        btn.style.display = pending ? 'flex' : 'none';
+      }
+    }
+
+    // Perform a gate check-in (mark arrived) — optimistic + queued.
+    function gateCheckIn(carId) {
+      applyLocalCarPatch(carId, { status: 'Sosit', status_color: '#10B981' });
+      enqueueAction({ type: 'car-update', carId, patch: { status: 'Sosit', status_color: '#10B981' } });
+      renderGate(); updateGateSyncUI();
+      flushOutbox();
+      showToast(t('gate.checked_in'));
+    }
+    function gateSetZone(carId, zone) {
+      const z = (zone || '').trim();
+      applyLocalCarPatch(carId, { zone: z || null });
+      enqueueAction({ type: 'car-update', carId, patch: { zone: z || null } });
+      updateGateSyncUI();
+      flushOutbox();
+    }
+
+    // ----- Gate overlay UI -----
+    function openGate() {
+      // Make sure the gate has data even if we opened offline.
+      if (!(state.cars || []).length) {
+        const cached = loadCachedCars();
+        if (cached.length) state.cars = cached;
+      }
+      const ov = el('gateOverlay');
+      if (!ov) return;
+      ov.classList.add('show');
+      ov.setAttribute('aria-hidden', 'false');
+      state.gateSearch = '';
+      const inp = el('gateSearch');
+      if (inp) inp.value = '';
+      renderGate();
+      updateGateSyncUI();
+      flushOutbox();
+      setTimeout(() => inp && inp.focus(), 60);
+    }
+    function closeGate() {
+      const ov = el('gateOverlay');
+      if (!ov) return;
+      ov.classList.remove('show');
+      ov.setAttribute('aria-hidden', 'true');
+    }
+    function renderGate() {
+      const box = el('gateResults');
+      if (!box) return;
+      const q = (state.gateSearch || '').trim().toLowerCase();
+      const src = ((state.cars && state.cars.length) ? state.cars : loadCachedCars()).filter(matchesActiveEvent);
+      let list = src;
+      if (q) {
+        list = src.filter(c =>
+          (c.plate || '').toLowerCase().includes(q) ||
+          (c.model || '').toLowerCase().includes(q) ||
+          (c.brand || '').toLowerCase().includes(q) ||
+          (c.owner || '').toLowerCase().includes(q)
+        );
+      }
+      // Arrived cars sink to the bottom; within a group keep plate order.
+      list = list.slice().sort((a, b) => {
+        const aa = statusKey(a.status) === 'sosit' ? 1 : 0;
+        const bb = statusKey(b.status) === 'sosit' ? 1 : 0;
+        if (aa !== bb) return aa - bb;
+        return (a.plate || '').localeCompare(b.plate || '', 'ro');
+      });
+      if (!list.length) {
+        box.innerHTML = `<div class="gate-empty">${escape(t(q ? 'gate.no_match' : 'gate.no_cars'))}</div>`;
+        return;
+      }
+      box.innerHTML = list.slice(0, 60).map(c => {
+        const arrived = statusKey(c.status) === 'sosit';
+        const name = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
+        return `
+          <div class="gate-car ${arrived ? 'arrived' : ''}" data-car-id="${c.id}">
+            <div class="gate-car-info">
+              <div class="gate-plate">${escape(c.plate || '—')}${c.is_vip ? ' <span class="gate-vip">VIP</span>' : ''}</div>
+              <div class="gate-car-sub">${escape(name)}${c.owner ? ' · ' + escape(c.owner) : ''}</div>
+            </div>
+            <input class="gate-zone" data-gate-zone="${c.id}" value="${escape(c.zone || '')}" placeholder="${escape(t('gate.zone_ph'))}" inputmode="text">
+            <button class="gate-arrive ${arrived ? 'done' : ''}" data-gate-arrive="${c.id}" ${arrived ? 'disabled' : ''}>
+              ${arrived
+                ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
+                : escape(t('gate.arrive'))}
+            </button>
+          </div>`;
+      }).join('') + (list.length > 60 ? `<div class="gate-more">${escape(t('gate.more', { n: list.length - 60 }))}</div>` : '');
+    }
+
+    // Gate wiring
+    el('gateOpenBtn')?.addEventListener('click', openGate);
+    el('gateCloseBtn')?.addEventListener('click', closeGate);
+    el('gateSyncBtn')?.addEventListener('click', flushOutbox);
+    el('gateSearch')?.addEventListener('input', (e) => { state.gateSearch = e.target.value; renderGate(); });
+    el('gateResults')?.addEventListener('click', (e) => {
+      const arr = e.target.closest('[data-gate-arrive]');
+      if (arr && !arr.disabled) { gateCheckIn(arr.dataset.gateArrive); return; }
+    });
+    el('gateResults')?.addEventListener('change', (e) => {
+      const zi = e.target.closest('[data-gate-zone]');
+      if (zi) gateSetZone(zi.dataset.gateZone, zi.value);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && el('gateOverlay')?.classList.contains('show')) closeGate();
+    });
+
+    // Connectivity → drain the queue and refresh the indicator.
+    window.addEventListener('online',  () => { updateGateSyncUI(); flushOutbox(); });
+    window.addEventListener('offline', () => { updateGateSyncUI(); });
+    updateGateSyncUI();
 
     function renderStats(cars, tasks, events) {
       // Cars/tasks respect the active-event filter; events count stays global.
