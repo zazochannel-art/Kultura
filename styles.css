@@ -2594,3 +2594,117 @@
 @media (prefers-reduced-motion: reduce) {
   .skel-line { animation: none; }
 }
+
+/* ========== VISUAL POLISH ========== */
+
+/* Sharper type hierarchy */
+.greeting h1 { font-size: 26px; font-weight: 900; letter-spacing: -0.6px; }
+.section-title h2 { font-size: 20px; }
+.section-title p { font-size: 12.5px; color: var(--text-dim); }
+.hero-title { font-size: 26px; }
+
+/* Status accent stripe on cards (read state at a glance) */
+.card-stripe { position: relative; overflow: hidden; }
+.card-stripe::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: var(--text-mute);
+  border-radius: 0 4px 4px 0;
+}
+.stripe-invitat::before,
+.stripe-t-available::before { background: linear-gradient(180deg, #06b6d4, #3b82f6); }
+.stripe-sosit::before,
+.stripe-t-completed::before { background: linear-gradient(180deg, #10b981, #059669); }
+.stripe-plecat::before { background: linear-gradient(180deg, #8b5cf6, #7c3aed); }
+.stripe-t-in_progress::before { background: linear-gradient(180deg, #f59e0b, #f97316); }
+
+/* Assignee avatar chip on task cards */
+.cell-v-user { display: inline-flex; align-items: center; gap: 6px; }
+.tk-avatar {
+  flex-shrink: 0;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 800; color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  overflow: hidden;
+}
+.tk-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Richer empty state */
+.empty-art {
+  width: 72px; height: 72px;
+  margin: 0 auto 6px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 20px;
+  color: var(--accent);
+  background: var(--accent-glow);
+}
+.empty-art svg { width: 40px; height: 40px; }
+.empty-cta { margin-top: 6px; font-size: 12.5px; font-weight: 700; color: var(--accent); }
+
+/* Hero countdown ring */
+.hero-meta { align-items: center; }
+.hero-ring { position: relative; width: 72px; height: 72px; flex-shrink: 0; }
+.hero-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.hero-ring .ring-bg { fill: none; stroke: rgba(255,255,255,0.22); stroke-width: 6; }
+.hero-ring .ring-fg {
+  fill: none; stroke: #fff; stroke-width: 6; stroke-linecap: round;
+  transition: stroke-dashoffset 0.6s cubic-bezier(0.4,0,0.2,1);
+}
+.hero-ring .n {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 900; letter-spacing: -1px;
+}
+.hero-meta .l { align-self: center; }
+
+/* Stat meters (arrival rate / task completion) */
+.stat-meter {
+  margin-top: 10px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--fill-3, rgba(255,255,255,0.08));
+  overflow: hidden;
+}
+.stat-meter > span {
+  display: block; height: 100%; width: 0;
+  border-radius: 999px;
+  transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+}
+.stat-meter > span.green  { background: linear-gradient(90deg, #10b981, #06b6d4); }
+.stat-meter > span.orange { background: linear-gradient(90deg, #f59e0b, #f97316); }
+
+/* Micro-interactions (reduced-motion is disabled globally elsewhere) */
+.btn:active, .add-btn:active, .tk-btn:active, .action-btn:active,
+.chip:active, .view-btn:active, .gate-arrive:active { transform: scale(0.97); }
+@media (hover: hover) {
+  .card.car-row, .tk-card, .zone-card { transition: transform 0.16s ease, border-color 0.16s ease; }
+  .card.car-row:hover, .tk-card:hover { transform: translateY(-2px); border-color: var(--border-strong); }
+}
+
+/* Animated gradient glow behind the splash logo */
+#splashScreen::before {
+  content: "";
+  position: absolute;
+  width: 420px; height: 420px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(139,92,246,0.28), transparent 62%);
+  animation: splashGlow 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes splashGlow {
+  0%, 100% { transform: scale(0.9); opacity: 0.6; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+
+/* Light theme polish — softer shadows, cleaner surfaces */
+:root[data-theme="light"] .card,
+:root[data-theme="light"] .tk-card,
+:root[data-theme="light"] .stat {
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.06);
+}
+:root[data-theme="light"] .hero-ring .ring-bg { stroke: rgba(255,255,255,0.35); }
+:root[data-theme="light"] .stat-meter { background: rgba(15,23,42,0.08); }
