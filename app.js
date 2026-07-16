@@ -1117,13 +1117,23 @@
           const ev = (state.events || []).find(e => String(e.id) === String(id));
           return ev ? (ev.title || '') : '';
         };
+        // The list fetch is lean; pull the heavy export-only columns for the
+        // filtered rows so Email/Note aren't blank.
+        const extra = {};
+        if (navigator.onLine) {
+          try {
+            const ids = list.map(c => c.id);
+            const { data } = await supa.from('cars').select('id, email, additional_notes').in('id', ids);
+            (data || []).forEach(r => { extra[r.id] = r; });
+          } catch (_) {}
+        }
         const rows = list.map(c => ({
           'Brand': c.brand || '', 'Model': c.model || '', 'An': c.year || '',
           'Proprietar': c.owner || '', 'Placă': c.plate || '',
-          'Telefon': c.phone || c.contact || '', 'Email': c.email || '',
+          'Telefon': c.phone || c.contact || '', 'Email': (extra[c.id]?.email) || c.email || '',
           'Oraș': c.city || '', 'Zonă': c.zone || '',
           'Status': c.status || '', 'VIP': c.is_vip ? 'DA' : '',
-          'Eveniment': evTitle(c.event_id), 'Note': c.additional_notes || ''
+          'Eveniment': evTitle(c.event_id), 'Note': (extra[c.id]?.additional_notes) || c.additional_notes || ''
         }));
         const stamp = new Date().toISOString().slice(0, 10);
         try {
@@ -1420,8 +1430,15 @@
     // Fingerprint helper — stable, cheap digest over the fields that actually
     // affect what the user sees. If two fetches yield the same fingerprint,
     // the corresponding renderer is skipped entirely.
-    const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','contact','owner','model','brand','is_vip','category','additional_notes','year','city','email','transport_info','social_links','responsible_person','modifications','photos','event_id'];
-    const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','detailed_description','event','event_id','created_by','created_at','checklist'];
+    // Lean column sets for the list/poll fetches — heavy free-text/array columns
+    // (notes, modifications, photos, checklist, detailed_description, …) are only
+    // needed in the detail view, which hydrates them on demand. `updated_at` is
+    // included so any edit still bumps the fingerprint.
+    const CAR_LIST_COLS  = 'id,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,city,category,updated_at';
+    const TASK_LIST_COLS = 'id,title,event,date,status,status_color,is_completed,event_id,due_at,created_at,assigned_user_id,assigned_user_name,started_at,completed_at,completed_by_user_id,completed_by_user_name,priority,category,due_date,created_by,assigned_to,assigned_at,completed_by,team,updated_at,reminder_sent';
+
+    const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at'];
+    const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
     const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','image_url'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
 
@@ -1507,8 +1524,8 @@
         try {
           // Fetch all data in parallel
           const results = await Promise.allSettled([
-            supa.from('cars').select('*').order('id', { ascending: false }),
-            supa.from('tasks').select('*').order('id', { ascending: false }),
+            supa.from('cars').select(CAR_LIST_COLS).order('id', { ascending: false }),
+            supa.from('tasks').select(TASK_LIST_COLS).order('id', { ascending: false }),
             supa.from('events').select('*').order('id', { ascending: false }),
             supa.from('profiles').select('*')
           ]);
@@ -3348,6 +3365,70 @@
       }
     });
 
+    // Don't clobber a detail modal the user is actively editing.
+    function _isTypingIn(root) {
+      const a = document.activeElement;
+      return a && root?.contains(a) && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT');
+    }
+
+    // Local-first Realtime: patch the changed row straight into state and
+    // re-render only the affected slices — no full 4-table refetch. The
+    // Realtime payload carries the full row, so open detail views stay fresh.
+    function applyRealtimeCar(payload) {
+      if (!state.cars) state.cars = [];
+      const { eventType, new: nu, old: ou } = payload;
+      if (eventType === 'DELETE') {
+        state.cars = state.cars.filter(c => String(c.id) !== String(ou?.id));
+      } else if (nu) {
+        const i = state.cars.findIndex(c => String(c.id) === String(nu.id));
+        if (i >= 0) state.cars[i] = { ...state.cars[i], ...nu };
+        else state.cars.unshift(nu);
+      }
+      cacheCarsOffline(state.cars);
+      _fp.cars = makeFp(state.cars, CAR_FP_FIELDS);
+      _fp.stats = _fp.cars + '|' + _fp.tasks + '|' + _fp.events;
+      withPreservedUI(() => {
+        try { renderStats(state.cars, state.tasks, state.events); } catch (_) {}
+        try { renderCarsChips(); } catch (_) {}
+        try { renderCars(); } catch (_) {}
+        try { renderZones(); } catch (_) {}
+        if (el('gateOverlay')?.classList.contains('show')) {
+          try { renderGateZones(); } catch (_) {}
+          try { renderGate(); } catch (_) {}
+        }
+        const cm = document.getElementById('modal-car-detail');
+        if (openCarDetailId != null && cm?.classList.contains('show') && !_isTypingIn(cm)) {
+          try { showCarDetail(openCarDetailId); } catch (_) {}
+        }
+      });
+    }
+    function applyRealtimeTask(payload) {
+      if (!state.tasks) state.tasks = [];
+      const { eventType, new: nu, old: ou } = payload;
+      if (eventType === 'DELETE') {
+        state.tasks = state.tasks.filter(x => String(x.id) !== String(ou?.id));
+      } else if (nu) {
+        const i = state.tasks.findIndex(x => String(x.id) === String(nu.id));
+        if (i >= 0) state.tasks[i] = { ...state.tasks[i], ...nu };
+        else state.tasks.unshift(nu);
+      }
+      _fp.tasks = makeFp(state.tasks, TASK_FP_FIELDS);
+      _fp.stats = _fp.cars + '|' + _fp.tasks + '|' + _fp.events;
+      withPreservedUI(() => {
+        try { renderStats(state.cars, state.tasks, state.events); } catch (_) {}
+        try { renderTopTasks(state.tasks); } catch (_) {}
+        try { renderMyTasks(); } catch (_) {}
+        try { renderTasksChips(); } catch (_) {}
+        try { renderTasksDeptChips(); } catch (_) {}
+        try { renderTasks(); } catch (_) {}
+        try { renderTeam(); } catch (_) {}
+        const tm = document.getElementById('modal-task-detail');
+        if (openTaskDetailId != null && tm?.classList.contains('show') && !_isTypingIn(tm)) {
+          try { showTaskDetail(openTaskDetailId); } catch (_) {}
+        }
+      });
+    }
+
     // Realtime — reload when anyone changes the tables
     supa.channel('kultura-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cars' }, (payload) => {
@@ -3356,7 +3437,7 @@
         } else if (payload.eventType === 'INSERT') {
           sendAppNotification("Mașină Nouă", `A fost adăugat un nou vehicul: ${payload.new.model}`);
         }
-        scheduleLoadData();
+        applyRealtimeCar(payload);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
         if (payload.eventType === 'UPDATE') {
@@ -3366,7 +3447,7 @@
             sendAppNotification("Task Preluat", `${payload.new.assigned_user_name} a început lucrul la: ${payload.new.title}`);
           }
         }
-        scheduleLoadData();
+        applyRealtimeTask(payload);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => scheduleLoadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'task_updates' }, (payload) => {
@@ -3784,6 +3865,15 @@
       const task = state.tasks.find(x => String(x.id) === String(taskId));
       if (!task) return;
       openTaskDetailId = task.id;
+      // Hydrate the heavy columns (detailed_description, checklist) the lean
+      // list fetch skips — only the first time this row is opened.
+      if (!('checklist' in task) && navigator.onLine) {
+        try {
+          const { data } = await supa.from('tasks').select('*').eq('id', taskId).single();
+          if (data) Object.assign(task, data);
+        } catch (_) {}
+        if (openTaskDetailId !== task.id) return;
+      }
 
       el('taskDetailTitle').textContent = task.title || '—';
       const badges = [
@@ -4061,10 +4151,19 @@
     }
 
     // ----- CAR DETAIL -----
-    function showCarDetail(carId) {
+    async function showCarDetail(carId) {
       const c = state.cars.find(x => String(x.id) === String(carId));
       if (!c) return;
       openCarDetailId = c.id;
+      // Hydrate the heavy columns (photos, notes, modifications, …) the lean
+      // list fetch skips — only the first time this row is opened.
+      if (!('photos' in c) && navigator.onLine) {
+        try {
+          const { data } = await supa.from('cars').select('*').eq('id', carId).single();
+          if (data) Object.assign(c, data);
+        } catch (_) {}
+        if (openCarDetailId !== c.id) return; // detail closed/switched while fetching
+      }
 
       const title = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
       el('carDetailTitle').textContent = title;
