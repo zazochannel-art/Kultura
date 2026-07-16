@@ -1492,6 +1492,14 @@
     let _consecutiveErrors = 0;
     let _lastErrorAt = 0;
 
+    // Coalesce bursts of refetch requests (e.g. Realtime firing once per changed
+    // row during an import or a batch of gate check-ins) into a single load.
+    let _loadDebounce = null;
+    function scheduleLoadData(delay = 350) {
+      if (_loadDebounce) clearTimeout(_loadDebounce);
+      _loadDebounce = setTimeout(() => { _loadDebounce = null; loadData().catch(() => {}); }, delay);
+    }
+
     let inFlightLoad = null;
     async function loadData() {
       if (inFlightLoad) return inFlightLoad; // dedupe concurrent calls
@@ -3348,7 +3356,7 @@
         } else if (payload.eventType === 'INSERT') {
           sendAppNotification("Mașină Nouă", `A fost adăugat un nou vehicul: ${payload.new.model}`);
         }
-        loadData();
+        scheduleLoadData();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
         if (payload.eventType === 'UPDATE') {
@@ -3358,9 +3366,9 @@
             sendAppNotification("Task Preluat", `${payload.new.assigned_user_name} a început lucrul la: ${payload.new.title}`);
           }
         }
-        loadData();
+        scheduleLoadData();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => scheduleLoadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'task_updates' }, (payload) => {
         if (payload.eventType === 'INSERT') {
           sendAppNotification("Comentariu nou", `Cineva a lăsat o observație la un task.`);
