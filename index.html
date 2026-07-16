@@ -228,7 +228,13 @@
           <div class="hero-inner">
             <div class="hero-badge"><span class="dot"></span>URMĂTORUL EVENIMENT</div>
             <div class="hero-meta">
-              <div class="n" id="heroDays">—</div>
+              <div class="hero-ring">
+                <svg viewBox="0 0 72 72" aria-hidden="true">
+                  <circle class="ring-bg" cx="36" cy="36" r="32"></circle>
+                  <circle class="ring-fg" id="heroRing" cx="36" cy="36" r="32" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"></circle>
+                </svg>
+                <div class="n" id="heroDays">—</div>
+              </div>
               <div class="l">zile rămase</div>
             </div>
             <div class="hero-title" id="heroTitle">Se încarcă...</div>
@@ -273,6 +279,7 @@
             </div>
             <div class="stat-value" id="statCarsConfirmed">—</div>
             <div class="stat-label">Mașini sosite</div>
+            <div class="stat-meter" aria-hidden="true"><span id="meterArrived" class="green"></span></div>
           </div>
           <div class="stat">
             <div class="stat-head">
@@ -283,6 +290,7 @@
             </div>
             <div class="stat-value" id="statTasks">—</div>
             <div class="stat-label">Taskuri deschise</div>
+            <div class="stat-meter" aria-hidden="true"><span id="meterTasks" class="orange"></span></div>
           </div>
         </div>
 

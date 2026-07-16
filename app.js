@@ -2150,10 +2150,21 @@
       // Cars/tasks respect the active-event filter; events count stays global.
       const scopedCars = activeCars();
       const scopedTasks = activeTasks();
+      const arrived = scopedCars.filter(c => (c.status || '').toLowerCase().includes('sosit')).length;
+      const openTasks = scopedTasks.filter(tk => !tk.is_completed).length;
       el('statCars').textContent = scopedCars.length;
       el('statEvents').textContent = (events || state.events || []).length;
-      el('statCarsConfirmed').textContent = scopedCars.filter(c => (c.status || '').toLowerCase().includes('sosit')).length;
-      el('statTasks').textContent = scopedTasks.filter(tk => !tk.is_completed).length;
+      el('statCarsConfirmed').textContent = arrived;
+      el('statTasks').textContent = openTasks;
+
+      // Meters: arrival rate (of all cars) and task-completion rate.
+      const mArrived = el('meterArrived');
+      if (mArrived) mArrived.style.width = (scopedCars.length ? Math.round(arrived / scopedCars.length * 100) : 0) + '%';
+      const mTasks = el('meterTasks');
+      if (mTasks) {
+        const done = scopedTasks.length - openTasks;
+        mTasks.style.width = (scopedTasks.length ? Math.round(done / scopedTasks.length * 100) : 0) + '%';
+      }
 
       // Update labels in stats grid
       const statsGrid = document.querySelector('.stats-grid');
@@ -2180,12 +2191,22 @@
       const heroMetaLabel = document.querySelector('.hero-meta .l');
       if (heroMetaLabel) heroMetaLabel.textContent = t("home.days_left");
 
+      const setRing = (daysLeft) => {
+        const ring = el('heroRing');
+        if (!ring) return;
+        if (daysLeft == null || isNaN(daysLeft)) { ring.style.strokeDashoffset = '100'; return; }
+        // Fills as the event approaches (30-day horizon): far = empty, day-of = full.
+        const progress = Math.max(0, Math.min(1, (30 - Number(daysLeft)) / 30));
+        ring.style.strokeDashoffset = String(Math.round((1 - progress) * 100));
+      };
+
       if (!list.length) {
         el('heroTitle').textContent = t("common.nothing_found");
         el('heroSub').textContent = t("home.loading");
         el('heroDate').textContent = '';
         el('heroLocation').textContent = '';
         el('heroDays').textContent = '—';
+        setRing(null);
         return;
       }
       const e = list[0];
@@ -2194,6 +2215,7 @@
       el('heroDate').innerHTML = calendarIcon() + (e.date || '');
       el('heroLocation').innerHTML = pinIcon() + (e.location || '');
       el('heroDays').textContent = e.days_left ?? '—';
+      setRing(e.days_left);
     }
 
     function calendarIcon() {
@@ -2473,7 +2495,7 @@
         const carName = [car.brand, car.model].filter(Boolean).join(' ') || car.model;
 
         return `
-          <div class="card car-row" data-row-id="${car.id}" style="cursor:pointer; padding: 16px; margin-bottom: 0;">
+          <div class="card car-row card-stripe stripe-${active || 'invitat'}" data-row-id="${car.id}" style="cursor:pointer; padding: 16px; margin-bottom: 0;">
             <div style="display:flex; align-items:flex-start; gap:12px;">
               <div class="row-icon blue" style="flex-shrink:0;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
@@ -4948,7 +4970,7 @@
         }
 
         return `
-          <div class="tk-card task-row" data-row-id="${tk.id}">
+          <div class="tk-card task-row card-stripe stripe-t-${sk}" data-row-id="${tk.id}">
             <div class="tk-head">
               <div class="tk-status-icon ${iconClass}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${iconSvg}</svg>
@@ -4980,7 +5002,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconUser}</svg>
                 <div class="cell-body">
                   <div class="cell-k">${sk === 'completed' ? t("task.finished_by") : t("task.worked_by")}</div>
-                  <div class="cell-v">${responsible}</div>
+                  <div class="cell-v cell-v-user">${tk.assigned_user_name ? taskAssigneeAvatar(tk) : ''}<span>${responsible}</span></div>
                 </div>
               </div>
             </div>
@@ -5134,10 +5156,30 @@
       document.addEventListener('pointerdown', onDown);
     })();
 
-    function emptyState(text) {
+    // Small avatar chip for a task's assignee — photo if we have one, else initials.
+    function taskAssigneeAvatar(tk) {
+      const name = tk.assigned_user_name;
+      if (!name) return '';
+      const email = (tk.assigned_to || '').toLowerCase();
+      const prof = (state.profiles || []).find(p =>
+        (email && (p.email || '').toLowerCase() === email) || p.full_name === name);
+      const initials = (name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('') || name[0] || '?').toUpperCase();
+      const av = prof && prof.avatar_url;
+      return `<span class="tk-avatar" aria-hidden="true">${av ? `<img src="${escape(av)}" alt="" loading="lazy">` : escape(initials)}</span>`;
+    }
+
+    function emptyState(text, opts = {}) {
+      const cta = opts.cta ? `<div class="empty-cta">${escape(opts.cta)}</div>` : '';
       return `<div class="empty">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="15" x2="15" y2="9"/></svg>
+        <div class="empty-art" aria-hidden="true">
+          <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="10" y="16" width="44" height="34" rx="5"/>
+            <path d="M10 26h44"/><circle cx="17" cy="21" r="1.3"/><circle cx="22" cy="21" r="1.3"/>
+            <path d="M24 40l6-7 5 5 4-5 5 7"/>
+          </svg>
+        </div>
         <p>${escape(text)}</p>
+        ${cta}
       </div>`;
     }
     function escape(str) {
