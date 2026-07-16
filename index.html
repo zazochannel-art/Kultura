@@ -374,7 +374,7 @@
         </div>
         <div class="chips" id="tasksChips"></div>
         <div class="chips" id="tasksDeptChips" style="margin-top: 4px;"></div>
-        <div class="toolbar" style="margin-top: 8px;">
+        <div class="toolbar" style="margin-top: 8px; gap: 8px;">
           <div class="event-picker" style="max-width:260px;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             <select id="tasksAssigneeSelect" aria-label="Responsabil">
@@ -382,8 +382,19 @@
               <option value="__me__" data-i18n="tasks.assignee_me">Doar ale mele</option>
             </select>
           </div>
+          <div class="view-toggle" id="tasksViewToggle">
+            <button type="button" class="view-btn active" data-tasks-view="list" title="Listă" aria-label="Listă">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              <span data-i18n="tasks.view_list">Listă</span>
+            </button>
+            <button type="button" class="view-btn" data-tasks-view="kanban" title="Kanban" aria-label="Kanban">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="9" y="3" width="6" height="12" rx="1"/><rect x="15" y="3" width="6" height="9" rx="1"/></svg>
+              <span data-i18n="tasks.view_kanban">Kanban</span>
+            </button>
+          </div>
         </div>
         <div id="tasksList"></div>
+        <div id="tasksKanban" style="display:none;"></div>
       </section>
 
       <!-- TEAM -->
@@ -520,6 +531,38 @@
         </div>
 
         <div class="setting-block">
+          <div class="setting-label" data-i18n="settings.about">DESPRE</div>
+          <div class="setting-row">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            </div>
+            <div class="txt">
+              <strong data-i18n="whatsnew.title">Ce e nou</strong>
+              <span data-i18n="whatsnew.sub">Funcțiile adăugate recent în aplicație</span>
+            </div>
+            <button class="btn small ghost whatsnew-open" id="whatsNewBtn" data-i18n="whatsnew.open">Vezi</button>
+          </div>
+        </div>
+
+        <div class="setting-block" id="deptSettingsBlock" style="display:none;">
+          <div class="setting-label" data-i18n="settings.dept">DEPARTAMENTE</div>
+          <div class="setting-row" style="align-items:flex-start;">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            </div>
+            <div class="txt" style="flex:1;">
+              <strong data-i18n="settings.dept.title">Departamente</strong>
+              <span data-i18n="settings.dept.sub">Editează lista de departamente folosită la taskuri și profiluri</span>
+              <div class="dept-list" id="deptSettingsList"></div>
+              <div class="dept-add-row">
+                <input type="text" id="deptAddInput" data-i18n-placeholder="settings.dept.add_ph" placeholder="Adaugă un departament...">
+                <button type="button" class="btn ghost small" id="deptAddBtn">+</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="setting-block">
           <div class="setting-label" data-i18n="settings.account">CONT</div>
           <div class="setting-row">
             <div class="icon-box">
@@ -587,6 +630,25 @@
       </section>
     </main>
 
+    <!-- MODAL: What's new -->
+    <div class="modal-backdrop" id="modal-whatsnew" data-modal-name="whatsnew">
+      <div class="modal" style="max-width: 560px;">
+        <div class="detail-head">
+          <div style="flex:1;min-width:0;">
+            <h2 data-i18n="whatsnew.modal_title">Ce e nou în Kultura</h2>
+            <p class="sub-help" data-i18n="whatsnew.modal_sub" style="margin:0;">Ultimele îmbunătățiri și funcții adăugate.</p>
+          </div>
+          <button class="detail-close" data-close aria-label="Închide">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="whatsnew-body" id="whatsNewBody"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn" data-close data-i18n="common.close">Închide</button>
+        </div>
+      </div>
+    </div>
+
     <!-- MODAL: User Profile / Department -->
     <!-- MAP CROP / RESIZE EDITOR -->
     <div class="modal-backdrop" id="modal-map-crop" data-modal-name="map-crop">
@@ -617,15 +679,8 @@
         <form id="form-edit-profile">
           <div class="form-field">
             <label data-i18n="modal.add_task.dept">Departament</label>
-            <select id="profileDeptSelect" required>
+            <select id="profileDeptSelect" data-populate="departments" required>
               <option value="" data-i18n="modal.add_task.dept_placeholder">Alege departamentul...</option>
-              <option value="Management" data-i18n="dept.Management">Management</option>
-              <option value="Parteneriate" data-i18n="dept.Parteneriate">Parteneriate</option>
-              <option value="Participanți" data-i18n="dept.Participanți">Participanți</option>
-              <option value="Marketing" data-i18n="dept.Marketing">Marketing</option>
-              <option value="Logistică" data-i18n="dept.Logistică">Logistică</option>
-              <option value="Juridic și Financiar" data-i18n="dept.Juridic și Financiar">Juridic și Financiar</option>
-              <option value="Design" data-i18n="dept.Design">Design</option>
             </select>
           </div>
           <div class="form-field" id="profileRoleField" style="display:none;">
@@ -808,15 +863,8 @@
           </div>
           <div class="form-field">
             <label data-i18n="modal.add_task.dept">Departament</label>
-            <select name="team">
+            <select name="team" data-populate="departments">
               <option value="" data-i18n="modal.add_task.dept_placeholder">Alege departamentul...</option>
-              <option value="Management" data-i18n="dept.Management">Management</option>
-              <option value="Parteneriate" data-i18n="dept.Parteneriate">Parteneriate</option>
-              <option value="Participanți" data-i18n="dept.Participanți">Participanți</option>
-              <option value="Marketing" data-i18n="dept.Marketing">Marketing</option>
-              <option value="Logistică" data-i18n="dept.Logistică">Logistică</option>
-              <option value="Juridic și Financiar" data-i18n="dept.Juridic și Financiar">Juridic și Financiar</option>
-              <option value="Design" data-i18n="dept.Design">Design</option>
             </select>
           </div>
           <div class="form-row">
