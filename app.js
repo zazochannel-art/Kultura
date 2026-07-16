@@ -648,6 +648,34 @@
       applyActiveEvent();
     });
 
+    // Tasks assignee filter.
+    el('tasksAssigneeSelect').addEventListener('change', (e) => {
+      state.tasksAssignee = e.target.value || 'all';
+      renderTasks();
+    });
+    // Open a task from the "My tasks" home card.
+    el('myTasksList').addEventListener('click', (e) => {
+      const row = e.target.closest('[data-open-task]');
+      if (row) showTaskDetail(row.dataset.openTask);
+    });
+    // Populate the assignee dropdown with team members (kept in sync).
+    function populateTaskAssignees() {
+      const sel = el('tasksAssigneeSelect');
+      if (!sel) return;
+      const prev = state.tasksAssignee;
+      while (sel.options.length > 2) sel.remove(2); // keep "all" + "me"
+      const seen = new Set();
+      (state.profiles || []).forEach(p => {
+        if (!p.email || seen.has(p.email)) return;
+        seen.add(p.email);
+        const opt = document.createElement('option');
+        opt.value = p.email;
+        opt.textContent = p.full_name || p.email.split('@')[0];
+        sel.appendChild(opt);
+      });
+      sel.value = [...sel.options].some(o => o.value === prev) ? prev : 'all';
+    }
+
     el('form-edit-profile').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = e.target.querySelector('button[type="submit"]');
@@ -1036,7 +1064,7 @@
       cars: [], tasks: [], events: [], profiles: [], notifications: [], team: [],
       authUsers: null,
       carsFilter: 'all', carsSearch: '',
-      tasksFilter: 'all', tasksSearch: '', tasksDept: 'all',
+      tasksFilter: 'all', tasksSearch: '', tasksDept: 'all', tasksAssignee: 'all',
       eventsFilter: 'all', eventsSearch: '',
       teamSearch: '',
       activeEventId: localStorage.getItem('kultura_active_event') || ''
@@ -1081,6 +1109,7 @@
       try { renderCars(); } catch (_) {}
       try { renderTasksChips(); } catch (_) {}
       try { renderTasks(); } catch (_) {}
+      try { renderMyTasks(); } catch (_) {}
       try { renderZones(); } catch (_) {}
       try { renderTeam(); } catch (_) {}
     }
@@ -1140,7 +1169,7 @@
     // affect what the user sees. If two fetches yield the same fingerprint,
     // the corresponding renderer is skipped entirely.
     const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','contact','owner','model','brand','is_vip','category','additional_notes','year','city','email','transport_info','social_links','responsible_person','modifications','photos','event_id'];
-    const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','detailed_description','event','event_id','created_by','created_at','checklist'];
+    const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','detailed_description','event','event_id','created_by','created_at','checklist'];
     const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','image_url'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
 
@@ -1309,6 +1338,7 @@
             }
             if (tasksChanged) {
               try { renderTopTasks(state.tasks); } catch (_) {}
+              try { renderMyTasks(); } catch (_) {}
               try { renderTasksChips(); } catch (_) {}
               try { renderTasksDeptChips(); } catch (_) {}
               try { renderTasks(); } catch (_) {}
@@ -1326,6 +1356,7 @@
               try { applyAdminUI(); } catch (_) {}
               try { renderEvents(); } catch (_) {}
               try { updateAvatarUI(); } catch (_) {}
+              try { populateTaskAssignees(); } catch (_) {}
             }
 
             // Live-refresh OPEN detail modals only if the underlying data
@@ -1527,6 +1558,46 @@
             <div class="row-sub">${escape(tk.event || tk.date || '')}</div>
           </div>
           <div class="badge ${statusToBadge(tk.status)}">${escape(translateStatus(tk.status, 'task'))}</div>
+        </div>
+      `).join('');
+    }
+
+    // Is a task assigned to me? (pre-assigned by email, or taken by uid/name)
+    function isMyTask(tk) {
+      if (!currentUser) return false;
+      const myEmail = (currentUser.email || '').toLowerCase();
+      const myName = currentUserName();
+      return (tk.assigned_to && tk.assigned_to.toLowerCase() === myEmail)
+        || (tk.assigned_user_id && String(tk.assigned_user_id) === String(currentUser.id))
+        || (tk.assigned_user_name && tk.assigned_user_name === myName);
+    }
+    // Overdue = has a real deadline in the past and not completed.
+    function isOverdue(tk) {
+      return tk.due_at && !tk.is_completed && new Date(tk.due_at).getTime() < Date.now();
+    }
+
+    function renderMyTasks() {
+      const c = el('myTasksList');
+      if (!c) return;
+      const list = activeTasks().filter(tk => !tk.is_completed && isMyTask(tk))
+        .sort((a, b) => (a.due_at ? new Date(a.due_at) : Infinity) - (b.due_at ? new Date(b.due_at) : Infinity))
+        .slice(0, 5);
+      const card = el('myTasksCard');
+      if (card) {
+        const h3 = card.querySelector('h3'); if (h3) h3.textContent = t('home.my_tasks');
+        const p = card.querySelector('p'); if (p) p.textContent = t('home.my_tasks_sub');
+      }
+      if (!list.length) return c.innerHTML = emptyState(t('home.my_tasks_empty'));
+      c.innerHTML = list.map(tk => `
+        <div class="row" data-open-task="${tk.id}" style="cursor:pointer;">
+          <div class="row-icon ${isOverdue(tk) ? 'red' : 'orange'}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          </div>
+          <div class="row-body">
+            <div class="row-title">${escape(tk.title)}</div>
+            <div class="row-sub">${escape(tk.date || tk.event || '')}</div>
+          </div>
+          ${isOverdue(tk) ? `<div class="badge red">${escape(t('task.overdue'))}</div>` : `<div class="badge ${statusToBadge(tk.status)}">${escape(translateStatus(tk.status, 'task'))}</div>`}
         </div>
       `).join('');
     }
@@ -2548,10 +2619,15 @@
           ? ((state.profiles || []).find(p => (p.email || '').toLowerCase() === assigneeEmail.toLowerCase())?.full_name
              || assigneeEmail.split('@')[0])
           : null;
+        // Structured deadline drives reminders; keep a human string for display.
+        const dueRaw = (fd.get('due_at') || '').trim();
+        const dueAt = dueRaw ? new Date(dueRaw).toISOString() : null;
+        const dueText = dueRaw ? new Date(dueRaw).toLocaleString('ro-RO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
         const { error } = await supa.from('tasks').insert({
           title: fd.get('title').trim(),
           event: (fd.get('event') || '').trim(),
-          date: (fd.get('date') || '').trim(),
+          date: dueText,
+          due_at: dueAt,
           category: (fd.get('category') || '').trim() || null,
           team: (fd.get('team') || '').trim() || null,
           priority: fd.get('priority') || 'Normală',
@@ -3782,6 +3858,18 @@
         if (state.tasksDept && state.tasksDept !== 'all') {
           if (taskDept(t) !== state.tasksDept) return false;
         }
+        // Assignee filter: "mine" or a specific member's email/name.
+        if (state.tasksAssignee && state.tasksAssignee !== 'all') {
+          if (state.tasksAssignee === '__me__') {
+            if (!isMyTask(t)) return false;
+          } else {
+            const email = state.tasksAssignee.toLowerCase();
+            const name = (state.profiles || []).find(p => (p.email || '').toLowerCase() === email)?.full_name || '';
+            const match = (t.assigned_to && t.assigned_to.toLowerCase() === email)
+              || (name && t.assigned_user_name === name);
+            if (!match) return false;
+          }
+        }
         if (!q) return true;
         return (t.title || '').toLowerCase().includes(q) ||
                (t.event || '').toLowerCase().includes(q) ||
@@ -3922,6 +4010,7 @@
                 ${tk.category ? `<span class="tk-badge cat">${escape(tk.category)}</span>` : ''}
                 ${pri ? `<span class="tk-badge ${pri.cls === 'priority-urgent' ? 'pri-urgent' : pri.cls === 'priority-high' ? 'pri-high' : 'pri-normal'}">${pri.label}${pri.mark ? ' <span style="opacity:0.75">' + pri.mark + '</span>' : ''}</span>` : ''}
                 <span class="tk-badge stat-${badgeClass}">${statusLabel}</span>
+                ${isOverdue(tk) ? `<span class="tk-badge overdue">${escape(t('task.overdue'))}</span>` : ''}
               </div>
             </div>
 

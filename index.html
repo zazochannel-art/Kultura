@@ -292,6 +292,13 @@
             <div id="upcomingEventsList"></div>
           </div>
 
+          <div class="card" id="myTasksCard">
+            <div class="card-head">
+              <div><h3 data-i18n="home.my_tasks">Taskurile mele</h3><p data-i18n="home.my_tasks_sub">Ce ți-a fost atribuit</p></div>
+            </div>
+            <div id="myTasksList"></div>
+          </div>
+
           <div class="card" id="topTasksCard">
             <div class="card-head">
               <div><h3>Taskuri prioritare</h3><p>Ce e activ acum</p></div>
@@ -367,6 +374,15 @@
         </div>
         <div class="chips" id="tasksChips"></div>
         <div class="chips" id="tasksDeptChips" style="margin-top: 4px;"></div>
+        <div class="toolbar" style="margin-top: 8px;">
+          <div class="event-picker" style="max-width:260px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <select id="tasksAssigneeSelect" aria-label="Responsabil">
+              <option value="all" data-i18n="tasks.assignee_all">Toți responsabilii</option>
+              <option value="__me__" data-i18n="tasks.assignee_me">Doar ale mele</option>
+            </select>
+          </div>
+        </div>
         <div id="tasksList"></div>
       </section>
 
@@ -805,8 +821,8 @@
           </div>
           <div class="form-row">
             <div class="form-field">
-              <label>Termen limită</label>
-              <input type="text" name="date" placeholder="ex: 15 iulie 2026">
+              <label data-i18n="modal.add_task.due">Termen limită</label>
+              <input type="datetime-local" name="due_at">
             </div>
             <div class="form-field">
               <label>Prioritate</label>

@@ -1971,3 +1971,11 @@
 }
 .checklist-item input { width: 18px; height: 18px; accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
 .checklist-item.done span { text-decoration: line-through; color: var(--text-mute); }
+
+/* ============ OVERDUE TASK BADGE ============ */
+.tk-badge.overdue {
+  background: rgba(239,68,68,0.18);
+  color: var(--red);
+  border: 1px solid rgba(239,68,68,0.4);
+  font-weight: 800;
+}
