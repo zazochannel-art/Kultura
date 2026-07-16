@@ -352,6 +352,7 @@
       }
 
       loadDepartments();
+      loadZoneConfig();
       startPolling();
     }
     function leaveApp() {
@@ -412,11 +413,79 @@
             <p class="map-empty-hint">${escape(t('map.empty_hint'))}</p>
           </div>`;
       }
+      renderZoneCfg();
       renderZones();
     }
 
+    // ----- ZONE CAPACITY (admin-configurable, real-time occupancy) -----
+    let ZONE_CONFIG = []; // [{ name, capacity }]
+    function zoneCapacityOf(name) {
+      const key = (name || '').trim().toLowerCase();
+      const z = ZONE_CONFIG.find(x => x.name.trim().toLowerCase() === key);
+      return (z && z.capacity > 0) ? z.capacity : null;
+    }
+    async function loadZoneConfig() {
+      try {
+        const { data } = await supa.from('ui_settings').select('value').eq('key', 'zone_config').maybeSingle();
+        let arr = null;
+        if (data && data.value) { try { arr = typeof data.value === 'string' ? JSON.parse(data.value) : data.value; } catch (_) {} }
+        if (Array.isArray(arr)) {
+          ZONE_CONFIG = arr.filter(z => z && z.name).map(z => ({ name: String(z.name).trim(), capacity: Math.max(1, parseInt(z.capacity, 10) || 0) }));
+        }
+      } catch (_) {}
+      renderZoneCfg();
+      try { renderZones(); } catch (_) {}
+    }
+    async function saveZoneConfig(next) {
+      ZONE_CONFIG = next;
+      const { error } = await supa.from('ui_settings').upsert(
+        { key: 'zone_config', value: JSON.stringify(next), updated_at: new Date().toISOString() },
+        { onConflict: 'key' }
+      );
+      if (error) { uiAlert(t('common.error') + ': ' + error.message); return false; }
+      renderZoneCfg();
+      try { renderZones(); } catch (_) {}
+      showToast(t('zonecap.saved'));
+      return true;
+    }
+    function renderZoneCfg() {
+      const block = el('zoneCfgBlock');
+      if (block) block.style.display = isAdmin() ? 'block' : 'none';
+      const list = el('zoneCfgList');
+      if (!list) return;
+      list.innerHTML = ZONE_CONFIG.length
+        ? ZONE_CONFIG.map((z, i) => `
+          <div class="zonecfg-item">
+            <span class="zonecfg-name">${escape(z.name)}</span>
+            <span class="zonecfg-cap">${z.capacity} ${escape(t('zonecap.spots'))}</span>
+            <button type="button" class="dept-item-del" data-zonecfg-del="${i}" aria-label="${escape(t('common.delete'))}">&times;</button>
+          </div>`).join('')
+        : `<p class="dept-empty">${escape(t('zonecap.none'))}</p>`;
+    }
+    // Live occupancy per zone (respects the active-event filter).
+    function zoneOccupancy() {
+      const counts = new Map();
+      activeCars().forEach(c => {
+        const z = (c.zone || '').trim();
+        if (!z) return;
+        const k = z.toLowerCase();
+        if (!counts.has(k)) counts.set(k, { name: z, assigned: 0, arrived: 0 });
+        const o = counts.get(k);
+        o.assigned++;
+        if (statusKey(c.status) === 'sosit') o.arrived++;
+      });
+      ZONE_CONFIG.forEach(z => {
+        const k = z.name.trim().toLowerCase();
+        if (!counts.has(k)) counts.set(k, { name: z.name.trim(), assigned: 0, arrived: 0 });
+      });
+      return [...counts.values()].map(o => {
+        const cap = zoneCapacityOf(o.name);
+        return { ...o, capacity: cap, free: cap != null ? Math.max(0, cap - o.assigned) : null };
+      });
+    }
+
     // Interactive zone breakdown, derived live from car data (respects the
-    // active-event filter). Each card expands to list its cars.
+    // active-event filter). Each card shows real-time occupancy vs capacity.
     function renderZones() {
       const panel = el('zonePanel');
       if (!panel) return;
@@ -427,6 +496,11 @@
         if (!byZone.has(z)) byZone.set(z, []);
         byZone.get(z).push(c);
       });
+      // Include configured zones even when still empty, so staff sees capacity.
+      ZONE_CONFIG.forEach(z => {
+        const name = z.name.trim();
+        if (![...byZone.keys()].some(k => k.toLowerCase() === name.toLowerCase())) byZone.set(name, []);
+      });
       if (!byZone.size) {
         panel.innerHTML = `<div class="card">${emptyState(t('map.zones.empty'))}</div>`;
         return;
@@ -435,6 +509,16 @@
       panel.innerHTML = '<div class="zone-grid">' + zones.map(z => {
         const cars = byZone.get(z);
         const arrived = cars.filter(c => statusKey(c.status) === 'sosit').length;
+        const cap = zoneCapacityOf(z);
+        const assigned = cars.length;
+        const pct = cap ? Math.min(100, Math.round((assigned / cap) * 100)) : 0;
+        const full = cap != null && assigned >= cap;
+        const near = cap != null && !full && assigned >= cap * 0.8;
+        const capHtml = cap != null ? `
+          <div class="zone-cap ${full ? 'full' : near ? 'near' : ''}">
+            <div class="zone-cap-bar"><span style="width:${pct}%"></span></div>
+            <div class="zone-cap-label">${assigned}/${cap}${full ? ' · ' + escape(t('zonecap.full')) : (cap - assigned) + ' ' + escape(t('zonecap.free'))}</div>
+          </div>` : '';
         const rows = cars.map(c => {
           const color = CAR_STATUS_OPTIONS.find(o => o.key === statusKey(c.status))?.color || '#3B82F6';
           const name = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
@@ -442,11 +526,12 @@
             <span class="z-status" style="background:${color}"></span>
             <span class="z-name">${escape(name)}${c.plate ? ' · ' + escape(c.plate) : ''}</span>
           </div>`;
-        }).join('');
-        return `<div class="zone-card" data-zone="${escape(z)}">
+        }).join('') || `<div class="zone-empty-row">${escape(t('zonecap.empty_zone'))}</div>`;
+        return `<div class="zone-card ${full ? 'is-full' : ''}" data-zone="${escape(z)}">
           <div class="zone-name"><span class="zone-dot"></span>${escape(z)}</div>
-          <div class="zone-count">${cars.length}</div>
+          <div class="zone-count">${assigned}</div>
           <div class="zone-stats"><span>${arrived} ${escape(t('map.zones.arrived'))}</span></div>
+          ${capHtml}
           <div class="zone-cars">${rows}</div>
         </div>`;
       }).join('') + '</div>';
@@ -476,6 +561,46 @@
       });
       return _pdfjsLoading;
     }
+
+    // Lazy-load the vendored QR generator only when a car pass is displayed.
+    let _qrLoading = null;
+    function ensureQrLib() {
+      if (window.qrcode) return Promise.resolve(window.qrcode);
+      if (_qrLoading) return _qrLoading;
+      _qrLoading = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'vendor/qrcode.js';
+        s.onload = () => window.qrcode ? resolve(window.qrcode) : reject(new Error('QR lib missing'));
+        s.onerror = () => { _qrLoading = null; reject(new Error('Nu s-a putut încărca generatorul QR.')); };
+        document.head.appendChild(s);
+      });
+      return _qrLoading;
+    }
+
+    // Show a printable QR "pass" for a car (used for QR check-in at the gate).
+    async function showCarQr(carId) {
+      const src = (state.cars && state.cars.length) ? state.cars : loadCachedCars();
+      const car = src.find(c => String(c.id) === String(carId));
+      if (!car) return;
+      const box = el('carQrBox'), cap = el('carQrCaption');
+      if (!box) return;
+      box.innerHTML = `<div class="qr-loading"></div>`;
+      if (cap) {
+        cap.innerHTML = `<div class="qr-plate">${escape(car.plate || '—')}</div>
+          <div class="qr-sub">${escape([car.brand, car.model].filter(Boolean).join(' '))}${car.owner ? ' · ' + escape(car.owner) : ''}</div>`;
+      }
+      openModal('car-qr');
+      try {
+        const qrlib = await ensureQrLib();
+        const qr = qrlib(0, 'M');
+        qr.addData(carQrPayload(car));
+        qr.make();
+        box.innerHTML = qr.createSvgTag({ scalable: true, margin: 1 });
+      } catch (e) {
+        box.innerHTML = `<div class="qr-err">${escape(t('common.error'))}</div>`;
+      }
+    }
+    el('carQrPrintBtn')?.addEventListener('click', () => { try { window.print(); } catch (_) {} });
 
     // Turn any chosen file into an image data URL. PDFs render their first
     // page to a canvas at high resolution.
@@ -1482,6 +1607,11 @@
               try { renderCarsChips(); } catch (_) {}
               try { renderCars(); } catch (_) {}
               try { renderZones(); } catch (_) {}   // zone panel depends on cars
+              // Keep the gate's live free-spots strip / list fresh if it's open.
+              if (el('gateOverlay')?.classList.contains('show')) {
+                try { renderGateZones(); } catch (_) {}
+                try { renderGate(); } catch (_) {}
+              }
             }
             if (profsChanged) {
               try { renderTeam(); } catch (_) {}
@@ -1709,10 +1839,36 @@
     }
     function gateSetZone(carId, zone) {
       const z = (zone || '').trim();
+      // Warn (soft) if the target zone is already at capacity.
+      if (z) {
+        const cap = zoneCapacityOf(z);
+        if (cap != null) {
+          const already = activeCars().some(c => String(c.id) === String(carId) && (c.zone || '').trim().toLowerCase() === z.toLowerCase());
+          const occ = activeCars().filter(c => (c.zone || '').trim().toLowerCase() === z.toLowerCase()).length;
+          if (!already && occ >= cap) showToast(t('zonecap.full_warn', { zone: z }), 'error');
+        }
+      }
       applyLocalCarPatch(carId, { zone: z || null });
       enqueueAction({ type: 'car-update', carId, patch: { zone: z || null } });
+      renderGateZones();
       updateGateSyncUI();
       flushOutbox();
+    }
+
+    // Compact free-spots strip shown at the top of the gate.
+    function renderGateZones() {
+      const strip = el('gateZones');
+      if (!strip) return;
+      const occ = zoneOccupancy().filter(o => o.capacity != null);
+      if (!occ.length) { strip.innerHTML = ''; strip.style.display = 'none'; return; }
+      strip.style.display = 'flex';
+      occ.sort((a, b) => a.name.localeCompare(b.name, 'ro'));
+      strip.innerHTML = occ.map(o => {
+        const full = o.free <= 0;
+        return `<span class="gate-zchip ${full ? 'full' : (o.free <= Math.max(1, o.capacity * 0.2) ? 'near' : '')}">
+          <b>${escape(o.name)}</b> ${full ? escape(t('zonecap.full')) : o.free + '/' + o.capacity}
+        </span>`;
+      }).join('');
     }
 
     // ----- Gate overlay UI -----
@@ -1730,6 +1886,7 @@
       const inp = el('gateSearch');
       if (inp) inp.value = '';
       renderGate();
+      renderGateZones();
       updateGateSyncUI();
       flushOutbox();
       setTimeout(() => inp && inp.focus(), 60);
@@ -1737,6 +1894,7 @@
     function closeGate() {
       const ov = el('gateOverlay');
       if (!ov) return;
+      stopGateScanner();
       ov.classList.remove('show');
       ov.setAttribute('aria-hidden', 'true');
     }
@@ -1798,8 +1956,102 @@
       if (zi) gateSetZone(zi.dataset.gateZone, zi.value);
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && el('gateOverlay')?.classList.contains('show')) closeGate();
+      if (e.key === 'Escape' && el('gateOverlay')?.classList.contains('show')) {
+        if (el('gateScanner') && !el('gateScanner').hidden) stopGateScanner();
+        else closeGate();
+      }
     });
+
+    // ----- QR check-in: encode a car pass, decode with the camera -----
+    // The QR payload is compact and offline-friendly: "KULTURA:<id>:<plate>".
+    function carQrPayload(car) {
+      return 'KULTURA:' + car.id + ':' + (car.plate || '');
+    }
+    function findCarByQr(text) {
+      if (!text) return null;
+      const raw = String(text).trim();
+      const src = (state.cars && state.cars.length) ? state.cars : loadCachedCars();
+      let m = raw.match(/^KULTURA:(\d+)(?::(.*))?$/i);
+      if (m) {
+        const id = m[1];
+        return src.find(c => String(c.id) === id) || null;
+      }
+      // Fallbacks: a bare id, or a plate string.
+      if (/^\d+$/.test(raw)) {
+        const byId = src.find(c => String(c.id) === raw);
+        if (byId) return byId;
+      }
+      const norm = raw.toLowerCase().replace(/\s+/g, '');
+      return src.find(c => (c.plate || '').toLowerCase().replace(/\s+/g, '') === norm) || null;
+    }
+
+    let _scanStream = null, _scanRAF = null, _scanDetector = null, _scanBusy = false, _lastScanAt = 0;
+    async function startGateScanner() {
+      const panel = el('gateScanner'), video = el('gateVideo'), hint = el('gateScanHint');
+      if (!panel || !video) return;
+      if (!('BarcodeDetector' in window)) {
+        showToast(t('gate.scan_unsupported'), 'error');
+        return;
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast(t('gate.scan_unsupported'), 'error');
+        return;
+      }
+      panel.hidden = false;
+      if (hint) hint.textContent = t('gate.scan_hint');
+      try {
+        _scanDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+        _scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = _scanStream;
+        await video.play();
+        _scanLoop();
+      } catch (err) {
+        stopGateScanner();
+        showToast(t('gate.scan_denied'), 'error');
+      }
+    }
+    function _scanLoop() {
+      const video = el('gateVideo');
+      const tick = async () => {
+        if (!_scanStream || !video) return;
+        if (!_scanBusy && Date.now() - _lastScanAt > 700) {
+          _scanBusy = true;
+          try {
+            const codes = await _scanDetector.detect(video);
+            if (codes && codes.length) {
+              const car = findCarByQr(codes[0].rawValue);
+              _lastScanAt = Date.now();
+              if (car) {
+                if (statusKey(car.status) === 'sosit') {
+                  showToast(t('gate.scan_already', { plate: car.plate || car.id }));
+                } else {
+                  gateCheckIn(car.id);
+                  try { navigator.vibrate && navigator.vibrate(120); } catch (_) {}
+                }
+              } else {
+                showToast(t('gate.scan_notfound'), 'error');
+              }
+            }
+          } catch (_) {}
+          _scanBusy = false;
+        }
+        _scanRAF = requestAnimationFrame(tick);
+      };
+      _scanRAF = requestAnimationFrame(tick);
+    }
+    function stopGateScanner() {
+      const panel = el('gateScanner'), video = el('gateVideo');
+      if (_scanRAF) { cancelAnimationFrame(_scanRAF); _scanRAF = null; }
+      if (_scanStream) { try { _scanStream.getTracks().forEach(tr => tr.stop()); } catch (_) {} _scanStream = null; }
+      if (video) { try { video.pause(); video.srcObject = null; } catch (_) {} }
+      _scanBusy = false;
+      if (panel) panel.hidden = true;
+    }
+    el('gateScanBtn')?.addEventListener('click', () => {
+      const panel = el('gateScanner');
+      if (panel && panel.hidden) startGateScanner(); else stopGateScanner();
+    });
+    el('gateScanClose')?.addEventListener('click', stopGateScanner);
 
     // Connectivity → drain the queue and refresh the indicator.
     window.addEventListener('online',  () => { updateGateSyncUI(); flushOutbox(); });
@@ -2389,7 +2641,34 @@
         saveDepartments(next);
         return;
       }
+      // Zone capacity editor (Map, admin) — delete one.
+      const zd = ev.target.closest('[data-zonecfg-del]');
+      if (zd) {
+        const idx = parseInt(zd.dataset.zonecfgDel, 10);
+        const next = ZONE_CONFIG.slice();
+        next.splice(idx, 1);
+        saveZoneConfig(next);
+        return;
+      }
     });
+
+    // Zone capacity editor — add a zone.
+    (function wireZoneCfgEditor() {
+      const nameI = el('zoneCfgName'), capI = el('zoneCfgCap'), btn = el('zoneCfgAddBtn');
+      if (!btn) return;
+      const add = () => {
+        const name = (nameI.value || '').trim();
+        const cap = Math.max(1, parseInt(capI.value, 10) || 0);
+        if (!name || !cap) return;
+        const next = ZONE_CONFIG.filter(z => z.name.trim().toLowerCase() !== name.toLowerCase());
+        next.push({ name, capacity: cap });
+        next.sort((a, b) => a.name.localeCompare(b.name, 'ro'));
+        nameI.value = ''; capI.value = '';
+        saveZoneConfig(next);
+      };
+      btn.addEventListener('click', add);
+      capI.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+    })();
 
     // Department editor — add a new department from the input.
     (function wireDeptEditor() {
@@ -3899,6 +4178,7 @@
       const canDelete = roleAtLeast('staff');
       el('carDetailActions').innerHTML = `
         ${contactButtons(c)}
+        <button class="btn ghost" data-detail-action="car-qr" data-car-id="${c.id}">${escape(t('car.detail.qr'))}</button>
         <button class="btn ghost" data-detail-action="car-status" data-car-id="${c.id}" data-label="Sosit" data-color="#10B981">${escape(t('car.detail.action_confirm'))}</button>
         <button class="btn ghost" data-detail-action="car-status" data-car-id="${c.id}" data-label="Plecat" data-color="#8B5CF6">${escape(t('car.detail.action_reject'))}</button>
         ${canDelete ? `<button class="btn danger" data-detail-action="car-delete" data-car-id="${c.id}" data-car-label="${escape(title)}">${escape(t('car.action.delete'))}</button>` : ''}
@@ -4134,6 +4414,12 @@
           showToast(t('car.detail.toast_status_updated'));
           await loadData();
           showCarDetail(id);
+
+        } else if (action === 'car-qr') {
+          const id = btn.dataset.carId;
+          btn.disabled = false;
+          showCarQr(id);
+          return;
 
         } else if (action === 'car-delete') {
           const id = btn.dataset.carId;
