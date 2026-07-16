@@ -351,6 +351,7 @@
         if (cached.length) state.cars = cached;
       }
 
+      try { showSkeletons(); } catch (_) {}
       loadDepartments();
       loadZoneConfig();
       startPolling();
@@ -1238,6 +1239,7 @@
           return false;
         }
       }
+      haptic(40);
       showToast(t('task.detail.toast_finished'));
       return true;
     }
@@ -1574,8 +1576,12 @@
               console.warn('Data load: some slices failed', results);
               _lastErrorAt = now;
             }
+            // Surface a "reconnecting" banner only after repeated failures, so a
+            // single blip doesn't flash it.
+            if (_consecutiveErrors >= 2) try { setConnError(true); } catch (_) {}
           } else {
             _consecutiveErrors = 0;
+            try { setConnError(false); } catch (_) {}
           }
 
           // Compute new fingerprints — this is the "diff" step. Only when the
@@ -1672,6 +1678,7 @@
         } catch (err) {
           _consecutiveErrors++;
           _lastErrorAt = Date.now();
+          if (_consecutiveErrors >= 2) try { setConnError(true); } catch (_) {}
           if (_consecutiveErrors <= 1) console.error('Critical data load error:', err);
         } finally {
           inFlightLoad = null;
@@ -1860,6 +1867,7 @@
       enqueueAction({ type: 'car-update', carId, patch: { status: 'Sosit', status_color: '#10B981' } });
       renderGate(); updateGateSyncUI();
       flushOutbox();
+      haptic(40);
       showToast(t('gate.checked_in'));
     }
     function gateSetZone(carId, zone) {
@@ -2079,9 +2087,64 @@
     el('gateScanClose')?.addEventListener('click', stopGateScanner);
 
     // Connectivity → drain the queue and refresh the indicator.
-    window.addEventListener('online',  () => { updateGateSyncUI(); flushOutbox(); });
-    window.addEventListener('offline', () => { updateGateSyncUI(); });
+    window.addEventListener('online',  () => { updateGateSyncUI(); flushOutbox(); updateConnBanner(); });
+    window.addEventListener('offline', () => { updateGateSyncUI(); updateConnBanner(); });
     updateGateSyncUI();
+
+    // ----- Connection banner (offline / reconnecting) -----
+    let _connError = false;
+    function setConnError(v) { if (_connError !== v) { _connError = v; updateConnBanner(); } }
+    function updateConnBanner() {
+      const b = el('connBanner');
+      if (!b) return;
+      if (!navigator.onLine) {
+        b.textContent = t('conn.offline');
+        b.className = 'conn-banner show offline';
+      } else if (_connError) {
+        b.textContent = t('conn.reconnecting');
+        b.className = 'conn-banner show warn';
+      } else {
+        b.className = 'conn-banner';
+      }
+    }
+    updateConnBanner();
+
+    // ----- Haptic feedback (no-op where unsupported) -----
+    function haptic(ms = 25) { try { navigator.vibrate && navigator.vibrate(ms); } catch (_) {} }
+
+    // ----- Skeleton placeholders shown until the first data arrives -----
+    function skeletonCards(n, kind) {
+      let out = '';
+      for (let i = 0; i < n; i++) {
+        out += `<div class="skel-card ${kind || ''}"><div class="skel-line w60"></div><div class="skel-line w40"></div><div class="skel-line w80"></div></div>`;
+      }
+      return `<div class="skel-wrap">${out}</div>`;
+    }
+    function showSkeletons() {
+      const map = { carsList: 4, tasksList: 4, eventsList: 3 };
+      Object.entries(map).forEach(([id, n]) => {
+        const c = el(id);
+        if (c && !c.children.length) c.innerHTML = skeletonCards(n);
+      });
+    }
+
+    // ----- Focus trap + Escape close for open modals -----
+    function _openModalEls() { return [...document.querySelectorAll('.modal-backdrop.show')]; }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const top = _openModalEls().pop();
+        if (top) { e.preventDefault(); closeModal(top); return; }
+      }
+      if (e.key !== 'Tab') return;
+      const top = _openModalEls().pop();
+      if (!top) return;
+      const items = [...top.querySelectorAll('a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+        .filter(x => x.offsetParent !== null);
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
 
     function renderStats(cars, tasks, events) {
       // Cars/tasks respect the active-event filter; events count stays global.
@@ -2770,6 +2833,10 @@
         if (currentVal) sel.value = currentVal;
       });
       m.classList.add('show');
+      // Accessibility: remember what was focused, then focus the first control.
+      _lastFocusedBeforeModal = document.activeElement;
+      const firstField = m.querySelector('input:not([type=hidden]):not([disabled]), textarea, select, button:not([data-close])');
+      if (firstField) setTimeout(() => { try { firstField.focus(); } catch (_) {} }, 40);
     }
     function closeModal(m) {
       m.classList.remove('show');
@@ -2777,7 +2844,13 @@
       if (form) form.reset();
       const msg = m.querySelector('.modal-msg');
       if (msg) msg.classList.remove('show');
+      // Restore focus to whatever opened the modal.
+      if (_lastFocusedBeforeModal && document.contains(_lastFocusedBeforeModal)) {
+        try { _lastFocusedBeforeModal.focus(); } catch (_) {}
+      }
+      _lastFocusedBeforeModal = null;
     }
+    let _lastFocusedBeforeModal = null;
     let userBeingEdited = null;
     // Primary admin — role is locked (also enforced by a DB trigger).
     const PRIMARY_ADMIN_EMAIL = 'igor.gratii.99@mail.ru';
