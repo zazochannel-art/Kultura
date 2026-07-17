@@ -840,14 +840,15 @@
           </div>
           <div class="form-row">
             <div class="form-field">
-              <label>Dată *</label>
-              <input type="text" name="date" required placeholder="ex: 29 - 30 Iunie 2025">
+              <label>Data evenimentului *</label>
+              <input type="date" name="starts_at" required>
             </div>
             <div class="form-field">
-              <label>Zile rămase</label>
-              <input type="number" name="days_left" placeholder="12" min="0">
+              <label>Dată afișată</label>
+              <input type="text" name="date" placeholder="opțional — ex: 29-30 Iunie">
             </div>
           </div>
+          <p class="sub-help" style="margin:-6px 0 12px;">Zilele rămase se calculează automat din data evenimentului.</p>
           <div class="form-field">
             <label>Locație</label>
             <input type="text" name="location" placeholder="Romexpo, București">

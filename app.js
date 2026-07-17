@@ -1450,7 +1450,7 @@
 
     const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
-    const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','image_url'];
+    const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','image_url','starts_at','days_left'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
 
     function makeFp(list, fields) {
@@ -2315,12 +2315,27 @@
         return;
       }
       const e = list[0];
+      const dl = eventDaysLeft(e);
       el('heroTitle').textContent = e.title || '—';
       el('heroSub').textContent = e.subtitle || '';
       el('heroDate').innerHTML = calendarIcon() + (e.date || '');
       el('heroLocation').innerHTML = pinIcon() + (e.location || '');
-      el('heroDays').textContent = e.days_left ?? '—';
-      setRing(e.days_left);
+      el('heroDays').textContent = dl ?? '—';
+      setRing(dl);
+    }
+
+    // Days remaining until an event — computed live from starts_at (updates
+    // every day on its own). Falls back to a stored days_left for old events.
+    function eventDaysLeft(ev) {
+      if (ev && ev.starts_at) {
+        const start = new Date(ev.starts_at);
+        if (!isNaN(start)) {
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          const d0 = new Date(start); d0.setHours(0, 0, 0, 0);
+          return Math.max(0, Math.round((d0 - today) / 86400000));
+        }
+      }
+      return (ev && ev.days_left != null) ? ev.days_left : null;
     }
 
     function calendarIcon() {
@@ -2493,7 +2508,7 @@
               </div>
               <div style="text-align:right;">
                 <div class="badge ${statusToBadge(e.status)}">${escape(translateStatus(e.status, 'event'))}</div>
-                ${e.days_left != null ? `<div style="margin-top:10px;color:var(--text-dim);font-size:11px;">${e.days_left} ${t("common.days")}</div>` : ''}
+                ${(() => { const d = eventDaysLeft(e); return d != null ? `<div style="margin-top:10px;color:var(--text-dim);font-size:11px;">${d} ${t("common.days")}</div>` : ''; })()}
               </div>
             </div>
             <div class="event-actions">
@@ -3445,16 +3460,24 @@
       const statusColor = EVENT_STATUS_OPTIONS.find(o => o.label === status)?.color || '#10B981';
       const msg = el('modal-add-event-msg');
       msg.classList.remove('show');
-      const days = fd.get('days_left');
+      // Real date drives the auto-computed "days left". The free-text label is
+      // optional — if left blank, format it from the picked date.
+      const startsVal = fd.get('starts_at');
+      const startsAt = startsVal ? new Date(startsVal + 'T00:00:00').toISOString() : null;
+      let displayDate = (fd.get('date') || '').trim();
+      if (!displayDate && startsVal) {
+        try { displayDate = new Date(startsVal + 'T00:00:00').toLocaleDateString('ro-RO', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (_) { displayDate = startsVal; }
+      }
 
       try {
         const { error } = await supa.from('events').insert({
           title: fd.get('title').trim(),
           subtitle: (fd.get('subtitle') || '').trim() || null,
-          date: fd.get('date').trim(),
+          date: displayDate || null,
+          starts_at: startsAt,
           location: (fd.get('location') || '').trim() || null,
           status, status_color: statusColor,
-          days_left: days ? parseInt(days, 10) : null
+          days_left: null   // computed live from starts_at
         });
         if (error) throw error;
         closeModal(document.getElementById('modal-add-event'));
