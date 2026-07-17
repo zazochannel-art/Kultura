@@ -2762,3 +2762,79 @@
   .hero::before { animation: none; opacity: 0.5; }
   .btn:not(.ghost)::after { display: none; }
 }
+
+/* ========== MOTION & ATMOSPHERE ========== */
+
+/* Subtle app-wide aurora — two slow drifting accent blobs behind content. */
+.app-aurora {
+  position: fixed; inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0.5;
+}
+.app-aurora::before, .app-aurora::after {
+  content: "";
+  position: absolute;
+  width: 60vw; height: 60vw; max-width: 620px; max-height: 620px;
+  border-radius: 50%;
+  filter: blur(70px);
+}
+.app-aurora::before {
+  top: -12%; left: -10%;
+  background: radial-gradient(circle, var(--accent, #3b82f6), transparent 65%);
+  opacity: 0.28;
+  animation: aurora-a 22s ease-in-out infinite;
+}
+.app-aurora::after {
+  bottom: -14%; right: -12%;
+  background: radial-gradient(circle, var(--accent-2, #06b6d4), transparent 65%);
+  opacity: 0.22;
+  animation: aurora-b 26s ease-in-out infinite;
+}
+@keyframes aurora-a { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(8vw,6vh) scale(1.15); } }
+@keyframes aurora-b { 0%,100% { transform: translate(0,0) scale(1.05); } 50% { transform: translate(-7vw,-5vh) scale(0.92); } }
+
+/* Animated gradient text (greeting) */
+.gradient-text {
+  background: linear-gradient(90deg, var(--text), var(--accent), var(--accent-2), var(--text));
+  background-size: 250% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  animation: text-flow 7s linear infinite;
+}
+@keyframes text-flow { to { background-position: 250% 0; } }
+
+/* Pulsing "live" dot on active-state badges */
+.badge.green::before, .badge.orange::before {
+  content: "";
+  display: inline-block;
+  width: 6px; height: 6px; margin-right: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
+  animation: dot-pulse 1.6s ease-in-out infinite;
+}
+@keyframes dot-pulse { 0%,100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; } 50% { opacity: 0.55; box-shadow: 0 0 0 3px transparent; } }
+
+/* Spotlight glow on stat tiles (desktop pointer) */
+.stat { position: relative; overflow: hidden; }
+.stat::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 0%), var(--accent-glow, rgba(59,130,246,0.25)), transparent 60%);
+  opacity: 0; transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+.stat.spot::before { opacity: 1; }
+
+/* Confetti overlay */
+.confetti-canvas {
+  position: fixed; inset: 0;
+  z-index: 3000;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-aurora::before, .app-aurora::after, .gradient-text, .badge.green::before, .badge.orange::before { animation: none; }
+}

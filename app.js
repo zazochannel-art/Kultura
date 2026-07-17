@@ -1240,6 +1240,7 @@
         }
       }
       haptic(40);
+      try { confettiBurst(); } catch (_) {}
       showToast(t('task.detail.toast_finished'));
       return true;
     }
@@ -1868,6 +1869,7 @@
       renderGate(); updateGateSyncUI();
       flushOutbox();
       haptic(40);
+      try { confettiBurst(); } catch (_) {}
       showToast(t('gate.checked_in'));
     }
     function gateSetZone(carId, zone) {
@@ -2112,6 +2114,73 @@
     // ----- Haptic feedback (no-op where unsupported) -----
     function haptic(ms = 25) { try { navigator.vibrate && navigator.vibrate(ms); } catch (_) {} }
 
+    const _reduceMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // ----- Count-up number animation (stats) -----
+    let _statsAnimated = false;
+    function countUp(node, to, dur = 750) {
+      to = Number(to) || 0;
+      if (_reduceMotion()) { node.textContent = to; return; }
+      const from = 0, t0 = performance.now();
+      (function tick(now) {
+        const p = Math.min(1, (now - t0) / dur);
+        const eased = 1 - Math.pow(1 - p, 3);
+        node.textContent = Math.round(from + (to - from) * eased);
+        if (p < 1) requestAnimationFrame(tick);
+      })(t0);
+    }
+
+    // ----- Confetti burst (success moments) -----
+    function confettiBurst() {
+      if (_reduceMotion()) return;
+      const cv = document.createElement('canvas');
+      cv.className = 'confetti-canvas';
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const W = window.innerWidth, H = window.innerHeight;
+      cv.width = W * dpr; cv.height = H * dpr;
+      document.body.appendChild(cv);
+      const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
+      const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
+      const N = 90, cx = W / 2, cy = H * 0.32;
+      const parts = Array.from({ length: N }, () => {
+        const a = Math.random() * Math.PI * 2, sp = 4 + Math.random() * 7;
+        return { x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 3,
+          w: 5 + Math.random() * 6, h: 3 + Math.random() * 4, rot: Math.random() * 6.28,
+          vr: (Math.random() - 0.5) * 0.4, c: colors[(Math.random() * colors.length) | 0], life: 0 };
+      });
+      const t0 = performance.now();
+      (function frame(now) {
+        const dt = Math.min(32, now - (frame._l || now)); frame._l = now;
+        ctx.clearRect(0, 0, W, H);
+        let alive = false;
+        for (const p of parts) {
+          p.vy += 0.14 * (dt / 16); p.vx *= 0.99;
+          p.x += p.vx * (dt / 16); p.y += p.vy * (dt / 16); p.rot += p.vr; p.life = now - t0;
+          const alpha = Math.max(0, 1 - p.life / 1400);
+          if (alpha > 0 && p.y < H + 20) alive = true;
+          ctx.save(); ctx.globalAlpha = alpha; ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+          ctx.fillStyle = p.c; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); ctx.restore();
+        }
+        if (alive) requestAnimationFrame(frame); else cv.remove();
+      })(t0);
+    }
+
+    // ----- Spotlight glow following the pointer on stat tiles (desktop) -----
+    if (window.matchMedia && window.matchMedia('(hover: hover)').matches) {
+      document.addEventListener('pointermove', (e) => {
+        const tile = e.target.closest && e.target.closest('.stat');
+        if (!tile) return;
+        const r = tile.getBoundingClientRect();
+        tile.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100) + '%');
+        tile.style.setProperty('--my', ((e.clientY - r.top) / r.height * 100) + '%');
+        tile.classList.add('spot');
+      });
+      document.addEventListener('pointerout', (e) => {
+        const tile = e.target.closest && e.target.closest('.stat');
+        if (tile) tile.classList.remove('spot');
+      });
+    }
+
     // ----- Skeleton placeholders shown until the first data arrives -----
     function skeletonCards(n, kind) {
       let out = '';
@@ -2152,10 +2221,13 @@
       const scopedTasks = activeTasks();
       const arrived = scopedCars.filter(c => (c.status || '').toLowerCase().includes('sosit')).length;
       const openTasks = scopedTasks.filter(tk => !tk.is_completed).length;
-      el('statCars').textContent = scopedCars.length;
-      el('statEvents').textContent = (events || state.events || []).length;
-      el('statCarsConfirmed').textContent = arrived;
-      el('statTasks').textContent = openTasks;
+      // Count-up on the first render; instant thereafter (avoids re-animating on polls).
+      const setStat = (id, val) => { const n = el(id); if (n) (_statsAnimated ? (n.textContent = val) : countUp(n, val)); };
+      setStat('statCars', scopedCars.length);
+      setStat('statEvents', (events || state.events || []).length);
+      setStat('statCarsConfirmed', arrived);
+      setStat('statTasks', openTasks);
+      _statsAnimated = true;
 
       // Meters: arrival rate (of all cars) and task-completion rate.
       const mArrived = el('meterArrived');
