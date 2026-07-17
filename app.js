@@ -4660,8 +4660,14 @@
 
       const carRow = ev.target.closest('.car-row');
       if (carRow && carRow.dataset.rowId) { showCarDetail(carRow.dataset.rowId); return; }
+      // Task rows expand/collapse in place to reveal their action buttons.
       const taskRow = ev.target.closest('.task-row');
-      if (taskRow && taskRow.dataset.rowId) { showTaskDetail(taskRow.dataset.rowId); return; }
+      if (taskRow && taskRow.dataset.rowId) {
+        const id = String(taskRow.dataset.rowId);
+        if (_expandedTasks.has(id)) _expandedTasks.delete(id); else _expandedTasks.add(id);
+        taskRow.classList.toggle('expanded', _expandedTasks.has(id));
+        return;
+      }
     });
 
     // Reset openTaskDetailId / openCarDetailId when modals close
@@ -5002,6 +5008,9 @@
       });
     }
 
+    // Which task rows are expanded (persists across re-renders/polls).
+    const _expandedTasks = new Set();
+
     function renderTasks() {
       el('tasksCount').textContent = state.tasks.length;
       applyTasksView();
@@ -5078,51 +5087,35 @@
           </button>`;
         }
 
+        // Collapsed sub-line: who's working on it (if taken), else the status.
+        const subLine = tk.assigned_user_name
+          ? `${taskAssigneeAvatar(tk)}<span class="tk-row-who">${escape((sk === 'completed' ? t('task.finished_by') : t('task.worked_by')))}: ${responsible}</span>`
+          : `<span class="tk-row-status stat-${badgeClass}">${statusLabel}</span>`;
+
         return `
-          <div class="tk-card task-row card-stripe stripe-t-${sk}" data-row-id="${tk.id}">
-            <div class="tk-head">
-              <div class="tk-status-icon ${iconClass}">
+          <div class="tk-row task-row card-stripe stripe-t-${sk}${_expandedTasks.has(String(tk.id)) ? ' expanded' : ''}" data-row-id="${tk.id}">
+            <div class="tk-row-head">
+              <div class="tk-row-icon ${iconClass}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${iconSvg}</svg>
               </div>
-              <div class="tk-badges">
-                ${tk.category ? `<span class="tk-badge cat">${escape(tk.category)}</span>` : ''}
-                ${pri ? `<span class="tk-badge ${pri.cls === 'priority-urgent' ? 'pri-urgent' : pri.cls === 'priority-high' ? 'pri-high' : 'pri-normal'}">${pri.label}${pri.mark ? ' <span style="opacity:0.75">' + pri.mark + '</span>' : ''}</span>` : ''}
+              <div class="tk-row-body">
+                <div class="tk-row-title ${sk === 'completed' ? 'done' : ''}">${escape(tk.title)}${isOverdue(tk) ? ` <span class="tk-badge overdue">${escape(t('task.overdue'))}</span>` : ''}</div>
+                <div class="tk-row-sub">${subLine}</div>
+              </div>
+              <svg class="tk-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="tk-row-actions">
+              <div class="tk-row-meta">
+                ${tk.category ? `<span class="tk-badge cat">${escape(localizeDept(tk.category))}</span>` : ''}
+                ${pri ? `<span class="tk-badge ${pri.cls === 'priority-urgent' ? 'pri-urgent' : pri.cls === 'priority-high' ? 'pri-high' : 'pri-normal'}">${pri.label}</span>` : ''}
                 <span class="tk-badge stat-${badgeClass}">${statusLabel}</span>
-                ${isOverdue(tk) ? `<span class="tk-badge overdue">${escape(t('task.overdue'))}</span>` : ''}
+                ${tk.event ? `<span class="tk-row-date">${escape(tk.event)}</span>` : ''}
+                ${tk.date ? `<span class="tk-row-date"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconCal}</svg>${escape(tk.date)}</span>` : ''}
               </div>
-            </div>
-
-            <div class="tk-title ${sk === 'completed' ? 'done' : ''}">${escape(tk.title)}</div>
-            <div class="tk-sub">
-              ${tk.event ? `<span class="event">${escape(tk.event)}</span>` : ''}
-              ${tk.event && tk.date ? '<span class="sep">•</span>' : ''}
-              ${tk.date ? `<span>${escape(tk.date)}</span>` : ''}
-            </div>
-
-            <div class="tk-info-grid">
-              <div class="tk-info-cell">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconCal}</svg>
-                <div class="cell-body">
-                  <div class="cell-k">${t("task.due_date")}</div>
-                  <div class="cell-v">${escape(tk.date || '—')}</div>
-                </div>
+              <div class="tk-row-btns">
+                ${primaryBtn}
+                <button class="tk-btn ghost-detail" data-row-id="${tk.id}" data-open-detail="1">${escape(t('task.details'))}</button>
               </div>
-              <div class="tk-info-cell">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconUser}</svg>
-                <div class="cell-body">
-                  <div class="cell-k">${sk === 'completed' ? t("task.finished_by") : t("task.worked_by")}</div>
-                  <div class="cell-v cell-v-user">${tk.assigned_user_name ? taskAssigneeAvatar(tk) : ''}<span>${responsible}</span></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="tk-divider"></div>
-
-            <div class="tk-actions">
-              ${primaryBtn}
-              <button class="tk-btn dots" data-row-id="${tk.id}" data-open-detail="1" title="${t("task.details")}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${iconDots}</svg>
-              </button>
             </div>
           </div>
         `;
