@@ -5139,7 +5139,7 @@
                 <div class="tk-row-title ${sk === 'completed' ? 'done' : ''}">${escape(tk.title)}${isOverdue(tk) ? ` <span class="tk-badge overdue">${escape(t('task.overdue'))}</span>` : ''}</div>
                 <div class="tk-row-sub">${subLine}</div>
               </div>
-              <div class="tk-prio prio-${prioKey}" title="${escape(prioLabel)}" aria-label="${escape(prioLabel)}"><span></span><span></span><span></span></div>
+              <span class="tk-prio prio-${prioKey}" title="${escape(prioLabel)}"><span class="tk-prio-dot"></span>${escape(prioLabel)}</span>
               <svg class="tk-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
             <div class="tk-row-actions">
