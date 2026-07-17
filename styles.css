@@ -2838,3 +2838,80 @@
 @media (prefers-reduced-motion: reduce) {
   .app-aurora::before, .app-aurora::after, .gradient-text, .badge.green::before, .badge.orange::before { animation: none; }
 }
+
+/* ========== ANIMATION PASS ========== */
+
+/* Modals open with a soft spring */
+.modal-backdrop.show .modal { animation: modal-pop 0.34s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes modal-pop { from { opacity: 0; transform: translateY(14px) scale(0.96); } to { opacity: 1; transform: none; } }
+
+/* Section change: a gentle slide-up for the whole page… */
+.section.active { animation: section-in 0.34s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes section-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+/* …and a short stagger for its cards, only right after a tab switch. */
+.section.just-switched .card,
+.section.just-switched .tk-card,
+.section.just-switched .row { animation: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.section.just-switched .card:nth-child(2), .section.just-switched .tk-card:nth-child(2), .section.just-switched .row:nth-child(2) { animation-delay: 0.04s; }
+.section.just-switched .card:nth-child(3), .section.just-switched .tk-card:nth-child(3), .section.just-switched .row:nth-child(3) { animation-delay: 0.08s; }
+.section.just-switched .card:nth-child(4), .section.just-switched .tk-card:nth-child(4), .section.just-switched .row:nth-child(4) { animation-delay: 0.12s; }
+.section.just-switched .card:nth-child(5), .section.just-switched .tk-card:nth-child(5), .section.just-switched .row:nth-child(5) { animation-delay: 0.16s; }
+.section.just-switched .card:nth-child(n+6), .section.just-switched .tk-card:nth-child(n+6), .section.just-switched .row:nth-child(n+6) { animation-delay: 0.2s; }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* Toast: a thin progress bar drains while it's visible */
+.modal-toast { overflow: hidden; }
+.modal-toast.show::after {
+  content: "";
+  position: absolute; left: 0; bottom: 0; height: 3px; width: 100%;
+  background: rgba(255,255,255,0.55);
+  transform-origin: left;
+  animation: toast-drain 2.6s linear forwards;
+}
+@keyframes toast-drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* Live badge: a ripple ring on each successful sync */
+.live-badge.flash { animation: badge-ring 0.7s ease-out; }
+@keyframes badge-ring {
+  0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
+  100% { box-shadow: 0 0 0 14px rgba(16,185,129,0); }
+}
+
+/* Aurora briefly intensifies when a car arrives */
+.app-aurora { transition: opacity 0.5s ease; }
+.app-aurora.pulse { opacity: 0.95; }
+
+/* Animated success checkmark overlay */
+.success-check {
+  position: fixed; inset: 0; z-index: 2900;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.success-check svg { width: 128px; height: 128px; }
+.success-check .sc-circle {
+  stroke: var(--green); stroke-width: 5; fill: none;
+  stroke-dasharray: 170; stroke-dashoffset: 170;
+  animation: sc-draw 0.45s ease forwards;
+}
+.success-check .sc-check {
+  stroke: var(--green); stroke-width: 6; fill: none; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 48; stroke-dashoffset: 48;
+  animation: sc-draw 0.3s 0.35s ease forwards;
+}
+.success-check .sc-halo {
+  fill: var(--green); opacity: 0.14;
+  transform-origin: center; transform: scale(0.2);
+  animation: sc-halo 0.7s ease-out forwards;
+}
+@keyframes sc-draw { to { stroke-dashoffset: 0; } }
+@keyframes sc-halo { 0% { transform: scale(0.2); opacity: 0.28; } 100% { transform: scale(1.3); opacity: 0; } }
+.success-check.done { animation: sc-fade 0.4s 0.9s ease forwards; }
+@keyframes sc-fade { to { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop.show .modal, .section.active,
+  .section.just-switched .card, .section.just-switched .tk-card, .section.just-switched .row,
+  .modal-toast.show::after, .live-badge.flash, .success-check svg * { animation: none; }
+  .success-check { display: none; }
+}

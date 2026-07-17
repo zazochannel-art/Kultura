@@ -374,6 +374,14 @@
       document.querySelectorAll('.section').forEach(s => {
         s.classList.toggle('active', s.id === 'section-' + name);
       });
+      // Trigger the one-shot card stagger for the section we just opened, then
+      // clear it so ordinary data refreshes don't re-animate the list.
+      const activeSection = document.getElementById('section-' + name);
+      if (activeSection) {
+        activeSection.classList.add('just-switched');
+        clearTimeout(selectSection._t);
+        selectSection._t = setTimeout(() => activeSection.classList.remove('just-switched'), 650);
+      }
       // The active-event picker lives only on the Home page.
       const picker = document.querySelector('.event-picker');
       if (picker) picker.style.display = (name === 'home') ? 'inline-flex' : 'none';
@@ -1240,7 +1248,7 @@
         }
       }
       haptic(40);
-      try { confettiBurst(); } catch (_) {}
+      try { successCheck(); confettiBurst(); } catch (_) {}
       showToast(t('task.detail.toast_finished'));
       return true;
     }
@@ -1869,7 +1877,7 @@
       renderGate(); updateGateSyncUI();
       flushOutbox();
       haptic(40);
-      try { confettiBurst(); } catch (_) {}
+      try { confettiBurst(); auroraPulse(); } catch (_) {}
       showToast(t('gate.checked_in'));
     }
     function gateSetZone(carId, zone) {
@@ -2141,7 +2149,7 @@
       document.body.appendChild(cv);
       const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
       const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
-      const N = 90, cx = W / 2, cy = H * 0.32;
+      const N = 130, cx = W / 2, cy = H * 0.32;
       const parts = Array.from({ length: N }, () => {
         const a = Math.random() * Math.PI * 2, sp = 4 + Math.random() * 7;
         return { x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 3,
@@ -2163,6 +2171,31 @@
         }
         if (alive) requestAnimationFrame(frame); else cv.remove();
       })(t0);
+    }
+
+    // ----- Animated success checkmark (task completed) -----
+    function successCheck() {
+      if (_reduceMotion()) return;
+      const o = document.createElement('div');
+      o.className = 'success-check';
+      o.innerHTML = `<svg viewBox="0 0 64 64" aria-hidden="true">
+        <circle class="sc-halo" cx="32" cy="32" r="30"></circle>
+        <circle class="sc-circle" cx="32" cy="32" r="27"></circle>
+        <path class="sc-check" d="M20 33l8 8 16-17"></path>
+      </svg>`;
+      document.body.appendChild(o);
+      requestAnimationFrame(() => o.classList.add('done'));
+      setTimeout(() => o.remove(), 1500);
+    }
+
+    // ----- Aurora briefly intensifies (ambient "someone arrived") -----
+    let _auroraT = null;
+    function auroraPulse() {
+      const a = document.querySelector('.app-aurora');
+      if (!a || _reduceMotion()) return;
+      a.classList.add('pulse');
+      clearTimeout(_auroraT);
+      _auroraT = setTimeout(() => a.classList.remove('pulse'), 1500);
     }
 
     // ----- Spotlight glow following the pointer on stat tiles (desktop) -----
@@ -3601,6 +3634,8 @@
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cars' }, (payload) => {
         if (payload.eventType === 'UPDATE' && payload.new.status !== payload.old.status) {
           sendAppNotification("Actualizare Mașină", `${payload.new.brand || ''} ${payload.new.model} este acum: ${payload.new.status}`);
+          const now = (payload.new.status || '').toLowerCase(), was = (payload.old.status || '').toLowerCase();
+          if (now.includes('sosit') && !was.includes('sosit')) { try { auroraPulse(); } catch (_) {} }
         } else if (payload.eventType === 'INSERT') {
           sendAppNotification("Mașină Nouă", `A fost adăugat un nou vehicul: ${payload.new.model}`);
         }
@@ -3907,6 +3942,8 @@
       const t = el('modalToast');
       if (!t) return;
       t.textContent = msg;
+      t.className = 'modal-toast' + (kind === 'error' ? ' error' : '');
+      void t.offsetWidth; // reflow so the draining progress bar restarts
       t.className = 'modal-toast show' + (kind === 'error' ? ' error' : '');
       clearTimeout(t._timer);
       t._timer = setTimeout(() => t.classList.remove('show'), 2600);
