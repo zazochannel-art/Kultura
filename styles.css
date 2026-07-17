@@ -2708,3 +2708,57 @@
 }
 :root[data-theme="light"] .hero-ring .ring-bg { stroke: rgba(255,255,255,0.35); }
 :root[data-theme="light"] .stat-meter { background: rgba(15,23,42,0.08); }
+
+/* ========== ANIMATED BORDERS (inspired by 21st.dev "border" components) ========== */
+/* A rotating angle custom property drives the beam; falls back gracefully. */
+@property --kb-angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+
+/* Hero — a slow beam of light traveling around the edge. */
+.hero { position: relative; isolation: isolate; }
+.hero::before {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(from var(--kb-angle),
+    transparent 0 58%, rgba(255,255,255,0.85) 72%, transparent 82% 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: kb-spin 5.5s linear infinite;
+  pointer-events: none; z-index: 2;
+}
+@keyframes kb-spin { to { --kb-angle: 360deg; } }
+
+/* VIP car cards — a static gold gradient border + faint warm glow. */
+.card-vip::after {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(135deg, #f59e0b, #fde68a 45%, #f59e0b);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  pointer-events: none;
+}
+.card-vip { box-shadow: 0 6px 22px rgba(245,158,11,0.14); }
+
+/* Primary CTA buttons — a light shine sweeps across on hover/press. */
+.btn:not(.ghost) { position: relative; overflow: hidden; }
+.btn:not(.ghost)::after {
+  content: "";
+  position: absolute; top: 0; left: -70%;
+  width: 45%; height: 100%;
+  background: linear-gradient(105deg, transparent, rgba(255,255,255,0.35), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.55s ease;
+  pointer-events: none;
+}
+.btn:not(.ghost):hover::after,
+.btn:not(.ghost):active::after { left: 130%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero::before { animation: none; opacity: 0.5; }
+  .btn:not(.ghost)::after { display: none; }
+}
