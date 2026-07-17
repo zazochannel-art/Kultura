@@ -5007,7 +5007,6 @@
       const total = state.tasks.length;
       const counts = { all: total };
       counts.open = state.tasks.filter(tk => taskStatusKey(tk.status) !== 'completed').length;
-      counts.done = state.tasks.filter(tk => taskStatusKey(tk.status) === 'completed').length;
 
       TASK_STATUS_OPTIONS.forEach(o => {
         counts[o.key] = state.tasks.filter(tk => taskStatusKey(tk.status) === o.key).length;
@@ -5022,8 +5021,7 @@
       const chips = [
         { key: 'all',  label: t('tasks.filter_all') },
         { key: 'open', label: t('tasks.filter_open') },
-        ...TASK_STATUS_OPTIONS.map(o => ({ key: o.key, label: statusLabel(o.key) })),
-        { key: 'done', label: t('tasks.filter_done') }
+        ...TASK_STATUS_OPTIONS.map(o => ({ key: o.key, label: statusLabel(o.key) }))
       ];
       el('tasksChips').innerHTML = chips.map(chip => `
         <button class="chip ${state.tasksFilter === chip.key ? 'active' : ''}" data-tasks-filter="${chip.key}">
