@@ -2995,3 +2995,42 @@
 @media (prefers-reduced-motion: reduce) {
   .tk-chev, .tk-row-actions { transition: none; }
 }
+
+/* ===== Task priority indicator (signal bars) on the row ===== */
+.tk-prio {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+.tk-prio span {
+  width: 3px;
+  border-radius: 2px;
+  background: var(--fill-3, rgba(255,255,255,0.14));
+}
+.tk-prio span:nth-child(1) { height: 7px; }
+.tk-prio span:nth-child(2) { height: 11px; }
+.tk-prio span:nth-child(3) { height: 15px; }
+.tk-prio.prio-low    span:nth-child(-n+1),
+.tk-prio.prio-normal span:nth-child(-n+2),
+.tk-prio.prio-high   span:nth-child(-n+3),
+.tk-prio.prio-urgent span:nth-child(-n+3) { background: currentColor; }
+.tk-prio.prio-low    { color: #10b981; }
+.tk-prio.prio-normal { color: #94a3b8; }
+.tk-prio.prio-high   { color: #f59e0b; }
+.tk-prio.prio-urgent { color: #ef4444; }
+.tk-prio.prio-urgent span { animation: prio-pulse 1.5s ease-in-out infinite; }
+@keyframes prio-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* Emphasis so the most important tasks pop */
+.tk-row.tk-prio-urgent {
+  border-color: rgba(239,68,68,0.42);
+  box-shadow: 0 0 0 1px rgba(239,68,68,0.12), 0 8px 22px rgba(239,68,68,0.10);
+}
+.tk-row.tk-prio-high { border-color: rgba(245,158,11,0.30); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tk-prio.prio-urgent span { animation: none; }
+}

@@ -4830,6 +4830,18 @@
       return String(priority);
     }
 
+    // Importance level for a priority: 0=low, 1=normal, 2=high, 3=urgent.
+    function priorityLevel(priority) {
+      const p = String(priority || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      if (p.includes('urgent') || p.includes('срочн')) return 3;
+      if (p.includes('important') || p.includes('ridicat') || p.includes('high') || p.includes('важн')) return 2;
+      if (p.includes('scazut') || p.includes('low') || p.includes('низк')) return 0;
+      return 1;
+    }
+    function priorityKey(priority) {
+      return ['low', 'normal', 'high', 'urgent'][priorityLevel(priority)];
+    }
+
     // Translate a department name (RO canonical) to the current language, or return it unchanged if it's a custom value.
     function localizeDept(dept) {
       if (!dept) return dept;
@@ -5115,8 +5127,10 @@
           ? `${taskAssigneeAvatar(tk)}<span class="tk-row-who">${escape((sk === 'completed' ? t('task.finished_by') : t('task.worked_by')))}: ${responsible}</span>`
           : `<span class="tk-row-status stat-${badgeClass}">${statusLabel}</span>`;
 
+        const prioKey = priorityKey(tk.priority);
+        const prioLabel = localizePriority(tk.priority);
         return `
-          <div class="tk-row task-row card-stripe stripe-t-${sk}${_expandedTasks.has(String(tk.id)) ? ' expanded' : ''}" data-row-id="${tk.id}">
+          <div class="tk-row task-row card-stripe stripe-t-${sk}${sk !== 'completed' ? ' tk-prio-' + prioKey : ''}${_expandedTasks.has(String(tk.id)) ? ' expanded' : ''}" data-row-id="${tk.id}">
             <div class="tk-row-head">
               <div class="tk-row-icon ${iconClass}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${iconSvg}</svg>
@@ -5125,6 +5139,7 @@
                 <div class="tk-row-title ${sk === 'completed' ? 'done' : ''}">${escape(tk.title)}${isOverdue(tk) ? ` <span class="tk-badge overdue">${escape(t('task.overdue'))}</span>` : ''}</div>
                 <div class="tk-row-sub">${subLine}</div>
               </div>
+              <div class="tk-prio prio-${prioKey}" title="${escape(prioLabel)}" aria-label="${escape(prioLabel)}"><span></span><span></span><span></span></div>
               <svg class="tk-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
             <div class="tk-row-actions">
