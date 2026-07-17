@@ -2708,3 +2708,210 @@
 }
 :root[data-theme="light"] .hero-ring .ring-bg { stroke: rgba(255,255,255,0.35); }
 :root[data-theme="light"] .stat-meter { background: rgba(15,23,42,0.08); }
+
+/* ========== ANIMATED BORDERS (inspired by 21st.dev "border" components) ========== */
+/* A rotating angle custom property drives the beam; falls back gracefully. */
+@property --kb-angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+
+/* Hero — a slow beam of light traveling around the edge. */
+.hero { position: relative; isolation: isolate; }
+.hero::before {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(from var(--kb-angle),
+    transparent 0 58%, rgba(255,255,255,0.85) 72%, transparent 82% 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: kb-spin 5.5s linear infinite;
+  pointer-events: none; z-index: 2;
+}
+@keyframes kb-spin { to { --kb-angle: 360deg; } }
+
+/* VIP car cards — a static gold gradient border + faint warm glow. */
+.card-vip::after {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(135deg, #f59e0b, #fde68a 45%, #f59e0b);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  pointer-events: none;
+}
+.card-vip { box-shadow: 0 6px 22px rgba(245,158,11,0.14); }
+
+/* Primary CTA buttons — a light shine sweeps across on hover/press. */
+.btn:not(.ghost) { position: relative; overflow: hidden; }
+.btn:not(.ghost)::after {
+  content: "";
+  position: absolute; top: 0; left: -70%;
+  width: 45%; height: 100%;
+  background: linear-gradient(105deg, transparent, rgba(255,255,255,0.35), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.55s ease;
+  pointer-events: none;
+}
+.btn:not(.ghost):hover::after,
+.btn:not(.ghost):active::after { left: 130%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero::before { animation: none; opacity: 0.5; }
+  .btn:not(.ghost)::after { display: none; }
+}
+
+/* ========== MOTION & ATMOSPHERE ========== */
+
+/* Subtle app-wide aurora — two slow drifting accent blobs behind content. */
+.app-aurora {
+  position: fixed; inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0.5;
+}
+.app-aurora::before, .app-aurora::after {
+  content: "";
+  position: absolute;
+  width: 60vw; height: 60vw; max-width: 620px; max-height: 620px;
+  border-radius: 50%;
+  filter: blur(70px);
+}
+.app-aurora::before {
+  top: -12%; left: -10%;
+  background: radial-gradient(circle, var(--accent, #3b82f6), transparent 65%);
+  opacity: 0.28;
+  animation: aurora-a 22s ease-in-out infinite;
+}
+.app-aurora::after {
+  bottom: -14%; right: -12%;
+  background: radial-gradient(circle, var(--accent-2, #06b6d4), transparent 65%);
+  opacity: 0.22;
+  animation: aurora-b 26s ease-in-out infinite;
+}
+@keyframes aurora-a { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(8vw,6vh) scale(1.15); } }
+@keyframes aurora-b { 0%,100% { transform: translate(0,0) scale(1.05); } 50% { transform: translate(-7vw,-5vh) scale(0.92); } }
+
+/* Animated gradient text (greeting) */
+.gradient-text {
+  background: linear-gradient(90deg, var(--text), var(--accent), var(--accent-2), var(--text));
+  background-size: 250% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  animation: text-flow 7s linear infinite;
+}
+@keyframes text-flow { to { background-position: 250% 0; } }
+
+/* Pulsing "live" dot on active-state badges */
+.badge.green::before, .badge.orange::before {
+  content: "";
+  display: inline-block;
+  width: 6px; height: 6px; margin-right: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
+  animation: dot-pulse 1.6s ease-in-out infinite;
+}
+@keyframes dot-pulse { 0%,100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; } 50% { opacity: 0.55; box-shadow: 0 0 0 3px transparent; } }
+
+/* Spotlight glow on stat tiles (desktop pointer) */
+.stat { position: relative; overflow: hidden; }
+.stat::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 0%), var(--accent-glow, rgba(59,130,246,0.25)), transparent 60%);
+  opacity: 0; transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+.stat.spot::before { opacity: 1; }
+
+/* Confetti overlay */
+.confetti-canvas {
+  position: fixed; inset: 0;
+  z-index: 3000;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-aurora::before, .app-aurora::after, .gradient-text, .badge.green::before, .badge.orange::before { animation: none; }
+}
+
+/* ========== ANIMATION PASS ========== */
+
+/* Modals open with a soft spring */
+.modal-backdrop.show .modal { animation: modal-pop 0.34s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes modal-pop { from { opacity: 0; transform: translateY(14px) scale(0.96); } to { opacity: 1; transform: none; } }
+
+/* Section change: a gentle slide-up for the whole page… */
+.section.active { animation: section-in 0.34s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes section-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+/* …and a short stagger for its cards, only right after a tab switch. */
+.section.just-switched .card,
+.section.just-switched .tk-card,
+.section.just-switched .row { animation: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.section.just-switched .card:nth-child(2), .section.just-switched .tk-card:nth-child(2), .section.just-switched .row:nth-child(2) { animation-delay: 0.04s; }
+.section.just-switched .card:nth-child(3), .section.just-switched .tk-card:nth-child(3), .section.just-switched .row:nth-child(3) { animation-delay: 0.08s; }
+.section.just-switched .card:nth-child(4), .section.just-switched .tk-card:nth-child(4), .section.just-switched .row:nth-child(4) { animation-delay: 0.12s; }
+.section.just-switched .card:nth-child(5), .section.just-switched .tk-card:nth-child(5), .section.just-switched .row:nth-child(5) { animation-delay: 0.16s; }
+.section.just-switched .card:nth-child(n+6), .section.just-switched .tk-card:nth-child(n+6), .section.just-switched .row:nth-child(n+6) { animation-delay: 0.2s; }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* Toast: a thin progress bar drains while it's visible */
+.modal-toast { overflow: hidden; }
+.modal-toast.show::after {
+  content: "";
+  position: absolute; left: 0; bottom: 0; height: 3px; width: 100%;
+  background: rgba(255,255,255,0.55);
+  transform-origin: left;
+  animation: toast-drain 2.6s linear forwards;
+}
+@keyframes toast-drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* Live badge: a ripple ring on each successful sync */
+.live-badge.flash { animation: badge-ring 0.7s ease-out; }
+@keyframes badge-ring {
+  0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
+  100% { box-shadow: 0 0 0 14px rgba(16,185,129,0); }
+}
+
+/* Aurora briefly intensifies when a car arrives */
+.app-aurora { transition: opacity 0.5s ease; }
+.app-aurora.pulse { opacity: 0.95; }
+
+/* Animated success checkmark overlay */
+.success-check {
+  position: fixed; inset: 0; z-index: 2900;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.success-check svg { width: 128px; height: 128px; }
+.success-check .sc-circle {
+  stroke: var(--green); stroke-width: 5; fill: none;
+  stroke-dasharray: 170; stroke-dashoffset: 170;
+  animation: sc-draw 0.45s ease forwards;
+}
+.success-check .sc-check {
+  stroke: var(--green); stroke-width: 6; fill: none; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 48; stroke-dashoffset: 48;
+  animation: sc-draw 0.3s 0.35s ease forwards;
+}
+.success-check .sc-halo {
+  fill: var(--green); opacity: 0.14;
+  transform-origin: center; transform: scale(0.2);
+  animation: sc-halo 0.7s ease-out forwards;
+}
+@keyframes sc-draw { to { stroke-dashoffset: 0; } }
+@keyframes sc-halo { 0% { transform: scale(0.2); opacity: 0.28; } 100% { transform: scale(1.3); opacity: 0; } }
+.success-check.done { animation: sc-fade 0.4s 0.9s ease forwards; }
+@keyframes sc-fade { to { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop.show .modal, .section.active,
+  .section.just-switched .card, .section.just-switched .tk-card, .section.just-switched .row,
+  .modal-toast.show::after, .live-badge.flash, .success-check svg * { animation: none; }
+  .success-check { display: none; }
+}
