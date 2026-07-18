@@ -698,6 +698,26 @@
     }
     .chip .count { opacity: 0.75; }
 
+    /* Saved-view preset chips (tasks) — accent-tinted, distinct from status chips. */
+    .chip.preset {
+      border-color: var(--accent-glow);
+      color: var(--text-dim);
+    }
+    .chip.preset.active {
+      background: var(--accent-glow);
+      border-color: transparent;
+      color: var(--text);
+      box-shadow: none;
+    }
+
+    /* Reassign control in the task detail. */
+    .detail-reassign-label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-mute);
+      margin-bottom: 6px;
+    }
+
     /* TASK ACTIONS */
     .task-row { flex-wrap: wrap; }
     .task-actions {

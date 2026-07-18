@@ -816,7 +816,7 @@
     // ----- "WHAT'S NEW" PANEL -----
     // Bump this string whenever the changelog below gains a new entry; users
     // who haven't opened that version see a dot on the Settings tab.
-    const WHATSNEW_VERSION = '2026-07-16';
+    const WHATSNEW_VERSION = '2026-07-18';
     const WN_ICONS = {
       grid:   '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
       kanban: '<rect x="3" y="3" width="6" height="18" rx="1"/><rect x="9" y="3" width="6" height="12" rx="1"/><rect x="15" y="3" width="6" height="9" rx="1"/>',
@@ -845,7 +845,19 @@
       { icon: 'bell',
         ro: { t: 'Memento pentru termene', d: 'Notificare automată când se apropie termenul taskului tău, plus notificare la comentarii pe taskurile de care ești responsabil.' },
         en: { t: 'Deadline reminders', d: 'Automatic notification when your task deadline is near, plus notifications for comments on tasks you own.' },
-        ru: { t: 'Напоминания о сроках', d: 'Автоматическое уведомление при приближении срока задачи и уведомления о комментариях к вашим задачам.' } }
+        ru: { t: 'Напоминания о сроках', d: 'Автоматическое уведомление при приближении срока задачи и уведомления о комментариях к вашим задачам.' } },
+      { icon: 'user',
+        ro: { t: 'Atribuie taskuri + notificare', d: 'Staff/admin pot atribui un task altei persoane direct din detaliu — cel ales primește imediat o notificare.' },
+        en: { t: 'Assign tasks + notify', d: 'Staff/admins can assign a task to someone right from its details — the chosen person gets a notification immediately.' },
+        ru: { t: 'Назначение задач + уведомление', d: 'Staff/админы могут назначить задачу другому прямо из деталей — выбранный сразу получает уведомление.' } },
+      { icon: 'check',
+        ro: { t: 'Vederi rapide la taskuri', d: 'Butoane noi sus pe pagina Taskuri: Ale mele, Urgente, Urgente ale mele, Întârziate — filtrezi dintr-o atingere.' },
+        en: { t: 'Quick task views', d: 'New buttons atop the Tasks page: Mine, Urgent, My urgent, Overdue — filter in one tap.' },
+        ru: { t: 'Быстрые виды задач', d: 'Новые кнопки вверху страницы Задачи: Мои, Срочные, Мои срочные, Просроченные — фильтр в одно касание.' } },
+      { icon: 'bell',
+        ro: { t: 'Telegram la participanți', d: 'Poți salva un username Telegram pentru fiecare mașină, iar butonul Telegram deschide direct conversația.' },
+        en: { t: 'Telegram for participants', d: 'You can save a Telegram username per car, and the Telegram button opens the chat directly.' },
+        ru: { t: 'Telegram для участников', d: 'Можно сохранить Telegram-username для каждой машины, и кнопка Telegram сразу открывает чат.' } }
     ];
     function renderWhatsNew() {
       const body = el('whatsNewBody');
@@ -1342,6 +1354,7 @@
       tasksFilter: 'all', tasksSearch: '', tasksDept: 'all', tasksAssignee: 'all',
       tasksSort: localStorage.getItem('kultura_tasks_sort') || 'priority',
       tasksView: localStorage.getItem('kultura_tasks_view') || 'list',
+      tasksPreset: localStorage.getItem('kultura_tasks_preset') || 'all',
       eventsFilter: 'all', eventsSearch: '',
       teamSearch: '',
       activeEventId: localStorage.getItem('kultura_active_event') || ''
@@ -1453,10 +1466,10 @@
     // (notes, modifications, photos, checklist, detailed_description, …) are only
     // needed in the detail view, which hydrates them on demand. `updated_at` is
     // included so any edit still bumps the fingerprint.
-    const CAR_LIST_COLS  = 'id,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,city,category,updated_at';
+    const CAR_LIST_COLS  = 'id,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at';
     const TASK_LIST_COLS = 'id,title,event,date,status,status_color,is_completed,event_id,due_at,created_at,assigned_user_id,assigned_user_name,started_at,completed_at,completed_by_user_id,completed_by_user_name,priority,category,due_date,created_by,assigned_to,assigned_at,completed_by,team,updated_at,reminder_sent';
 
-    const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at'];
+    const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
     const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','image_url','starts_at','days_left'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
@@ -2888,6 +2901,12 @@
       if (cc) { state.carsFilter = cc.dataset.carsFilter; renderCarsChips(); renderCars(); return; }
       const tc = ev.target.closest('[data-tasks-filter]');
       if (tc) { state.tasksFilter = tc.dataset.tasksFilter; renderTasksChips(); renderTasks(); return; }
+      const tp = ev.target.closest('[data-tasks-preset]');
+      if (tp) {
+        state.tasksPreset = tp.dataset.tasksPreset || 'all';
+        try { localStorage.setItem('kultura_tasks_preset', state.tasksPreset); } catch (_) {}
+        renderTasksViewChips(); renderTasks(); return;
+      }
       const td = ev.target.closest('[data-tasks-dept]');
       if (td) { state.tasksDept = td.dataset.tasksDept; renderTasksDeptChips(); renderTasks(); return; }
       const ec = ev.target.closest('[data-events-filter]');
@@ -3461,6 +3480,7 @@
           owner: (fd.get('owner') || '').trim(),
           plate: (fd.get('plate') || '').trim(),
           phone: (fd.get('phone') || '').trim() || null,
+          telegram: (fd.get('telegram') || '').trim() || null,
           email: (fd.get('email') || '').trim() || null,
           city: (fd.get('city') || '').trim() || null,
           zone: (fd.get('zone') || '').trim(),
@@ -4128,6 +4148,43 @@
       }
     }
 
+    // Staff/admin reassignment control inside the task detail. Setting a new
+    // assignee updates assigned_to (email) + name/uid, which fires the
+    // notify_task_assigned DB trigger → push to the new assignee.
+    function mountTaskReassign(task) {
+      const box = el('taskReassignRow');
+      if (!box) return;
+      if (!roleAtLeast('staff')) { box.innerHTML = ''; return; }
+      const cur = (task.assigned_to || '').toLowerCase();
+      const seen = new Set();
+      const opts = [`<option value="">${escape(t('task.reassign.unassigned'))}</option>`];
+      (state.profiles || []).forEach(p => {
+        if (!p.email || seen.has(p.email.toLowerCase())) return;
+        seen.add(p.email.toLowerCase());
+        const sel = p.email.toLowerCase() === cur ? ' selected' : '';
+        opts.push(`<option value="${escape(p.email)}"${sel}>${escape(p.full_name || p.email.split('@')[0])}</option>`);
+      });
+      box.innerHTML = `
+        <label class="detail-reassign-label" for="taskReassignSelect">${escape(t('task.reassign.label'))}</label>
+        <div class="event-picker" style="max-width:100%;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <select id="taskReassignSelect" aria-label="${escape(t('task.reassign.label'))}">${opts.join('')}</select>
+        </div>`;
+      el('taskReassignSelect').addEventListener('change', async (e) => {
+        const email = (e.target.value || '').trim();
+        const prof = (state.profiles || []).find(p => (p.email || '').toLowerCase() === email.toLowerCase());
+        const patch = email
+          ? { assigned_to: email, assigned_user_name: (prof && prof.full_name) || email.split('@')[0], assigned_at: new Date().toISOString() }
+          : { assigned_to: null, assigned_user_name: null, assigned_user_id: null, assigned_at: null };
+        e.target.disabled = true;
+        const { error } = await supa.from('tasks').update(patch).eq('id', task.id);
+        e.target.disabled = false;
+        if (error) { uiAlert(t('common.error') + ': ' + error.message); return; }
+        Object.assign(task, patch);
+        showToast(email ? t('task.reassign.done') : t('task.reassign.cleared'));
+      });
+    }
+
     // ----- TASK DETAIL -----
     async function showTaskDetail(taskId) {
       const task = state.tasks.find(x => String(x.id) === String(taskId));
@@ -4195,6 +4252,7 @@
             ${fieldRow(t('task.detail.completed_by'), task.completed_by_user_name)}
             ${fieldRow(t('task.detail.completed_at'), fmtDateTime(task.completed_at))}
           </div>
+          <div id="taskReassignRow" style="margin-top:10px;"></div>
         </div>
 
         <div class="detail-section">
@@ -4220,6 +4278,7 @@
       `;
 
       loadActivityLog('task', task.id, 'taskHistoryList');
+      mountTaskReassign(task);
 
       // Checklist starts in read (toggle-only) mode; "Modifică" reveals editing.
       _clEdit = false;
@@ -4395,9 +4454,25 @@
     }
 
     // WhatsApp + Call buttons for a car's owner, with a pre-filled message.
+    // Turn whatever is stored in `telegram` into a t.me link, or '' if empty.
+    // Accepts a bare @username, a username, or a full t.me/... URL.
+    function telegramLink(raw) {
+      let v = (raw || '').trim();
+      if (!v) return '';
+      const m = v.match(/(?:t\.me\/|telegram\.me\/)(.+)$/i);
+      if (m) v = m[1];
+      v = v.replace(/^@/, '').replace(/\s+/g, '');
+      if (!v) return '';
+      // A phone-style value (only digits / leading +) uses the +number form.
+      if (/^\+?\d[\d\s]*$/.test(v)) return `https://t.me/+${v.replace(/\D/g, '')}`;
+      return `https://t.me/${encodeURIComponent(v)}`;
+    }
+
     function contactButtons(c) {
       const phone = normalizePhone(c.phone || c.contact);
-      if (!phone) return '';
+      // Prefer an explicit Telegram username; fall back to the phone number.
+      const tg = telegramLink(c.telegram) || (phone ? `https://t.me/+${phone}` : '');
+      if (!phone && !tg) return '';
       const ev = (state.events || []).find(e => String(e.id) === String(c.event_id));
       const carName = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '';
       const parts = [`Bună${c.owner ? ' ' + c.owner : ''}!`];
@@ -4405,24 +4480,24 @@
       if (carName) parts.push(`Mașină: ${carName}${c.plate ? ' (' + c.plate + ')' : ''}.`);
       if (c.zone) parts.push(`Zona dvs. de parcare: ${c.zone}.`);
       const msg = encodeURIComponent(parts.join(' '));
-      const wa = `https://wa.me/${phone}?text=${msg}`;
-      const tel = `tel:+${phone}`;
-      // Telegram opens a chat with the participant's phone number (works when
-      // Telegram is installed / on mobile).
-      const tg = `https://t.me/+${phone}`;
-      return `
+      const wa = phone ? `https://wa.me/${phone}?text=${msg}` : '';
+      const tel = phone ? `tel:+${phone}` : '';
+      const waBtn = wa ? `
         <a class="btn ghost contact-wa" href="${wa}" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm5.8 14.01c-.24.68-1.42 1.31-1.96 1.35-.5.05-.96.23-3.23-.67-2.73-1.08-4.45-3.88-4.58-4.06-.13-.18-1.1-1.46-1.1-2.79 0-1.33.7-1.98.94-2.25.24-.27.53-.34.7-.34.18 0 .35 0 .5.01.16.01.38-.06.59.45.24.58.81 2 .88 2.14.07.14.12.31.02.49-.09.18-.14.29-.28.45-.14.16-.29.36-.42.48-.14.14-.28.29-.12.56.16.27.71 1.17 1.53 1.9 1.05.94 1.94 1.23 2.21 1.37.27.14.43.12.59-.07.16-.18.68-.79.86-1.07.18-.27.36-.22.6-.13.24.09 1.55.73 1.81.86.27.14.44.2.5.31.07.11.07.63-.17 1.31z"/></svg>
           WhatsApp
-        </a>
+        </a>` : '';
+      const tgBtn = tg ? `
         <a class="btn ghost contact-tg" href="${tg}" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M21.94 4.58 18.9 19.2c-.23 1.02-.83 1.27-1.68.79l-4.64-3.42-2.24 2.16c-.25.25-.46.46-.94.46l.33-4.73 8.6-7.77c.37-.33-.08-.52-.58-.19L7.25 13.1l-4.58-1.43c-1-.31-1.02-1 .21-1.48L20.65 3.2c.83-.31 1.56.19 1.29 1.38z"/></svg>
           Telegram
-        </a>
+        </a>` : '';
+      const telBtn = tel ? `
         <a class="btn ghost" href="${tel}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
           ${escape(t('car.contact.call'))}
-        </a>`;
+        </a>` : '';
+      return waBtn + tgBtn + telBtn;
     }
 
     // ----- CAR DETAIL -----
@@ -4507,6 +4582,7 @@
           <div class="detail-grid">
             ${fieldRow(t('car.detail.name'), c.owner)}
             ${fieldRow(t('car.detail.phone'), c.phone || c.contact)}
+            ${fieldRow(t('car.detail.telegram'), c.telegram)}
             ${fieldRow(t('car.detail.email'), c.email)}
             ${fieldRow(t('car.detail.city_country'), c.city)}
           </div>
@@ -5005,6 +5081,11 @@
       const q = state.tasksSearch.toLowerCase();
       return activeTasks().filter(t => {
         const sk = taskStatusKey(t.status);
+        // Quick "views" preset — combines assignee/priority/overdue in one tap.
+        const preset = state.tasksPreset || 'all';
+        if ((preset === 'mine' || preset === 'mine_urgent') && !isMyTask(t)) return false;
+        if ((preset === 'urgent' || preset === 'mine_urgent') && priorityLevel(t.priority) < 3) return false;
+        if (preset === 'overdue' && !isOverdue(t)) return false;
         if (state.tasksFilter === 'done' && sk !== 'completed') return false;
         if (state.tasksFilter === 'open' && sk === 'completed') return false;
         if (state.tasksFilter !== 'all' && state.tasksFilter !== 'done' && state.tasksFilter !== 'open') {
@@ -5108,6 +5189,34 @@
       `).join('');
     }
 
+    // Saved "views" — one-tap presets that combine assignee/priority/overdue.
+    function renderTasksViewChips() {
+      const box = el('tasksViewChips');
+      if (!box) return;
+      const open = state.tasks.filter(tk => taskStatusKey(tk.status) !== 'completed');
+      const isUrgent = tk => priorityLevel(tk.priority) >= 3;
+      const counts = {
+        all: state.tasks.length,
+        mine: open.filter(isMyTask).length,
+        urgent: open.filter(isUrgent).length,
+        mine_urgent: open.filter(tk => isMyTask(tk) && isUrgent(tk)).length,
+        overdue: open.filter(isOverdue).length,
+      };
+      const presets = [
+        { key: 'all',         label: t('tasks.view_all') },
+        { key: 'mine',        label: t('tasks.view_mine') },
+        { key: 'urgent',      label: t('tasks.view_urgent') },
+        { key: 'mine_urgent', label: t('tasks.view_mine_urgent') },
+        { key: 'overdue',     label: t('tasks.view_overdue') },
+      ];
+      box.innerHTML = presets.map(p => `
+        <button class="chip preset ${state.tasksPreset === p.key ? 'active' : ''}" data-tasks-preset="${p.key}">
+          ${escape(p.label)}
+          <span class="count">· ${counts[p.key] || 0}</span>
+        </button>
+      `).join('');
+    }
+
     function applyTasksView() {
       const ss = el('tasksSortSelect');
       if (ss && ss.value !== state.tasksSort) ss.value = state.tasksSort;
@@ -5125,6 +5234,7 @@
 
     function renderTasks() {
       el('tasksCount').textContent = state.tasks.length;
+      renderTasksViewChips();
       applyTasksView();
       if (state.tasksView === 'kanban') { renderTasksKanban(); return; }
       const list = sortTasks(filterTasks());
