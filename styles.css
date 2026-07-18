@@ -1782,7 +1782,9 @@
 /* ============ QUICK CONTACT BUTTONS ============ */
 .btn.contact-wa { color: #25D366; border-color: rgba(37,211,102,0.35); }
 .btn.contact-wa:hover { background: rgba(37,211,102,0.10); }
-.btn.contact-wa svg, .btn.ghost svg { flex-shrink: 0; }
+.btn.contact-tg { color: #229ED9; border-color: rgba(34,158,217,0.35); }
+.btn.contact-tg:hover { background: rgba(34,158,217,0.10); }
+.btn.contact-wa svg, .btn.contact-tg svg, .btn.ghost svg { flex-shrink: 0; }
 #carDetailActions .btn { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ============ ROLE BADGES ============ */

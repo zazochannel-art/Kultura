@@ -798,6 +798,13 @@
       state.tasksAssignee = e.target.value || 'all';
       renderTasks();
     });
+    // Tasks sort (priority / deadline / recent). The initial value is applied
+    // in applyTasksView() (after `state` is initialized), not here.
+    el('tasksSortSelect')?.addEventListener('change', (e) => {
+      state.tasksSort = e.target.value || 'priority';
+      localStorage.setItem('kultura_tasks_sort', state.tasksSort);
+      renderTasks();
+    });
     // Tasks view toggle (List / Kanban).
     document.addEventListener('click', (e) => {
       const vb = e.target.closest('[data-tasks-view]');
@@ -1333,6 +1340,7 @@
       authUsers: null,
       carsFilter: 'all', carsSearch: '',
       tasksFilter: 'all', tasksSearch: '', tasksDept: 'all', tasksAssignee: 'all',
+      tasksSort: localStorage.getItem('kultura_tasks_sort') || 'priority',
       tasksView: localStorage.getItem('kultura_tasks_view') || 'list',
       eventsFilter: 'all', eventsSearch: '',
       teamSearch: '',
@@ -2513,6 +2521,11 @@
             </div>
             <div class="event-actions">
               ${buttons}
+              ${roleAtLeast('staff') ? `
+              <button class="action-btn" data-action="event-edit" data-event-id="${e.id}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                ${t("common.edit")}
+              </button>` : ''}
               ${isAdmin() ? `
               <button class="action-btn delete" data-action="event-delete" data-event-id="${e.id}" data-event-label="${escape(e.title)}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
@@ -2849,6 +2862,23 @@
         const { error } = await withSpinner(() => supa.from('events').delete().eq('id', id));
         if (error) return uiAlert('Eroare: ' + error.message);
         await loadData();
+      } else if (action === 'event-edit') {
+        const id = btn.dataset.eventId;
+        const ev = (state.events || []).find(x => String(x.id) === String(id));
+        if (!ev) return;
+        editingEventId = ev.id;
+        const f = el('form-add-event');
+        f.title.value = ev.title || '';
+        f.subtitle.value = ev.subtitle || '';
+        f.location.value = ev.location || '';
+        f.date.value = ev.date || '';
+        f.status.value = ev.status || 'Planificat';
+        if (ev.starts_at) {
+          const d = new Date(ev.starts_at);
+          f.starts_at.value = isNaN(d) ? '' : new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+        } else { f.starts_at.value = ''; f.starts_at.required = false; }
+        const h = el('addEventTitle'); if (h) h.textContent = t('events.edit_title');
+        openModal('add-event');
       }
     });
 
@@ -2994,6 +3024,7 @@
     }
     let _lastFocusedBeforeModal = null;
     let userBeingEdited = null;
+    let editingEventId = null;
     // Primary admin — role is locked (also enforced by a DB trigger).
     const PRIMARY_ADMIN_EMAIL = 'igor.gratii.99@mail.ru';
 
@@ -3001,6 +3032,12 @@
       const opener = ev.target.closest('[data-modal]');
       if (opener) {
         const modalName = opener.dataset.modal;
+        // Opening the event modal via the "Add" button = fresh insert.
+        if (modalName === 'add-event') {
+          editingEventId = null;
+          const f = el('form-add-event'); if (f) { f.reset(); f.starts_at.required = true; }
+          const h = el('addEventTitle'); if (h) h.textContent = t('events.add_title');
+        }
         if (modalName === 'edit-profile') {
           userBeingEdited = opener.dataset.editEmail || currentUser?.email;
           const userName = opener.dataset.editName || 'Profilul meu';
@@ -3469,17 +3506,21 @@
         try { displayDate = new Date(startsVal + 'T00:00:00').toLocaleDateString('ro-RO', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (_) { displayDate = startsVal; }
       }
 
+      const payload = {
+        title: fd.get('title').trim(),
+        subtitle: (fd.get('subtitle') || '').trim() || null,
+        date: displayDate || null,
+        starts_at: startsAt,
+        location: (fd.get('location') || '').trim() || null,
+        status, status_color: statusColor,
+        days_left: null   // computed live from starts_at
+      };
       try {
-        const { error } = await supa.from('events').insert({
-          title: fd.get('title').trim(),
-          subtitle: (fd.get('subtitle') || '').trim() || null,
-          date: displayDate || null,
-          starts_at: startsAt,
-          location: (fd.get('location') || '').trim() || null,
-          status, status_color: statusColor,
-          days_left: null   // computed live from starts_at
-        });
+        const { error } = editingEventId
+          ? await supa.from('events').update(payload).eq('id', editingEventId)
+          : await supa.from('events').insert(payload);
         if (error) throw error;
+        editingEventId = null;
         closeModal(document.getElementById('modal-add-event'));
         await loadData();
       } catch (err) {
@@ -4366,10 +4407,17 @@
       const msg = encodeURIComponent(parts.join(' '));
       const wa = `https://wa.me/${phone}?text=${msg}`;
       const tel = `tel:+${phone}`;
+      // Telegram opens a chat with the participant's phone number (works when
+      // Telegram is installed / on mobile).
+      const tg = `https://t.me/+${phone}`;
       return `
         <a class="btn ghost contact-wa" href="${wa}" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm5.8 14.01c-.24.68-1.42 1.31-1.96 1.35-.5.05-.96.23-3.23-.67-2.73-1.08-4.45-3.88-4.58-4.06-.13-.18-1.1-1.46-1.1-2.79 0-1.33.7-1.98.94-2.25.24-.27.53-.34.7-.34.18 0 .35 0 .5.01.16.01.38-.06.59.45.24.58.81 2 .88 2.14.07.14.12.31.02.49-.09.18-.14.29-.28.45-.14.16-.29.36-.42.48-.14.14-.28.29-.12.56.16.27.71 1.17 1.53 1.9 1.05.94 1.94 1.23 2.21 1.37.27.14.43.12.59-.07.16-.18.68-.79.86-1.07.18-.27.36-.22.6-.13.24.09 1.55.73 1.81.86.27.14.44.2.5.31.07.11.07.63-.17 1.31z"/></svg>
           WhatsApp
+        </a>
+        <a class="btn ghost contact-tg" href="${tg}" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M21.94 4.58 18.9 19.2c-.23 1.02-.83 1.27-1.68.79l-4.64-3.42-2.24 2.16c-.25.25-.46.46-.94.46l.33-4.73 8.6-7.77c.37-.33-.08-.52-.58-.19L7.25 13.1l-4.58-1.43c-1-.31-1.02-1 .21-1.48L20.65 3.2c.83-.31 1.56.19 1.29 1.38z"/></svg>
+          Telegram
         </a>
         <a class="btn ghost" href="${tel}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
@@ -4985,6 +5033,35 @@
       });
     }
 
+    // A comparable timestamp for a task's deadline (missing → far future).
+    function taskSortTime(tk) {
+      const v = tk.due_at || tk.date;
+      if (!v) return Infinity;
+      const d = new Date(v);
+      return isNaN(d) ? Infinity : d.getTime();
+    }
+    // Order tasks by the chosen sort. Completed tasks always sink to the bottom;
+    // overdue tasks float within their group.
+    function sortTasks(list) {
+      const mode = state.tasksSort || 'priority';
+      const arr = list.slice();
+      if (mode === 'recent') return arr; // already newest-first
+      const done = tk => taskStatusKey(tk.status) === 'completed' ? 1 : 0;
+      const over = tk => isOverdue(tk) ? 0 : 1;
+      arr.sort((a, b) => {
+        const d = done(a) - done(b); if (d) return d;
+        if (mode === 'deadline') {
+          const o = over(a) - over(b); if (o) return o;
+          return taskSortTime(a) - taskSortTime(b);
+        }
+        // priority (default)
+        const p = priorityLevel(b.priority) - priorityLevel(a.priority); if (p) return p;
+        const o = over(a) - over(b); if (o) return o;
+        return taskSortTime(a) - taskSortTime(b);
+      });
+      return arr;
+    }
+
     function renderTasksDeptChips() {
       const counts = { all: state.tasks.length };
       DEPARTMENTS.forEach(d => { counts[d] = 0; });
@@ -5032,6 +5109,8 @@
     }
 
     function applyTasksView() {
+      const ss = el('tasksSortSelect');
+      if (ss && ss.value !== state.tasksSort) ss.value = state.tasksSort;
       const listC = el('tasksList'), kanC = el('tasksKanban');
       const kanban = state.tasksView === 'kanban';
       if (listC) listC.style.display = kanban ? 'none' : '';
@@ -5048,7 +5127,7 @@
       el('tasksCount').textContent = state.tasks.length;
       applyTasksView();
       if (state.tasksView === 'kanban') { renderTasksKanban(); return; }
-      const list = filterTasks();
+      const list = sortTasks(filterTasks());
       const c = el('tasksList');
       if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(t("common.nothing_found")) + '</div>';
 
@@ -5162,7 +5241,7 @@
     function renderTasksKanban() {
       const board = el('tasksKanban');
       if (!board) return;
-      const list = filterTasks();
+      const list = sortTasks(filterTasks());
       const cols = [
         { key: 'available',   label: t('task.status.available'),   cls: 'available' },
         { key: 'in_progress', label: t('task.status.in_progress'), cls: 'progress'  },

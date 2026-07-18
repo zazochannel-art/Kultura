@@ -399,6 +399,14 @@
               <option value="__me__" data-i18n="tasks.assignee_me">Doar ale mele</option>
             </select>
           </div>
+          <div class="event-picker" style="max-width:200px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M10 18h4"/></svg>
+            <select id="tasksSortSelect" aria-label="Sortare">
+              <option value="priority" data-i18n="tasks.sort_priority">După prioritate</option>
+              <option value="deadline" data-i18n="tasks.sort_deadline">După termen</option>
+              <option value="recent" data-i18n="tasks.sort_recent">Recente</option>
+            </select>
+          </div>
           <div class="view-toggle" id="tasksViewToggle">
             <button type="button" class="view-btn active" data-tasks-view="list" title="Listă" aria-label="Listă">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
@@ -828,7 +836,7 @@
     <!-- MODAL: Add Event -->
     <div class="modal-backdrop" id="modal-add-event" data-modal-name="add-event">
       <div class="modal">
-        <h2>Adaugă eveniment</h2>
+        <h2 id="addEventTitle">Adaugă eveniment</h2>
         <p class="sub-help">Detaliile festivalului/expoziției.</p>
         <div class="modal-msg" id="modal-add-event-msg"></div>
         <form id="form-add-event">
