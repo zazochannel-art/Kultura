@@ -816,7 +816,7 @@
     // ----- "WHAT'S NEW" PANEL -----
     // Bump this string whenever the changelog below gains a new entry; users
     // who haven't opened that version see a dot on the Settings tab.
-    const WHATSNEW_VERSION = '2026-07-18';
+    const WHATSNEW_VERSION = '2026-07-18b';
     const WN_ICONS = {
       grid:   '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
       kanban: '<rect x="3" y="3" width="6" height="18" rx="1"/><rect x="9" y="3" width="6" height="12" rx="1"/><rect x="15" y="3" width="6" height="9" rx="1"/>',
@@ -850,6 +850,10 @@
         ro: { t: 'Atribuie taskuri + notificare', d: 'Staff/admin pot atribui un task altei persoane direct din detaliu — cel ales primește imediat o notificare.' },
         en: { t: 'Assign tasks + notify', d: 'Staff/admins can assign a task to someone right from its details — the chosen person gets a notification immediately.' },
         ru: { t: 'Назначение задач + уведомление', d: 'Staff/админы могут назначить задачу другому прямо из деталей — выбранный сразу получает уведомление.' } },
+      { icon: 'grid',
+        ro: { t: 'Aspect mai viu', d: 'Grafic de progres pe Acasă, numărătoare inversă care pulsează când se apropie evenimentul, tranziții și ripple la atingere, carduri VIP cu margine aurie animată și glisare pe o mașină pentru check-in rapid.' },
+        en: { t: 'Livelier look', d: 'A progress donut on Home, a countdown that pulses as the event nears, page transitions and tap ripples, VIP cards with an animated gold border, and swipe a car to check it in.' },
+        ru: { t: 'Живее визуал', d: 'Кольцо прогресса на Главной, пульсирующий обратный отсчёт, переходы и ripple при нажатии, VIP-карточки с анимированной золотой рамкой и свайп машины для быстрого прибытия.' } },
       { icon: 'check',
         ro: { t: 'Vederi rapide la taskuri', d: 'Butoane noi sus pe pagina Taskuri: Ale mele, Urgente, Urgente ale mele, Întârziate — filtrezi dintr-o atingere.' },
         en: { t: 'Quick task views', d: 'New buttons atop the Tasks page: Mine, Urgent, My urgent, Overdue — filter in one tap.' },
@@ -1391,6 +1395,7 @@
     }
 
     function applyActiveEvent() {
+      try { applyEventAccent(); } catch (_) {}
       try { renderStats(state.cars, state.tasks, state.events); } catch (_) {}
       try { renderHero(state.events); } catch (_) {}
       try { renderUpcoming(state.events); } catch (_) {}
@@ -1651,6 +1656,7 @@
             }
             if (eventsChanged) {
               try { populateEventPicker(); } catch (_) {}
+              try { applyEventAccent(); } catch (_) {}
               try { renderHero(state.events); } catch (_) {}
               try { renderUpcoming(state.events); } catch (_) {}
               try { renderEventsChips(); } catch (_) {}
@@ -2235,6 +2241,137 @@
       });
     }
 
+    // ----- Colored initials avatar (fallback when there's no photo) -----
+    // Deterministic hue from the name so the same person keeps the same color.
+    function nameHue(name) {
+      let h = 0; const s = String(name || '?');
+      for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+      return h % 360;
+    }
+    function avatarBg(name) {
+      const h = nameHue(name);
+      return `background:linear-gradient(135deg,hsl(${h} 70% 52%),hsl(${(h + 40) % 360} 68% 44%));color:#fff;`;
+    }
+    function twoInitials(name) {
+      const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+      const s = parts.length >= 2 ? parts[0][0] + parts[1][0] : (name || '?').substring(0, 2);
+      return s.toUpperCase();
+    }
+
+    // ----- hex → rgba (for event-derived accent glow) -----
+    function hexToRgba(hex, a) {
+      const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+      if (!m) return `rgba(59,130,246,${a})`;
+      const n = parseInt(m[1], 16);
+      return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+    }
+    // ----- Accent auto per active event (#accent) -----
+    // While a single event is active and has a color, tint the app accent with
+    // it; otherwise fall back to the user's saved accent choice.
+    function applyEventAccent() {
+      const r = document.documentElement.style;
+      let ev = null;
+      if (state.activeEventId) ev = (state.events || []).find(e => String(e.id) === String(state.activeEventId));
+      const col = ev && ev.status_color;
+      if (col && /^#([0-9a-f]{6})$/i.test(col)) {
+        r.setProperty('--accent', col);
+        r.setProperty('--accent-2', col);
+        r.setProperty('--accent-glow', hexToRgba(col, 0.38));
+      } else {
+        try { applyAccent(currentAccent()); } catch (_) {}
+      }
+    }
+
+    // ----- Task-progress donut on Home (completed vs total) -----
+    const DONUT_C = 2 * Math.PI * 34; // r=34
+    function renderTaskDonut() {
+      const fill = el('taskDonutFill');
+      if (!fill) return;
+      const tasks = activeTasks();
+      const total = tasks.length;
+      const done = tasks.filter(tk => tk.is_completed).length;
+      const pct = total ? Math.round(done / total * 100) : 0;
+      fill.style.strokeDasharray = String(DONUT_C);
+      fill.style.strokeDashoffset = String(DONUT_C * (1 - pct / 100));
+      const p = el('taskDonutPct'); if (p) p.textContent = pct + '%';
+      const m = el('taskDonutMeta'); if (m) m.textContent = `${done}/${total}`;
+    }
+
+    // ----- Tap ripple on buttons / chips / tabs -----
+    document.addEventListener('pointerdown', (e) => {
+      if (_reduceMotion()) return;
+      const target = e.target.closest('.btn, .chip, .tab, .mtab, .action-btn, .add-btn, .view-btn');
+      if (!target || target.disabled) return;
+      const r = target.getBoundingClientRect();
+      const size = Math.max(r.width, r.height) * 1.2;
+      const ink = document.createElement('span');
+      ink.className = 'ripple-ink';
+      ink.style.width = ink.style.height = size + 'px';
+      ink.style.left = (e.clientX - r.left) + 'px';
+      ink.style.top = (e.clientY - r.top) + 'px';
+      const prevPos = getComputedStyle(target).position;
+      if (prevPos === 'static') target.style.position = 'relative';
+      if (getComputedStyle(target).overflow === 'visible') target.style.overflow = 'hidden';
+      target.appendChild(ink);
+      setTimeout(() => ink.remove(), 600);
+    }, { passive: true });
+
+    // ----- Swipe-left on a car row to quick check-in (mark "Sosit") -----
+    (function initCarSwipe() {
+      let row = null, id = null, x0 = 0, y0 = 0, dx = 0, active = false, decided = false, horiz = false;
+      const THRESH = 70;
+      const list = () => el('carsList');
+      document.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        const r = e.target.closest('.car-row');
+        if (!r || !list() || !list().contains(r)) return;
+        if (e.target.closest('.action-btn, button, a, input, select')) return;
+        row = r; id = r.dataset.rowId; x0 = e.clientX; y0 = e.clientY;
+        dx = 0; active = true; decided = false; horiz = false;
+      });
+      document.addEventListener('pointermove', (e) => {
+        if (!active || !row) return;
+        dx = e.clientX - x0;
+        const dy = e.clientY - y0;
+        if (!decided && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+          decided = true; horiz = Math.abs(dx) > Math.abs(dy);
+        }
+        if (!horiz) return;
+        const t = Math.max(-120, Math.min(0, dx)); // left only
+        row.style.transform = `translateX(${t}px)`;
+        row.style.transition = 'none';
+        row.classList.toggle('swipe-hot', t <= -THRESH);
+      });
+      const end = () => {
+        if (!active || !row) { active = false; return; }
+        const r = row, rid = id, fire = horiz && dx <= -THRESH;
+        r.style.transition = 'transform 0.25s ease';
+        r.style.transform = '';
+        r.classList.remove('swipe-hot');
+        active = false; row = null; id = null;
+        if (fire) {
+          r.dataset.swipeFired = '1';
+          setTimeout(() => { delete r.dataset.swipeFired; }, 400);
+          const opt = (CAR_STATUS_OPTIONS || []).find(o => o.key === 'sosit');
+          haptic(30);
+          (async () => {
+            const { error } = await supa.from('cars').update({
+              status: opt ? opt.label : 'Sosit', status_color: opt ? opt.color : '#10B981'
+            }).eq('id', rid);
+            if (error) uiAlert(t('common.error') + ': ' + error.message);
+            else showToast(t('car.swipe.checked_in'));
+          })();
+        }
+      };
+      document.addEventListener('pointerup', end);
+      document.addEventListener('pointercancel', end);
+      // Swallow the click that follows a fired swipe so the detail doesn't open.
+      document.addEventListener('click', (e) => {
+        const r = e.target.closest('.car-row');
+        if (r && r.dataset.swipeFired) { e.stopPropagation(); e.preventDefault(); }
+      }, true);
+    })();
+
     // ----- Skeleton placeholders shown until the first data arrives -----
     function skeletonCards(n, kind) {
       let out = '';
@@ -2282,6 +2419,7 @@
       setStat('statCarsConfirmed', arrived);
       setStat('statTasks', openTasks);
       _statsAnimated = true;
+      try { renderTaskDonut(); } catch (_) {}
 
       // Meters: arrival rate (of all cars) and task-completion rate.
       const mArrived = el('meterArrived');
@@ -2342,6 +2480,14 @@
       el('heroDate').innerHTML = calendarIcon() + (e.date || '');
       el('heroLocation').innerHTML = pinIcon() + (e.location || '');
       el('heroDays').textContent = dl ?? '—';
+      const hd = el('heroDays');
+      if (hd) {
+        hd.classList.remove('dl-soon', 'dl-urgent');
+        if (dl != null && !isNaN(dl)) {
+          if (dl <= 3) hd.classList.add('dl-urgent');
+          else if (dl <= 7) hd.classList.add('dl-soon');
+        }
+      }
       setRing(dl);
     }
 
@@ -2618,7 +2764,7 @@
       const list = filterCars();
       const c = el('carsList');
       if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(t("common.nothing_found")) + '</div>';
-      c.innerHTML = '<div class="page-grid-2" id="carsInner"></div>';
+      c.innerHTML = '<div class="page-grid-2 content-in" id="carsInner"></div>';
       el('carsInner').innerHTML = list.map(car => {
         const active = statusKey(car.status);
         const actionButtons = CAR_STATUS_OPTIONS.map(opt => {
@@ -2739,7 +2885,7 @@
             : '';
         return `
           <div class="team-card" ${attrs}>
-            <div class="team-avatar">${m.avatar ? `<img src="${escape(m.avatar)}" alt="" loading="lazy">` : initials}</div>
+            <div class="team-avatar"${m.avatar ? '' : ` style="${avatarBg(m.name)}"`}>${m.avatar ? `<img src="${escape(m.avatar)}" alt="" loading="lazy">` : escape(twoInitials(m.name))}</div>
             <div class="team-info">
               <div class="team-name">${escape(m.name)} ${isMe ? '<span style="font-size:10px; opacity:0.6; font-weight:normal;">(Tu)</span>' : ''} ${roleBadge}</div>
               <div class="team-role">${escape(m.role)} • ${escape(m.email)}</div>
@@ -2785,7 +2931,7 @@
         const rate = r.total ? Math.round((r.done / r.total) * 100) : 0;
         const initials = r.name.substring(0, 2).toUpperCase();
         return `<div class="workload-row">
-          <div class="workload-avatar">${r.avatar ? `<img src="${escape(r.avatar)}" alt="" loading="lazy">` : initials}</div>
+          <div class="workload-avatar"${r.avatar ? '' : ` style="${avatarBg(r.name)}"`}>${r.avatar ? `<img src="${escape(r.avatar)}" alt="" loading="lazy">` : escape(twoInitials(r.name))}</div>
           <div class="workload-info">
             <div class="workload-name">${escape(r.name)}</div>
             <div class="workload-bar"><span style="width:${rate}%"></span></div>
@@ -5257,7 +5403,7 @@
       const iconUser  = '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>';
       const iconUndo  = '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/>';
 
-      c.innerHTML = '<div class="tk-grid">' + list.map(tk => {
+      c.innerHTML = '<div class="tk-grid content-in">' + list.map(tk => {
         const sk = taskStatusKey(tk.status);
         const iconClass = sk === 'completed' ? 'done' : sk === 'in_progress' ? 'progress' : 'available';
         const iconSvg   = sk === 'completed' ? iconCheck : iconClock;
@@ -5492,7 +5638,7 @@
         (email && (p.email || '').toLowerCase() === email) || p.full_name === name);
       const initials = (name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('') || name[0] || '?').toUpperCase();
       const av = prof && prof.avatar_url;
-      return `<span class="tk-avatar" aria-hidden="true">${av ? `<img src="${escape(av)}" alt="" loading="lazy">` : escape(initials)}</span>`;
+      return `<span class="tk-avatar" aria-hidden="true"${av ? '' : ` style="${avatarBg(name)}"`}>${av ? `<img src="${escape(av)}" alt="" loading="lazy">` : escape(initials)}</span>`;
     }
 
     function emptyState(text, opts = {}) {

@@ -3059,3 +3059,78 @@
 @media (prefers-reduced-motion: reduce) {
   .tk-prio.prio-urgent span { animation: none; }
 }
+
+/* ========== VISUAL POLISH v2 (2026-07-18) ========== */
+
+/* #49 Event days-left urgency (hero ring number) */
+#heroDays.dl-soon { color: var(--orange) !important; }
+#heroDays.dl-urgent { color: var(--red) !important; animation: dl-pulse 1.6s ease-in-out infinite; }
+@keyframes dl-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+
+/* #50 Smoother section transition (in addition to the card stagger) */
+.section.active { animation: sectionIn 0.34s cubic-bezier(0.22,0.61,0.36,1); }
+@keyframes sectionIn { from { opacity: 0; transform: translateY(8px) scale(0.996); } to { opacity: 1; transform: none; } }
+
+/* #51 Tap ripple */
+.ripple-ink {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.40);
+  transform: translate(-50%,-50%) scale(0);
+  animation: ripple-go 0.55s ease-out forwards;
+  pointer-events: none;
+  z-index: 1;
+}
+:root[data-theme="light"] .ripple-ink { background: rgba(15,23,42,0.16); }
+@keyframes ripple-go { to { transform: translate(-50%,-50%) scale(1); opacity: 0; } }
+
+/* #52 Skeleton → content fade-in */
+.content-in { animation: contentIn 0.4s ease both; }
+@keyframes contentIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* #53 Swipe-to-check-in feedback on car rows */
+.car-row { will-change: transform; }
+.car-row.swipe-hot {
+  box-shadow: 0 0 0 2px rgba(16,185,129,0.65), 0 10px 26px rgba(16,185,129,0.28);
+}
+
+/* #54 VIP cards — animated gold shimmer border (upgrades the static one) */
+@property --kb-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+.card-vip::after {
+  background: conic-gradient(from var(--kb-angle),
+    #b45309, #fde68a 18%, #f59e0b 38%, #fffbeb 52%, #f59e0b 66%, #fde68a 82%, #b45309);
+  animation: kb-spin 5s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-vip::after { animation: none; background: linear-gradient(135deg, #f59e0b, #fde68a 45%, #f59e0b); }
+}
+
+/* #55 Colored initials avatars (background comes inline from JS) */
+.team-avatar, .workload-avatar, .tk-avatar { overflow: hidden; }
+.team-avatar img, .workload-avatar img, .tk-avatar img {
+  width: 100%; height: 100%; object-fit: cover; border-radius: inherit;
+}
+
+/* #56 Task-progress donut */
+.donut-wrap { display: flex; align-items: center; justify-content: center; padding: 10px 0 6px; }
+.donut-fig { position: relative; width: 104px; height: 104px; }
+.donut { transform: rotate(-90deg); display: block; }
+.donut-track { stroke: var(--fill-2, rgba(255,255,255,0.08)); }
+.donut-fill {
+  stroke: url(#donutGrad);
+  stroke-linecap: round;
+  stroke-dasharray: 213.6;
+  stroke-dashoffset: 213.6;
+  transition: stroke-dashoffset 0.9s cubic-bezier(0.4,0,0.2,1);
+}
+.donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.donut-pct { font-size: 23px; font-weight: 900; letter-spacing: -0.5px; }
+.donut-meta { font-size: 11px; color: var(--text-mute); margin-top: 2px; }
+
+/* #57 Background blobs gently breathe */
+body::before { animation: blob-breathe-a 18s ease-in-out infinite; }
+body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
+@keyframes blob-breathe-a { 0%,100% { transform: scale(1);    opacity: 0.28; } 50% { transform: scale(1.14); opacity: 0.34; } }
+@keyframes blob-breathe-b { 0%,100% { transform: scale(1.05); opacity: 0.22; } 50% { transform: scale(0.94); opacity: 0.28; } }
+:root[data-theme="light"] body::before { animation: blob-breathe-a-l 18s ease-in-out infinite; }
+@keyframes blob-breathe-a-l { 0%,100% { transform: scale(1); opacity: 0.14; } 50% { transform: scale(1.14); opacity: 0.18; } }
