@@ -64,6 +64,8 @@ try {
     tasksViewChips: !!document.getElementById('tasksViewChips'),
     carTelegram: !!document.querySelector('#form-add-car [name="telegram"]'),
     taskDonut: !!document.getElementById('taskDonutFill'),
+    heroCover: !!document.getElementById('heroCover'),
+    eventCover: !!document.getElementById('eventCoverInput'),
   }));
   Object.entries(els).forEach(([k, v]) => check('element:' + k, v));
 
