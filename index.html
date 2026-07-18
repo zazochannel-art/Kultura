@@ -389,7 +389,8 @@
             <span data-i18n="tasks.add">Adaugă</span>
           </button>
         </div>
-        <div class="chips" id="tasksChips"></div>
+        <div class="chips" id="tasksViewChips"></div>
+        <div class="chips" id="tasksChips" style="margin-top: 4px;"></div>
         <div class="chips" id="tasksDeptChips" style="margin-top: 4px;"></div>
         <div class="toolbar" style="margin-top: 8px; gap: 8px;">
           <div class="event-picker" style="max-width:260px;">
@@ -777,9 +778,13 @@
               <input type="tel" name="phone" placeholder="+373 XX XXX XXX">
             </div>
             <div class="form-field">
-              <label>Email</label>
-              <input type="email" name="email" placeholder="exemplu@mail.ro">
+              <label data-i18n="modal.add_car.telegram">Telegram</label>
+              <input type="text" name="telegram" placeholder="@username" data-i18n-placeholder="modal.add_car.telegram_ph">
             </div>
+          </div>
+          <div class="form-field">
+            <label>Email</label>
+            <input type="email" name="email" placeholder="exemplu@mail.ro">
           </div>
           <div class="form-row">
             <div class="form-field">

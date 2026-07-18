@@ -61,6 +61,8 @@ try {
     qrModal: !!document.getElementById('modal-car-qr'),
     zoneCfg: !!document.getElementById('zoneCfgBlock'),
     whatsNew: !!document.getElementById('modal-whatsnew'),
+    tasksViewChips: !!document.getElementById('tasksViewChips'),
+    carTelegram: !!document.querySelector('#form-add-car [name="telegram"]'),
   }));
   Object.entries(els).forEach(([k, v]) => check('element:' + k, v));
 
