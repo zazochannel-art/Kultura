@@ -344,14 +344,20 @@
         loadData();
       });
 
-      // Hydrate cars from the offline cache so the gate works even if we
-      // opened the app with no connection (a stored session logs us straight in).
+      // Paint instantly from the last session's cache, then loadData() refreshes
+      // in the background. Falls back to skeletons only when there's no cache.
+      const painted = hydrateFromCache();
+      // Ensure cars exist for the offline gate even if the full cache is empty.
       if (!(state.cars || []).length) {
         const cached = loadCachedCars();
         if (cached.length) state.cars = cached;
       }
-
-      try { showSkeletons(); } catch (_) {}
+      if (painted) {
+        try { populateEventPicker(); } catch (_) {}
+        try { applyActiveEvent(); } catch (_) {}
+      } else {
+        try { showSkeletons(); } catch (_) {}
+      }
       loadDepartments();
       loadZoneConfig();
       startPolling();
@@ -816,7 +822,7 @@
     // ----- "WHAT'S NEW" PANEL -----
     // Bump this string whenever the changelog below gains a new entry; users
     // who haven't opened that version see a dot on the Settings tab.
-    const WHATSNEW_VERSION = '2026-07-18b';
+    const WHATSNEW_VERSION = '2026-07-18c';
     const WN_ICONS = {
       grid:   '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
       kanban: '<rect x="3" y="3" width="6" height="18" rx="1"/><rect x="9" y="3" width="6" height="12" rx="1"/><rect x="15" y="3" width="6" height="9" rx="1"/>',
@@ -850,6 +856,10 @@
         ro: { t: 'Atribuie taskuri + notificare', d: 'Staff/admin pot atribui un task altei persoane direct din detaliu — cel ales primește imediat o notificare.' },
         en: { t: 'Assign tasks + notify', d: 'Staff/admins can assign a task to someone right from its details — the chosen person gets a notification immediately.' },
         ru: { t: 'Назначение задач + уведомление', d: 'Staff/админы могут назначить задачу другому прямо из деталей — выбранный сразу получает уведомление.' } },
+      { icon: 'kanban',
+        ro: { t: 'Mai rapid și mai fluid', d: 'Aplicația se deschide instant din memorie și se împrospătează în fundal, listele lungi randează doar ce e pe ecran, căutarea nu mai are lag, tragi în jos ca să reîmprospătezi, ferestrele urcă de jos pe telefon, iar pozele au galerie cu glisare.' },
+        en: { t: 'Faster & smoother', d: 'The app opens instantly from cache and refreshes in the background, long lists render only what is on screen, search has no lag, pull down to refresh, sheets slide up from the bottom on phones, and photos open in a swipeable gallery.' },
+        ru: { t: 'Быстрее и плавнее', d: 'Приложение открывается мгновенно из кэша и обновляется в фоне, длинные списки рисуют только видимое, поиск без лагов, потяните вниз для обновления, окна выезжают снизу на телефоне, а фото открываются в галерее со свайпом.' } },
       { icon: 'grid',
         ro: { t: 'Aspect mai viu', d: 'Grafic de progres pe Acasă, numărătoare inversă care pulsează când se apropie evenimentul, tranziții și ripple la atingere, carduri VIP cu margine aurie animată și glisare pe o mașină pentru check-in rapid.' },
         en: { t: 'Livelier look', d: 'A progress donut on Home, a countdown that pulses as the event nears, page transitions and tap ripples, VIP cards with an animated gold border, and swipe a car to check it in.' },
@@ -1582,6 +1592,7 @@
           // Persist the car list so the offline gate check-in can look cars up
           // with no connection (the PWA shell is cached; the data is not).
           if (nextCars !== null) cacheCarsOffline(nextCars);
+          try { cacheAppData(); } catch (_) {}
           // Opportunistically drain any queued gate check-ins.
           flushOutbox();
           updateGateSyncUI();
@@ -1807,6 +1818,34 @@
     function loadCachedCars() {
       try { return JSON.parse(localStorage.getItem(GATE_CACHE_KEY) || '[]'); }
       catch (_) { return []; }
+    }
+
+    // Full list cache (cars/tasks/events/profiles) so the app paints instantly
+    // from the last session, then refreshes in the background. Separate from the
+    // lean gate cache above (which stays minimal for offline check-in).
+    const APP_CACHE_KEY = 'kultura_cache_v1';
+    function cacheAppData() {
+      try {
+        localStorage.setItem(APP_CACHE_KEY, JSON.stringify({
+          cars: state.cars || [], tasks: state.tasks || [], events: state.events || [],
+          profiles: (state.profiles || []).map(p => ({
+            email: p.email, full_name: p.full_name, avatar_url: p.avatar_url,
+            role: p.role, department: p.department, is_admin: p.is_admin
+          })),
+          ts: Date.now()
+        }));
+      } catch (_) {}
+    }
+    function hydrateFromCache() {
+      try {
+        const c = JSON.parse(localStorage.getItem(APP_CACHE_KEY) || 'null');
+        if (!c) return false;
+        if (Array.isArray(c.cars)     && !(state.cars || []).length)     state.cars = c.cars;
+        if (Array.isArray(c.tasks)    && !(state.tasks || []).length)    state.tasks = c.tasks;
+        if (Array.isArray(c.events)   && !(state.events || []).length)   state.events = c.events;
+        if (Array.isArray(c.profiles) && !(state.profiles || []).length) state.profiles = c.profiles;
+        return !!((state.cars || []).length || (state.tasks || []).length || (state.events || []).length);
+      } catch (_) { return false; }
     }
     function getOutbox() {
       try { return JSON.parse(localStorage.getItem(GATE_OUTBOX_KEY) || '[]'); }
@@ -2153,10 +2192,11 @@
 
     // ----- Count-up number animation (stats) -----
     let _statsAnimated = false;
-    function countUp(node, to, dur = 750) {
+    function countUp(node, to, dur = 750, from = 0) {
       to = Number(to) || 0;
-      if (_reduceMotion()) { node.textContent = to; return; }
-      const from = 0, t0 = performance.now();
+      from = Number(from) || 0;
+      if (_reduceMotion() || from === to) { node.textContent = to; return; }
+      const t0 = performance.now();
       (function tick(now) {
         const p = Math.min(1, (now - t0) / dur);
         const eased = 1 - Math.pow(1 - p, 3);
@@ -2412,8 +2452,16 @@
       const scopedTasks = activeTasks();
       const arrived = scopedCars.filter(c => (c.status || '').toLowerCase().includes('sosit')).length;
       const openTasks = scopedTasks.filter(tk => !tk.is_completed).length;
-      // Count-up on the first render; instant thereafter (avoids re-animating on polls).
-      const setStat = (id, val) => { const n = el(id); if (n) (_statsAnimated ? (n.textContent = val) : countUp(n, val)); };
+      // Count-up on first render; on later renders animate from the previous
+      // value to the new one only when it actually changed (no re-anim on polls).
+      const setStat = (id, val) => {
+        const n = el(id); if (!n) return;
+        val = Number(val) || 0;
+        const prev = n.dataset.val != null ? (parseInt(n.dataset.val, 10) || 0) : 0;
+        n.dataset.val = String(val);
+        if (!_statsAnimated) { countUp(n, val, 750, 0); return; }
+        if (prev !== val) countUp(n, val, 500, prev); else n.textContent = val;
+      };
       setStat('statCars', scopedCars.length);
       setStat('statEvents', (events || state.events || []).length);
       setStat('statCarsConfirmed', arrived);
@@ -2759,21 +2807,15 @@
       `).join('');
     }
 
-    function renderCars() {
-      el('carsCount').textContent = state.cars.length;
-      const list = filterCars();
-      const c = el('carsList');
-      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(t("common.nothing_found")) + '</div>';
-      c.innerHTML = '<div class="page-grid-2 content-in" id="carsInner"></div>';
-      el('carsInner').innerHTML = list.map(car => {
-        const active = statusKey(car.status);
-        const actionButtons = CAR_STATUS_OPTIONS.map(opt => {
-          let label = opt.label;
-          if (opt.key === 'invitat') label = t("car.status.invited");
-          if (opt.key === 'sosit')   label = t("car.status.arrived");
-          if (opt.key === 'plecat')  label = t("car.status.left");
-
-          return `
+    // Markup for one car row (also used by the chunked/windowed renderer).
+    function carRowHtml(car) {
+      const active = statusKey(car.status);
+      const actionButtons = CAR_STATUS_OPTIONS.map(opt => {
+        let label = opt.label;
+        if (opt.key === 'invitat') label = t("car.status.invited");
+        if (opt.key === 'sosit')   label = t("car.status.arrived");
+        if (opt.key === 'plecat')  label = t("car.status.left");
+        return `
             <button class="action-btn ${active === opt.key ? 'active-' + opt.key : ''}"
                     data-action="status"
                     data-car-id="${car.id}"
@@ -2782,11 +2824,9 @@
               ${escape(label)}
             </button>
           `;
-        }).join('');
-
-        const carName = [car.brand, car.model].filter(Boolean).join(' ') || car.model;
-
-        return `
+      }).join('');
+      const carName = [car.brand, car.model].filter(Boolean).join(' ') || car.model;
+      return `
           <div class="card car-row card-stripe stripe-${active || 'invitat'}${car.is_vip ? ' card-vip' : ''}" data-row-id="${car.id}" style="cursor:pointer; padding: 16px; margin-bottom: 0;">
             <div style="display:flex; align-items:flex-start; gap:12px;">
               <div class="row-icon blue" style="flex-shrink:0;">
@@ -2813,7 +2853,36 @@
             </div>
           </div>
         `;
-      }).join('');
+    }
+
+    // Render the car list in chunks: paint the first CARS_CHUNK rows immediately,
+    // then append the rest as a sentinel scrolls into view. Keeps very long
+    // lists cheap without recycling DOM (so swipe + detail keep working).
+    const CARS_CHUNK = 60;
+    let _carsIO = null;
+    function renderCars() {
+      el('carsCount').textContent = state.cars.length;
+      const list = filterCars();
+      const c = el('carsList');
+      if (_carsIO) { _carsIO.disconnect(); _carsIO = null; }
+      if (!list.length) return c.innerHTML = '<div class="card">' + emptyState(t("common.nothing_found")) + '</div>';
+      c.innerHTML = '<div class="page-grid-2 content-in" id="carsInner"></div>';
+      const inner = el('carsInner');
+      const hasMore = list.length > CARS_CHUNK;
+      inner.innerHTML = list.slice(0, CARS_CHUNK).map(carRowHtml).join('')
+        + (hasMore ? '<div id="carsSentinel" style="grid-column:1/-1;height:1px;"></div>' : '');
+      if (hasMore) {
+        let idx = CARS_CHUNK;
+        const sentinel = el('carsSentinel');
+        _carsIO = new IntersectionObserver((entries) => {
+          if (!entries[0].isIntersecting) return;
+          const next = list.slice(idx, idx + CARS_CHUNK);
+          sentinel.insertAdjacentHTML('beforebegin', next.map(carRowHtml).join(''));
+          idx += CARS_CHUNK;
+          if (idx >= list.length) { _carsIO.disconnect(); _carsIO = null; sentinel.remove(); }
+        }, { rootMargin: '600px' });
+        _carsIO.observe(sentinel);
+      }
     }
 
     function renderTeam() {
@@ -3114,15 +3183,97 @@
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
     })();
 
-    // Search inputs
+    // Search inputs — debounced so filtering runs ~150ms after typing stops
+    // (no per-keystroke re-render lag on large lists).
+    const _searchTimers = {};
     ['cars', 'tasks', 'events', 'team'].forEach(k => {
       const input = el(k + 'Search');
       if (!input) return;
+      const render = { cars: renderCars, tasks: renderTasks, events: renderEvents, team: renderTeam }[k];
       input.addEventListener('input', (e) => {
         state[k + 'Search'] = e.target.value;
-        ({ cars: renderCars, tasks: renderTasks, events: renderEvents, team: renderTeam }[k])();
+        clearTimeout(_searchTimers[k]);
+        _searchTimers[k] = setTimeout(render, 150);
       });
     });
+
+    // ----- Pull-to-refresh (mobile) -----
+    (function initPullRefresh() {
+      let startY = 0, pulling = false, dist = 0, ind = null;
+      const TRIGGER = 80;
+      function indicator() {
+        if (ind) return ind;
+        ind = document.createElement('div');
+        ind.className = 'ptr-ind';
+        ind.innerHTML = '<div class="ptr-spinner"></div>';
+        document.body.appendChild(ind);
+        return ind;
+      }
+      document.addEventListener('touchstart', (e) => {
+        if (window.scrollY > 0) return;
+        if (!el('appView') || !el('appView').classList.contains('show')) return;
+        if (e.target.closest('.modal-backdrop, .photo-lightbox, .kanban-board')) return;
+        startY = e.touches[0].clientY; pulling = true; dist = 0;
+      }, { passive: true });
+      document.addEventListener('touchmove', (e) => {
+        if (!pulling) return;
+        dist = e.touches[0].clientY - startY;
+        if (dist <= 0 || window.scrollY > 0) { pulling = false; if (ind) ind.style.transform = ''; return; }
+        const d = Math.min(100, dist * 0.5);
+        const i = indicator();
+        i.style.transform = `translateX(-50%) translateY(${d}px)`;
+        i.classList.toggle('ready', dist >= TRIGGER);
+      }, { passive: true });
+      document.addEventListener('touchend', () => {
+        if (!pulling) return; pulling = false;
+        if (!ind) return;
+        if (dist >= TRIGGER) {
+          ind.classList.remove('ready');
+          ind.classList.add('spinning');
+          ind.style.transform = 'translateX(-50%) translateY(56px)';
+          try { haptic(20); } catch (_) {}
+          Promise.resolve(loadData()).catch(() => {}).finally(() => {
+            setTimeout(() => { ind.classList.remove('spinning'); ind.style.transform = ''; }, 500);
+          });
+        } else {
+          ind.style.transform = ''; ind.classList.remove('ready');
+        }
+      }, { passive: true });
+    })();
+
+    // ----- Bottom-sheet modals: swipe down to dismiss (mobile, non-detail) -----
+    (function initSheetDismiss() {
+      let m = null, y0 = 0, dy = 0, active = false;
+      document.addEventListener('touchstart', (e) => {
+        if (!window.matchMedia('(max-width: 700px)').matches) return;
+        const modal = e.target.closest('.modal');
+        if (!modal || modal.classList.contains('detail')) return;
+        const bd = modal.closest('.modal-backdrop');
+        if (!bd || !bd.classList.contains('show')) return;
+        if (modal.scrollTop > 0) return;
+        if (e.target.closest('input, textarea, select, button, a, .action-btn')) return;
+        m = modal; y0 = e.touches[0].clientY; dy = 0; active = true;
+      }, { passive: true });
+      document.addEventListener('touchmove', (e) => {
+        if (!active || !m) return;
+        dy = e.touches[0].clientY - y0;
+        if (dy <= 0) { m.style.transform = ''; return; }
+        m.style.transform = `translateY(${dy}px)`;
+        m.style.transition = 'none';
+      }, { passive: true });
+      document.addEventListener('touchend', () => {
+        if (!active || !m) return;
+        const modal = m, d = dy; active = false; m = null;
+        modal.style.transition = 'transform 0.25s ease';
+        if (d > 120) {
+          modal.style.transform = 'translateY(100%)';
+          const bd = modal.closest('.modal-backdrop');
+          setTimeout(() => { modal.style.transform = ''; modal.style.transition = ''; if (bd) closeModal(bd); }, 220);
+        } else {
+          modal.style.transform = '';
+        }
+      }, { passive: true });
+    })();
 
     // Modal open/close
     function openModal(name) {
@@ -4675,7 +4826,7 @@
         <div class="detail-photos" id="carPhotosGrid">
           ${photos.map((p, i) => `
             <div class="detail-photo-wrap">
-              <img src="${escape(p)}" alt="" class="detail-photo" loading="lazy" data-photo-view="${escape(p)}">
+              <img src="${escape(p)}" alt="" class="detail-photo img-blur" loading="lazy" decoding="async" data-photo-view="${escape(p)}" onload="this.classList.add('loaded')">
               <button type="button" class="detail-photo-del" data-photo-del="${i}" title="${escape(t('common.delete'))}">&times;</button>
             </div>`).join('')}
           <button type="button" class="detail-photo-add" id="carPhotoAddBtn">
@@ -4890,8 +5041,8 @@
           showCarDetail(c.id);
         };
       });
-      el('carDetailBody').querySelectorAll('[data-photo-view]').forEach(img => {
-        img.onclick = () => openLightbox(img.dataset.photoView);
+      el('carDetailBody').querySelectorAll('[data-photo-view]').forEach((img, i) => {
+        img.onclick = () => openLightbox(photos, i);
       });
 
       openModal('car-detail');
@@ -4915,18 +5066,60 @@
       }
     }
 
-    function openLightbox(url) {
+    // Photo lightbox — a swipeable gallery. Accepts a single URL or a list of
+    // URLs plus the index to open at. Prev/next via arrows, swipe or keyboard.
+    let _lbUrls = [], _lbIdx = 0;
+    function openLightbox(urls, index = 0) {
+      _lbUrls = Array.isArray(urls) ? urls.slice() : [urls];
+      _lbIdx = Math.max(0, Math.min(_lbUrls.length - 1, index));
       let lb = document.getElementById('photoLightbox');
       if (!lb) {
         lb = document.createElement('div');
         lb.id = 'photoLightbox';
         lb.className = 'photo-lightbox';
-        lb.innerHTML = '<img alt="">';
-        lb.addEventListener('click', () => lb.classList.remove('show'));
+        lb.innerHTML = `
+          <button class="lb-close" type="button" aria-label="×">&times;</button>
+          <button class="lb-nav lb-prev" type="button" aria-label="‹">&#8249;</button>
+          <img alt="">
+          <button class="lb-nav lb-next" type="button" aria-label="›">&#8250;</button>
+          <div class="lb-count"></div>`;
+        lb.addEventListener('click', (e) => {
+          if (e.target === lb || e.target.closest('.lb-close')) lb.classList.remove('show');
+          else if (e.target.closest('.lb-prev')) lbGo(-1);
+          else if (e.target.closest('.lb-next')) lbGo(1);
+        });
+        // Swipe left/right on the image.
+        let sx = 0, sy = 0, dragging = false;
+        lb.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; dragging = true; });
+        lb.addEventListener('pointerup', (e) => {
+          if (!dragging) return; dragging = false;
+          const dx = e.clientX - sx, dy = e.clientY - sy;
+          if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) lbGo(dx < 0 ? 1 : -1);
+        });
+        document.addEventListener('keydown', (e) => {
+          if (!lb.classList.contains('show')) return;
+          if (e.key === 'Escape') lb.classList.remove('show');
+          else if (e.key === 'ArrowLeft') lbGo(-1);
+          else if (e.key === 'ArrowRight') lbGo(1);
+        });
         document.body.appendChild(lb);
       }
-      lb.querySelector('img').src = url;
+      lbRender();
       lb.classList.add('show');
+    }
+    function lbGo(delta) {
+      if (_lbUrls.length < 2) return;
+      _lbIdx = (_lbIdx + delta + _lbUrls.length) % _lbUrls.length;
+      lbRender();
+    }
+    function lbRender() {
+      const lb = document.getElementById('photoLightbox');
+      if (!lb) return;
+      lb.querySelector('img').src = _lbUrls[_lbIdx] || '';
+      const multi = _lbUrls.length > 1;
+      lb.querySelectorAll('.lb-nav').forEach(b => b.style.display = multi ? '' : 'none');
+      const cnt = lb.querySelector('.lb-count');
+      if (cnt) { cnt.style.display = multi ? '' : 'none'; cnt.textContent = `${_lbIdx + 1} / ${_lbUrls.length}`; }
     }
 
     // ----- Row click → open detail; ignore action-button clicks -----
