@@ -3134,3 +3134,78 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 @keyframes blob-breathe-b { 0%,100% { transform: scale(1.05); opacity: 0.22; } 50% { transform: scale(0.94); opacity: 0.28; } }
 :root[data-theme="light"] body::before { animation: blob-breathe-a-l 18s ease-in-out infinite; }
 @keyframes blob-breathe-a-l { 0%,100% { transform: scale(1); opacity: 0.14; } 50% { transform: scale(1.14); opacity: 0.18; } }
+
+/* ========== PERF & POLISH v3 (2026-07-18) ========== */
+
+/* #59 content-visibility — browser skips painting rows that are off-screen */
+.car-row, .tk-row, .tk-card, .team-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
+}
+
+/* #60 Bottom-sheet modals on phones (detail modals stay full-screen) */
+@media (max-width: 700px) {
+  .modal-backdrop:not(:has(.modal.detail)).show { align-items: flex-end; padding: 0; }
+  .modal:not(.detail) {
+    max-width: 100%;
+    width: 100%;
+    border-radius: 22px 22px 0 0;
+    max-height: 92vh;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    animation: sheet-up 0.3s cubic-bezier(0.22,0.61,0.36,1) both;
+  }
+  .modal:not(.detail)::before {
+    content: "";
+    display: block;
+    width: 40px; height: 4px;
+    border-radius: 3px;
+    background: var(--border-strong);
+    margin: -8px auto 14px;
+  }
+  @keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+}
+
+/* #61 Lightbox gallery controls */
+.photo-lightbox { touch-action: pan-y; }
+.lb-close, .lb-nav {
+  position: absolute;
+  background: rgba(0,0,0,0.45);
+  color: #fff; border: none; border-radius: 999px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; z-index: 2;
+}
+.lb-close { top: calc(14px + env(safe-area-inset-top,0)); right: 16px; width: 40px; height: 40px; font-size: 26px; line-height: 1; }
+.lb-nav { top: 50%; transform: translateY(-50%); width: 46px; height: 46px; font-size: 30px; line-height: 1; }
+.lb-prev { left: 12px; }
+.lb-next { right: 12px; }
+.lb-count {
+  position: absolute; bottom: calc(18px + env(safe-area-inset-bottom,0)); left: 50%;
+  transform: translateX(-50%); color: #fff; background: rgba(0,0,0,0.45);
+  padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; z-index: 2;
+}
+
+/* #63 Pull-to-refresh indicator */
+.ptr-ind {
+  position: fixed; top: -46px; left: 50%;
+  transform: translateX(-50%);
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--surface-elev, #1a1f35);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 3000; pointer-events: none;
+  transition: transform 0.2s ease;
+}
+.ptr-spinner {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2.5px solid var(--border-strong);
+  border-top-color: var(--accent);
+}
+.ptr-ind.ready .ptr-spinner { border-top-color: var(--green); }
+.ptr-ind.spinning .ptr-spinner { animation: spin 0.7s linear infinite; }
+
+/* #68 Blur-up images — a soft blur clears once the photo has decoded */
+.img-blur { filter: blur(12px); transform: scale(1.03); transition: filter 0.5s ease, transform 0.5s ease; }
+.img-blur.loaded { filter: none; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .img-blur { filter: none; transform: none; transition: none; }
+}
