@@ -822,7 +822,7 @@
     // ----- "WHAT'S NEW" PANEL -----
     // Bump this string whenever the changelog below gains a new entry; users
     // who haven't opened that version see a dot on the Settings tab.
-    const WHATSNEW_VERSION = '2026-07-18c';
+    const WHATSNEW_VERSION = '2026-07-18d';
     const WN_ICONS = {
       grid:   '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
       kanban: '<rect x="3" y="3" width="6" height="18" rx="1"/><rect x="9" y="3" width="6" height="12" rx="1"/><rect x="15" y="3" width="6" height="9" rx="1"/>',
@@ -832,6 +832,10 @@
       check:  '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>'
     };
     const CHANGELOG = [
+      { icon: 'grid',
+        ro: { t: 'Design înnoit', d: 'Fiecare eveniment poate avea o copertă foto care devine fundalul de pe Acasă, navigația de jos preia culoarea evenimentului, iar în detaliul mașinii vezi parcursul ei: Invitat → Sosit → Plecat.' },
+        en: { t: 'Refreshed design', d: 'Each event can have a cover photo that becomes the Home backdrop, the bottom navigation adopts the event color, and a car’s detail shows its journey: Invited → Arrived → Left.' },
+        ru: { t: 'Обновлённый дизайн', d: 'У события может быть обложка, которая становится фоном на Главной, нижняя навигация берёт цвет события, а в карточке машины виден её путь: Приглашён → Прибыл → Уехал.' } },
       { icon: 'grid',
         ro: { t: 'Departamente configurabile', d: 'Administratorii pot adăuga sau șterge departamente direct din Setări. Se actualizează peste tot: taskuri, profiluri și filtre.' },
         en: { t: 'Configurable departments', d: 'Admins can add or remove departments right from Settings. They update everywhere: tasks, profiles and filters.' },
@@ -1486,7 +1490,7 @@
 
     const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
-    const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','image_url','starts_at','days_left'];
+    const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','image_url','cover_url','starts_at','days_left'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
 
     function makeFp(list, fields) {
@@ -2491,6 +2495,15 @@
       }
     }
 
+    // The active event's cover photo, shown blurred + darkened behind the hero.
+    function setHeroCover(url) {
+      const cov = el('heroCover');
+      if (!cov) return;
+      const hero = cov.closest('.hero');
+      if (url) { cov.style.backgroundImage = `url("${url}")`; if (hero) hero.classList.add('has-cover'); }
+      else { cov.style.backgroundImage = ''; if (hero) hero.classList.remove('has-cover'); }
+    }
+
     function renderHero(events) {
       let list = events || [];
       // If an event is selected in the header, feature it as the hero.
@@ -2519,9 +2532,11 @@
         el('heroLocation').textContent = '';
         el('heroDays').textContent = '—';
         setRing(null);
+        setHeroCover(null);
         return;
       }
       const e = list[0];
+      setHeroCover(e.cover_url);
       const dl = eventDaysLeft(e);
       el('heroTitle').textContent = e.title || '—';
       el('heroSub').textContent = e.subtitle || '';
@@ -3105,6 +3120,7 @@
           const d = new Date(ev.starts_at);
           f.starts_at.value = isNaN(d) ? '' : new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
         } else { f.starts_at.value = ''; f.starts_at.required = false; }
+        try { setEventCover(ev.cover_url || ''); } catch (_) {}
         const h = el('addEventTitle'); if (h) h.textContent = t('events.edit_title');
         openModal('add-event');
       }
@@ -3352,6 +3368,7 @@
         if (modalName === 'add-event') {
           editingEventId = null;
           const f = el('form-add-event'); if (f) { f.reset(); f.starts_at.required = true; }
+          try { setEventCover(''); } catch (_) {}
           const h = el('addEventTitle'); if (h) h.textContent = t('events.add_title');
         }
         if (modalName === 'edit-profile') {
@@ -3829,6 +3846,7 @@
         date: displayDate || null,
         starts_at: startsAt,
         location: (fd.get('location') || '').trim() || null,
+        cover_url: (fd.get('cover_url') || '').trim() || null,
         status, status_color: statusColor,
         days_left: null   // computed live from starts_at
       };
@@ -3848,6 +3866,40 @@
         btn.textContent = originalText;
       }
     });
+
+    // ----- EVENT COVER UPLOAD (#hero) -----
+    function setEventCover(url) {
+      const hidden = el('eventCoverUrl'), prev = el('eventCoverPreview'), clear = el('eventCoverClear');
+      if (hidden) hidden.value = url || '';
+      if (prev) { prev.style.backgroundImage = url ? `url("${url}")` : ''; prev.classList.toggle('has-img', !!url); }
+      if (clear) clear.style.display = url ? '' : 'none';
+    }
+    (function initEventCover() {
+      const btn = el('eventCoverBtn'), input = el('eventCoverInput'), clear = el('eventCoverClear');
+      if (!btn || !input) return;
+      btn.addEventListener('click', () => input.click());
+      if (clear) clear.addEventListener('click', () => setEventCover(''));
+      input.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const status = el('eventCoverStatus');
+        if (status) status.textContent = t('car.photos.uploading');
+        btn.disabled = true;
+        try {
+          const blob = await downscaleImage(file, 1600, 0.82);
+          const path = `event-covers/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+          const { error } = await supa.storage.from('event-covers').upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+          if (error) throw error;
+          const url = supa.storage.from('event-covers').getPublicUrl(path).data.publicUrl;
+          setEventCover(url);
+          if (status) status.textContent = '';
+        } catch (err) {
+          if (status) status.textContent = (t('car.photos.upload_error') || 'Eroare') + ': ' + (err.message || err);
+        } finally {
+          btn.disabled = false; input.value = '';
+        }
+      });
+    })();
 
     // ----- ADD-TASK CHECKLIST BUILDER -----
     window._newTaskChecklist = [];
@@ -4650,6 +4702,43 @@
       el('taskInstructionsInput').focus();
     }
 
+    // #4 — a car's journey as a vertical stepper: Invitat → Sosit → Plecat.
+    // Reached state comes from the current status; timestamps are enriched from
+    // the activity log (first time each state was reached).
+    async function loadCarTimeline(car, containerId) {
+      const box = el(containerId);
+      if (!box) return;
+      const order = ['invitat', 'sosit', 'plecat'];
+      const reached = Math.max(0, order.indexOf(statusKey(car.status) || 'invitat'));
+      const times = { invitat: car.created_at || null, sosit: null, plecat: null };
+      try {
+        const { data } = await supa.from('activity_log')
+          .select('new_value,created_at').eq('entity', 'car').eq('entity_id', car.id)
+          .eq('action', 'status').order('id', { ascending: true });
+        (data || []).forEach(r => {
+          const k = statusKey(r.new_value);
+          if (k && times[k] == null) times[k] = r.created_at;
+        });
+      } catch (_) {}
+      if (!el(containerId)) return; // modal switched entities
+      const steps = [
+        { key: 'invitat', label: t('car.timeline.invited') },
+        { key: 'sosit',   label: t('car.timeline.arrived') },
+        { key: 'plecat',  label: t('car.timeline.left') },
+      ];
+      box.innerHTML = steps.map((s, i) => {
+        const done = i <= reached, current = i === reached;
+        const time = times[s.key] ? fmtDateTime(times[s.key]) : '';
+        return `<div class="tl-step ${done ? 'done' : ''}${current ? ' current' : ''}">
+          <div class="tl-marker"></div>
+          <div class="tl-body">
+            <div class="tl-label">${escape(s.label)}</div>
+            ${time ? `<div class="tl-time">${escape(time)}</div>` : `<div class="tl-time muted">${escape(t('car.timeline.pending'))}</div>`}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
     // Render the audit trail for one entity into a container. Rows are
     // populated server-side by DB triggers (read-only for the client).
     async function loadActivityLog(entity, entityId, containerId) {
@@ -4844,6 +4933,11 @@
         </div>
 
         <div class="detail-section">
+          <div class="detail-section-title">${escape(t('car.timeline.title'))}</div>
+          <div class="car-timeline" id="carTimeline"></div>
+        </div>
+
+        <div class="detail-section">
           <div class="detail-section-title" style="display:flex; align-items:center;">
             ${escape(t('car.detail.section_zone'))}
             <button class="detail-edit-btn" id="carEditZoneBtn">
@@ -4929,6 +5023,7 @@
       `;
 
       loadActivityLog('car', c.id, 'carHistoryList');
+      loadCarTimeline(c, 'carTimeline');
 
       const canDelete = roleAtLeast('staff');
       el('carDetailActions').innerHTML = `

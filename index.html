@@ -229,6 +229,7 @@
         </div>
 
         <div class="hero">
+          <div class="hero-cover" id="heroCover" aria-hidden="true"></div>
           <div class="hero-inner">
             <div class="hero-top">
               <div class="hero-badge"><span class="dot"></span>URMĂTORUL EVENIMENT</div>
@@ -894,6 +895,19 @@
           <div class="form-field">
             <label>Locație</label>
             <input type="text" name="location" placeholder="Romexpo, București">
+          </div>
+          <div class="form-field">
+            <label data-i18n="modal.add_event.cover">Copertă (imagine)</label>
+            <input type="hidden" name="cover_url" id="eventCoverUrl">
+            <div class="cover-picker">
+              <div class="cover-preview" id="eventCoverPreview" aria-hidden="true"></div>
+              <div class="cover-picker-actions">
+                <button type="button" class="btn ghost small" id="eventCoverBtn" data-i18n="modal.add_event.cover_pick">Alege imagine</button>
+                <button type="button" class="btn ghost small" id="eventCoverClear" style="display:none;" data-i18n="common.delete">Șterge</button>
+              </div>
+            </div>
+            <input type="file" id="eventCoverInput" accept="image/*" style="display:none">
+            <div class="detail-photo-status" id="eventCoverStatus"></div>
           </div>
           <div class="form-field">
             <label>Status</label>
