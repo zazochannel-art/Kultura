@@ -66,7 +66,6 @@ try {
     taskDonut: !!document.getElementById('taskDonutFill'),
     heroCover: !!document.getElementById('heroCover'),
     eventCover: !!document.getElementById('eventCoverInput'),
-    dashboard: !!document.getElementById('section-dashboard') && !!document.querySelector('[data-section="dashboard"]'),
   }));
   Object.entries(els).forEach(([k, v]) => check('element:' + k, v));
 
