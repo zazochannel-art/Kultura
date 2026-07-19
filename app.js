@@ -826,7 +826,7 @@
     // ----- "WHAT'S NEW" PANEL -----
     // Bump this string whenever the changelog below gains a new entry; users
     // who haven't opened that version see a dot on the Settings tab.
-    const WHATSNEW_VERSION = '2026-07-18d';
+    const WHATSNEW_VERSION = '2026-07-19';
     const WN_ICONS = {
       grid:   '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
       kanban: '<rect x="3" y="3" width="6" height="18" rx="1"/><rect x="9" y="3" width="6" height="12" rx="1"/><rect x="15" y="3" width="6" height="9" rx="1"/>',
@@ -836,6 +836,10 @@
       check:  '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>'
     };
     const CHANGELOG = [
+      { icon: 'bell',
+        ro: { t: 'Cronometru, mențiuni, anunțuri', d: 'Cronometru live până la eveniment pe Acasă; menționezi colegi cu @ în comentariile de la taskuri (primesc notificare); staff/admin pot trimite un anunț către toată echipa (push + banner pe Acasă).' },
+        en: { t: 'Countdown, mentions, announcements', d: 'A live countdown to the event on Home; mention teammates with @ in task comments (they get notified); staff/admins can send a team-wide announcement (push + Home banner).' },
+        ru: { t: 'Таймер, упоминания, объявления', d: 'Живой отсчёт до события на Главной; упоминайте коллег через @ в комментариях к задачам (им придёт уведомление); staff/админы могут отправить объявление всей команде (push + баннер на Главной).' } },
       { icon: 'grid',
         ro: { t: 'Design înnoit', d: 'Fiecare eveniment poate avea o copertă foto care devine fundalul de pe Acasă, navigația de jos preia culoarea evenimentului, iar în detaliul mașinii vezi parcursul ei: Invitat → Sosit → Plecat.' },
         en: { t: 'Refreshed design', d: 'Each event can have a cover photo that becomes the Home backdrop, the bottom navigation adopts the event color, and a car’s detail shows its journey: Invited → Arrived → Left.' },
@@ -1370,7 +1374,7 @@
 
     // ----- STATE for filters / search -----
     const state = {
-      cars: [], tasks: [], events: [], profiles: [], notifications: [], team: [],
+      cars: [], tasks: [], events: [], profiles: [], notifications: [], team: [], announcements: [],
       authUsers: null,
       carsFilter: 'all', carsSearch: '',
       tasksFilter: 'all', tasksSearch: '', tasksDept: 'all', tasksAssignee: 'all',
@@ -1471,6 +1475,8 @@
       if (dz) dz.style.display = admin ? 'block' : 'none';
       const deptBlock = el('deptSettingsBlock');
       if (deptBlock) deptBlock.style.display = admin ? 'block' : 'none';
+      const annBlock = el('announceBlock');
+      if (annBlock) annBlock.style.display = staff ? 'block' : 'none';
       const gateBtn = el('gateOpenBtn');
       if (gateBtn) gateBtn.style.display = staff ? '' : 'none';
       // Add buttons (cars/events/tasks) are for staff and admins only.
@@ -1585,7 +1591,8 @@
             supa.from('cars').select(CAR_LIST_COLS).order('id', { ascending: false }),
             supa.from('tasks').select(TASK_LIST_COLS).order('id', { ascending: false }),
             supa.from('events').select('*').order('id', { ascending: false }),
-            supa.from('profiles').select('*')
+            supa.from('profiles').select('*'),
+            supa.from('announcements').select('*').order('id', { ascending: false }).limit(20)
           ]);
 
           // Only overwrite each slice if the fetch succeeded; otherwise keep
@@ -1594,11 +1601,13 @@
           const nextTasks    = results[1].status === 'fulfilled' && !results[1].value.error ? (results[1].value.data || []) : null;
           const nextEvents   = results[2].status === 'fulfilled' && !results[2].value.error ? (results[2].value.data || []) : null;
           const nextProfiles = results[3].status === 'fulfilled' && !results[3].value.error ? (results[3].value.data || []) : null;
+          const nextAnnounce = results[4] && results[4].status === 'fulfilled' && !results[4].value.error ? (results[4].value.data || []) : null;
 
           if (nextCars     !== null) state.cars     = nextCars;
           if (nextTasks    !== null) state.tasks    = nextTasks;
           if (nextEvents   !== null) state.events   = nextEvents;
           if (nextProfiles !== null) state.profiles = nextProfiles;
+          if (nextAnnounce !== null) { state.announcements = nextAnnounce; try { renderHomeAnnounce(); renderAnnounceRecent(); } catch (_) {} }
 
           // Persist the car list so the offline gate check-in can look cars up
           // with no connection (the PWA shell is cached; the data is not).
@@ -2515,6 +2524,7 @@
         el('heroDays').textContent = '—';
         setRing(null);
         setHeroCover(null);
+        startEventCountdown(null);
         return;
       }
       const e = list[0];
@@ -2534,7 +2544,107 @@
         }
       }
       setRing(dl);
+      startEventCountdown(e);
     }
+
+    // ----- Live countdown to the active event (#4) -----
+    let _countdownTimer = null;
+    function startEventCountdown(ev) {
+      const box = el('heroCountdown');
+      if (!box) return;
+      if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
+      const start = ev && ev.starts_at ? new Date(ev.starts_at) : null;
+      if (!start || isNaN(start)) { box.hidden = true; box.innerHTML = ''; return; }
+      const tick = () => {
+        const ms = start.getTime() - Date.now();
+        if (ms <= 0) {
+          box.innerHTML = `<span class="cd-live"><span class="cd-dot"></span>${escape(t('countdown.live'))}</span>`;
+          box.hidden = false;
+          if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
+          return;
+        }
+        const s = Math.floor(ms / 1000);
+        const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600),
+              m = Math.floor((s % 3600) / 60), sec = s % 60;
+        const pad = (n) => String(n).padStart(2, '0');
+        const seg = (v, lab) => `<span class="cd-seg"><b>${pad(v)}</b><i>${escape(lab)}</i></span>`;
+        box.innerHTML =
+          `<span class="cd-label">${escape(t('countdown.starts_in'))}</span>` +
+          (d > 0 ? seg(d, t('countdown.d')) : '') +
+          seg(h, t('countdown.h')) + seg(m, t('countdown.m')) + seg(sec, t('countdown.s'));
+        box.hidden = false;
+      };
+      tick();
+      _countdownTimer = setInterval(tick, 1000);
+    }
+
+    // ----- Team announcements (#7) -----
+    const ANNOUNCE_DISMISS_KEY = 'kultura_announce_dismissed';
+    function announceDismissed() {
+      try { return JSON.parse(localStorage.getItem(ANNOUNCE_DISMISS_KEY) || '[]'); } catch (_) { return []; }
+    }
+    const megaphoneSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>';
+    function renderHomeAnnounce() {
+      const box = el('homeAnnounce');
+      if (!box) return;
+      const dismissed = announceDismissed();
+      const a = (state.announcements || []).find(x => !dismissed.includes(x.id));
+      if (!a) { box.innerHTML = ''; return; }
+      box.innerHTML = `
+        <div class="announce-banner">
+          <div class="announce-ic">${megaphoneSvg}</div>
+          <div class="announce-txt">
+            <div class="announce-t">${escape(a.title)}</div>
+            ${a.body ? `<div class="announce-b">${escape(a.body)}</div>` : ''}
+          </div>
+          <button class="announce-x" data-announce-dismiss="${a.id}" aria-label="×">&times;</button>
+        </div>`;
+    }
+    function renderAnnounceRecent() {
+      const box = el('announceRecent');
+      if (!box) return;
+      const list = (state.announcements || []).slice(0, 5);
+      const admin = isAdmin();
+      box.innerHTML = list.length ? list.map(a => `
+        <div class="announce-item">
+          <div class="announce-item-txt"><b>${escape(a.title)}</b>${a.body ? ' — ' + escape(a.body) : ''}
+            <span class="announce-item-meta">${escape(fmtRelative(a.created_at))}</span></div>
+          ${admin ? `<button class="announce-item-del" data-announce-del="${a.id}" aria-label="${escape(t('common.delete'))}">&times;</button>` : ''}
+        </div>`).join('') : `<div style="padding:8px 0;color:var(--text-mute);font-size:12px;">${escape(t('announce.none'))}</div>`;
+    }
+    async function sendAnnouncement() {
+      const tI = el('announceTitle'), bI = el('announceBody');
+      if (!tI) return;
+      const title = (tI.value || '').trim();
+      if (!title) return;
+      const body = (bI.value || '').trim() || null;
+      const btn = el('announceSendBtn'); if (btn) btn.disabled = true;
+      const { error } = await supa.from('announcements').insert({ title, body, created_by: currentUserEmail() });
+      if (btn) btn.disabled = false;
+      if (error) { uiAlert(t('common.error') + ': ' + error.message); return; }
+      tI.value = ''; if (bI) bI.value = '';
+      showToast(t('announce.sent'));
+      await loadData();
+    }
+    el('announceSendBtn')?.addEventListener('click', sendAnnouncement);
+    document.addEventListener('click', async (e) => {
+      const dis = e.target.closest('[data-announce-dismiss]');
+      if (dis) {
+        const id = parseInt(dis.dataset.announceDismiss, 10);
+        const d = announceDismissed(); if (!d.includes(id)) d.push(id);
+        try { localStorage.setItem(ANNOUNCE_DISMISS_KEY, JSON.stringify(d.slice(-100))); } catch (_) {}
+        renderHomeAnnounce();
+        return;
+      }
+      const del = e.target.closest('[data-announce-del]');
+      if (del) {
+        const id = parseInt(del.dataset.announceDel, 10);
+        if (!(await uiConfirm(t('announce.confirm_delete')))) return;
+        const { error } = await supa.from('announcements').delete().eq('id', id);
+        if (error) { uiAlert(t('common.error') + ': ' + error.message); return; }
+        await loadData();
+      }
+    });
 
     // Days remaining until an event — computed live from starts_at (updates
     // every day on its own). Falls back to a stored days_left for old events.
@@ -4594,6 +4704,7 @@
           <div id="taskUpdatesList"><div class="empty" style="padding:12px 0;color:var(--text-mute);font-size:13px;">${escape(t('task.detail.updates_loading'))}</div></div>
           <div class="update-composer">
             <textarea id="taskUpdateInput" rows="2" placeholder="${escape(t('task.detail.update_placeholder'))}"></textarea>
+            <div class="mention-chips" id="taskMentionChips"></div>
           </div>
           <div style="display:flex;justify-content:flex-end;margin-top:8px;">
             <button class="btn small" id="taskUpdateSubmit">${escape(t('task.detail.add_update'))}</button>
@@ -4653,6 +4764,7 @@
       el('taskUpdateInput').addEventListener('keydown', (ev) => {
         if ((ev.metaKey || ev.ctrlKey) && ev.key === 'Enter') { ev.preventDefault(); submitTaskUpdate(task.id); }
       });
+      renderMentionChips();
 
       openModal('task-detail');
       refreshTaskUpdates(task.id);
@@ -4758,6 +4870,52 @@
       }).join('');
     }
 
+    // ----- @mentions in comments (#6) -----
+    function mentionHandle(email) { return (email || '').split('@')[0]; }
+    function renderMentionChips() {
+      const box = el('taskMentionChips');
+      if (!box) return;
+      const me = (currentUserEmail() || '').toLowerCase();
+      const seen = new Set();
+      const members = (state.profiles || []).filter(p => {
+        if (!p.email) return false;
+        const k = p.email.toLowerCase();
+        if (k === me || seen.has(k)) return false;
+        seen.add(k); return true;
+      });
+      if (!members.length) { box.innerHTML = ''; return; }
+      box.innerHTML = `<span class="mention-hint">${escape(t('mention.hint'))}</span>` +
+        members.slice(0, 8).map(p => {
+          const handle = mentionHandle(p.email);
+          const name = p.full_name || handle;
+          return `<button type="button" class="mention-chip" data-mention="${escape(handle)}">@${escape(name)}</button>`;
+        }).join('');
+    }
+    // Style @handles that match a team member in displayed comment text.
+    function renderCommentText(text) {
+      return escape(text).replace(/@([A-Za-z0-9._-]+)/g, (m, h) => {
+        const prof = (state.profiles || []).find(p => (p.email || '').split('@')[0].toLowerCase() === h.toLowerCase());
+        if (!prof) return m;
+        return `<span class="mention">@${escape(prof.full_name || h)}</span>`;
+      });
+    }
+    // Insert an @handle into the comment box when a mention chip is tapped.
+    document.addEventListener('click', (e) => {
+      const chip = e.target.closest('[data-mention]');
+      if (!chip) return;
+      const input = el('taskUpdateInput');
+      if (!input) return;
+      const h = chip.dataset.mention;
+      const pos = (input.selectionStart != null) ? input.selectionStart : input.value.length;
+      const before = input.value.slice(0, pos), after = input.value.slice(pos);
+      const sep = (before && !before.endsWith(' ')) ? ' ' : '';
+      const insert = sep + '@' + h + ' ';
+      input.value = before + insert + after;
+      input.focus();
+      const np = (before + insert).length;
+      try { input.setSelectionRange(np, np); } catch (_) {}
+    });
+
     async function refreshTaskUpdates(taskId) {
       const { data, error } = await supa.from('task_updates')
         .select('*').eq('task_id', taskId).order('created_at', { ascending: false });
@@ -4780,7 +4938,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
               </button>` : ''}
             </div>
-            <div class="update-msg">${escape(u.message)}</div>
+            <div class="update-msg">${renderCommentText(u.message)}</div>
           </div>
         </div>
       `).join('');

@@ -221,6 +221,7 @@
     <main class="content">
       <!-- HOME -->
       <section class="section active" id="section-home">
+        <div id="homeAnnounce"></div>
         <div class="greeting-row">
           <div class="greeting">
             <p data-i18n="home.welcome">Bun venit înapoi 👋</p>
@@ -250,6 +251,7 @@
               <span id="heroDate"></span>
               <span id="heroLocation"></span>
             </div>
+            <div class="hero-countdown" id="heroCountdown" hidden></div>
           </div>
         </div>
 
@@ -621,6 +623,25 @@
                 <input type="text" id="deptAddInput" data-i18n-placeholder="settings.dept.add_ph" placeholder="Adaugă un departament...">
                 <button type="button" class="btn ghost small" id="deptAddBtn">+</button>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="setting-block" id="announceBlock" style="display:none;">
+          <div class="setting-label" data-i18n="announce.label">ANUNȚURI</div>
+          <div class="setting-row" style="align-items:flex-start;">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
+            </div>
+            <div class="txt" style="flex:1;">
+              <strong data-i18n="announce.title">Anunț către echipă</strong>
+              <span data-i18n="announce.sub">Trimite un mesaj tuturor — sosește ca notificare push și în aplicație</span>
+              <input type="text" id="announceTitle" data-i18n-placeholder="announce.title_ph" placeholder="Titlu anunț" style="margin-top:10px;">
+              <textarea id="announceBody" rows="2" data-i18n-placeholder="announce.body_ph" placeholder="Mesaj (opțional)" style="margin-top:8px;"></textarea>
+              <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+                <button type="button" class="btn small" id="announceSendBtn" data-i18n="announce.send">Trimite anunțul</button>
+              </div>
+              <div class="announce-recent" id="announceRecent"></div>
             </div>
           </div>
         </div>

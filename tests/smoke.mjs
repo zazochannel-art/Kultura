@@ -66,6 +66,9 @@ try {
     taskDonut: !!document.getElementById('taskDonutFill'),
     heroCover: !!document.getElementById('heroCover'),
     eventCover: !!document.getElementById('eventCoverInput'),
+    heroCountdown: !!document.getElementById('heroCountdown'),
+    homeAnnounce: !!document.getElementById('homeAnnounce'),
+    announceBlock: !!document.getElementById('announceBlock'),
   }));
   Object.entries(els).forEach(([k, v]) => check('element:' + k, v));
 
