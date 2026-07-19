@@ -1384,9 +1384,12 @@
 
     // ----- ACTIVE EVENT FILTER -----
     // When an event is selected in the header, cars/tasks/stats are scoped to
-    // it. Empty string = all events.
+    // it. Empty string = all events. Rows with no event_id are "unassigned" and
+    // stay visible under any active event, so imported data that predates events
+    // never silently disappears from the lists.
     function matchesActiveEvent(row) {
       if (!state.activeEventId) return true;
+      if (row.event_id == null || row.event_id === '') return true;
       return String(row.event_id) === String(state.activeEventId);
     }
     function activeCars()  { return (state.cars  || []).filter(matchesActiveEvent); }
