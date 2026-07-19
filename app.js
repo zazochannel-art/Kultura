@@ -5463,14 +5463,9 @@
           else if (e.target.closest('.lb-prev')) lbGo(-1);
           else if (e.target.closest('.lb-next')) lbGo(1);
         });
-        // Swipe left/right on the image.
-        let sx = 0, sy = 0, dragging = false;
-        lb.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; dragging = true; });
-        lb.addEventListener('pointerup', (e) => {
-          if (!dragging) return; dragging = false;
-          const dx = e.clientX - sx, dy = e.clientY - sy;
-          if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) lbGo(dx < 0 ? 1 : -1);
-        });
+        // Pinch-zoom + pan + double-tap zoom; horizontal swipe navigates only
+        // when the image isn't zoomed in.
+        initLightboxZoom(lb);
         document.addEventListener('keydown', (e) => {
           if (!lb.classList.contains('show')) return;
           if (e.key === 'Escape') lb.classList.remove('show');
@@ -5491,10 +5486,71 @@
       const lb = document.getElementById('photoLightbox');
       if (!lb) return;
       lb.querySelector('img').src = _lbUrls[_lbIdx] || '';
+      if (lb._lbReset) lb._lbReset(); // reset zoom/pan on image change
       const multi = _lbUrls.length > 1;
       lb.querySelectorAll('.lb-nav').forEach(b => b.style.display = multi ? '' : 'none');
       const cnt = lb.querySelector('.lb-count');
       if (cnt) { cnt.style.display = multi ? '' : 'none'; cnt.textContent = `${_lbIdx + 1} / ${_lbUrls.length}`; }
+    }
+
+    // Pinch-to-zoom / pan / double-tap zoom for the lightbox image.
+    let _lbScale = 1, _lbTx = 0, _lbTy = 0;
+    function initLightboxZoom(lb) {
+      const img = lb.querySelector('img');
+      if (!img) return;
+      const pts = new Map();
+      let startDist = 0, startScale = 1, startTx = 0, startTy = 0;
+      let panX = 0, panY = 0, downX = 0, downY = 0, lastTap = 0;
+      const apply = () => { img.style.transform = `translate(${_lbTx}px,${_lbTy}px) scale(${_lbScale})`; };
+      const reset = () => { _lbScale = 1; _lbTx = 0; _lbTy = 0; img.style.transition = 'transform .2s ease'; apply(); };
+      lb._lbReset = reset;
+      img.addEventListener('pointerdown', (e) => {
+        try { img.setPointerCapture(e.pointerId); } catch (_) {}
+        pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        img.style.transition = 'none';
+        downX = e.clientX; downY = e.clientY;
+        if (pts.size === 2) {
+          const [a, b] = [...pts.values()];
+          startDist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+          startScale = _lbScale; startTx = _lbTx; startTy = _lbTy;
+        } else { panX = e.clientX; panY = e.clientY; startTx = _lbTx; startTy = _lbTy; }
+      });
+      img.addEventListener('pointermove', (e) => {
+        if (!pts.has(e.pointerId)) return;
+        pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pts.size === 2) {
+          const [a, b] = [...pts.values()];
+          const dist = Math.hypot(a.x - b.x, a.y - b.y);
+          _lbScale = Math.max(1, Math.min(5, startScale * (dist / startDist)));
+          apply();
+        } else if (pts.size === 1 && _lbScale > 1.02) {
+          _lbTx = startTx + (e.clientX - panX);
+          _lbTy = startTy + (e.clientY - panY);
+          apply();
+        }
+      });
+      const up = (e) => {
+        const wasZoomed = _lbScale > 1.02;
+        if (pts.has(e.pointerId)) pts.delete(e.pointerId);
+        if (_lbScale <= 1.02) reset();
+        // Swipe to navigate only when not zoomed.
+        if (pts.size === 0 && !wasZoomed) {
+          const dx = e.clientX - downX, dy = e.clientY - downY;
+          if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) lbGo(dx < 0 ? 1 : -1);
+        }
+      };
+      img.addEventListener('pointerup', up);
+      img.addEventListener('pointercancel', up);
+      // Double-tap / double-click toggles zoom.
+      img.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const now = Date.now();
+        if (now - lastTap < 300) {
+          img.style.transition = 'transform .2s ease';
+          if (_lbScale > 1.02) reset(); else { _lbScale = 2.5; apply(); }
+        }
+        lastTap = now;
+      });
     }
 
     // ----- Row click → open detail; ignore action-button clicks -----
