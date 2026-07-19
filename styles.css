@@ -22,9 +22,9 @@
       --fill-3: rgba(255,255,255,0.045);
       --fill-4: rgba(255,255,255,0.07);
       --fill-5: rgba(255,255,255,0.09);
-      --card-grad: linear-gradient(180deg, #1b1b1f, #161619);
-      --card-grad-strong: linear-gradient(180deg, #1f1f23, #16161a);
-      --card-grad-solid: #18181B;
+      --card-grad: linear-gradient(150deg, #26262e 0%, #1b1b20 48%, #161619 100%);
+      --card-grad-strong: linear-gradient(150deg, #2d2d37 0%, #1e1e24 52%, #161619 100%);
+      --card-grad-solid: #1b1b20;
       --blob-opacity: 0.7;
       --accent: #06B6D4;
       --accent-2: #8B5CF6;
