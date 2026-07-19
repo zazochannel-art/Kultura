@@ -3257,3 +3257,80 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .tl-step:not(.done) .tl-label { color: var(--text-mute); }
 .tl-time { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
 .tl-time.muted { color: var(--text-mute); font-style: italic; }
+
+/* ========== EVENT DASHBOARD (command center) ========== */
+.dash-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 18px 20px; border-radius: 20px; margin-bottom: 16px;
+  background: var(--card-grad, var(--surface));
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--text-mute);
+}
+.dash-head.dash-green { border-left-color: var(--green); }
+.dash-head.dash-amber { border-left-color: var(--orange); }
+.dash-head.dash-red   { border-left-color: var(--red); }
+.dash-ev { font-size: 20px; font-weight: 900; letter-spacing: -0.02em; }
+.dash-ev-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 3px; }
+.dash-health { display: flex; align-items: center; gap: 10px; text-align: right; }
+.dash-health-l { font-size: 13px; font-weight: 800; }
+.dash-health-s { font-size: 11px; color: var(--text-mute); }
+.dash-dot { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; background: var(--text-mute); }
+.dash-green .dash-dot { background: var(--green); box-shadow: 0 0 10px var(--green); }
+.dash-amber .dash-dot { background: var(--orange); box-shadow: 0 0 10px var(--orange); animation: dl-pulse 1.8s ease-in-out infinite; }
+.dash-red .dash-dot   { background: var(--red); box-shadow: 0 0 10px var(--red); animation: dl-pulse 1.4s ease-in-out infinite; }
+
+.dash-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 640px) { .dash-tiles { grid-template-columns: 1fr 1fr; } }
+.dash-tile {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+  padding: 14px 16px; backdrop-filter: blur(8px);
+}
+.dash-tile-v { font-size: 26px; font-weight: 900; letter-spacing: -0.5px; }
+.dash-tile-v.red { color: var(--red); }
+.dash-tile-v.ok { color: var(--green); }
+.dash-tile-l { font-size: 12px; color: var(--text-dim); margin-top: 2px; font-weight: 600; }
+.dash-tile-s { font-size: 11px; color: var(--text-mute); margin-top: 6px; }
+.dash-tile-s .ok { color: var(--green); font-weight: 700; }
+.dash-meter { height: 6px; border-radius: 4px; background: var(--fill-2, rgba(255,255,255,0.08)); overflow: hidden; margin-top: 8px; }
+.dash-meter > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 4px; }
+
+.dash-att { display: flex; flex-direction: column; gap: 8px; }
+.dash-att-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 11px; border-radius: 11px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--text-mute);
+}
+.dash-att-row.sev-red { border-left-color: var(--red); }
+.dash-att-row.sev-amber { border-left-color: var(--orange); }
+.dash-att-badge {
+  font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+  padding: 3px 8px; border-radius: 999px; flex: 0 0 auto;
+  background: rgba(255,255,255,0.06); color: var(--text-dim);
+}
+.sev-red .dash-att-badge { color: var(--red); background: rgba(239,68,68,0.12); }
+.sev-amber .dash-att-badge { color: var(--orange); background: rgba(245,158,11,0.12); }
+.dash-att-text { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-clear { color: var(--green); font-weight: 700; font-size: 14px; padding: 10px 4px; }
+.dash-muted { color: var(--text-mute); font-size: 12.5px; padding: 8px 2px; }
+
+.dash-rhythm { min-height: 92px; }
+.dash-bars { display: flex; align-items: flex-end; gap: 5px; height: 88px; padding-top: 6px; }
+.dash-bar { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+.dash-bar-fill { width: 100%; max-width: 22px; border-radius: 5px 5px 0 0; background: linear-gradient(180deg, var(--accent), var(--accent-2)); transition: height .5s cubic-bezier(.22,.61,.36,1); }
+.dash-bar-h { font-size: 9px; color: var(--text-mute); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.dash-rhythm-total { font-size: 12px; color: var(--text-dim); margin-top: 8px; font-weight: 600; }
+
+.dash-load { display: flex; flex-direction: column; gap: 8px; }
+.dash-load-row { display: flex; align-items: center; gap: 10px; }
+.dash-load-row .tk-avatar { width: 28px; height: 28px; font-size: 11px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; flex: 0 0 auto; }
+.dash-load-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-load-n { margin-left: auto; font-size: 13px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+/* Dock now carries an extra tab (Panou) — keep it from overflowing on phones. */
+@media (max-width: 720px) {
+  .mobile-tabs { overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+  .mobile-tabs::-webkit-scrollbar { display: none; }
+  .mobile-tabs .m-sep { display: none; }
+  .mtab.active .label { max-width: 96px; }
+}
