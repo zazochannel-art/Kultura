@@ -1,13 +1,14 @@
 :root {
-      --bg: #07080d;
-      --surface: rgba(20,24,43,0.55);
-      --surface-solid: #14182b;
-      --surface-elev: #1a1f35;
-      --border: rgba(255,255,255,0.14);
-      --border-strong: rgba(255,255,255,0.24);
-      --text: #f8fafc;
-      --text-dim: #94a3b8;
-      --text-mute: #64748b;
+      /* Premium dark palette (Linear / Vercel / Stripe inspired). */
+      --bg: #09090B;
+      --surface: rgba(24,24,27,0.72);
+      --surface-solid: #18181B;
+      --surface-elev: #1f1f23;
+      --border: rgba(255,255,255,0.06);
+      --border-strong: rgba(255,255,255,0.12);
+      --text: #FAFAFA;
+      --text-dim: #A1A1AA;
+      --text-mute: #71717A;
       --blue: #3b82f6;
       --cyan: #06b6d4;
       --purple: #8b5cf6;
@@ -16,18 +17,18 @@
       --red: #ef4444;
       --orange: #f59e0b;
       --teal: #14b8a6;
-      --fill-1: var(--fill-1);
-      --fill-2: var(--fill-2);
-      --fill-3: var(--fill-3);
-      --fill-4: var(--fill-4);
-      --fill-5: var(--fill-5);
-      --card-grad: var(--card-grad);
-      --card-grad-strong: var(--card-grad-strong);
-      --card-grad-solid: var(--card-grad-solid);
-      --blob-opacity: 1;
-      --accent: #3b82f6;
-      --accent-2: #06b6d4;
-      --accent-glow: rgba(59,130,246,0.38);
+      --fill-1: rgba(255,255,255,0.03);
+      --fill-2: rgba(255,255,255,0.06);
+      --fill-3: rgba(255,255,255,0.045);
+      --fill-4: rgba(255,255,255,0.07);
+      --fill-5: rgba(255,255,255,0.09);
+      --card-grad: linear-gradient(180deg, #1b1b1f, #161619);
+      --card-grad-strong: linear-gradient(180deg, #1f1f23, #16161a);
+      --card-grad-solid: #18181B;
+      --blob-opacity: 0.7;
+      --accent: #06B6D4;
+      --accent-2: #8B5CF6;
+      --accent-glow: rgba(6,182,212,0.30);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { min-height: 100%; }
@@ -3257,3 +3258,121 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .tl-step:not(.done) .tl-label { color: var(--text-mute); }
 .tl-time { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
 .tl-time.muted { color: var(--text-mute); font-style: italic; }
+
+/* ============================================================
+   UNIFIED CARD SYSTEM 2026 — one look for every card, any page.
+   (Premium SaaS: Linear / Vercel / Stripe / Notion / Apple.)
+   ============================================================ */
+:root {
+  --card-radius: 20px;
+  --card-pad: 20px;
+  --card-shadow: 0 1px 2px rgba(0,0,0,0.30), 0 10px 30px -14px rgba(0,0,0,0.6);
+  --card-shadow-hover: 0 2px 6px rgba(0,0,0,0.35), 0 22px 48px -18px rgba(0,0,0,0.68), 0 0 0 1px rgba(6,182,212,0.10);
+  --card-ease: cubic-bezier(.22,.61,.36,1);
+}
+
+/* Shared shell — background, border, radius, depth, motion. Internal layout of
+   each variant is left untouched; only the shell is unified. */
+.card,
+.stat,
+.tk-card,
+.tk-row,
+.car-row,
+.zone-card,
+.team-card {
+  background: var(--card-grad, var(--surface-solid));
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  -webkit-backdrop-filter: blur(7px) saturate(1.05);
+          backdrop-filter: blur(7px) saturate(1.05);
+  transition: transform .24s var(--card-ease), box-shadow .24s ease,
+              border-color .24s ease, background .24s ease;
+}
+
+/* Hover (pointer devices only): gentle lift + scale + deeper shadow. */
+@media (hover: hover) {
+  .card:hover,
+  .stat:hover,
+  .tk-card:hover,
+  .car-row:hover,
+  .zone-card:hover,
+  .team-card:hover {
+    transform: translateY(-3px) scale(1.02);
+    border-color: var(--border-strong);
+    box-shadow: var(--card-shadow-hover);
+  }
+}
+/* Press feedback (mobile + desktop). */
+.card:active,
+.tk-row:active,
+.car-row:active,
+.zone-card:active,
+.team-card:active { transform: scale(0.988); }
+
+/* Subtle top-left gradient accent for the important summary cards
+   (uses ::after so the pointer spotlight on ::before keeps working). */
+.stat::after {
+  content: "";
+  position: absolute; top: 0; left: 0;
+  width: 130px; height: 130px;
+  background: radial-gradient(120px 120px at 0 0, var(--accent-glow), transparent 70%);
+  opacity: 0.5; pointer-events: none; z-index: 0;
+}
+.stat > * { position: relative; z-index: 1; }
+
+/* Rounded media everywhere. */
+.card img, .tk-card img, .car-row img, .team-avatar img,
+.detail-photo, .zone-card img { border-radius: 12px; }
+
+/* Subtle separators instead of hard lines. */
+.card hr, .detail-section + .detail-section { border-color: var(--border); }
+
+/* Modern empty state. */
+.empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; gap: 12px; padding: 40px 24px; color: var(--text-dim);
+}
+.empty-art {
+  width: 64px; height: 64px; border-radius: 18px;
+  display: grid; place-items: center;
+  color: var(--accent);
+  background: linear-gradient(160deg, rgba(6,182,212,0.12), rgba(139,92,246,0.10));
+  border: 1px solid var(--border);
+}
+.empty-art svg { width: 32px; height: 32px; }
+.empty p { font-size: 14px; font-weight: 600; color: var(--text-dim); max-width: 36ch; }
+.empty-cta { font-size: 12.5px; color: var(--text-mute); }
+
+/* Buttons: fully rounded, consistent. */
+.btn { border-radius: 12px; }
+.btn.small { border-radius: 10px; }
+
+/* Chips / badges: pill, tabular, tidy. */
+.badge, .chip, .tk-prio, .tk-badge { border-radius: 999px; }
+
+/* Light theme keeps solid white cards but shares the same shell + motion. */
+:root[data-theme="light"] .card,
+:root[data-theme="light"] .stat,
+:root[data-theme="light"] .tk-card,
+:root[data-theme="light"] .tk-row,
+:root[data-theme="light"] .car-row,
+:root[data-theme="light"] .zone-card,
+:root[data-theme="light"] .team-card {
+  box-shadow: 0 1px 2px rgba(15,23,42,0.06), 0 12px 30px -16px rgba(15,23,42,0.18);
+}
+@media (hover: hover) {
+  :root[data-theme="light"] .card:hover,
+  :root[data-theme="light"] .stat:hover,
+  :root[data-theme="light"] .tk-card:hover,
+  :root[data-theme="light"] .car-row:hover,
+  :root[data-theme="light"] .zone-card:hover,
+  :root[data-theme="light"] .team-card:hover {
+    box-shadow: 0 2px 6px rgba(15,23,42,0.08), 0 22px 44px -20px rgba(15,23,42,0.24), 0 0 0 1px rgba(6,182,212,0.14);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card, .stat, .tk-card, .tk-row, .car-row, .zone-card, .team-card { transition: none; }
+  .card:hover, .stat:hover, .tk-card:hover, .car-row:hover, .zone-card:hover, .team-card:hover { transform: none; }
+}
