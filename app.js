@@ -398,7 +398,6 @@
       // Scroll top of content when switching sections on mobile
       window.scrollTo({ top: 0, behavior: 'smooth' });
       if (name === 'map') loadMap();
-      if (name === 'dashboard') { try { renderDashboard(); } catch (_) {} }
     }
     document.querySelectorAll('.tab, .mtab').forEach(t => {
       t.addEventListener('click', () => selectSection(t.dataset.section));
@@ -827,7 +826,7 @@
     // ----- "WHAT'S NEW" PANEL -----
     // Bump this string whenever the changelog below gains a new entry; users
     // who haven't opened that version see a dot on the Settings tab.
-    const WHATSNEW_VERSION = '2026-07-18e';
+    const WHATSNEW_VERSION = '2026-07-18d';
     const WN_ICONS = {
       grid:   '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
       kanban: '<rect x="3" y="3" width="6" height="18" rx="1"/><rect x="9" y="3" width="6" height="12" rx="1"/><rect x="15" y="3" width="6" height="9" rx="1"/>',
@@ -837,10 +836,6 @@
       check:  '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>'
     };
     const CHANGELOG = [
-      { icon: 'grid',
-        ro: { t: 'Panou eveniment', d: 'O pagină nouă „Panou" adună într-un singur ecran tot ce contează în ziua evenimentului: mașini sosite/așteptate, taskuri deschise/întârziate, ocupare zone, VIP, o listă „necesită atenție" prioritizată automat, ritmul sosirilor pe ore și sarcina echipei.' },
-        en: { t: 'Event board', d: 'A new "Board" page brings everything that matters on event day onto one screen: cars arrived/awaited, open/overdue tasks, zone occupancy, VIP, an auto-prioritized "needs attention" list, arrivals by hour and team load.' },
-        ru: { t: 'Панель события', d: 'Новая страница «Панель» собирает всё важное в день события на одном экране: прибывшие/ожидаемые машины, открытые/просроченные задачи, занятость зон, VIP, автосписок «требует внимания», ритм прибытий по часам и нагрузку команды.' } },
       { icon: 'grid',
         ro: { t: 'Design înnoit', d: 'Fiecare eveniment poate avea o copertă foto care devine fundalul de pe Acasă, navigația de jos preia culoarea evenimentului, iar în detaliul mașinii vezi parcursul ei: Invitat → Sosit → Plecat.' },
         en: { t: 'Refreshed design', d: 'Each event can have a cover photo that becomes the Home backdrop, the bottom navigation adopts the event color, and a car’s detail shows its journey: Invited → Arrived → Left.' },
@@ -1420,7 +1415,6 @@
     function applyActiveEvent() {
       try { applyEventAccent(); } catch (_) {}
       try { renderStats(state.cars, state.tasks, state.events); } catch (_) {}
-      try { renderDashboard(); } catch (_) {}
       try { renderHero(state.events); } catch (_) {}
       try { renderUpcoming(state.events); } catch (_) {}
       try { renderTopTasks(state.tasks); } catch (_) {}
@@ -1678,7 +1672,6 @@
             if (statsFp !== _fp.stats) {
               _fp.stats = statsFp;
               try { renderStats(state.cars, state.tasks, state.events); } catch (_) {}
-              try { if (isDashVisible()) renderDashboard(); } catch (_) {}
             }
             if (eventsChanged) {
               try { populateEventPicker(); } catch (_) {}
@@ -2478,166 +2471,6 @@
           labels[2].textContent = t("home.cars_arrived");
           labels[3].textContent = t("home.tasks_open");
         }
-      }
-    }
-
-    // ===== EVENT DASHBOARD (command center) =====
-    // Read-only summary of the active event: key tiles, what needs attention,
-    // arrival rhythm and team load. Uses existing state only.
-    function dashActiveEvent() {
-      const events = state.events || [];
-      if (state.activeEventId) {
-        const e = events.find(x => String(x.id) === String(state.activeEventId));
-        if (e) return e;
-      }
-      return events[0] || null;
-    }
-    function renderDashboard() {
-      const box = el('dashboardBody');
-      if (!box) return;
-      const cars = activeCars(), tasks = activeTasks();
-      const ev = dashActiveEvent();
-      const dl = ev ? eventDaysLeft(ev) : null;
-
-      // Cars
-      const total = cars.length;
-      const arrived = cars.filter(c => statusKey(c.status) === 'sosit').length;
-      const left = cars.filter(c => statusKey(c.status) === 'plecat').length;
-      const awaiting = Math.max(0, total - arrived - left);
-      const vipTotal = cars.filter(c => c.is_vip).length;
-      const vipArrived = cars.filter(c => c.is_vip && statusKey(c.status) === 'sosit').length;
-
-      // Tasks
-      const openT = tasks.filter(tk => !tk.is_completed);
-      const doneT = tasks.length - openT.length;
-      const overdueT = tasks.filter(isOverdue);
-      const urgentT = openT.filter(tk => priorityLevel(tk.priority) >= 3 && !isOverdue(tk));
-      const taskPct = tasks.length ? Math.round(doneT / tasks.length * 100) : 0;
-
-      // Zones
-      let cap = 0, occ = 0; const nearFull = [];
-      ZONE_CONFIG.forEach(z => {
-        const c = zoneCapacityOf(z.name) || 0;
-        const assigned = cars.filter(cc => (cc.zone || '').trim().toLowerCase() === z.name.trim().toLowerCase()).length;
-        if (c) { cap += c; occ += Math.min(assigned, c); }
-        if (c && assigned >= c * 0.8) nearFull.push({ name: z.name, assigned, cap: c, full: assigned >= c });
-      });
-      const zonePct = cap ? Math.round(occ / cap * 100) : 0;
-
-      // Health semaphore
-      const health = overdueT.length ? 'red' : (urgentT.length || nearFull.some(z => z.full)) ? 'amber' : 'green';
-      const healthLabel = health === 'red' ? t('dash.health_behind') : health === 'amber' ? t('dash.health_watch') : t('dash.health_ok');
-
-      // Attention items (prioritized)
-      const att = [];
-      overdueT.slice(0, 6).forEach(tk => att.push({ sev: 'red', k: 'task', label: t('dash.att_overdue'), text: tk.title }));
-      if (nearFull.length) nearFull.filter(z => z.full).forEach(z => att.push({ sev: 'red', k: 'zone', label: t('dash.att_zone_full'), text: `${z.name} · ${z.assigned}/${z.cap}` }));
-      urgentT.slice(0, 5).forEach(tk => att.push({ sev: 'amber', k: 'task', label: t('dash.att_urgent'), text: tk.title }));
-      nearFull.filter(z => !z.full).forEach(z => att.push({ sev: 'amber', k: 'zone', label: t('dash.att_zone_near'), text: `${z.name} · ${z.assigned}/${z.cap}` }));
-      cars.filter(c => c.is_vip && statusKey(c.status) !== 'sosit' && statusKey(c.status) !== 'plecat')
-        .slice(0, 4).forEach(c => att.push({ sev: 'amber', k: 'vip', label: t('dash.att_vip'), text: [c.brand, c.model].filter(Boolean).join(' ') || c.owner || c.plate || '—' }));
-
-      // Team load (top by open tasks)
-      const load = new Map();
-      openT.forEach(tk => { const n = tk.assigned_user_name; if (n) load.set(n, (load.get(n) || 0) + 1); });
-      const topLoad = [...load.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
-
-      const tile = (val, label, sub, cls) => `
-        <div class="dash-tile">
-          <div class="dash-tile-v ${cls || ''}">${val}</div>
-          <div class="dash-tile-l">${escape(label)}</div>
-          ${sub ? `<div class="dash-tile-s">${sub}</div>` : ''}
-        </div>`;
-
-      box.innerHTML = `
-        <div class="dash-head dash-${health}">
-          <div class="dash-head-main">
-            <div class="dash-ev">${escape(ev ? (ev.title || '—') : t('common.nothing_found'))}</div>
-            <div class="dash-ev-sub">${ev && (ev.date || ev.location) ? escape([ev.date, ev.location].filter(Boolean).join(' · ')) : ''}</div>
-          </div>
-          <div class="dash-health">
-            <span class="dash-dot"></span>
-            <div><div class="dash-health-l">${escape(healthLabel)}</div>${dl != null ? `<div class="dash-health-s">${dl} ${escape(t('home.days_left'))}</div>` : ''}</div>
-          </div>
-        </div>
-
-        <div class="dash-tiles">
-          ${tile(total, t('dash.cars'), `<span class="ok">${arrived} ${escape(t('car.status.arrived').toLowerCase())}</span> · ${awaiting} ${escape(t('dash.awaiting'))}`)}
-          ${tile(openT.length, t('dash.tasks_open'), `<div class="dash-meter"><span style="width:${taskPct}%"></span></div>`, overdueT.length ? 'red' : '')}
-          ${tile(cap ? zonePct + '%' : '—', t('dash.zones'), cap ? `${occ}/${cap} ${escape(t('dash.spots'))}` : escape(t('dash.no_zones')))}
-          ${tile(vipTotal ? `${vipArrived}/${vipTotal}` : '—', t('dash.vip'), vipTotal ? escape(t('dash.vip_arrived')) : '—')}
-        </div>
-
-        <div class="page-grid-2" style="margin-top:16px;">
-          <div class="card">
-            <div class="card-head"><div><h3>${escape(t('dash.attention'))}</h3><p>${escape(t('dash.attention_sub'))}</p></div></div>
-            <div class="dash-att">
-              ${att.length ? att.map(a => `
-                <div class="dash-att-row sev-${a.sev}" ${a.k === 'task' ? '' : ''}>
-                  <span class="dash-att-badge">${escape(a.label)}</span>
-                  <span class="dash-att-text">${escape(a.text)}</span>
-                </div>`).join('') : `<div class="dash-clear">✓ ${escape(t('dash.all_clear'))}</div>`}
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-head"><div><h3>${escape(t('dash.rhythm'))}</h3><p>${escape(t('dash.rhythm_sub'))}</p></div></div>
-            <div id="dashRhythm" class="dash-rhythm"><div class="dash-muted">${escape(t('history.loading'))}</div></div>
-
-            <div class="card-head" style="margin-top:18px;"><div><h3>${escape(t('dash.team_load'))}</h3></div></div>
-            <div class="dash-load">
-              ${topLoad.length ? topLoad.map(([name, n]) => `
-                <div class="dash-load-row">
-                  <span class="tk-avatar" style="${avatarBg(name)}">${escape(twoInitials(name))}</span>
-                  <span class="dash-load-name">${escape(name)}</span>
-                  <span class="dash-load-n">${n}</span>
-                </div>`).join('') : `<div class="dash-muted">${escape(t('team.workload.empty'))}</div>`}
-            </div>
-          </div>
-        </div>
-      `;
-      if (isDashVisible()) loadArrivalRhythm('dashRhythm');
-    }
-    function isDashVisible() {
-      const s = document.getElementById('section-dashboard');
-      return !!(s && s.classList.contains('active'));
-    }
-
-    // Arrivals-per-hour today (from the activity log), scoped to the active event.
-    async function loadArrivalRhythm(containerId) {
-      const box = el(containerId);
-      if (!box) return;
-      if (!navigator.onLine) { box.innerHTML = `<div class="dash-muted">${escape(t('dash.rhythm_offline'))}</div>`; return; }
-      try {
-        const since = new Date(); since.setHours(0, 0, 0, 0);
-        const { data } = await supa.from('activity_log')
-          .select('entity_id,new_value,created_at')
-          .eq('entity', 'car').eq('action', 'status')
-          .gte('created_at', since.toISOString())
-          .order('created_at', { ascending: true });
-        if (!el(containerId)) return;
-        const evId = state.activeEventId;
-        const carEvent = new Map((state.cars || []).map(c => [String(c.id), c.event_id]));
-        const arrivals = (data || []).filter(r =>
-          statusKey(r.new_value) === 'sosit' &&
-          (!evId || String(carEvent.get(String(r.entity_id))) === String(evId)));
-        if (!arrivals.length) { box.innerHTML = `<div class="dash-muted">${escape(t('dash.rhythm_none'))}</div>`; return; }
-        const buckets = new Array(24).fill(0);
-        arrivals.forEach(r => { const h = new Date(r.created_at).getHours(); buckets[h]++; });
-        let first = buckets.findIndex(v => v > 0);
-        const nowH = new Date().getHours();
-        const last = Math.max(nowH, buckets.reduce((m, v, i) => v > 0 ? i : m, 0));
-        if (first < 0) first = last;
-        const max = Math.max(...buckets) || 1;
-        let bars = '';
-        for (let h = first; h <= last; h++) {
-          const v = buckets[h];
-          const ph = Math.round((v / max) * 100);
-          bars += `<div class="dash-bar" title="${h}:00 · ${v}"><div class="dash-bar-fill" style="height:${v ? Math.max(8, ph) : 2}%"></div><div class="dash-bar-h">${h}</div></div>`;
-        }
-        box.innerHTML = `<div class="dash-bars">${bars}</div><div class="dash-rhythm-total">${arrivals.length} ${escape(t('dash.arrivals_today'))}</div>`;
-      } catch (_) {
-        box.innerHTML = `<div class="dash-muted">—</div>`;
       }
     }
 
