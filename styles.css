@@ -3380,3 +3380,51 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
   .card, .stat, .tk-card, .tk-row, .car-row, .zone-card, .team-card { transition: none; }
   .card:hover, .stat:hover, .tk-card:hover, .car-row:hover, .zone-card:hover, .team-card:hover { transform: none; }
 }
+
+/* ========== LIVE COUNTDOWN (#4) ========== */
+.hero-countdown { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.hero-countdown .cd-label { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; opacity: 0.85; }
+.hero-countdown .cd-seg {
+  display: inline-flex; flex-direction: column; align-items: center;
+  min-width: 40px; padding: 6px 8px; border-radius: 12px;
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.14);
+}
+.hero-countdown .cd-seg b { font-size: 18px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+.hero-countdown .cd-seg i { font-size: 9px; font-style: normal; opacity: 0.8; margin-top: 2px; text-transform: uppercase; letter-spacing: .05em; }
+.hero-countdown .cd-live { display: inline-flex; align-items: center; gap: 7px; font-weight: 800; font-size: 13px; }
+.hero-countdown .cd-dot { width: 8px; height: 8px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px #fff; animation: livePulse 1.4s ease-in-out infinite; }
+
+/* ========== ANNOUNCEMENTS (#7) ========== */
+.announce-banner {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px 16px; margin-bottom: 16px; border-radius: 18px;
+  background: linear-gradient(135deg, rgba(6,182,212,0.16), rgba(139,92,246,0.14));
+  border: 1px solid var(--border-strong);
+}
+.announce-ic { flex: 0 0 auto; color: var(--accent); }
+.announce-ic svg { width: 22px; height: 22px; }
+.announce-txt { flex: 1; min-width: 0; }
+.announce-t { font-size: 14px; font-weight: 800; }
+.announce-b { font-size: 13px; color: var(--text-dim); margin-top: 3px; }
+.announce-x { flex: 0 0 auto; background: none; border: none; color: var(--text-mute); font-size: 22px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.announce-x:hover { color: var(--text); }
+.announce-recent { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.announce-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-dim); }
+.announce-item-txt { flex: 1; min-width: 0; }
+.announce-item-txt b { color: var(--text); font-weight: 700; }
+.announce-item-meta { color: var(--text-mute); font-size: 11px; margin-left: 6px; }
+.announce-item-del { background: none; border: none; color: var(--text-mute); font-size: 18px; line-height: 1; cursor: pointer; }
+.announce-item-del:hover { color: var(--red); }
+
+/* ========== @MENTIONS (#6) ========== */
+.mention-chips { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.mention-hint { font-size: 11px; color: var(--text-mute); font-weight: 600; }
+.mention-chip {
+  font: inherit; font-size: 12px; font-weight: 700;
+  padding: 4px 10px; border-radius: 999px; cursor: pointer;
+  color: var(--accent); background: rgba(6,182,212,0.10);
+  border: 1px solid rgba(6,182,212,0.30);
+  max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mention-chip:hover { background: rgba(6,182,212,0.18); }
+.update-msg .mention { color: var(--accent); font-weight: 700; }
