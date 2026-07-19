@@ -22,9 +22,10 @@
       --fill-3: rgba(255,255,255,0.045);
       --fill-4: rgba(255,255,255,0.07);
       --fill-5: rgba(255,255,255,0.09);
-      --card-grad: linear-gradient(135deg, rgba(6,182,212,0.25), rgba(139,92,246,0.25)), #18181B;
-      --card-grad-strong: linear-gradient(135deg, rgba(6,182,212,0.32), rgba(139,92,246,0.32)), #1b1b20;
-      --card-grad-solid: #1b1b20;
+      /* Apple-style frosted "material": neutral dark glass with vibrancy. */
+      --card-grad: linear-gradient(180deg, rgba(48,48,54,0.72), rgba(32,32,37,0.66));
+      --card-grad-strong: linear-gradient(180deg, rgba(58,58,66,0.76), rgba(38,38,44,0.70));
+      --card-grad-solid: rgba(32,32,37,0.92);
       --blob-opacity: 0.7;
       --accent: #06B6D4;
       --accent-2: #8B5CF6;
@@ -3264,15 +3265,17 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
    (Premium SaaS: Linear / Vercel / Stripe / Notion / Apple.)
    ============================================================ */
 :root {
-  --card-radius: 20px;
+  /* Apple-style: larger continuous-ish radius, hairline highlight, soft shadow. */
+  --card-radius: 22px;
   --card-pad: 20px;
-  --card-shadow: 0 1px 2px rgba(0,0,0,0.30), 0 10px 30px -14px rgba(0,0,0,0.6);
-  --card-shadow-hover: 0 2px 6px rgba(0,0,0,0.35), 0 22px 48px -18px rgba(0,0,0,0.68), 0 0 0 1px rgba(6,182,212,0.10);
+  --card-shadow: 0 1px 1px rgba(0,0,0,0.20), 0 12px 34px -16px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.07);
+  --card-shadow-hover: 0 2px 4px rgba(0,0,0,0.22), 0 26px 50px -20px rgba(0,0,0,0.62), inset 0 1px 0 rgba(255,255,255,0.10);
   --card-ease: cubic-bezier(.22,.61,.36,1);
 }
 
-/* Shared shell — background, border, radius, depth, motion. Internal layout of
-   each variant is left untouched; only the shell is unified. */
+/* Shared shell — Apple frosted "material": neutral glass with vibrancy, a fine
+   top highlight and a soft diffuse shadow. Internal layout of each variant is
+   left untouched; only the shell is unified. */
 .card,
 .stat,
 .tk-card,
@@ -3284,10 +3287,10 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
   border: 1px solid var(--border);
   border-radius: var(--card-radius);
   box-shadow: var(--card-shadow);
-  -webkit-backdrop-filter: blur(7px) saturate(1.05);
-          backdrop-filter: blur(7px) saturate(1.05);
-  transition: transform .24s var(--card-ease), box-shadow .24s ease,
-              border-color .24s ease, background .24s ease;
+  -webkit-backdrop-filter: blur(20px) saturate(1.7);
+          backdrop-filter: blur(20px) saturate(1.7);
+  transition: transform .28s var(--card-ease), box-shadow .28s ease,
+              border-color .28s ease, background .28s ease;
 }
 
 /* Hover (pointer devices only): gentle lift + scale + deeper shadow. */
