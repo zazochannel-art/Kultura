@@ -22,10 +22,11 @@
       --fill-3: rgba(255,255,255,0.045);
       --fill-4: rgba(255,255,255,0.07);
       --fill-5: rgba(255,255,255,0.09);
-      /* Apple-style frosted "material": neutral dark glass with vibrancy. */
-      --card-grad: linear-gradient(180deg, rgba(48,48,54,0.72), rgba(32,32,37,0.66));
-      --card-grad-strong: linear-gradient(180deg, rgba(58,58,66,0.76), rgba(38,38,44,0.70));
-      --card-grad-solid: rgba(32,32,37,0.92);
+      /* Very subtle glass — barely-there translucent panel, mostly the blurred
+         background showing through, defined only by a hairline + faint sheen. */
+      --card-grad: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.022));
+      --card-grad-strong: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+      --card-grad-solid: rgba(255,255,255,0.05);
       --blob-opacity: 0.7;
       --accent: #06B6D4;
       --accent-2: #8B5CF6;
