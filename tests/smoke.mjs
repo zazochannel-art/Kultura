@@ -69,6 +69,8 @@ try {
     heroCountdown: !!document.getElementById('heroCountdown'),
     homeAnnounce: !!document.getElementById('homeAnnounce'),
     announceBlock: !!document.getElementById('announceBlock'),
+    platB: !!document.getElementById('gatePlateBtn'),
+    zoneBoard: !!document.getElementById('zoneBoard'),
   }));
   Object.entries(els).forEach(([k, v]) => check('element:' + k, v));
 

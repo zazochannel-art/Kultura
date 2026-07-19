@@ -3428,3 +3428,43 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 }
 .mention-chip:hover { background: rgba(6,182,212,0.18); }
 .update-msg .mention { color: var(--accent); font-weight: 700; }
+
+/* ========== PLATE SCAN (#1) ========== */
+.gate-plate-capture {
+  position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+  z-index: 3; font: inherit; font-size: 14px; font-weight: 800;
+  padding: 12px 22px; border-radius: 999px; cursor: pointer; color: #fff; border: none;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  box-shadow: 0 10px 26px var(--accent-glow);
+}
+.gate-plate-capture:disabled { opacity: 0.6; }
+
+/* ========== INTERACTIVE PARKING BOARD (#3) ========== */
+.zone-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.zb-col {
+  background: var(--card-grad, var(--surface-solid)); border: 1px solid var(--border);
+  border-radius: 16px; padding: 12px; min-height: 120px;
+  transition: border-color .18s ease, background .18s ease;
+}
+.zb-col.zb-over { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow) inset; }
+.zb-col-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.zb-col-name { font-weight: 800; font-size: 14px; }
+.zb-col-count { font-size: 12px; color: var(--text-mute); font-variant-numeric: tabular-nums; }
+.zb-col-body { display: flex; flex-direction: column; gap: 6px; }
+.zb-chip {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  border-radius: 11px; background: var(--surface-elev, #1f1f23); border: 1px solid var(--border);
+  cursor: grab; touch-action: none; position: relative; overflow: hidden;
+}
+.zb-chip::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--blue); }
+.zb-chip.stripe-sosit::before { background: var(--green); }
+.zb-chip.stripe-plecat::before { background: var(--purple); }
+.zb-chip.stripe-invitat::before { background: var(--blue); }
+.zb-chip-name { font-size: 12.5px; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 4px; }
+.zb-chip-plate { font-size: 10.5px; color: var(--text-mute); font-weight: 700; }
+.zb-chip.zb-dragging { opacity: 0.35; }
+.zb-ghost {
+  position: fixed; z-index: 5000; pointer-events: none; transform: translate(-50%, -50%);
+  box-shadow: 0 14px 34px rgba(0,0,0,0.5); cursor: grabbing;
+}
+.zb-empty { font-size: 12px; color: var(--text-mute); text-align: center; padding: 14px 6px; border: 1px dashed var(--border); border-radius: 10px; }

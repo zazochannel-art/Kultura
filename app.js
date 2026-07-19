@@ -554,6 +554,7 @@
           <div class="zone-cars">${rows}</div>
         </div>`;
       }).join('') + '</div>';
+      if (_mapArrange) { try { renderZoneBoard(); } catch (_) {} }
     }
     // Zone card: toggle expand; inner car row: open the car detail.
     el('zonePanel').addEventListener('click', (e) => {
@@ -562,6 +563,130 @@
       const card = e.target.closest('.zone-card');
       if (card) card.classList.toggle('open');
     });
+
+    // ===== Interactive parking board (#3): drag cars between zones =====
+    let _mapArrange = false;
+    const NO_ZONE = '__none__';
+    function renderZoneBoard() {
+      const board = el('zoneBoard');
+      if (!board) return;
+      const cars = activeCars();
+      // Columns: "no zone" + configured zones + any extra zones cars already use.
+      const cfg = (ZONE_CONFIG || []).map(z => z.name.trim()).filter(Boolean);
+      const extra = [];
+      cars.forEach(c => {
+        const z = (c.zone || '').trim();
+        if (z && !cfg.some(k => k.toLowerCase() === z.toLowerCase()) && !extra.some(k => k.toLowerCase() === z.toLowerCase())) extra.push(z);
+      });
+      const zones = [{ key: NO_ZONE, name: t('map.no_zone') }, ...cfg.concat(extra).map(z => ({ key: z, name: z }))];
+      const carsIn = (zoneKey) => cars.filter(c => {
+        const z = (c.zone || '').trim();
+        return zoneKey === NO_ZONE ? !z : z.toLowerCase() === zoneKey.toLowerCase();
+      });
+      board.innerHTML = zones.map(z => {
+        const list = carsIn(z.key);
+        const cap = z.key === NO_ZONE ? null : (zoneCapacityOf(z.key) || null);
+        return `<div class="zb-col" data-zone-key="${escape(z.key)}">
+          <div class="zb-col-head">
+            <span class="zb-col-name">${escape(z.name)}</span>
+            <span class="zb-col-count">${list.length}${cap ? '/' + cap : ''}</span>
+          </div>
+          <div class="zb-col-body">
+            ${list.map(c => {
+              const nm = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
+              const active = statusKey(c.status) || 'invitat';
+              return `<div class="zb-chip stripe-${active}" data-zb-car="${c.id}">
+                <span class="zb-chip-name">${escape(nm)}</span>
+                ${c.plate ? `<span class="zb-chip-plate">${escape(c.plate)}</span>` : ''}
+              </div>`;
+            }).join('') || `<div class="zb-empty">${escape(t('map.drop_here'))}</div>`}
+          </div>
+        </div>`;
+      }).join('');
+    }
+    async function assignCarZone(carId, zoneKey) {
+      const zone = zoneKey === NO_ZONE ? null : zoneKey;
+      const car = (state.cars || []).find(c => String(c.id) === String(carId));
+      const prev = car ? car.zone : undefined;
+      if (car) car.zone = zone; // optimistic
+      renderZoneBoard();
+      const { error } = await supa.from('cars').update({ zone }).eq('id', carId);
+      if (error) {
+        if (car) car.zone = prev; // revert
+        renderZoneBoard();
+        uiAlert(t('common.error') + ': ' + error.message);
+        return;
+      }
+      try { applyLocalCarPatch(carId, { zone }); } catch (_) {}
+      showToast(t('map.moved'));
+    }
+    el('zoneArrangeBtn')?.addEventListener('click', () => {
+      _mapArrange = !_mapArrange;
+      const board = el('zoneBoard'), panel = el('zonePanel'), btn = el('zoneArrangeBtn');
+      if (board) board.hidden = !_mapArrange;
+      if (panel) panel.style.display = _mapArrange ? 'none' : '';
+      if (btn) btn.textContent = _mapArrange ? t('map.arrange_done') : t('map.arrange');
+      if (_mapArrange) renderZoneBoard();
+    });
+
+    // Pointer drag & drop for the parking board.
+    (function initZoneBoardDnD() {
+      let chip = null, ghost = null, carId = null, startX = 0, startY = 0, active = false;
+      const THRESH = 8;
+      const board = () => el('zoneBoard');
+      function onDown(e) {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        const b = board(); if (!b || b.hidden) return;
+        const c = e.target.closest('.zb-chip');
+        if (!c || !b.contains(c)) return;
+        chip = c; carId = c.dataset.zbCar; startX = e.clientX; startY = e.clientY; active = false;
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      }
+      function onMove(e) {
+        if (!chip) return;
+        const dx = e.clientX - startX, dy = e.clientY - startY;
+        if (!active) {
+          if (Math.hypot(dx, dy) < THRESH) return;
+          active = true;
+          ghost = chip.cloneNode(true);
+          ghost.classList.add('zb-ghost');
+          const r = chip.getBoundingClientRect();
+          ghost.style.width = r.width + 'px';
+          document.body.appendChild(ghost);
+          chip.classList.add('zb-dragging');
+        }
+        ghost.style.left = e.clientX + 'px';
+        ghost.style.top = e.clientY + 'px';
+        const col = colUnder(e.clientX, e.clientY);
+        board().querySelectorAll('.zb-col').forEach(c => c.classList.toggle('zb-over', c === col));
+      }
+      function onUp(e) {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        const wasActive = active, cid = carId;
+        if (ghost) { ghost.remove(); ghost = null; }
+        if (chip) chip.classList.remove('zb-dragging');
+        if (wasActive) {
+          const col = colUnder(e.clientX, e.clientY);
+          board().querySelectorAll('.zb-col').forEach(c => c.classList.remove('zb-over'));
+          if (col && cid) {
+            const zoneKey = col.dataset.zoneKey;
+            const car = (state.cars || []).find(c => String(c.id) === String(cid));
+            const curr = car ? (car.zone || '').trim() : '';
+            const same = (zoneKey === NO_ZONE && !curr) || (zoneKey !== NO_ZONE && curr.toLowerCase() === zoneKey.toLowerCase());
+            if (!same) assignCarZone(cid, zoneKey);
+          }
+        }
+        chip = null; carId = null; active = false;
+      }
+      function colUnder(x, y) {
+        const el2 = document.elementFromPoint(x, y);
+        return el2 ? el2.closest('.zb-col') : null;
+      }
+      const b = el('zoneBoard');
+      if (b) b.addEventListener('pointerdown', onDown);
+    })();
     el('mapUploadBtn').addEventListener('click', () => el('mapFileInput').click());
     // Lazy-load the vendored pdf.js only when a PDF is actually chosen.
     let _pdfjsLoading = null;
@@ -826,7 +951,7 @@
     // ----- "WHAT'S NEW" PANEL -----
     // Bump this string whenever the changelog below gains a new entry; users
     // who haven't opened that version see a dot on the Settings tab.
-    const WHATSNEW_VERSION = '2026-07-19';
+    const WHATSNEW_VERSION = '2026-07-19b';
     const WN_ICONS = {
       grid:   '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
       kanban: '<rect x="3" y="3" width="6" height="18" rx="1"/><rect x="9" y="3" width="6" height="12" rx="1"/><rect x="15" y="3" width="6" height="9" rx="1"/>',
@@ -836,6 +961,10 @@
       check:  '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>'
     };
     const CHANGELOG = [
+      { icon: 'grid',
+        ro: { t: 'Scanare plăcuță + hartă interactivă', d: 'La Poartă poți scana plăcuța cu camera — o citește automat și găsește mașina. În Hartă, staff-ul poate „Aranja" mașinile pe zone trăgându-le (drag & drop).' },
+        en: { t: 'Plate scan + interactive map', d: 'At the Gate you can scan a plate with the camera — it reads it and finds the car. On the Map, staff can "Arrange" cars into zones by dragging them.' },
+        ru: { t: 'Скан номера + интерактивная карта', d: 'На Воротах можно отсканировать номер камерой — он распознаётся и находит машину. На Карте staff может «Расставить» машины по зонам перетаскиванием.' } },
       { icon: 'bell',
         ro: { t: 'Cronometru, mențiuni, anunțuri', d: 'Cronometru live până la eveniment pe Acasă; menționezi colegi cu @ în comentariile de la taskuri (primesc notificare); staff/admin pot trimite un anunț către toată echipa (push + banner pe Acasă).' },
         en: { t: 'Countdown, mentions, announcements', d: 'A live countdown to the event on Home; mention teammates with @ in task comments (they get notified); staff/admins can send a team-wide announcement (push + Home banner).' },
@@ -1477,6 +1606,8 @@
       if (deptBlock) deptBlock.style.display = admin ? 'block' : 'none';
       const annBlock = el('announceBlock');
       if (annBlock) annBlock.style.display = staff ? 'block' : 'none';
+      const arrBtn = el('zoneArrangeBtn');
+      if (arrBtn) arrBtn.style.display = staff ? '' : 'none';
       const gateBtn = el('gateOpenBtn');
       if (gateBtn) gateBtn.style.display = staff ? '' : 'none';
       // Add buttons (cars/events/tasks) are for staff and admins only.
@@ -2169,11 +2300,12 @@
       _scanRAF = requestAnimationFrame(tick);
     }
     function stopGateScanner() {
-      const panel = el('gateScanner'), video = el('gateVideo');
+      const panel = el('gateScanner'), video = el('gateVideo'), cap = el('gatePlateCapture');
       if (_scanRAF) { cancelAnimationFrame(_scanRAF); _scanRAF = null; }
       if (_scanStream) { try { _scanStream.getTracks().forEach(tr => tr.stop()); } catch (_) {} _scanStream = null; }
       if (video) { try { video.pause(); video.srcObject = null; } catch (_) {} }
       _scanBusy = false;
+      if (cap) cap.hidden = true;
       if (panel) panel.hidden = true;
     }
     el('gateScanBtn')?.addEventListener('click', () => {
@@ -2181,6 +2313,59 @@
       if (panel && panel.hidden) startGateScanner(); else stopGateScanner();
     });
     el('gateScanClose')?.addEventListener('click', stopGateScanner);
+
+    // ----- Plate scan via camera + AI vision (#1) -----
+    let _plateBusy = false;
+    async function startPlateScanner() {
+      const panel = el('gateScanner'), video = el('gateVideo'), hint = el('gateScanHint'), cap = el('gatePlateCapture');
+      if (!panel || !video) return;
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { showToast(t('gate.scan_unsupported'), 'error'); return; }
+      panel.hidden = false;
+      if (hint) hint.textContent = t('gate.plate_hint');
+      if (cap) cap.hidden = false;
+      try {
+        _scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = _scanStream;
+        await video.play();
+      } catch (err) { stopGateScanner(); showToast(t('gate.scan_denied'), 'error'); }
+    }
+    async function capturePlate() {
+      const video = el('gateVideo'), hint = el('gateScanHint'), cap = el('gatePlateCapture');
+      if (!video || !_scanStream || _plateBusy) return;
+      if (!navigator.onLine) { showToast(t('gate.plate_offline'), 'error'); return; }
+      _plateBusy = true;
+      if (cap) cap.disabled = true;
+      if (hint) hint.textContent = t('gate.plate_reading');
+      const norm = s => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      try {
+        const w = video.videoWidth || 1280, h = video.videoHeight || 720;
+        const scale = Math.min(1, 1280 / Math.max(w, h));
+        const cw = Math.round(w * scale), ch = Math.round(h * scale);
+        const canvas = document.createElement('canvas'); canvas.width = cw; canvas.height = ch;
+        canvas.getContext('2d').drawImage(video, 0, 0, cw, ch);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        const { data, error } = await supa.functions.invoke('read-plate', { body: { image: dataUrl } });
+        if (error || !data) throw new Error((error && error.message) || 'read-plate');
+        const plate = norm(data.plate);
+        if (!plate) { if (hint) hint.textContent = t('gate.plate_none'); return; }
+        const car = (state.cars || []).find(c => norm(c.plate) === plate);
+        if (!car) { if (hint) hint.textContent = t('gate.plate_notfound') + ': ' + plate; return; }
+        haptic(120);
+        if (statusKey(car.status) === 'sosit') showToast(t('gate.scan_already', { plate: car.plate || car.id }));
+        else gateCheckIn(car.id);
+        stopGateScanner();
+      } catch (e) {
+        if (hint) hint.textContent = t('gate.plate_error');
+        showToast(t('common.error') + ': ' + (e.message || e), 'error');
+      } finally {
+        _plateBusy = false; if (cap) cap.disabled = false;
+      }
+    }
+    el('gatePlateBtn')?.addEventListener('click', () => {
+      const panel = el('gateScanner');
+      if (panel && panel.hidden) startPlateScanner(); else stopGateScanner();
+    });
+    el('gatePlateCapture')?.addEventListener('click', capturePlate);
 
     // Connectivity → drain the queue and refresh the indicator.
     window.addEventListener('online',  () => { updateGateSyncUI(); flushOutbox(); updateConnBanner(); });
