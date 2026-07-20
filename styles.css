@@ -3416,6 +3416,26 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .announce-b { font-size: 13px; color: var(--text-dim); margin-top: 3px; }
 .announce-x { flex: 0 0 auto; background: none; border: none; color: var(--text-mute); font-size: 22px; line-height: 1; cursor: pointer; padding: 0 2px; }
 .announce-x:hover { color: var(--text); }
+.announce-compose { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.announce-compose input,
+.announce-compose textarea {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--fill-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.announce-compose textarea { resize: vertical; min-height: 66px; line-height: 1.5; }
+.announce-compose input::placeholder,
+.announce-compose textarea::placeholder { color: var(--text-mute); }
+.announce-compose input:focus,
+.announce-compose textarea:focus { border-color: var(--accent); }
+.announce-send-btn { align-self: flex-end; }
 .announce-recent { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
 .announce-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-dim); }
 .announce-item-txt { flex: 1; min-width: 0; }
