@@ -2319,6 +2319,7 @@
 .gate-search svg { width: 20px; height: 20px; color: var(--text-mute); flex-shrink: 0; }
 .gate-search input {
   flex: 1;
+  min-width: 0; /* allow shrink so the placeholder/text truncates instead of crowding the buttons */
   border: none;
   background: transparent;
   color: var(--text);
@@ -2326,6 +2327,7 @@
   font-size: 16px;
   padding: 15px 0;
   outline: none;
+  text-overflow: ellipsis;
 }
 .gate-search input::placeholder { color: var(--text-mute); }
 .gate-results {
@@ -2528,7 +2530,8 @@
 }
 .gate-scan-hint {
   position: absolute;
-  left: 0; right: 0; bottom: 12px;
+  left: 0; right: 0; bottom: 74px; /* sits above the capture button, no overlap */
+  padding: 0 16px;
   text-align: center;
   color: #fff;
   font-size: 13px;
