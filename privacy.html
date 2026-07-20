@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#07080d">
+  <title>Kultura — Politică de confidențialitate</title>
+  <link rel="stylesheet" href="vendor/fonts/fonts.css">
+  <style>
+    :root {
+      --bg: #07080d;
+      --surface: #14182b;
+      --border: rgba(255,255,255,0.12);
+      --text: #f8fafc;
+      --text-dim: #94a3b8;
+      --text-mute: #64748b;
+      --cyan: #06b6d4;
+      --purple: #8b5cf6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      padding: 40px 20px 80px;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; }
+    .badge {
+      display: inline-block; font-size: 12px; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--cyan);
+      border: 1px solid var(--border); border-radius: 999px;
+      padding: 4px 12px; margin-bottom: 18px;
+    }
+    h1 { font-size: 30px; line-height: 1.2; margin-bottom: 8px; }
+    .updated { color: var(--text-mute); font-size: 14px; margin-bottom: 32px; }
+    h2 {
+      font-size: 19px; margin: 32px 0 10px;
+      padding-top: 24px; border-top: 1px solid var(--border);
+      background: linear-gradient(90deg, var(--cyan), var(--purple));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    p, li { color: var(--text-dim); font-size: 15px; }
+    p { margin-bottom: 12px; }
+    ul { margin: 8px 0 16px 20px; }
+    li { margin-bottom: 6px; }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 18px 20px; margin-top: 16px;
+    }
+    footer { margin-top: 40px; color: var(--text-mute); font-size: 13px; text-align: center; }
+    .lang { font-size: 13px; color: var(--text-mute); margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <span class="badge">Kultura</span>
+    <h1>Politică de confidențialitate</h1>
+    <p class="updated">Ultima actualizare: 20 iulie 2026</p>
+
+    <p>Kultura este o aplicație de gestionare a evenimentelor auto (înregistrarea
+    mașinilor, sarcini de echipă, check-in la poartă). Această politică explică ce
+    date colectăm, de ce, cu cine le partajăm și ce drepturi ai. Aplicația se
+    adresează organizatorilor și membrilor echipei unui eveniment, nu publicului larg.</p>
+
+    <h2>Cine suntem</h2>
+    <p>Operatorul aplicației poate fi contactat la
+    <a href="mailto:zazochannel@gmail.com">zazochannel@gmail.com</a>. Aplicația este
+    distribuită ca aplicație web și ca aplicație Android (un ambalaj care afișează
+    aceeași aplicație web).</p>
+
+    <h2>Ce date colectăm</h2>
+    <ul>
+      <li><strong>Cont:</strong> adresa de email folosită pentru autentificare și,
+      opțional, numele afișat.</li>
+      <li><strong>Date despre mașini:</strong> numărul de înmatriculare, marcă, model,
+      proprietar, zonă, status, poze încărcate de tine și, opțional, numărul de telefon
+      sau utilizatorul de Telegram pentru contact.</li>
+      <li><strong>Activitate de echipă:</strong> sarcini, comentarii, mențiuni și anunțuri
+      create în aplicație.</li>
+      <li><strong>Notificări push:</strong> un identificator de dispozitiv (token push),
+      dacă activezi notificările, pentru a-ți trimite alerte.</li>
+      <li><strong>Cameră:</strong> dacă folosești scanarea plăcuței de înmatriculare,
+      imaginea capturată este folosită pentru a citi automat numărul. Nu înregistrăm
+      video și nu păstrăm un flux de la cameră.</li>
+      <li><strong>Date tehnice:</strong> stocate local pe dispozitiv (cache, preferințe)
+      pentru ca aplicația să funcționeze offline și să pornească rapid.</li>
+    </ul>
+    <p>Nu colectăm date de localizare GPS, contacte sau alte date fără legătură cu
+    funcționarea aplicației.</p>
+
+    <h2>De ce folosim aceste date</h2>
+    <ul>
+      <li>Pentru a-ți crea și securiza contul și pentru a-ți da acces conform rolului.</li>
+      <li>Pentru a gestiona mașinile și evenimentul (listare, check-in, alocarea zonelor).</li>
+      <li>Pentru colaborarea în echipă (sarcini, comentarii, anunțuri).</li>
+      <li>Pentru a-ți trimite notificări relevante, dacă le activezi.</li>
+      <li>Pentru a citi automat numărul de pe plăcuță, dacă folosești scanarea.</li>
+    </ul>
+
+    <h2>Cu cine partajăm datele</h2>
+    <p>Nu vindem datele tale. Le partajăm doar cu furnizorii de servicii necesari
+    funcționării aplicației:</p>
+    <div class="card">
+      <ul style="margin-bottom:0;">
+        <li><strong>Supabase</strong> — găzduire, baza de date, autentificare și stocarea
+        pozelor. <a href="https://supabase.com/privacy" target="_blank" rel="noopener">Politica lor</a>.</li>
+        <li><strong>OpenAI</strong> — doar imaginea plăcuței, trimisă temporar pentru
+        recunoașterea textului atunci când folosești scanarea.
+        <a href="https://openai.com/policies/privacy-policy" target="_blank" rel="noopener">Politica lor</a>.</li>
+        <li><strong>Google Play</strong> — distribuția aplicației Android.
+        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Politica lor</a>.</li>
+      </ul>
+    </div>
+    <p style="margin-top:16px;">Datele celorlalți membri ai echipei (mașini, sarcini)
+    sunt vizibile în cadrul echipei tale de eveniment, conform rolului fiecăruia.</p>
+
+    <h2>Cât timp păstrăm datele</h2>
+    <p>Păstrăm datele cât timp contul tău este activ sau cât este nevoie pentru
+    organizarea evenimentului. Poți cere ștergerea contului și a datelor asociate
+    oricând, scriindu-ne la adresa de mai jos.</p>
+
+    <h2>Drepturile tale</h2>
+    <p>Ai dreptul să accesezi, să corectezi sau să ștergi datele tale, precum și să-ți
+    retragi consimțământul pentru notificări sau cameră (din setările dispozitivului sau
+    ale aplicației). Pentru orice cerere, scrie-ne la
+    <a href="mailto:zazochannel@gmail.com">zazochannel@gmail.com</a> și îți răspundem
+    într-un termen rezonabil.</p>
+
+    <h2>Securitate</h2>
+    <p>Folosim conexiuni criptate (HTTPS), autentificare și reguli de acces la nivel de
+    rând (Row Level Security) pentru a proteja datele. Niciun sistem nu este perfect
+    sigur, dar luăm măsuri rezonabile pentru a preveni accesul neautorizat.</p>
+
+    <h2>Copii</h2>
+    <p>Aplicația nu se adresează copiilor sub 13 ani și nu colectăm cu bună știință date
+    de la aceștia.</p>
+
+    <h2>Modificări</h2>
+    <p>Putem actualiza această politică. Vom modifica data de la începutul paginii, iar
+    schimbările importante vor fi comunicate în aplicație.</p>
+
+    <footer>© 2026 Kultura · <a href="mailto:zazochannel@gmail.com">zazochannel@gmail.com</a></footer>
+    <p class="lang" style="text-align:center;">This privacy policy is available in Romanian. For an English or Russian copy, contact us at the address above.</p>
+  </div>
+</body>
+</html>
