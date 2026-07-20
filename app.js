@@ -5532,6 +5532,12 @@
       const up = (e) => {
         const wasZoomed = _lbScale > 1.02;
         if (pts.has(e.pointerId)) pts.delete(e.pointerId);
+        // Pinch → single-finger pan: re-anchor to the remaining pointer so the
+        // image doesn't jump when one of two fingers lifts.
+        if (pts.size === 1) {
+          const [p] = [...pts.values()];
+          panX = p.x; panY = p.y; startTx = _lbTx; startTy = _lbTy;
+        }
         if (_lbScale <= 1.02) reset();
         // Swipe to navigate only when not zoomed.
         if (pts.size === 0 && !wasZoomed) {
