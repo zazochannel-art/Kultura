@@ -1193,6 +1193,17 @@
       });
       // PWA: offline shell + installable app
       if ('serviceWorker' in navigator) {
+        // When a new service worker takes control (after a deploy bumps the
+        // cache version), reload once so fresh HTML/JS/CSS apply immediately —
+        // no more "changes appear only after closing the app twice". Guarded so
+        // it never loops and never fires on a first-ever visit.
+        const hadController = !!navigator.serviceWorker.controller;
+        let swRefreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (swRefreshing || !hadController) return;
+          swRefreshing = true;
+          window.location.reload();
+        });
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('sw.js').catch((err) => {
             console.warn('SW register failed:', err);
