@@ -1632,6 +1632,21 @@
     const CAR_LIST_COLS  = 'id,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at';
     const TASK_LIST_COLS = 'id,title,event,date,status,status_color,is_completed,event_id,due_at,created_at,assigned_user_id,assigned_user_name,started_at,completed_at,completed_by_user_id,completed_by_user_name,priority,category,due_date,created_by,assigned_to,assigned_at,completed_by,team,updated_at,reminder_sent';
 
+    // Canonical parking zones (car categories). Single source of truth for the
+    // zone dropdowns in the add-car form, the car detail editor and the gate.
+    const PARKING_ZONES = ['Stance', 'Super Cars', 'Modern', 'Autosport', 'JDM', 'Retro', 'Euro', 'America', 'Bike'];
+    // Build <option> markup for a zone <select>. Keeps an existing custom value
+    // (an older free-text zone not in the list) selectable so nothing is lost.
+    function zoneOptionsHTML(current) {
+      const cur = (current || '').trim();
+      const inList = PARKING_ZONES.some(z => z.toLowerCase() === cur.toLowerCase());
+      let html = `<option value="">${escape(t('car.zone_choose'))}</option>`;
+      html += PARKING_ZONES.map(z =>
+        `<option value="${escape(z)}"${cur.toLowerCase() === z.toLowerCase() ? ' selected' : ''}>${escape(z)}</option>`).join('');
+      if (cur && !inList) html += `<option value="${escape(cur)}" selected>${escape(cur)}</option>`;
+      return html;
+    }
+
     const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
     const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','cover_url','starts_at','days_left'];
@@ -2192,7 +2207,7 @@
               <div class="gate-plate">${escape(c.plate || '—')}${c.is_vip ? ' <span class="gate-vip">VIP</span>' : ''}</div>
               <div class="gate-car-sub">${escape(name)}${c.owner ? ' · ' + escape(c.owner) : ''}</div>
             </div>
-            <input class="gate-zone" data-gate-zone="${c.id}" value="${escape(c.zone || '')}" placeholder="${escape(t('gate.zone_ph'))}" inputmode="text">
+            <select class="gate-zone" data-gate-zone="${c.id}" title="${escape(t('gate.zone_ph'))}">${zoneOptionsHTML(c.zone)}</select>
             <button class="gate-arrive ${arrived ? 'done' : ''}" data-gate-arrive="${c.id}" ${arrived ? 'disabled' : ''}>
               ${arrived
                 ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
@@ -4046,6 +4061,9 @@
       }
     });
 
+    // Populate the add-car zone dropdown from the canonical list.
+    { const _acz = el('addCarZone'); if (_acz) _acz.innerHTML = zoneOptionsHTML(''); }
+
     // Add Car
     el('form-add-car').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -5358,10 +5376,7 @@
       el('carEditZoneBtn').onclick = () => {
         const view = el('carZoneView');
         view.innerHTML = `
-          <input type="text" class="detail-textarea" id="carZoneInput"
-            style="min-height:auto; padding:12px 14px;"
-            placeholder="${escape(t('car.detail.zone_placeholder'))}"
-            value="${escape(c.zone || '')}">
+          <select class="detail-select" id="carZoneInput">${zoneOptionsHTML(c.zone)}</select>
           <div class="detail-inline-actions">
             <button class="btn ghost small" id="carZoneCancel">${escape(t('common.cancel'))}</button>
             <button class="btn small" id="carZoneSave">${escape(t('common.save'))}</button>
@@ -5378,13 +5393,7 @@
           await loadData();
           showCarDetail(c.id);
         };
-        const zi = el('carZoneInput');
-        zi.focus();
-        zi.setSelectionRange(zi.value.length, zi.value.length);
-        zi.addEventListener('keydown', (ev) => {
-          if (ev.key === 'Enter') { ev.preventDefault(); el('carZoneSave').click(); }
-          if (ev.key === 'Escape') { ev.preventDefault(); el('carZoneCancel').click(); }
-        });
+        el('carZoneInput').focus();
       };
 
       // ----- Photos: upload / view / delete -----
