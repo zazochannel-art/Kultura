@@ -1481,12 +1481,14 @@
         position: fixed;
         left: 50%;
         transform: translateX(-50%);
-        width: calc(100% - 40px);
-        max-width: 420px;
+        width: calc(100% - 16px);
+        max-width: 480px;
         bottom: calc(26px + env(safe-area-inset-bottom, 0px));
         z-index: 100;
-        gap: 6px;
-        padding: 6px;
+        gap: 2px;
+        padding: 5px;
+        overflow-x: auto;
+        scrollbar-width: none;
         background: linear-gradient(160deg, rgba(26, 31, 53, 0.92), rgba(14, 17, 32, 0.88));
         border: 1px solid rgba(255, 255, 255, 0.10);
         border-radius: 999px;
@@ -1505,7 +1507,7 @@
         align-items: center;
         justify-content: center;
         gap: 0;
-        padding: 10px;
+        padding: 8px 7px;
         border-radius: 999px;
         border: none;
         background: transparent;
@@ -1537,21 +1539,18 @@
         box-shadow:
           0 8px 22px var(--accent-glow, rgba(99, 102, 241, 0.45)),
           inset 0 1px 0 rgba(255, 255, 255, 0.25);
-        gap: 8px;
-        padding: 10px 18px;
+        gap: 6px;
+        padding: 9px 13px;
       }
       .mtab.active .label {
-        max-width: 120px;
+        max-width: 90px;
         opacity: 1;
       }
+      .mtab .label { font-size: 12px; }
 
-      /* Separator — soft gradient hairline */
-      .m-sep {
-        width: 1px;
-        height: 20px;
-        background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.16), transparent);
-        margin: 0 2px;
-      }
+      /* Separators removed on mobile — 7 nav items need the width. */
+      .m-sep { display: none; }
+      .mobile-tabs::-webkit-scrollbar { display: none; }
     }
     @media (max-width: 500px) {
       .login-card { padding: 36px 22px 28px; border-radius: 24px; }
@@ -3543,19 +3542,20 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .vip-hc-l { font-size: 11px; color: var(--text-mute); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
 .vip-hc.arrived .vip-hc-n { color: var(--green); }
 
-.vip-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.vip-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
 .vip-stat { display: flex; align-items: center; gap: 12px; padding: 16px; }
 .vip-stat-ic { font-size: 22px; line-height: 1; }
 .vip-stat-n { font-size: 26px; font-weight: 900; line-height: 1; }
 .vip-stat-l { font-size: 12px; color: var(--text-mute); margin-top: 4px; }
 
-.vip-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
-@media (min-width: 640px)  { .vip-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1000px) { .vip-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (min-width: 1360px) { .vip-grid { grid-template-columns: repeat(4, 1fr); } }
+.vip-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 640px)  { .vip-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1000px) { .vip-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1360px) { .vip-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
 .vip-card {
   display: flex; align-items: center; gap: 14px; padding: 14px;
+  min-width: 0;
   border-radius: 18px; border: 1px solid var(--border);
   background: var(--card-grad);
   backdrop-filter: blur(14px) saturate(1.1); -webkit-backdrop-filter: blur(14px) saturate(1.1);
