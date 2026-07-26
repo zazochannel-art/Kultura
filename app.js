@@ -4434,11 +4434,8 @@
         if (!q) return true;
         return [v.first_name, v.last_name, v.company].filter(Boolean).join(' ').toLowerCase().includes(q);
       });
-      // Pending guests first (staff care who hasn't arrived), then alphabetical.
-      rows.sort((a, b) => {
-        if (!!a.arrived !== !!b.arrived) return a.arrived ? 1 : -1;
-        return vipFullName(a).localeCompare(vipFullName(b), 'ro');
-      });
+      // Alphabetical by full name (Romanian collation, case-insensitive).
+      rows.sort((a, b) => vipFullName(a).localeCompare(vipFullName(b), 'ro', { sensitivity: 'base' }));
       _vipFilteredCount = rows.length;
       if (!rows.length) {
         list.innerHTML = `<div class="vip-empty">${escape((q || f !== 'all') ? t('vip.none_match') : t('vip.none'))}</div>`;
