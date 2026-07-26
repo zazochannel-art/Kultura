@@ -1650,7 +1650,7 @@
     }
 
     const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at'];
-    const VIP_FP_FIELDS   = ['id','first_name','last_name','company','role','guests_count','phone','arrived','arrived_at','event_id','updated_at'];
+    const VIP_FP_FIELDS   = ['id','first_name','last_name','company','role','guests_count','phone','arrived','arrived_at','event_id','companions','updated_at'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
     const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','cover_url','starts_at','days_left'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
@@ -4481,6 +4481,37 @@
     function vipDetailRow(label, value) {
       return `<div class="vip-drow"><span class="vip-drow-l">${escape(label)}</span><span class="vip-drow-v">${escape(value)}</span></div>`;
     }
+    // Named companions the guest arrives with — stored as a jsonb array.
+    function vipCompanions(v) {
+      const c = v && v.companions;
+      return Array.isArray(c) ? c : [];
+    }
+    function companionName(c) {
+      return [c && c.first, c && c.last].filter(Boolean).join(' ').trim();
+    }
+    async function saveVipCompanions(id, arr) {
+      applyLocalVipPatch(id, { companions: arr }); // optimistic (re-renders detail)
+      const { error } = await supa.from('vip_guests').update({ companions: arr }).eq('id', id);
+      if (error) showToast(t('common.error') + ': ' + error.message, 'error');
+    }
+    function companionsSectionHTML(v) {
+      const list = vipCompanions(v);
+      const items = list.map((c, i) => `
+        <div class="vip-comp-row">
+          <span class="vip-comp-nm">${escape(companionName(c) || t('vip.unnamed'))}</span>
+          <button class="vip-comp-del" data-vip-comp-del="${i}" type="button" aria-label="${escape(t('common.delete'))}">&times;</button>
+        </div>`).join('');
+      return `
+        <div class="vip-comp">
+          <div class="vip-comp-h">${escape(t('vip.companions'))}${list.length ? ` (${list.length})` : ''}</div>
+          <div class="vip-comp-list">${items || `<div class="vip-comp-empty">${escape(t('vip.companions_empty'))}</div>`}</div>
+          <div class="vip-comp-add">
+            <input type="text" id="vipCompFirst" placeholder="${escape(t('vip.f_first'))}">
+            <input type="text" id="vipCompLast" placeholder="${escape(t('vip.f_last'))}">
+            <button class="btn small" id="vipCompAddBtn" type="button">${escape(t('vip.companions_add'))}</button>
+          </div>
+        </div>`;
+    }
     function showVipDetail(id) {
       const v = (state.vips || []).find(x => String(x.id) === String(id));
       if (!v) return;
@@ -4496,9 +4527,32 @@
       if (v.phone) rows.push(`<div class="vip-drow"><span class="vip-drow-l">${escape(t('vip.phone'))}</span><a class="vip-drow-v vip-phone" href="tel:${escape(v.phone)}">${escape(v.phone)}</a></div>`);
       if (v.arrived && v.arrived_at) rows.push(vipDetailRow(t('vip.arrived_at'), fmtRelative(v.arrived_at)));
       if (v.notes) rows.push(vipDetailRow(t('vip.notes'), v.notes));
-      el('vipDetailBody').innerHTML = rows.join('');
+      el('vipDetailBody').innerHTML = rows.join('') + companionsSectionHTML(v);
       el('vipDetailActions').innerHTML =
         `<button class="btn vip-detail-toggle ${v.arrived ? 'ghost' : ''}" data-vip-arrive="${v.id}" type="button">${v.arrived ? '↩ ' + escape(t('vip.undo')) : '✔ ' + escape(t('vip.mark_arrived'))}</button>`;
+      // Wire the companions editor (elements are rebuilt on every open).
+      const addBtn = el('vipCompAddBtn');
+      if (addBtn) {
+        const doAdd = () => {
+          const first = (el('vipCompFirst').value || '').trim();
+          const last = (el('vipCompLast').value || '').trim();
+          if (!first && !last) { el('vipCompFirst').focus(); return; }
+          const arr = vipCompanions(v).concat([{ first, last }]);
+          saveVipCompanions(v.id, arr);
+        };
+        addBtn.onclick = doAdd;
+        ['vipCompFirst', 'vipCompLast'].forEach(fid => {
+          const inp = el(fid);
+          if (inp) inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); doAdd(); } });
+        });
+      }
+      el('vipDetailBody').querySelectorAll('[data-vip-comp-del]').forEach(btn => {
+        btn.onclick = () => {
+          const idx = parseInt(btn.dataset.vipCompDel, 10);
+          const arr = vipCompanions(v).filter((_, i) => i !== idx);
+          saveVipCompanions(v.id, arr);
+        };
+      });
       openModal('vip-detail');
     }
 

@@ -3614,3 +3614,29 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .vip-drow-v { color: var(--text); font-size: 14px; font-weight: 600; text-align: right; }
 .vip-phone { color: var(--accent); text-decoration: none; }
 .vip-detail-toggle { width: 100%; }
+
+/* VIP companions editor (in detail modal) */
+.vip-comp { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.vip-comp-h { font-size: 13px; font-weight: 700; color: var(--text-dim); margin-bottom: 10px; }
+.vip-comp-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.vip-comp-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border-radius: 12px;
+  background: var(--fill-1); border: 1px solid var(--border);
+}
+.vip-comp-nm { font-size: 14px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vip-comp-del {
+  flex: 0 0 auto; background: none; border: none; color: var(--text-mute);
+  font-size: 20px; line-height: 1; cursor: pointer; padding: 0 4px;
+}
+.vip-comp-del:hover { color: var(--red); }
+.vip-comp-empty { font-size: 12.5px; color: var(--text-mute); padding: 4px 2px; }
+.vip-comp-add { display: flex; gap: 8px; flex-wrap: wrap; }
+.vip-comp-add input {
+  flex: 1; min-width: 100px; padding: 11px 12px;
+  background: var(--fill-1); border: 1px solid var(--border); border-radius: 10px;
+  color: var(--text); font-family: inherit; font-size: 14px; outline: none;
+}
+.vip-comp-add input:focus { border-color: var(--accent); }
+.vip-comp-add input::placeholder { color: var(--text-mute); }
+.vip-comp-add .btn.small { flex: 0 0 auto; }
