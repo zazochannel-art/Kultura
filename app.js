@@ -1503,9 +1503,10 @@
 
     // ----- STATE for filters / search -----
     const state = {
-      cars: [], tasks: [], events: [], profiles: [], notifications: [], team: [], announcements: [],
+      cars: [], tasks: [], events: [], profiles: [], notifications: [], team: [], announcements: [], vips: [],
       authUsers: null,
       carsFilter: 'all', carsSearch: '',
+      vipFilter: 'all', vipSearch: '', vipShown: 60,
       tasksFilter: 'all', tasksSearch: '', tasksDept: 'all', tasksAssignee: 'all',
       tasksSort: localStorage.getItem('kultura_tasks_sort') || 'priority',
       tasksView: localStorage.getItem('kultura_tasks_view') || 'list',
@@ -1527,6 +1528,7 @@
     }
     function activeCars()  { return (state.cars  || []).filter(matchesActiveEvent); }
     function activeTasks() { return (state.tasks || []).filter(matchesActiveEvent); }
+    function activeVips()  { return (state.vips  || []).filter(matchesActiveEvent); }
 
     function populateEventPicker() {
       const sel = el('activeEventSelect');
@@ -1648,6 +1650,7 @@
     }
 
     const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at'];
+    const VIP_FP_FIELDS   = ['id','first_name','last_name','company','role','guests_count','phone','arrived','arrived_at','event_id','updated_at'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
     const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','cover_url','starts_at','days_left'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
@@ -1738,7 +1741,8 @@
             supa.from('tasks').select(TASK_LIST_COLS).order('id', { ascending: false }),
             supa.from('events').select('*').order('id', { ascending: false }),
             supa.from('profiles').select('*'),
-            supa.from('announcements').select('*').order('id', { ascending: false }).limit(20)
+            supa.from('announcements').select('*').order('id', { ascending: false }).limit(20),
+            supa.from('vip_guests').select('*').order('id', { ascending: false })
           ]);
 
           // Only overwrite each slice if the fetch succeeded; otherwise keep
@@ -1748,12 +1752,14 @@
           const nextEvents   = results[2].status === 'fulfilled' && !results[2].value.error ? (results[2].value.data || []) : null;
           const nextProfiles = results[3].status === 'fulfilled' && !results[3].value.error ? (results[3].value.data || []) : null;
           const nextAnnounce = results[4] && results[4].status === 'fulfilled' && !results[4].value.error ? (results[4].value.data || []) : null;
+          const nextVips     = results[5] && results[5].status === 'fulfilled' && !results[5].value.error ? (results[5].value.data || []) : null;
 
           if (nextCars     !== null) state.cars     = nextCars;
           if (nextTasks    !== null) state.tasks    = nextTasks;
           if (nextEvents   !== null) state.events   = nextEvents;
           if (nextProfiles !== null) state.profiles = nextProfiles;
           if (nextAnnounce !== null) { state.announcements = nextAnnounce; try { renderHomeAnnounce(); renderAnnounceRecent(); } catch (_) {} }
+          if (nextVips     !== null) state.vips     = nextVips;
 
           // Persist the car list so the offline gate check-in can look cars up
           // with no connection (the PWA shell is cached; the data is not).
@@ -1802,13 +1808,15 @@
             cars:     makeFp(state.cars,     CAR_FP_FIELDS),
             tasks:    makeFp(state.tasks,    TASK_FP_FIELDS),
             events:   makeFp(state.events,   EVENT_FP_FIELDS),
-            profiles: makeFp(state.profiles, PROF_FP_FIELDS)
+            profiles: makeFp(state.profiles, PROF_FP_FIELDS),
+            vips:     makeFp(state.vips,     VIP_FP_FIELDS)
           };
           const carsChanged   = newFp.cars     !== _fp.cars;
           const tasksChanged  = newFp.tasks    !== _fp.tasks;
           const eventsChanged = newFp.events   !== _fp.events;
           const profsChanged  = newFp.profiles !== _fp.profiles;
-          const anyChanged    = carsChanged || tasksChanged || eventsChanged || profsChanged;
+          const vipsChanged   = newFp.vips     !== _fp.vips;
+          const anyChanged    = carsChanged || tasksChanged || eventsChanged || profsChanged || vipsChanged;
 
           // Persist new fingerprints upfront so we don't accidentally re-render
           // the same state twice if a renderer synchronously triggers another poll.
@@ -1816,6 +1824,7 @@
           _fp.tasks    = newFp.tasks;
           _fp.events   = newFp.events;
           _fp.profiles = newFp.profiles;
+          _fp.vips     = newFp.vips;
 
           // If NOTHING changed, exit immediately. No DOM touched at all → zero
           // flicker, zero focus loss, zero scroll reset. This is the hot path
@@ -1865,6 +1874,9 @@
               try { renderEvents(); } catch (_) {}
               try { updateAvatarUI(); } catch (_) {}
               try { populateTaskAssignees(); } catch (_) {}
+            }
+            if (vipsChanged) {
+              try { renderVip(); } catch (_) {}
             }
 
             // Live-refresh OPEN detail modals only if the underlying data
@@ -4357,6 +4369,211 @@
       });
     }
 
+    // ================= VIP GUESTS =================
+    // A fast door-check screen for the VIP area: search, filter, one-tap arrival
+    // toggle with optimistic save + realtime sync. Windowed list for 5000+ rows.
+    let openVipDetailId = null;
+    let _vipFilteredCount = 0;
+    let _vipIO = null;
+
+    function vipFullName(v) {
+      return [v.first_name, v.last_name].filter(Boolean).join(' ').trim() || t('vip.unnamed');
+    }
+    function vipSubtitle(v) {
+      return [v.company, v.role].filter(Boolean).join(' · ');
+    }
+    function renderVipStats() {
+      const all = activeVips();
+      const total = all.length, arrived = all.filter(v => v.arrived).length;
+      const set = (id, val) => { const n = el(id); if (n && n.textContent !== String(val)) n.textContent = val; };
+      set('vipStatTotal', total); set('vipStatArrived', arrived); set('vipStatWaiting', total - arrived);
+      set('vipHeadTotal', total); set('vipHeadArrived', arrived);
+    }
+    function vipCardHTML(v) {
+      const name = vipFullName(v);
+      const sub = vipSubtitle(v);
+      const arrived = !!v.arrived;
+      return `
+        <article class="vip-card ${arrived ? 'arrived' : ''}" data-vip-id="${v.id}">
+          <div class="vip-av" style="${avatarBg(name)}">${escape(twoInitials(name))}</div>
+          <div class="vip-main">
+            <div class="vip-name">${escape(name)}</div>
+            ${sub ? `<div class="vip-sub">${escape(sub)}</div>` : ''}
+            <div class="vip-meta">
+              <span class="vip-status ${arrived ? 'on' : 'off'}">${arrived ? '🟢' : '🔴'} ${escape(arrived ? t('vip.arrived_yes') : t('vip.arrived_no'))}</span>
+              ${(v.guests_count || 1) > 1 ? `<span class="vip-guests">👥 ${v.guests_count}</span>` : ''}
+            </div>
+          </div>
+          <button class="vip-arrive-btn ${arrived ? 'undo' : ''}" data-vip-arrive="${v.id}" type="button">
+            ${arrived ? '↩ ' + escape(t('vip.undo')) : '✔ ' + escape(t('vip.mark_arrived'))}
+          </button>
+        </article>`;
+    }
+    function ensureVipObserver() {
+      if (_vipIO) return;
+      const sentinel = el('vipSentinel');
+      if (!sentinel || !('IntersectionObserver' in window)) return;
+      _vipIO = new IntersectionObserver((entries) => {
+        if (entries.some(e => e.isIntersecting) && state.vipShown < _vipFilteredCount) {
+          state.vipShown += 60;
+          renderVip();
+        }
+      }, { rootMargin: '500px' });
+      _vipIO.observe(sentinel);
+    }
+    function renderVip() {
+      const list = el('vipList');
+      if (!list) return;
+      ensureVipObserver();
+      renderVipStats();
+      const q = (state.vipSearch || '').trim().toLowerCase();
+      const f = state.vipFilter || 'all';
+      let rows = activeVips().filter(v => {
+        if (f === 'arrived' && !v.arrived) return false;
+        if (f === 'waiting' && v.arrived) return false;
+        if (!q) return true;
+        return [v.first_name, v.last_name, v.company].filter(Boolean).join(' ').toLowerCase().includes(q);
+      });
+      // Pending guests first (staff care who hasn't arrived), then alphabetical.
+      rows.sort((a, b) => {
+        if (!!a.arrived !== !!b.arrived) return a.arrived ? 1 : -1;
+        return vipFullName(a).localeCompare(vipFullName(b), 'ro');
+      });
+      _vipFilteredCount = rows.length;
+      if (!rows.length) {
+        list.innerHTML = `<div class="vip-empty">${escape((q || f !== 'all') ? t('vip.none_match') : t('vip.none'))}</div>`;
+        return;
+      }
+      const shown = Math.min(state.vipShown, rows.length);
+      list.innerHTML = rows.slice(0, shown).map(vipCardHTML).join('');
+    }
+    function flashVipCard(id) {
+      const node = document.querySelector(`.vip-card[data-vip-id="${id}"]`);
+      if (!node) return;
+      node.classList.remove('just-arrived'); void node.offsetWidth; node.classList.add('just-arrived');
+      setTimeout(() => node.classList.remove('just-arrived'), 950);
+    }
+    function applyLocalVipPatch(id, patch) {
+      const i = (state.vips || []).findIndex(x => String(x.id) === String(id));
+      if (i < 0) return;
+      state.vips[i] = { ...state.vips[i], ...patch };
+      _fp.vips = makeFp(state.vips, VIP_FP_FIELDS);
+      withPreservedUI(() => { try { renderVip(); } catch (_) {} });
+      const dm = document.getElementById('modal-vip-detail');
+      if (openVipDetailId != null && dm?.classList.contains('show')) { try { showVipDetail(openVipDetailId); } catch (_) {} }
+    }
+    async function toggleVipArrived(id) {
+      const v = (state.vips || []).find(x => String(x.id) === String(id));
+      if (!v) return;
+      const arrived = !v.arrived;
+      const prev = { arrived: v.arrived, arrived_at: v.arrived_at };
+      const patch = { arrived, arrived_at: arrived ? new Date().toISOString() : null };
+      applyLocalVipPatch(id, patch); // optimistic
+      if (arrived) { haptic(120); flashVipCard(id); try { auroraPulse(); } catch (_) {} }
+      const { error } = await supa.from('vip_guests').update(patch).eq('id', id);
+      if (error) {
+        applyLocalVipPatch(id, prev); // revert
+        showToast(t('common.error') + ': ' + error.message, 'error');
+        return;
+      }
+      showToast(arrived ? t('vip.toast_arrived', { name: vipFullName(v) }) : t('vip.toast_undo', { name: vipFullName(v) }));
+    }
+    function vipDetailRow(label, value) {
+      return `<div class="vip-drow"><span class="vip-drow-l">${escape(label)}</span><span class="vip-drow-v">${escape(value)}</span></div>`;
+    }
+    function showVipDetail(id) {
+      const v = (state.vips || []).find(x => String(x.id) === String(id));
+      if (!v) return;
+      openVipDetailId = v.id;
+      const name = vipFullName(v);
+      el('vipDetailTitle').textContent = name;
+      el('vipDetailBadges').innerHTML =
+        `<span class="vip-status ${v.arrived ? 'on' : 'off'}">${v.arrived ? '🟢' : '🔴'} ${escape(v.arrived ? t('vip.arrived_yes') : t('vip.arrived_no'))}</span>`;
+      const rows = [];
+      const sub = vipSubtitle(v);
+      if (sub) rows.push(vipDetailRow(t('vip.company_role'), sub));
+      rows.push(vipDetailRow(t('vip.guests_count'), String(v.guests_count || 1)));
+      if (v.phone) rows.push(`<div class="vip-drow"><span class="vip-drow-l">${escape(t('vip.phone'))}</span><a class="vip-drow-v vip-phone" href="tel:${escape(v.phone)}">${escape(v.phone)}</a></div>`);
+      if (v.arrived && v.arrived_at) rows.push(vipDetailRow(t('vip.arrived_at'), fmtRelative(v.arrived_at)));
+      if (v.notes) rows.push(vipDetailRow(t('vip.notes'), v.notes));
+      el('vipDetailBody').innerHTML = rows.join('');
+      el('vipDetailActions').innerHTML =
+        `<button class="btn vip-detail-toggle ${v.arrived ? 'ghost' : ''}" data-vip-arrive="${v.id}" type="button">${v.arrived ? '↩ ' + escape(t('vip.undo')) : '✔ ' + escape(t('vip.mark_arrived'))}</button>`;
+      openModal('vip-detail');
+    }
+
+    // VIP wiring
+    el('vipChips')?.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-vip-filter]');
+      if (!b) return;
+      state.vipFilter = b.dataset.vipFilter;
+      state.vipShown = 60;
+      el('vipChips').querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c === b));
+      renderVip();
+    });
+    el('vipList')?.addEventListener('click', (e) => {
+      const ab = e.target.closest('[data-vip-arrive]');
+      if (ab) { e.stopPropagation(); toggleVipArrived(ab.dataset.vipArrive); return; }
+      const card = e.target.closest('[data-vip-id]');
+      if (card) showVipDetail(card.dataset.vipId);
+    });
+    el('vipDetailActions')?.addEventListener('click', (e) => {
+      const ab = e.target.closest('[data-vip-arrive]');
+      if (ab) toggleVipArrived(ab.dataset.vipArrive);
+    });
+    (function () {
+      let tvip;
+      el('vipSearch')?.addEventListener('input', (e) => {
+        state.vipSearch = e.target.value;
+        state.vipShown = 60;
+        clearTimeout(tvip);
+        tvip = setTimeout(renderVip, 150);
+      });
+    })();
+    el('form-add-vip')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      const fd = new FormData(f);
+      const btn = f.querySelector('button[type="submit"]');
+      const msg = el('modal-add-vip-msg');
+      const showErr = (txt) => { if (msg) { msg.textContent = txt; msg.className = 'modal-msg show'; msg.style.color = 'var(--red)'; } };
+      const row = {
+        first_name: (fd.get('first_name') || '').trim(),
+        last_name: (fd.get('last_name') || '').trim(),
+        company: (fd.get('company') || '').trim() || null,
+        role: (fd.get('role') || '').trim() || null,
+        guests_count: Math.max(1, parseInt(fd.get('guests_count') || '1', 10) || 1),
+        phone: (fd.get('phone') || '').trim() || null,
+        notes: (fd.get('notes') || '').trim() || null,
+        event_id: fd.get('event_id') ? Number(fd.get('event_id')) : null
+      };
+      if (!row.first_name && !row.last_name) { showErr(t('vip.err_name')); return; }
+      if (btn) btn.disabled = true;
+      const { error } = await supa.from('vip_guests').insert(row);
+      if (btn) btn.disabled = false;
+      if (error) { showErr(t('common.error') + ': ' + error.message); return; }
+      closeModal(document.getElementById('modal-add-vip'));
+      await loadData();
+      renderVip();
+    });
+    function applyRealtimeVip(payload) {
+      if (!state.vips) state.vips = [];
+      const { eventType, new: nu, old: ou } = payload;
+      if (eventType === 'DELETE') {
+        state.vips = state.vips.filter(x => String(x.id) !== String(ou?.id));
+      } else if (nu) {
+        const i = state.vips.findIndex(x => String(x.id) === String(nu.id));
+        if (i >= 0) state.vips[i] = { ...state.vips[i], ...nu };
+        else state.vips.unshift(nu);
+      }
+      _fp.vips = makeFp(state.vips, VIP_FP_FIELDS);
+      withPreservedUI(() => {
+        try { renderVip(); } catch (_) {}
+        const dm = document.getElementById('modal-vip-detail');
+        if (openVipDetailId != null && dm?.classList.contains('show')) { try { showVipDetail(openVipDetailId); } catch (_) {} }
+      });
+    }
+
     // Realtime — reload when anyone changes the tables
     supa.channel('kultura-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cars' }, (payload) => {
@@ -4400,6 +4617,12 @@
           state.profiles = state.profiles.filter(p => p.email !== (ou?.email));
         }
         if (typeof renderTeam === 'function') renderTeam();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vip_guests' }, (payload) => {
+        if (payload.eventType === 'UPDATE' && payload.new.arrived && !payload.old.arrived) {
+          sendAppNotification('Invitat VIP sosit', `${[payload.new.first_name, payload.new.last_name].filter(Boolean).join(' ')} a sosit.`);
+        }
+        applyRealtimeVip(payload);
       })
       .subscribe((status) => {
         // On every (re)connect pull a fresh snapshot — changes that happened

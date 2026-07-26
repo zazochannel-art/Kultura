@@ -174,6 +174,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         <span data-i18n="nav.tasks">Taskuri</span>
       </button>
+      <button class="tab" data-section="vip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        <span data-i18n="nav.vip">VIP</span>
+      </button>
       <button class="tab" data-section="team">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span data-i18n="nav.team">Echipa</span>
@@ -206,6 +210,10 @@
       <button class="mtab" data-section="tasks" aria-label="Taskuri">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         <span class="label" data-i18n="nav.tasks">Taskuri</span>
+      </button>
+      <button class="mtab" data-section="vip" aria-label="VIP">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        <span class="label" data-i18n="nav.vip">VIP</span>
       </button>
       <div class="m-sep"></div>
       <button class="mtab" data-section="team" aria-label="Echipa">
@@ -402,6 +410,55 @@
         </div>
         <div class="chips" id="carsChips"></div>
         <div id="carsList"></div>
+      </section>
+
+      <!-- VIP GUESTS -->
+      <section class="section" id="section-vip">
+        <div class="vip-head">
+          <div class="vip-head-txt">
+            <h2 class="vip-title" data-i18n="vip.title">VIP</h2>
+            <p data-i18n="vip.subtitle">Gestionarea invitaților VIP</p>
+          </div>
+          <div class="vip-head-counts">
+            <div class="vip-hc"><span class="vip-hc-n" id="vipHeadTotal">0</span><span class="vip-hc-l" data-i18n="vip.total">Total</span></div>
+            <div class="vip-hc arrived"><span class="vip-hc-n" id="vipHeadArrived">0</span><span class="vip-hc-l" data-i18n="vip.arrived">Sosiți</span></div>
+          </div>
+        </div>
+
+        <div class="vip-stats">
+          <div class="stat vip-stat">
+            <div class="vip-stat-ic">👥</div>
+            <div class="vip-stat-body"><div class="vip-stat-n" id="vipStatTotal">0</div><div class="vip-stat-l" data-i18n="vip.stat_total">Total invitați</div></div>
+          </div>
+          <div class="stat vip-stat">
+            <div class="vip-stat-ic">✅</div>
+            <div class="vip-stat-body"><div class="vip-stat-n" id="vipStatArrived">0</div><div class="vip-stat-l" data-i18n="vip.stat_arrived">Au sosit</div></div>
+          </div>
+          <div class="stat vip-stat">
+            <div class="vip-stat-ic">⏳</div>
+            <div class="vip-stat-body"><div class="vip-stat-n" id="vipStatWaiting">0</div><div class="vip-stat-l" data-i18n="vip.stat_waiting">Așteptați</div></div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="search" id="vipSearch" data-i18n-placeholder="vip.search" placeholder="Caută după nume...">
+          </div>
+          <button class="add-btn" data-modal="add-vip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span data-i18n="vip.add">Adaugă</span>
+          </button>
+        </div>
+
+        <div class="chips" id="vipChips">
+          <button class="chip active" data-vip-filter="all" data-i18n="vip.filter_all">Toți</button>
+          <button class="chip" data-vip-filter="arrived" data-i18n="vip.filter_arrived">Sosiți</button>
+          <button class="chip" data-vip-filter="waiting" data-i18n="vip.filter_waiting">Nesosiți</button>
+        </div>
+
+        <div class="vip-grid" id="vipList"></div>
+        <div id="vipSentinel" style="height:1px;"></div>
       </section>
 
       <!-- TASKS -->
@@ -886,6 +943,78 @@
             <button type="submit" class="btn">Salvează</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- MODAL: Add VIP guest -->
+    <div class="modal-backdrop" id="modal-add-vip" data-modal-name="add-vip">
+      <div class="modal">
+        <h2 data-i18n="vip.add_title">Adaugă invitat VIP</h2>
+        <p class="sub-help" data-i18n="vip.add_sub">Completează detaliile invitatului.</p>
+        <div class="modal-msg" id="modal-add-vip-msg"></div>
+        <form id="form-add-vip">
+          <div class="form-row">
+            <div class="form-field">
+              <label data-i18n="vip.f_first">Prenume</label>
+              <input type="text" name="first_name" data-i18n-placeholder="vip.f_first_ph" placeholder="Andrei">
+            </div>
+            <div class="form-field">
+              <label data-i18n="vip.f_last">Nume</label>
+              <input type="text" name="last_name" data-i18n-placeholder="vip.f_last_ph" placeholder="Popescu">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label data-i18n="vip.f_company">Companie</label>
+              <input type="text" name="company" data-i18n-placeholder="vip.f_company_ph" placeholder="AutoLux SRL">
+            </div>
+            <div class="form-field">
+              <label data-i18n="vip.f_role">Funcție</label>
+              <input type="text" name="role" data-i18n-placeholder="vip.f_role_ph" placeholder="Director">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label data-i18n="vip.f_guests">Nr. invitați</label>
+              <input type="number" name="guests_count" min="1" value="1">
+            </div>
+            <div class="form-field">
+              <label data-i18n="vip.f_phone">Telefon</label>
+              <input type="tel" name="phone" placeholder="+40 7XX XXX XXX">
+            </div>
+          </div>
+          <div class="form-field">
+            <label data-i18n="vip.f_notes">Observații</label>
+            <textarea name="notes" rows="2" data-i18n-placeholder="vip.f_notes_ph" placeholder="Cerințe speciale, masă rezervată..."></textarea>
+          </div>
+          <div class="form-field">
+            <label data-i18n="modal.add_car.event">Eveniment</label>
+            <select name="event_id" data-populate="events">
+              <option value="" data-i18n="modal.add_car.event_none">— Fără eveniment —</option>
+            </select>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn ghost" data-close data-i18n="common.cancel">Anulează</button>
+            <button type="submit" class="btn" data-i18n="common.save">Salvează</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: VIP guest detail -->
+    <div class="modal-backdrop" id="modal-vip-detail" data-modal-name="vip-detail">
+      <div class="modal detail" role="dialog" aria-labelledby="vipDetailTitle">
+        <div class="detail-head">
+          <div style="flex:1;min-width:0;">
+            <h2 id="vipDetailTitle">—</h2>
+            <div class="detail-head-badges" id="vipDetailBadges"></div>
+          </div>
+          <button class="detail-close" data-close aria-label="Închide">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="detail-body" id="vipDetailBody"></div>
+        <div class="detail-actions" id="vipDetailActions"></div>
       </div>
     </div>
 
