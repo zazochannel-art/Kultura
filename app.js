@@ -4382,11 +4382,10 @@
     function vipSubtitle(v) {
       return [v.company, v.role].filter(Boolean).join(' · ');
     }
-    // Real party size = the VIP + the named companions actually added. Falls
-    // back to the manually entered guests_count when no companions are listed.
+    // Real party size = the VIP + the named accompanying people. Companions are
+    // the single source of truth (no separate manual guest count).
     function vipPartySize(v) {
-      const c = vipCompanions(v).length;
-      return c > 0 ? 1 + c : Math.max(1, v.guests_count || 1);
+      return 1 + vipCompanions(v).length;
     }
     function renderVipStats() {
       const all = activeVips();
@@ -4528,7 +4527,6 @@
       const rows = [];
       const sub = vipSubtitle(v);
       if (sub) rows.push(vipDetailRow(t('vip.company_role'), sub));
-      rows.push(vipDetailRow(t('vip.guests_count'), String(vipPartySize(v))));
       if (v.phone) rows.push(`<div class="vip-drow"><span class="vip-drow-l">${escape(t('vip.phone'))}</span><a class="vip-drow-v vip-phone" href="tel:${escape(v.phone)}">${escape(v.phone)}</a></div>`);
       if (v.arrived && v.arrived_at) rows.push(vipDetailRow(t('vip.arrived_at'), fmtRelative(v.arrived_at)));
       if (v.notes) rows.push(vipDetailRow(t('vip.notes'), v.notes));
@@ -4601,7 +4599,6 @@
         last_name: (fd.get('last_name') || '').trim(),
         company: (fd.get('company') || '').trim() || null,
         role: (fd.get('role') || '').trim() || null,
-        guests_count: Math.max(1, parseInt(fd.get('guests_count') || '1', 10) || 1),
         phone: (fd.get('phone') || '').trim() || null,
         notes: (fd.get('notes') || '').trim() || null,
         event_id: fd.get('event_id') ? Number(fd.get('event_id')) : null
