@@ -4382,11 +4382,6 @@
     function vipSubtitle(v) {
       return [v.company, v.role].filter(Boolean).join(' · ');
     }
-    // Real party size = the VIP + the named accompanying people. Companions are
-    // the single source of truth (no separate manual guest count).
-    function vipPartySize(v) {
-      return 1 + vipCompanions(v).length;
-    }
     function renderVipStats() {
       const all = activeVips();
       const total = all.length, arrived = all.filter(v => v.arrived).length;
@@ -4406,7 +4401,7 @@
             ${sub ? `<div class="vip-sub">${escape(sub)}</div>` : ''}
             <div class="vip-meta">
               <span class="vip-status ${arrived ? 'on' : 'off'}">${arrived ? '🟢' : '🔴'} ${escape(arrived ? t('vip.arrived_yes') : t('vip.arrived_no'))}</span>
-              ${vipPartySize(v) > 1 ? `<span class="vip-guests">👥 ${vipPartySize(v)}</span>` : ''}
+              ${vipCompanions(v).length > 0 ? `<span class="vip-guests">👥 ${vipCompanions(v).length}</span>` : ''}
             </div>
           </div>
           <button class="vip-arrive-btn ${arrived ? 'undo' : ''}" data-vip-arrive="${v.id}" type="button">
@@ -4492,8 +4487,8 @@
       return [c && c.first, c && c.last].filter(Boolean).join(' ').trim();
     }
     async function saveVipCompanions(id, arr) {
-      // Keep the stored guests_count truthful: VIP + named companions.
-      const count = 1 + arr.length;
+      // Stored count = number of accompanying people (matches the card badge).
+      const count = arr.length;
       applyLocalVipPatch(id, { companions: arr, guests_count: count }); // optimistic (re-renders detail)
       const { error } = await supa.from('vip_guests').update({ companions: arr, guests_count: count }).eq('id', id);
       if (error) showToast(t('common.error') + ': ' + error.message, 'error');
