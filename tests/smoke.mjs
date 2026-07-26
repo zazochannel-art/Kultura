@@ -71,6 +71,10 @@ try {
     announceBlock: !!document.getElementById('announceBlock'),
     platB: !!document.getElementById('gatePlateBtn'),
     zoneBoard: !!document.getElementById('zoneBoard'),
+    vipSection: !!document.getElementById('section-vip'),
+    vipList: !!document.getElementById('vipList'),
+    vipAddModal: !!document.getElementById('modal-add-vip'),
+    vipStat: !!document.getElementById('vipStatTotal'),
   }));
   Object.entries(els).forEach(([k, v]) => check('element:' + k, v));
 
