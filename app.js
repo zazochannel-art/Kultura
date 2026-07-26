@@ -4382,6 +4382,12 @@
     function vipSubtitle(v) {
       return [v.company, v.role].filter(Boolean).join(' · ');
     }
+    // Real party size = the VIP + the named companions actually added. Falls
+    // back to the manually entered guests_count when no companions are listed.
+    function vipPartySize(v) {
+      const c = vipCompanions(v).length;
+      return c > 0 ? 1 + c : Math.max(1, v.guests_count || 1);
+    }
     function renderVipStats() {
       const all = activeVips();
       const total = all.length, arrived = all.filter(v => v.arrived).length;
@@ -4401,7 +4407,7 @@
             ${sub ? `<div class="vip-sub">${escape(sub)}</div>` : ''}
             <div class="vip-meta">
               <span class="vip-status ${arrived ? 'on' : 'off'}">${arrived ? '🟢' : '🔴'} ${escape(arrived ? t('vip.arrived_yes') : t('vip.arrived_no'))}</span>
-              ${(v.guests_count || 1) > 1 ? `<span class="vip-guests">👥 ${v.guests_count}</span>` : ''}
+              ${vipPartySize(v) > 1 ? `<span class="vip-guests">👥 ${vipPartySize(v)}</span>` : ''}
             </div>
           </div>
           <button class="vip-arrive-btn ${arrived ? 'undo' : ''}" data-vip-arrive="${v.id}" type="button">
@@ -4487,8 +4493,10 @@
       return [c && c.first, c && c.last].filter(Boolean).join(' ').trim();
     }
     async function saveVipCompanions(id, arr) {
-      applyLocalVipPatch(id, { companions: arr }); // optimistic (re-renders detail)
-      const { error } = await supa.from('vip_guests').update({ companions: arr }).eq('id', id);
+      // Keep the stored guests_count truthful: VIP + named companions.
+      const count = 1 + arr.length;
+      applyLocalVipPatch(id, { companions: arr, guests_count: count }); // optimistic (re-renders detail)
+      const { error } = await supa.from('vip_guests').update({ companions: arr, guests_count: count }).eq('id', id);
       if (error) showToast(t('common.error') + ': ' + error.message, 'error');
     }
     function companionsSectionHTML(v) {
@@ -4520,7 +4528,7 @@
       const rows = [];
       const sub = vipSubtitle(v);
       if (sub) rows.push(vipDetailRow(t('vip.company_role'), sub));
-      rows.push(vipDetailRow(t('vip.guests_count'), String(v.guests_count || 1)));
+      rows.push(vipDetailRow(t('vip.guests_count'), String(vipPartySize(v))));
       if (v.phone) rows.push(`<div class="vip-drow"><span class="vip-drow-l">${escape(t('vip.phone'))}</span><a class="vip-drow-v vip-phone" href="tel:${escape(v.phone)}">${escape(v.phone)}</a></div>`);
       if (v.arrived && v.arrived_at) rows.push(vipDetailRow(t('vip.arrived_at'), fmtRelative(v.arrived_at)));
       if (v.notes) rows.push(vipDetailRow(t('vip.notes'), v.notes));
