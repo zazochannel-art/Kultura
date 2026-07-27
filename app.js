@@ -1912,11 +1912,11 @@
       return inFlightLoad;
     }
 
-    // ----- POLLING (safety net) -----
-    // Realtime (the kultura-live channel below) is the primary refresh
-    // trigger; this poll is only a fallback for missed events, so it runs
-    // every 20s instead of every second. Recursive setTimeout so a slow
-    // fetch cannot pile up follow-up ticks.
+    // ----- POLLING -----
+    // Realtime (the kultura-live channel below) is the primary refresh trigger.
+    // Poll interval set to 1s for near-instant refresh even if realtime lags.
+    // Recursive setTimeout so a slow fetch cannot pile up follow-up ticks;
+    // ticks are skipped while the tab is hidden, a save runs, or the user types.
     let pollTimer = null;
     let _pollBooted = false;
     function shouldSkipPoll() {
@@ -1934,10 +1934,11 @@
     }
     function _scheduleNextPoll() {
       if (!_pollBooted) return; // stopped
-      // Backoff on repeated errors: 20s → 40s → 80s (cap 2min). 20s when healthy.
+      // 1s when healthy; back off on repeated errors (2s → 4s → 8s … cap 2min)
+      // so a broken connection doesn't hammer the server.
       const delay = _consecutiveErrors === 0
-        ? 20000
-        : Math.min(120000, 20000 * Math.pow(2, _consecutiveErrors - 1));
+        ? 1000
+        : Math.min(120000, 2000 * Math.pow(2, _consecutiveErrors - 1));
       pollTimer = setTimeout(async () => {
         if (!_pollBooted) return;
         if (!shouldSkipPoll()) {
