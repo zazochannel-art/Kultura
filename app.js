@@ -4675,6 +4675,27 @@
         }
         applyRealtimeVip(payload);
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, (payload) => {
+        // Team announcements broadcast live to everyone (no 20s poll wait).
+        if (!state.announcements) state.announcements = [];
+        const { eventType, new: nu, old: ou } = payload;
+        if (eventType === 'DELETE') {
+          state.announcements = state.announcements.filter(a => String(a.id) !== String(ou?.id));
+        } else if (nu) {
+          const i = state.announcements.findIndex(a => String(a.id) === String(nu.id));
+          if (i >= 0) state.announcements[i] = nu; else state.announcements.unshift(nu);
+          if (eventType === 'INSERT') sendAppNotification(nu.title || 'Anunț nou', nu.body || '');
+        }
+        try { renderHomeAnnounce(); } catch (_) {}
+        try { renderAnnounceRecent(); } catch (_) {}
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ui_settings' }, () => {
+        // Shared config (parking map, zone capacities, departments) refreshes
+        // live for everyone when an admin changes it.
+        try { loadMap(); } catch (_) {}
+        try { loadZoneConfig(); } catch (_) {}
+        try { loadDepartments(); } catch (_) {}
+      })
       .subscribe((status) => {
         // On every (re)connect pull a fresh snapshot — changes that happened
         // while the socket was down would otherwise wait for the 20s poll.
