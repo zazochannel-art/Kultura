@@ -4608,6 +4608,86 @@
       await loadData();
       renderVip();
     });
+
+    // ----- Import VIP guests from an Excel/CSV file -----
+    // Flexible header matching (ro/en/ru). A single "name" column is split into
+    // first/last on the first space.
+    function mapVipRow(obj) {
+      const entries = Object.keys(obj).map(k => [String(k).trim().toLowerCase(), obj[k]]);
+      const keys = entries.map(e => e[0]);
+      // First matching column value for a predicate over the (lowercased) header.
+      const val = (pred) => {
+        for (const [k, v] of entries) {
+          if (pred(k) && v != null && String(v).trim() !== '') return String(v).trim();
+        }
+        return '';
+      };
+      const isFirstCol = (k) => k.includes('prenume') || k.includes('first') || k === 'имя';
+      const isNameCol  = (k) => k.includes('nume') || k.includes('name') || k.includes('famil') ||
+                                k.includes('surname') || k.includes('фамил') || k.includes('полное');
+      const hasFirstCol = keys.some(isFirstCol);
+      let first, last;
+      if (hasFirstCol) {
+        // Separate columns: "prenume" → first, a name column that isn't "prenume" → last.
+        first = val(isFirstCol);
+        last = val((k) => isNameCol(k) && !isFirstCol(k));
+      } else {
+        // Single name column (full name) → split on the first space.
+        const full = val((k) => isNameCol(k) || k === 'имя');
+        const parts = full.split(/\s+/);
+        first = parts.shift() || '';
+        last = parts.join(' ');
+      }
+      return {
+        first_name: first,
+        last_name: last,
+        company: val((k) => k.includes('compan') || k.includes('firm') || k.includes('компан')) || null,
+        role: val((k) => k.includes('func') || k.includes('role') || k.includes('должност')) || null,
+        phone: val((k) => k.includes('telefon') || k.includes('phone') || k === 'tel' || k.includes('телефон')) || null
+      };
+    }
+    async function importVipFromExcel(file) {
+      if (!file) return;
+      let rows;
+      try {
+        const XLSX = await ensureXLSX();
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        rows = json.map(mapVipRow).filter(r => r.first_name || r.last_name);
+      } catch (e) {
+        uiAlert(t('vip.import_err') + ' ' + (e.message || e));
+        return;
+      }
+      if (!rows.length) { uiAlert(t('vip.import_empty')); return; }
+      const ok = await uiConfirm(t('vip.import_confirm', { n: rows.length }));
+      if (!ok) return;
+      // Scope imported guests to the active event, when one is selected.
+      const ev = state.activeEventId ? Number(state.activeEventId) : null;
+      if (ev) rows.forEach(r => { r.event_id = ev; });
+      const BATCH = 100;
+      let done = 0;
+      try {
+        for (let i = 0; i < rows.length; i += BATCH) {
+          const { error } = await supa.from('vip_guests').insert(rows.slice(i, i + BATCH));
+          if (error) throw new Error(error.message);
+          done += Math.min(BATCH, rows.length - i);
+        }
+      } catch (e) {
+        uiAlert(t('common.error') + ': ' + (e.message || e));
+      }
+      await loadData();
+      renderVip();
+      if (done) showToast(t('vip.import_done', { n: done }));
+    }
+    el('vipImportBtn')?.addEventListener('click', () => el('vipImportInput')?.click());
+    el('vipImportInput')?.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = ''; // allow re-selecting the same file
+      importVipFromExcel(file);
+    });
+
     function applyRealtimeVip(payload) {
       if (!state.vips) state.vips = [];
       const { eventType, new: nu, old: ou } = payload;
