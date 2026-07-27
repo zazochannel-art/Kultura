@@ -1503,7 +1503,7 @@
 
     // ----- STATE for filters / search -----
     const state = {
-      cars: [], tasks: [], events: [], profiles: [], notifications: [], team: [], announcements: [], vips: [],
+      cars: [], tasks: [], events: [], profiles: [], notifications: [], team: [], announcements: [], vips: [], agenda: [],
       authUsers: null,
       carsFilter: 'all', carsSearch: '',
       vipFilter: 'all', vipSearch: '', vipShown: 60,
@@ -1563,6 +1563,8 @@
       try { renderMyTasks(); } catch (_) {}
       try { renderZones(); } catch (_) {}
       try { renderTeam(); } catch (_) {}
+      try { renderVip(); } catch (_) {}
+      try { renderAgenda(); } catch (_) {}
     }
 
     // Live badge flash on successful fetch
@@ -1651,6 +1653,7 @@
 
     const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at'];
     const VIP_FP_FIELDS   = ['id','first_name','last_name','company','role','guests_count','phone','arrived','arrived_at','event_id','companions','updated_at'];
+    const AGENDA_FP_FIELDS = ['id','event_id','title','at_time','notes','updated_at'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
     const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','cover_url','starts_at','days_left'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
@@ -1742,7 +1745,8 @@
             supa.from('events').select('*').order('id', { ascending: false }),
             supa.from('profiles').select('*'),
             supa.from('announcements').select('*').order('id', { ascending: false }).limit(20),
-            supa.from('vip_guests').select('*').order('id', { ascending: false })
+            supa.from('vip_guests').select('*').order('id', { ascending: false }),
+            supa.from('event_agenda').select('*').order('at_time', { ascending: true })
           ]);
 
           // Only overwrite each slice if the fetch succeeded; otherwise keep
@@ -1753,6 +1757,7 @@
           const nextProfiles = results[3].status === 'fulfilled' && !results[3].value.error ? (results[3].value.data || []) : null;
           const nextAnnounce = results[4] && results[4].status === 'fulfilled' && !results[4].value.error ? (results[4].value.data || []) : null;
           const nextVips     = results[5] && results[5].status === 'fulfilled' && !results[5].value.error ? (results[5].value.data || []) : null;
+          const nextAgenda   = results[6] && results[6].status === 'fulfilled' && !results[6].value.error ? (results[6].value.data || []) : null;
 
           if (nextCars     !== null) state.cars     = nextCars;
           if (nextTasks    !== null) state.tasks    = nextTasks;
@@ -1760,6 +1765,7 @@
           if (nextProfiles !== null) state.profiles = nextProfiles;
           if (nextAnnounce !== null) { state.announcements = nextAnnounce; try { renderHomeAnnounce(); renderAnnounceRecent(); } catch (_) {} }
           if (nextVips     !== null) state.vips     = nextVips;
+          if (nextAgenda   !== null) state.agenda   = nextAgenda;
 
           // Persist the car list so the offline gate check-in can look cars up
           // with no connection (the PWA shell is cached; the data is not).
@@ -1809,14 +1815,16 @@
             tasks:    makeFp(state.tasks,    TASK_FP_FIELDS),
             events:   makeFp(state.events,   EVENT_FP_FIELDS),
             profiles: makeFp(state.profiles, PROF_FP_FIELDS),
-            vips:     makeFp(state.vips,     VIP_FP_FIELDS)
+            vips:     makeFp(state.vips,     VIP_FP_FIELDS),
+            agenda:   makeFp(state.agenda,   AGENDA_FP_FIELDS)
           };
           const carsChanged   = newFp.cars     !== _fp.cars;
           const tasksChanged  = newFp.tasks    !== _fp.tasks;
           const eventsChanged = newFp.events   !== _fp.events;
           const profsChanged  = newFp.profiles !== _fp.profiles;
           const vipsChanged   = newFp.vips     !== _fp.vips;
-          const anyChanged    = carsChanged || tasksChanged || eventsChanged || profsChanged || vipsChanged;
+          const agendaChanged = newFp.agenda   !== _fp.agenda;
+          const anyChanged    = carsChanged || tasksChanged || eventsChanged || profsChanged || vipsChanged || agendaChanged;
 
           // Persist new fingerprints upfront so we don't accidentally re-render
           // the same state twice if a renderer synchronously triggers another poll.
@@ -1825,6 +1833,7 @@
           _fp.events   = newFp.events;
           _fp.profiles = newFp.profiles;
           _fp.vips     = newFp.vips;
+          _fp.agenda   = newFp.agenda;
 
           // If NOTHING changed, exit immediately. No DOM touched at all → zero
           // flicker, zero focus loss, zero scroll reset. This is the hot path
@@ -1878,6 +1887,9 @@
             if (vipsChanged) {
               try { renderVip(); } catch (_) {}
             }
+            if (agendaChanged || eventsChanged) {
+              try { renderAgenda(); } catch (_) {}
+            }
 
             // Live-refresh OPEN detail modals only if the underlying data
             // actually changed AND the user isn't typing inside them.
@@ -1912,11 +1924,11 @@
       return inFlightLoad;
     }
 
-    // ----- POLLING (safety net) -----
-    // Realtime (the kultura-live channel below) is the primary refresh
-    // trigger; this poll is only a fallback for missed events, so it runs
-    // every 20s instead of every second. Recursive setTimeout so a slow
-    // fetch cannot pile up follow-up ticks.
+    // ----- POLLING -----
+    // Realtime (the kultura-live channel below) is the primary refresh trigger.
+    // Poll interval set to 1s for near-instant refresh even if realtime lags.
+    // Recursive setTimeout so a slow fetch cannot pile up follow-up ticks;
+    // ticks are skipped while the tab is hidden, a save runs, or the user types.
     let pollTimer = null;
     let _pollBooted = false;
     function shouldSkipPoll() {
@@ -1934,10 +1946,11 @@
     }
     function _scheduleNextPoll() {
       if (!_pollBooted) return; // stopped
-      // Backoff on repeated errors: 20s → 40s → 80s (cap 2min). 20s when healthy.
+      // 1s when healthy; back off on repeated errors (2s → 4s → 8s … cap 2min)
+      // so a broken connection doesn't hammer the server.
       const delay = _consecutiveErrors === 0
-        ? 20000
-        : Math.min(120000, 20000 * Math.pow(2, _consecutiveErrors - 1));
+        ? 1000
+        : Math.min(120000, 2000 * Math.pow(2, _consecutiveErrors - 1));
       pollTimer = setTimeout(async () => {
         if (!_pollBooted) return;
         if (!shouldSkipPoll()) {
@@ -4475,6 +4488,29 @@
       }
       showToast(arrived ? t('vip.toast_arrived', { name: vipFullName(v) }) : t('vip.toast_undo', { name: vipFullName(v) }));
     }
+    // WhatsApp + Call buttons for a VIP guest (uses the phone field).
+    function vipContactButtons(v) {
+      const phone = normalizePhone(v.phone);
+      if (!phone) return '';
+      const name = vipFullName(v);
+      const ev = (state.events || []).find(e => String(e.id) === String(v.event_id));
+      const parts = [`Bună${name && name !== t('vip.unnamed') ? ' ' + name : ''}!`];
+      if (ev?.title) parts.push(`Vă așteptăm la ${ev.title}.`);
+      const msg = encodeURIComponent(parts.join(' '));
+      const wa = `https://wa.me/${phone}?text=${msg}`;
+      const tel = `tel:+${phone}`;
+      return `
+        <div class="vip-contact">
+          <a class="btn ghost contact-wa" href="${wa}" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm5.8 14.01c-.24.68-1.42 1.31-1.96 1.35-.5.05-.96.23-3.23-.67-2.73-1.08-4.45-3.88-4.58-4.06-.13-.18-1.1-1.46-1.1-2.79 0-1.33.7-1.98.94-2.25.24-.27.53-.34.7-.34.18 0 .35 0 .5.01.16.01.38-.06.59.45.24.58.81 2 .88 2.14.07.14.12.31.02.49-.09.18-.14.29-.28.45-.14.16-.29.36-.42.48-.14.14-.28.29-.12.56.16.27.71 1.17 1.53 1.9 1.05.94 1.94 1.23 2.21 1.37.27.14.43.12.59-.07.16-.18.68-.79.86-1.07.18-.27.36-.22.6-.13.24.09 1.55.73 1.81.86.27.14.44.2.5.31.07.11.07.63-.17 1.31z"/></svg>
+            WhatsApp
+          </a>
+          <a class="btn ghost" href="${tel}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            ${escape(t('car.contact.call'))}
+          </a>
+        </div>`;
+    }
     function vipDetailRow(label, value) {
       return `<div class="vip-drow"><span class="vip-drow-l">${escape(label)}</span><span class="vip-drow-v">${escape(value)}</span></div>`;
     }
@@ -4525,7 +4561,7 @@
       if (v.phone) rows.push(`<div class="vip-drow"><span class="vip-drow-l">${escape(t('vip.phone'))}</span><a class="vip-drow-v vip-phone" href="tel:${escape(v.phone)}">${escape(v.phone)}</a></div>`);
       if (v.arrived && v.arrived_at) rows.push(vipDetailRow(t('vip.arrived_at'), fmtRelative(v.arrived_at)));
       if (v.notes) rows.push(vipDetailRow(t('vip.notes'), v.notes));
-      el('vipDetailBody').innerHTML = rows.join('') + companionsSectionHTML(v);
+      el('vipDetailBody').innerHTML = rows.join('') + vipContactButtons(v) + companionsSectionHTML(v);
       el('vipDetailActions').innerHTML =
         `<button class="btn vip-detail-toggle ${v.arrived ? 'ghost' : ''}" data-vip-arrive="${v.id}" type="button">${v.arrived ? '↩ ' + escape(t('vip.undo')) : '✔ ' + escape(t('vip.mark_arrived'))}</button>`;
       // Wire the companions editor (elements are rebuilt on every open).
@@ -4607,6 +4643,86 @@
       await loadData();
       renderVip();
     });
+
+    // ----- Import VIP guests from an Excel/CSV file -----
+    // Flexible header matching (ro/en/ru). A single "name" column is split into
+    // first/last on the first space.
+    function mapVipRow(obj) {
+      const entries = Object.keys(obj).map(k => [String(k).trim().toLowerCase(), obj[k]]);
+      const keys = entries.map(e => e[0]);
+      // First matching column value for a predicate over the (lowercased) header.
+      const val = (pred) => {
+        for (const [k, v] of entries) {
+          if (pred(k) && v != null && String(v).trim() !== '') return String(v).trim();
+        }
+        return '';
+      };
+      const isFirstCol = (k) => k.includes('prenume') || k.includes('first') || k === 'имя';
+      const isNameCol  = (k) => k.includes('nume') || k.includes('name') || k.includes('famil') ||
+                                k.includes('surname') || k.includes('фамил') || k.includes('полное');
+      const hasFirstCol = keys.some(isFirstCol);
+      let first, last;
+      if (hasFirstCol) {
+        // Separate columns: "prenume" → first, a name column that isn't "prenume" → last.
+        first = val(isFirstCol);
+        last = val((k) => isNameCol(k) && !isFirstCol(k));
+      } else {
+        // Single name column (full name) → split on the first space.
+        const full = val((k) => isNameCol(k) || k === 'имя');
+        const parts = full.split(/\s+/);
+        first = parts.shift() || '';
+        last = parts.join(' ');
+      }
+      return {
+        first_name: first,
+        last_name: last,
+        company: val((k) => k.includes('compan') || k.includes('firm') || k.includes('компан')) || null,
+        role: val((k) => k.includes('func') || k.includes('role') || k.includes('должност')) || null,
+        phone: val((k) => k.includes('telefon') || k.includes('phone') || k === 'tel' || k.includes('телефон')) || null
+      };
+    }
+    async function importVipFromExcel(file) {
+      if (!file) return;
+      let rows;
+      try {
+        const XLSX = await ensureXLSX();
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        rows = json.map(mapVipRow).filter(r => r.first_name || r.last_name);
+      } catch (e) {
+        uiAlert(t('vip.import_err') + ' ' + (e.message || e));
+        return;
+      }
+      if (!rows.length) { uiAlert(t('vip.import_empty')); return; }
+      const ok = await uiConfirm(t('vip.import_confirm', { n: rows.length }));
+      if (!ok) return;
+      // Scope imported guests to the active event, when one is selected.
+      const ev = state.activeEventId ? Number(state.activeEventId) : null;
+      if (ev) rows.forEach(r => { r.event_id = ev; });
+      const BATCH = 100;
+      let done = 0;
+      try {
+        for (let i = 0; i < rows.length; i += BATCH) {
+          const { error } = await supa.from('vip_guests').insert(rows.slice(i, i + BATCH));
+          if (error) throw new Error(error.message);
+          done += Math.min(BATCH, rows.length - i);
+        }
+      } catch (e) {
+        uiAlert(t('common.error') + ': ' + (e.message || e));
+      }
+      await loadData();
+      renderVip();
+      if (done) showToast(t('vip.import_done', { n: done }));
+    }
+    el('vipImportBtn')?.addEventListener('click', () => el('vipImportInput')?.click());
+    el('vipImportInput')?.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = ''; // allow re-selecting the same file
+      importVipFromExcel(file);
+    });
+
     function applyRealtimeVip(payload) {
       if (!state.vips) state.vips = [];
       const { eventType, new: nu, old: ou } = payload;
@@ -4623,6 +4739,99 @@
         const dm = document.getElementById('modal-vip-detail');
         if (openVipDetailId != null && dm?.classList.contains('show')) { try { showVipDetail(openVipDetailId); } catch (_) {} }
       });
+    }
+
+    // ================= EVENT AGENDA (program) =================
+    let _agendaAdding = false;
+    const _agendaNotified = new Set();
+    function nowHHMM() {
+      const d = new Date();
+      return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    }
+    function activeAgenda() {
+      return (state.agenda || []).filter(matchesActiveEvent)
+        .slice().sort((a, b) => String(a.at_time || '').localeCompare(String(b.at_time || '')));
+    }
+    function renderAgenda() {
+      const block = el('agendaBlock'); if (!block) return;
+      const list = el('agendaList'); if (!list) return;
+      const staff = roleAtLeast('staff');
+      const addBtn = el('agendaAddBtn'); if (addBtn) addBtn.hidden = !staff;
+      const items = activeAgenda();
+      block.hidden = !items.length && !staff && !_agendaAdding;
+      const now = nowHHMM();
+      let currentIdx = -1;
+      items.forEach((a, i) => { if ((a.at_time || '') <= now) currentIdx = i; });
+      let html = items.map((a, i) => {
+        const past = (a.at_time || '') < now;
+        const cls = i === currentIdx ? 'current' : (past ? 'past' : 'upcoming');
+        return `<div class="agenda-item ${cls}" data-agenda-id="${a.id}">
+            <div class="agenda-time">${escape(a.at_time || '—')}</div>
+            <div class="agenda-dot"></div>
+            <div class="agenda-body"><div class="agenda-t">${escape(a.title)}</div>${a.notes ? `<div class="agenda-n">${escape(a.notes)}</div>` : ''}</div>
+            ${staff ? `<button class="agenda-del" data-agenda-del="${a.id}" type="button" aria-label="${escape(t('common.delete'))}">&times;</button>` : ''}
+          </div>`;
+      }).join('');
+      if (_agendaAdding && staff) {
+        html += `<div class="agenda-add-row">
+            <input type="time" id="agendaTime" class="agenda-time-input">
+            <input type="text" id="agendaTitle" class="agenda-title-input" placeholder="${escape(t('agenda.title_ph'))}">
+            <button class="btn small" id="agendaSaveBtn" type="button">${escape(t('common.save'))}</button>
+            <button class="btn small ghost" id="agendaCancelBtn" type="button">${escape(t('common.cancel'))}</button>
+          </div>`;
+      }
+      if (!html) html = `<div class="agenda-empty">${escape(t('agenda.empty'))}</div>`;
+      list.innerHTML = html;
+      if (_agendaAdding && staff) { const ti = el('agendaTime'); if (ti) ti.focus(); }
+    }
+    async function addAgendaItem(time, title) {
+      title = (title || '').trim();
+      if (!title) { const inp = el('agendaTitle'); if (inp) inp.focus(); return; }
+      const ev = state.activeEventId ? Number(state.activeEventId) : null;
+      const { error } = await supa.from('event_agenda').insert({ event_id: ev, at_time: time || '', title });
+      if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
+      _agendaAdding = false;
+      await loadData();
+      renderAgenda();
+    }
+    async function deleteAgendaItem(id) {
+      const ok = await uiConfirm(t('agenda.del_confirm'));
+      if (!ok) return;
+      const { error } = await supa.from('event_agenda').delete().eq('id', id);
+      if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
+      await loadData();
+      renderAgenda();
+    }
+    el('agendaAddBtn')?.addEventListener('click', () => { _agendaAdding = true; renderAgenda(); });
+    el('agendaList')?.addEventListener('click', (e) => {
+      const del = e.target.closest('[data-agenda-del]');
+      if (del) { deleteAgendaItem(del.dataset.agendaDel); return; }
+      if (e.target.closest('#agendaSaveBtn')) { addAgendaItem(el('agendaTime')?.value, el('agendaTitle')?.value); return; }
+      if (e.target.closest('#agendaCancelBtn')) { _agendaAdding = false; renderAgenda(); return; }
+    });
+    el('agendaList')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.target.id === 'agendaTitle') { e.preventDefault(); addAgendaItem(el('agendaTime')?.value, el('agendaTitle')?.value); }
+    });
+    // Fire an in-app notification when an agenda stage begins (while app is open).
+    function checkAgendaNotifications() {
+      const now = nowHHMM();
+      activeAgenda().forEach(a => {
+        if ((a.at_time || '') === now && !_agendaNotified.has(a.id)) {
+          _agendaNotified.add(a.id);
+          try { sendAppNotification(t('agenda.now'), a.title); } catch (_) {}
+        }
+      });
+    }
+    setInterval(() => { try { checkAgendaNotifications(); } catch (_) {} }, 30000);
+    // Re-render each minute so past/current highlighting stays accurate.
+    setInterval(() => { if (!_agendaAdding) { try { renderAgenda(); } catch (_) {} } }, 60000);
+    function applyRealtimeAgenda(payload) {
+      if (!state.agenda) state.agenda = [];
+      const { eventType, new: nu, old: ou } = payload;
+      if (eventType === 'DELETE') state.agenda = state.agenda.filter(a => String(a.id) !== String(ou?.id));
+      else if (nu) { const i = state.agenda.findIndex(a => String(a.id) === String(nu.id)); if (i >= 0) state.agenda[i] = nu; else state.agenda.push(nu); }
+      _fp.agenda = makeFp(state.agenda, AGENDA_FP_FIELDS);
+      if (!_agendaAdding) { try { renderAgenda(); } catch (_) {} }
     }
 
     // Realtime — reload when anyone changes the tables
@@ -4674,6 +4883,30 @@
           sendAppNotification('Invitat VIP sosit', `${[payload.new.first_name, payload.new.last_name].filter(Boolean).join(' ')} a sosit.`);
         }
         applyRealtimeVip(payload);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, (payload) => {
+        // Team announcements broadcast live to everyone (no 20s poll wait).
+        if (!state.announcements) state.announcements = [];
+        const { eventType, new: nu, old: ou } = payload;
+        if (eventType === 'DELETE') {
+          state.announcements = state.announcements.filter(a => String(a.id) !== String(ou?.id));
+        } else if (nu) {
+          const i = state.announcements.findIndex(a => String(a.id) === String(nu.id));
+          if (i >= 0) state.announcements[i] = nu; else state.announcements.unshift(nu);
+          if (eventType === 'INSERT') sendAppNotification(nu.title || 'Anunț nou', nu.body || '');
+        }
+        try { renderHomeAnnounce(); } catch (_) {}
+        try { renderAnnounceRecent(); } catch (_) {}
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ui_settings' }, () => {
+        // Shared config (parking map, zone capacities, departments) refreshes
+        // live for everyone when an admin changes it.
+        try { loadMap(); } catch (_) {}
+        try { loadZoneConfig(); } catch (_) {}
+        try { loadDepartments(); } catch (_) {}
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_agenda' }, (payload) => {
+        applyRealtimeAgenda(payload);
       })
       .subscribe((status) => {
         // On every (re)connect pull a fresh snapshot — changes that happened
