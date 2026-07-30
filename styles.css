@@ -3688,3 +3688,37 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
   border-radius: 10px; color: var(--text); font-family: inherit; font-size: 14px; outline: none;
 }
 .agenda-add-row input:focus { border-color: var(--accent); }
+
+/* ========== PUBLIC REGISTRATION APPROVAL QUEUE (#2) ========== */
+.reg-queue {
+  background: linear-gradient(180deg, rgba(6,182,212,0.10), rgba(139,92,246,0.06));
+  border: 1px solid rgba(6,182,212,0.30); border-radius: 18px;
+  padding: 14px 16px; margin: 0 0 14px;
+}
+.reg-head { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.reg-count { background: var(--accent); color: #fff; font-size: 12px; font-weight: 800; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; }
+.reg-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+.reg-item:first-of-type { border-top: none; }
+.reg-main { flex: 1; min-width: 0; }
+.reg-name { font-size: 14.5px; font-weight: 700; }
+.reg-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reg-note { font-size: 12px; color: var(--text-mute); margin-top: 3px; }
+.reg-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+@media (max-width: 480px) { .reg-item { flex-direction: column; align-items: stretch; } .reg-actions { justify-content: flex-end; } }
+
+/* Role badge — gate */
+.role-badge.gate { background: rgba(6,182,212,0.16); color: var(--accent); }
+
+/* ========== GATE-ONLY ROLE LOCK (#7) ========== */
+.gate-logout { display: none; }
+.gate-locked .tabs,
+.gate-locked .mobile-tabs,
+.gate-locked main.content,
+.gate-locked .logo-hero { display: none !important; }
+.gate-locked .gate-close { display: none; }
+.gate-locked .gate-logout {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 12px; border: none; cursor: pointer;
+  background: rgba(239,68,68,0.15); color: var(--red);
+}
+.gate-logout svg { width: 20px; height: 20px; }
