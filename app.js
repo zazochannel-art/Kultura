@@ -765,15 +765,17 @@
       const buf = await file.arrayBuffer();
       const pdf = await pdfjs.getDocument({ data: buf }).promise;
       const page = await pdf.getPage(1);
-      const scale = Math.min(3, 2400 / page.getViewport({ scale: 1 }).width);
-      const viewport = page.getViewport({ scale: Math.max(1, scale) });
+      // Render the PDF page at up to 4096px wide for a crisp map.
+      const scale = Math.min(4, 4096 / page.getViewport({ scale: 1 }).width);
+      const viewport = page.getViewport({ scale: Math.max(1.5, scale) });
       const canvas = document.createElement('canvas');
       canvas.width = viewport.width; canvas.height = viewport.height;
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
       await page.render({ canvasContext: ctx, viewport }).promise;
       st.style.display = 'none';
-      return canvas.toDataURL('image/jpeg', 0.9);
+      // PNG keeps vector-PDF lines/text perfectly sharp (no double JPEG loss).
+      return canvas.toDataURL('image/png');
     }
 
     el('mapFileInput').addEventListener('change', async (e) => {
@@ -798,9 +800,10 @@
       status.style.color = 'var(--text-dim)';
       status.textContent = t('map.uploading');
       try {
-        const path = `zone-map-${Date.now()}.jpg`;
+        const ext = blob.type === 'image/png' ? 'png' : 'jpg';
+        const path = `zone-map-${Date.now()}.${ext}`;
         const { error: upErr } = await supa.storage.from('maps')
-          .upload(path, blob, { contentType: 'image/jpeg' });
+          .upload(path, blob, { contentType: blob.type || 'image/jpeg' });
         if (upErr) throw upErr;
         const url = supa.storage.from('maps').getPublicUrl(path).data.publicUrl;
         const prev = _mapUrl;
@@ -890,13 +893,20 @@
       const scale = c.natW / c.dispW; // display px → natural px
       const sxp = c.box.x * scale, syp = c.box.y * scale;
       const swp = c.box.w * scale, shp = c.box.h * scale;
-      // Downscale the cropped region so the longest side is <=2400px.
-      const out = Math.min(1, 2400 / Math.max(swp, shp));
+      // Downscale the cropped region only if bigger than 4096px on the long side
+      // (keeps map lines/text crisp; small enough to stay under storage limits).
+      const out = Math.min(1, 4096 / Math.max(swp, shp));
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(swp * out);
       canvas.height = Math.round(shp * out);
-      canvas.getContext('2d').drawImage(el('cropImage'), sxp, syp, swp, shp, 0, 0, canvas.width, canvas.height);
-      const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85));
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(el('cropImage'), sxp, syp, swp, shp, 0, 0, canvas.width, canvas.height);
+      // PNG = lossless: parking maps (lines/text) stay perfectly sharp, even
+      // when zoomed. JPEG fallback only if PNG somehow fails.
+      let blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+      if (!blob) blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
       closeModal(el('modal-map-crop'));
       if (blob) uploadMapBlob(blob);
     });
