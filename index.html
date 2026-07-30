@@ -416,6 +416,7 @@
             <span data-i18n="cars.add">Adaugă</span>
           </button>
         </div>
+        <div class="reg-queue" id="regQueue" hidden></div>
         <div class="chips" id="carsChips"></div>
         <div id="carsList"></div>
       </section>
@@ -843,6 +844,7 @@
             <label data-i18n="settings.profile.role">Rol</label>
             <select id="profileRoleSelect">
               <option value="member" data-i18n="role.member">Membru</option>
+              <option value="gate" data-i18n="role.gate">Poartă (scaner)</option>
               <option value="staff" data-i18n="role.staff">Personal</option>
               <option value="admin" data-i18n="role.admin">Administrator</option>
             </select>
@@ -1193,6 +1195,9 @@
       <div class="gate-head">
         <button class="gate-close" id="gateCloseBtn" aria-label="Închide">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <button class="gate-logout" id="gateLogoutBtn" aria-label="Ieși din cont" title="Ieși din cont">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         </button>
         <div class="gate-title">
           <h2 data-i18n="gate.title">Poartă — Check-in</h2>

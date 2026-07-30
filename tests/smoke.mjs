@@ -75,6 +75,9 @@ try {
     vipList: !!document.getElementById('vipList'),
     vipAddModal: !!document.getElementById('modal-add-vip'),
     vipStat: !!document.getElementById('vipStatTotal'),
+    regQueue: !!document.getElementById('regQueue'),
+    gateLogout: !!document.getElementById('gateLogoutBtn'),
+    agendaBlock: !!document.getElementById('agendaBlock'),
   }));
   Object.entries(els).forEach(([k, v]) => check('element:' + k, v));
 

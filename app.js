@@ -921,9 +921,10 @@
       showToast(t('map.deleted'));
     });
 
-    document.querySelectorAll('#logoutBtn, #headerLogoutBtn').forEach(btn => {
+    document.querySelectorAll('#logoutBtn, #headerLogoutBtn, #gateLogoutBtn').forEach(btn => {
       btn.addEventListener('click', async () => {
         await supa.auth.signOut();
+        document.body.classList.remove('gate-locked');
         leaveApp();
       });
     });
@@ -1513,7 +1514,7 @@
 
     // ----- STATE for filters / search -----
     const state = {
-      cars: [], tasks: [], events: [], profiles: [], notifications: [], team: [], announcements: [], vips: [], agenda: [],
+      cars: [], tasks: [], events: [], profiles: [], notifications: [], team: [], announcements: [], vips: [], agenda: [], registrations: [],
       authUsers: null,
       carsFilter: 'all', carsSearch: '',
       vipFilter: 'all', vipSearch: '', vipShown: 60,
@@ -1591,7 +1592,7 @@
     // Reads from state.profiles — returns false until profiles are loaded,
     // which is the safe default (non-admin UI). Never trusts a hardcoded email.
     // ----- ROLES: member < staff < admin -----
-    const ROLE_RANK = { member: 0, staff: 1, admin: 2 };
+    const ROLE_RANK = { gate: 0, member: 0, staff: 1, admin: 2 };
     function currentProfile() {
       if (!currentUser || !currentUser.email) return null;
       const email = currentUser.email.toLowerCase();
@@ -1628,6 +1629,8 @@
       document.querySelectorAll('.add-btn[data-modal], #aiImportBtn').forEach(b => {
         b.style.display = staff ? '' : 'none';
       });
+      try { renderRegQueue(); } catch (_) {}
+      try { applyGateLock(); } catch (_) {}
     }
 
     // ------------ INVISIBLE POLLING PIPELINE ------------
@@ -1664,6 +1667,7 @@
     const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at'];
     const VIP_FP_FIELDS   = ['id','first_name','last_name','company','role','guests_count','phone','arrived','arrived_at','event_id','companions','updated_at'];
     const AGENDA_FP_FIELDS = ['id','event_id','title','at_time','notes','updated_at'];
+    const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','email','city','category','status','created_at'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
     const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','cover_url','starts_at','days_left'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
@@ -1756,7 +1760,8 @@
             supa.from('profiles').select('*'),
             supa.from('announcements').select('*').order('id', { ascending: false }).limit(20),
             supa.from('vip_guests').select('*').order('id', { ascending: false }),
-            supa.from('event_agenda').select('*').order('at_time', { ascending: true })
+            supa.from('event_agenda').select('*').order('at_time', { ascending: true }),
+            supa.from('car_registrations').select('*').eq('status', 'pending').order('id', { ascending: false })
           ]);
 
           // Only overwrite each slice if the fetch succeeded; otherwise keep
@@ -1768,6 +1773,7 @@
           const nextAnnounce = results[4] && results[4].status === 'fulfilled' && !results[4].value.error ? (results[4].value.data || []) : null;
           const nextVips     = results[5] && results[5].status === 'fulfilled' && !results[5].value.error ? (results[5].value.data || []) : null;
           const nextAgenda   = results[6] && results[6].status === 'fulfilled' && !results[6].value.error ? (results[6].value.data || []) : null;
+          const nextRegs     = results[7] && results[7].status === 'fulfilled' && !results[7].value.error ? (results[7].value.data || []) : null;
 
           if (nextCars     !== null) state.cars     = nextCars;
           if (nextTasks    !== null) state.tasks    = nextTasks;
@@ -1776,6 +1782,7 @@
           if (nextAnnounce !== null) { state.announcements = nextAnnounce; try { renderHomeAnnounce(); renderAnnounceRecent(); } catch (_) {} }
           if (nextVips     !== null) state.vips     = nextVips;
           if (nextAgenda   !== null) state.agenda   = nextAgenda;
+          if (nextRegs     !== null) state.registrations = nextRegs;
 
           // Persist the car list so the offline gate check-in can look cars up
           // with no connection (the PWA shell is cached; the data is not).
@@ -1826,7 +1833,8 @@
             events:   makeFp(state.events,   EVENT_FP_FIELDS),
             profiles: makeFp(state.profiles, PROF_FP_FIELDS),
             vips:     makeFp(state.vips,     VIP_FP_FIELDS),
-            agenda:   makeFp(state.agenda,   AGENDA_FP_FIELDS)
+            agenda:   makeFp(state.agenda,   AGENDA_FP_FIELDS),
+            regs:     makeFp(state.registrations, REG_FP_FIELDS)
           };
           const carsChanged   = newFp.cars     !== _fp.cars;
           const tasksChanged  = newFp.tasks    !== _fp.tasks;
@@ -1834,7 +1842,8 @@
           const profsChanged  = newFp.profiles !== _fp.profiles;
           const vipsChanged   = newFp.vips     !== _fp.vips;
           const agendaChanged = newFp.agenda   !== _fp.agenda;
-          const anyChanged    = carsChanged || tasksChanged || eventsChanged || profsChanged || vipsChanged || agendaChanged;
+          const regsChanged   = newFp.regs     !== _fp.regs;
+          const anyChanged    = carsChanged || tasksChanged || eventsChanged || profsChanged || vipsChanged || agendaChanged || regsChanged;
 
           // Persist new fingerprints upfront so we don't accidentally re-render
           // the same state twice if a renderer synchronously triggers another poll.
@@ -1844,6 +1853,7 @@
           _fp.profiles = newFp.profiles;
           _fp.vips     = newFp.vips;
           _fp.agenda   = newFp.agenda;
+          _fp.regs     = newFp.regs;
 
           // If NOTHING changed, exit immediately. No DOM touched at all → zero
           // flicker, zero focus loss, zero scroll reset. This is the hot path
@@ -1899,6 +1909,9 @@
             }
             if (agendaChanged || eventsChanged) {
               try { renderAgenda(); } catch (_) {}
+            }
+            if (regsChanged) {
+              try { renderRegQueue(); } catch (_) {}
             }
 
             // Live-refresh OPEN detail modals only if the underlying data
@@ -2204,6 +2217,7 @@
     function closeGate() {
       const ov = el('gateOverlay');
       if (!ov) return;
+      if (isGateRole()) { stopGateScanner(); return; } // gate accounts stay locked here
       stopGateScanner();
       ov.classList.remove('show');
       ov.setAttribute('aria-hidden', 'true');
@@ -3249,7 +3263,7 @@
           name: name,
           email: p.email,
           role: p.department ? localizeDept(p.department) : 'Member',
-          sysRole: (p.role && ['admin','staff','member'].includes(p.role)) ? p.role : (p.is_admin ? 'admin' : 'member'),
+          sysRole: (p.role && ['admin','staff','member','gate'].includes(p.role)) ? p.role : (p.is_admin ? 'admin' : 'member'),
           avatar: p.avatar_url || null
         });
       });
@@ -3293,7 +3307,9 @@
           ? `<span class="role-badge admin">${escape(t('role.admin'))}</span>`
           : m.sysRole === 'staff'
             ? `<span class="role-badge staff">${escape(t('role.staff'))}</span>`
-            : '';
+            : m.sysRole === 'gate'
+              ? `<span class="role-badge gate">${escape(t('role.gate'))}</span>`
+              : '';
         return `
           <div class="team-card" ${attrs}>
             <div class="team-avatar"${m.avatar ? '' : ` style="${avatarBg(m.name)}"`}>${m.avatar ? `<img src="${escape(m.avatar)}" alt="" loading="lazy">` : escape(twoInitials(m.name))}</div>
@@ -4844,6 +4860,87 @@
       if (!_agendaAdding) { try { renderAgenda(); } catch (_) {} }
     }
 
+    // ============ PUBLIC REGISTRATION APPROVAL QUEUE (#2) ============
+    function renderRegQueue() {
+      const box = el('regQueue'); if (!box) return;
+      const staff = roleAtLeast('staff');
+      const regs = (state.registrations || []).filter(r => r.status === 'pending');
+      if (!staff || !regs.length) { box.hidden = true; box.innerHTML = ''; return; }
+      box.hidden = false;
+      box.innerHTML = `<div class="reg-head">${escape(t('reg.title'))} <span class="reg-count">${regs.length}</span></div>` +
+        regs.map(r => {
+          const name = [r.brand, r.model].filter(Boolean).join(' ') || '—';
+          const sub = [r.owner, r.plate, r.phone].filter(Boolean).join(' · ');
+          return `<div class="reg-item" data-reg-id="${r.id}">
+              <div class="reg-main">
+                <div class="reg-name">${escape(name)}</div>
+                ${sub ? `<div class="reg-sub">${escape(sub)}</div>` : ''}
+                ${r.note ? `<div class="reg-note">${escape(r.note)}</div>` : ''}
+              </div>
+              <div class="reg-actions">
+                <button class="btn small" data-reg-approve="${r.id}" type="button">${escape(t('reg.approve'))}</button>
+                <button class="btn small ghost" data-reg-reject="${r.id}" type="button">${escape(t('reg.reject'))}</button>
+              </div>
+            </div>`;
+        }).join('');
+    }
+    async function approveRegistration(id) {
+      const r = (state.registrations || []).find(x => String(x.id) === String(id));
+      if (!r) return;
+      const car = {
+        brand: r.brand || null, model: r.model || '', plate: r.plate || null, owner: r.owner || null,
+        phone: r.phone || null, email: r.email || null, city: r.city || null, category: r.category || null,
+        additional_notes: r.note || null, status: 'Invitat', status_color: '#3B82F6',
+        event_id: r.event_id || (state.activeEventId ? Number(state.activeEventId) : null)
+      };
+      const { error } = await supa.from('cars').insert(car);
+      if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
+      await supa.from('car_registrations').delete().eq('id', id);
+      state.registrations = (state.registrations || []).filter(x => String(x.id) !== String(id));
+      await loadData();
+      renderRegQueue();
+      showToast(t('reg.approved', { name: [r.brand, r.model].filter(Boolean).join(' ') || r.owner || '' }));
+    }
+    async function rejectRegistration(id) {
+      if (!(await uiConfirm(t('reg.reject_confirm')))) return;
+      const { error } = await supa.from('car_registrations').delete().eq('id', id);
+      if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
+      state.registrations = (state.registrations || []).filter(x => String(x.id) !== String(id));
+      renderRegQueue();
+    }
+    el('regQueue')?.addEventListener('click', (e) => {
+      const a = e.target.closest('[data-reg-approve]'); if (a) { approveRegistration(a.dataset.regApprove); return; }
+      const rj = e.target.closest('[data-reg-reject]'); if (rj) { rejectRegistration(rj.dataset.regReject); return; }
+    });
+    function applyRealtimeReg(payload) {
+      if (!state.registrations) state.registrations = [];
+      const { eventType, new: nu, old: ou } = payload;
+      if (eventType === 'DELETE') {
+        state.registrations = state.registrations.filter(r => String(r.id) !== String(ou?.id));
+      } else if (nu) {
+        if (nu.status !== 'pending') {
+          state.registrations = state.registrations.filter(r => String(r.id) !== String(nu.id));
+        } else {
+          const i = state.registrations.findIndex(r => String(r.id) === String(nu.id));
+          if (i >= 0) state.registrations[i] = nu; else state.registrations.unshift(nu);
+          if (eventType === 'INSERT') { try { sendAppNotification(t('reg.new'), [nu.brand, nu.model].filter(Boolean).join(' ')); } catch (_) {} }
+        }
+      }
+      _fp.regs = makeFp(state.registrations, REG_FP_FIELDS);
+      try { renderRegQueue(); } catch (_) {}
+    }
+
+    // ============ GATE-ONLY ROLE (#7) ============
+    // A 'gate' account is locked to the door check-in screen (a volunteer scanner).
+    function isGateRole() { return currentRole() === 'gate'; }
+    function applyGateLock() {
+      const locked = isGateRole();
+      document.body.classList.toggle('gate-locked', locked);
+      if (locked && !el('gateOverlay')?.classList.contains('show')) {
+        try { openGate(); } catch (_) {}
+      }
+    }
+
     // Realtime — reload when anyone changes the tables
     supa.channel('kultura-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cars' }, (payload) => {
@@ -4917,6 +5014,9 @@
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_agenda' }, (payload) => {
         applyRealtimeAgenda(payload);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'car_registrations' }, (payload) => {
+        applyRealtimeReg(payload);
       })
       .subscribe((status) => {
         // On every (re)connect pull a fresh snapshot — changes that happened
