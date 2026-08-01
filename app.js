@@ -1894,6 +1894,7 @@
               try { renderCarsChips(); } catch (_) {}
               try { renderCars(); } catch (_) {}
               try { renderZones(); } catch (_) {}   // zone panel depends on cars
+              try { renderVip(); } catch (_) {}      // cars appear as participants in the VIP list
               // Keep the gate's live free-spots strip / list fresh if it's open.
               if (el('gateOverlay')?.classList.contains('show')) {
                 try { renderGateZones(); } catch (_) {}
@@ -4376,6 +4377,7 @@
         try { renderCarsChips(); } catch (_) {}
         try { renderCars(); } catch (_) {}
         try { renderZones(); } catch (_) {}
+        try { renderVip(); } catch (_) {}
         if (el('gateOverlay')?.classList.contains('show')) {
           try { renderGateZones(); } catch (_) {}
           try { renderGate(); } catch (_) {}
@@ -4427,28 +4429,61 @@
       return [v.company, v.role].filter(Boolean).join(' · ');
     }
     function renderVipStats() {
-      const all = activeVips();
+      const all = vipEntries();
       const total = all.length, arrived = all.filter(v => v.arrived).length;
       const set = (id, val) => { const n = el(id); if (n && n.textContent !== String(val)) n.textContent = val; };
       set('vipStatTotal', total); set('vipStatArrived', arrived); set('vipStatWaiting', total - arrived);
       set('vipHeadTotal', total); set('vipHeadArrived', arrived);
     }
-    function vipCardHTML(v) {
-      const name = vipFullName(v);
-      const sub = vipSubtitle(v);
-      const arrived = !!v.arrived;
+    // The VIP list shows two kinds of people: manually-added VIP guests and the
+    // participants from the cars list. Both are normalised to the same shape so
+    // one card renderer / one filter / one sort covers both. `kind` drives the
+    // badge and the arrive/detail actions.
+    function vipEntries() {
+      const out = [];
+      for (const v of activeVips()) {
+        out.push({
+          kind: 'vip', id: v.id, key: 'vip-' + v.id,
+          name: vipFullName(v), sub: vipSubtitle(v),
+          arrived: !!v.arrived, guests: vipCompanions(v).length,
+          search: [v.first_name, v.last_name, v.company].filter(Boolean).join(' ').toLowerCase()
+        });
+      }
+      for (const c of activeCars()) {
+        const carName = [c.brand, c.model].filter(Boolean).join(' ');
+        const name = (c.owner || '').trim() || carName || (c.plate || '').trim() || t('vip.unnamed');
+        // Sub-line: whatever identifies the car that isn't already the name.
+        const subParts = [];
+        if ((c.owner || '').trim() && carName) subParts.push(carName);
+        if ((c.plate || '').trim()) subParts.push(c.plate.trim());
+        out.push({
+          kind: 'car', id: c.id, key: 'car-' + c.id,
+          name, sub: subParts.join(' · '),
+          arrived: statusKey(c.status) === 'sosit', guests: 0,
+          search: [c.owner, c.brand, c.model, c.plate].filter(Boolean).join(' ').toLowerCase()
+        });
+      }
+      return out;
+    }
+    function vipCardHTML(e) {
+      const name = e.name;
+      const arrived = !!e.arrived;
+      const isCar = e.kind === 'car';
+      const badgeLabel = isCar ? t('vip.badge_participant') : t('vip.badge_vip');
+      const arriveAttr = isCar ? `data-car-arrive="${e.id}"` : `data-vip-arrive="${e.id}"`;
+      const idAttr = isCar ? `data-car-id="${e.id}"` : `data-vip-id="${e.id}"`;
       return `
-        <article class="vip-card ${arrived ? 'arrived' : ''}" data-vip-id="${v.id}">
+        <article class="vip-card ${arrived ? 'arrived' : ''}" ${idAttr}>
           <div class="vip-av" style="${avatarBg(name)}">${escape(twoInitials(name))}</div>
           <div class="vip-main">
-            <div class="vip-name">${escape(name)}</div>
-            ${sub ? `<div class="vip-sub">${escape(sub)}</div>` : ''}
+            <div class="vip-nrow"><span class="vip-name">${escape(name)}</span><span class="vip-badge ${isCar ? 'participant' : 'vip'}">${escape(badgeLabel)}</span></div>
+            ${e.sub ? `<div class="vip-sub">${escape(e.sub)}</div>` : ''}
             <div class="vip-meta">
               <span class="vip-status ${arrived ? 'on' : 'off'}">${arrived ? '🟢' : '🔴'} ${escape(arrived ? t('vip.arrived_yes') : t('vip.arrived_no'))}</span>
-              ${vipCompanions(v).length > 0 ? `<span class="vip-guests">👥 ${vipCompanions(v).length}</span>` : ''}
+              ${e.guests > 0 ? `<span class="vip-guests">👥 ${e.guests}</span>` : ''}
             </div>
           </div>
-          ${roleAtLeast('staff') ? `<button class="vip-arrive-btn ${arrived ? 'undo' : ''}" data-vip-arrive="${v.id}" type="button">
+          ${roleAtLeast('staff') ? `<button class="vip-arrive-btn ${arrived ? 'undo' : ''}" ${arriveAttr} type="button">
             ${arrived ? '↩ ' + escape(t('vip.undo')) : '✔ ' + escape(t('vip.mark_arrived'))}
           </button>` : ''}
         </article>`;
@@ -4472,14 +4507,14 @@
       renderVipStats();
       const q = (state.vipSearch || '').trim().toLowerCase();
       const f = state.vipFilter || 'all';
-      let rows = activeVips().filter(v => {
-        if (f === 'arrived' && !v.arrived) return false;
-        if (f === 'waiting' && v.arrived) return false;
+      let rows = vipEntries().filter(e => {
+        if (f === 'arrived' && !e.arrived) return false;
+        if (f === 'waiting' && e.arrived) return false;
         if (!q) return true;
-        return [v.first_name, v.last_name, v.company].filter(Boolean).join(' ').toLowerCase().includes(q);
+        return e.search.includes(q);
       });
-      // Alphabetical by full name (Romanian collation, case-insensitive).
-      rows.sort((a, b) => vipFullName(a).localeCompare(vipFullName(b), 'ro', { sensitivity: 'base' }));
+      // Alphabetical by name (Romanian collation, case-insensitive).
+      rows.sort((a, b) => a.name.localeCompare(b.name, 'ro', { sensitivity: 'base' }));
       _vipFilteredCount = rows.length;
       if (!rows.length) {
         list.innerHTML = `<div class="vip-empty">${escape((q || f !== 'all') ? t('vip.none_match') : t('vip.none'))}</div>`;
@@ -4518,6 +4553,23 @@
         return;
       }
       showToast(arrived ? t('vip.toast_arrived', { name: vipFullName(v) }) : t('vip.toast_undo', { name: vipFullName(v) }));
+    }
+    // Arrive toggle for a participant (car) shown in the VIP list. Uses the same
+    // offline-safe outbox path as the gate, then refreshes the VIP list.
+    function toggleCarArrivedFromVip(id) {
+      const car = (state.cars || []).find(c => String(c.id) === String(id));
+      if (!car) return;
+      const arrived = statusKey(car.status) === 'sosit';
+      const patch = arrived
+        ? { status: 'Invitat', status_color: '#3B82F6' }
+        : { status: 'Sosit', status_color: '#10B981' };
+      applyLocalCarPatch(id, patch);
+      enqueueAction({ type: 'car-update', carId: id, patch });
+      flushOutbox();
+      if (!arrived) { haptic(120); try { auroraPulse(); } catch (_) {} }
+      try { renderVip(); } catch (_) {}
+      const name = (car.owner || '').trim() || [car.brand, car.model].filter(Boolean).join(' ') || car.plate || '';
+      showToast(!arrived ? t('vip.toast_arrived', { name }) : t('vip.toast_undo', { name }));
     }
     // WhatsApp + Call buttons for a VIP guest (uses the phone field).
     function vipContactButtons(v) {
@@ -4635,8 +4687,12 @@
     el('vipList')?.addEventListener('click', (e) => {
       const ab = e.target.closest('[data-vip-arrive]');
       if (ab) { e.stopPropagation(); toggleVipArrived(ab.dataset.vipArrive); return; }
-      const card = e.target.closest('[data-vip-id]');
-      if (card) showVipDetail(card.dataset.vipId);
+      const cab = e.target.closest('[data-car-arrive]');
+      if (cab) { e.stopPropagation(); toggleCarArrivedFromVip(cab.dataset.carArrive); return; }
+      const vcard = e.target.closest('[data-vip-id]');
+      if (vcard) { showVipDetail(vcard.dataset.vipId); return; }
+      const ccard = e.target.closest('[data-car-id]');
+      if (ccard) showCarDetail(ccard.dataset.carId);
     });
     el('vipDetailActions')?.addEventListener('click', (e) => {
       const ab = e.target.closest('[data-vip-arrive]');
