@@ -1625,8 +1625,8 @@
       if (arrBtn) arrBtn.style.display = staff ? '' : 'none';
       const gateBtn = el('gateOpenBtn');
       if (gateBtn) gateBtn.style.display = staff ? '' : 'none';
-      // Add buttons (cars/events/tasks) are for staff and admins only.
-      document.querySelectorAll('.add-btn[data-modal], #aiImportBtn').forEach(b => {
+      // Add / import buttons (cars/events/tasks/VIP) are for staff and admins only.
+      document.querySelectorAll('.add-btn[data-modal], #aiImportBtn, #vipImportBtn').forEach(b => {
         b.style.display = staff ? '' : 'none';
       });
       try { renderRegQueue(); } catch (_) {}
@@ -1854,6 +1854,11 @@
           _fp.vips     = newFp.vips;
           _fp.agenda   = newFp.agenda;
           _fp.regs     = newFp.regs;
+
+          // Enforce the gate-only role lock on every load — profiles may already
+          // match the cached fingerprint (profsChanged=false), so this can't live
+          // only inside applyAdminUI/the profsChanged branch.
+          try { applyGateLock(); } catch (_) {}
 
           // If NOTHING changed, exit immediately. No DOM touched at all → zero
           // flicker, zero focus loss, zero scroll reset. This is the hot path
@@ -4443,9 +4448,9 @@
               ${vipCompanions(v).length > 0 ? `<span class="vip-guests">👥 ${vipCompanions(v).length}</span>` : ''}
             </div>
           </div>
-          <button class="vip-arrive-btn ${arrived ? 'undo' : ''}" data-vip-arrive="${v.id}" type="button">
+          ${roleAtLeast('staff') ? `<button class="vip-arrive-btn ${arrived ? 'undo' : ''}" data-vip-arrive="${v.id}" type="button">
             ${arrived ? '↩ ' + escape(t('vip.undo')) : '✔ ' + escape(t('vip.mark_arrived'))}
-          </button>
+          </button>` : ''}
         </article>`;
     }
     function ensureVipObserver() {
@@ -4557,20 +4562,21 @@
     }
     function companionsSectionHTML(v) {
       const list = vipCompanions(v);
+      const staff = roleAtLeast('staff');
       const items = list.map((c, i) => `
         <div class="vip-comp-row">
           <span class="vip-comp-nm">${escape(companionName(c) || t('vip.unnamed'))}</span>
-          <button class="vip-comp-del" data-vip-comp-del="${i}" type="button" aria-label="${escape(t('common.delete'))}">&times;</button>
+          ${staff ? `<button class="vip-comp-del" data-vip-comp-del="${i}" type="button" aria-label="${escape(t('common.delete'))}">&times;</button>` : ''}
         </div>`).join('');
       return `
         <div class="vip-comp">
           <div class="vip-comp-h">${escape(t('vip.companions'))}${list.length ? ` (${list.length})` : ''}</div>
           <div class="vip-comp-list">${items || `<div class="vip-comp-empty">${escape(t('vip.companions_empty'))}</div>`}</div>
-          <div class="vip-comp-add">
+          ${staff ? `<div class="vip-comp-add">
             <input type="text" id="vipCompFirst" placeholder="${escape(t('vip.f_first'))}">
             <input type="text" id="vipCompLast" placeholder="${escape(t('vip.f_last'))}">
             <button class="btn small" id="vipCompAddBtn" type="button">${escape(t('vip.companions_add'))}</button>
-          </div>
+          </div>` : ''}
         </div>`;
     }
     function showVipDetail(id) {
@@ -4588,8 +4594,9 @@
       if (v.arrived && v.arrived_at) rows.push(vipDetailRow(t('vip.arrived_at'), fmtRelative(v.arrived_at)));
       if (v.notes) rows.push(vipDetailRow(t('vip.notes'), v.notes));
       el('vipDetailBody').innerHTML = rows.join('') + vipContactButtons(v) + companionsSectionHTML(v);
-      el('vipDetailActions').innerHTML =
-        `<button class="btn vip-detail-toggle ${v.arrived ? 'ghost' : ''}" data-vip-arrive="${v.id}" type="button">${v.arrived ? '↩ ' + escape(t('vip.undo')) : '✔ ' + escape(t('vip.mark_arrived'))}</button>`;
+      el('vipDetailActions').innerHTML = roleAtLeast('staff')
+        ? `<button class="btn vip-detail-toggle ${v.arrived ? 'ghost' : ''}" data-vip-arrive="${v.id}" type="button">${v.arrived ? '↩ ' + escape(t('vip.undo')) : '✔ ' + escape(t('vip.mark_arrived'))}</button>`
+        : '';
       // Wire the companions editor (elements are rebuilt on every open).
       const addBtn = el('vipCompAddBtn');
       if (addBtn) {
@@ -6061,6 +6068,12 @@
       el('carDetailBody').querySelectorAll('[data-photo-view]').forEach((img, i) => {
         img.onclick = () => openLightbox(photos, i);
       });
+
+      // Members are viewers: hide the inline edit affordances (zone/notes/photos).
+      if (!roleAtLeast('staff')) {
+        ['carEditZoneBtn', 'carEditNotesBtn', 'carPhotoAddBtn'].forEach(id => { const b = el(id); if (b) b.style.display = 'none'; });
+        el('carDetailBody').querySelectorAll('[data-photo-del]').forEach(b => { b.style.display = 'none'; });
+      }
 
       openModal('car-detail');
     }
