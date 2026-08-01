@@ -3892,10 +3892,26 @@
             - email (string)
             - brand (string - manufacturer, e.g. "BMW", "Audi", "Toyota")
             - city (string)
+            - year (number - manufacturing year, e.g. 2005, 2018; digits only)
+            - category (string - car category/class, e.g. "Stance", "JDM", "Retro", "Super Cars", "Modern")
+            - telegram (string - Telegram username/handle, may start with "@")
+            - modifications (string - technical details / modifications / tuning)
+            - responsible_person (string - organizer or person in charge)
+            - transport_info (string - transport / trailer / platform info)
+            - social_links (string - social media links or handles: Instagram, Facebook, TikTok)
+            - event (string - event name if mentioned)
 
             COLUMN / LABEL HINTS — recognize these headers in the source:
             - Plate column labels: "placă", "placa", "placuță", "placuta", "nr. înmatriculare", "nr inmatriculare", "număr de înmatriculare", "matriculă", "matricula", "plate", "license plate", "reg. no", "номер"
             - Phone column labels: "telefon", "nr. telefon", "număr de telefon", "contact", "phone", "mobile", "gsm", "тел", "телефон"
+            - Year column labels: "an", "an fabricație", "an fabricatie", "anul", "year", "год", "год выпуска"
+            - Category column labels: "categorie", "categoria", "clasă", "clasa", "category", "class", "класс", "категория"
+            - Telegram column labels: "telegram", "тг", "@username"
+            - Modifications column labels: "modificări", "modificari", "detalii tehnice", "tuning", "modifications", "модификации", "тюнинг"
+            - Responsible person labels: "responsabil", "persoană responsabilă", "persoana responsabila", "organizare", "organizator", "responsible", "organizer", "ответственный"
+            - Transport labels: "transport", "platformă", "platforma", "remorcă", "remorca", "trailer", "platform", "транспорт"
+            - Social links labels: "rețele sociale", "retele sociale", "social", "instagram", "facebook", "tiktok", "соцсети"
+            - Email column labels: "email", "e-mail", "mail", "почта"
             - If the source has TABULAR data (Excel/CSV rows), match values to columns by header. Do NOT mix a phone column into the plate field.
 
             PLATE FORMATS to look for (short alphanumeric, mixing letters + digits, usually 5-9 chars):
@@ -4040,6 +4056,18 @@
           const dupChip = car._dup
             ? `<span style="background: rgba(245,158,11,0.18); color: var(--orange); padding: 2px 6px; border-radius: 4px; font-weight: 700;">DUBLURĂ — se sare</span>`
             : '';
+          // Extra fields detected, shown so the user can confirm they came through.
+          const extras = [];
+          if (car.year) extras.push('An: ' + escape(String(car.year)));
+          if (car.category) extras.push('Cat: ' + escape(car.category));
+          if (car.telegram) extras.push('TG: ' + escape(car.telegram));
+          if (car.modifications) extras.push('Modif.');
+          if (car.responsible_person) extras.push('Resp: ' + escape(car.responsible_person));
+          if (car.transport_info) extras.push('Transport');
+          if (car.social_links) extras.push('Social');
+          const extrasLine = extras.length
+            ? `<div style="color: var(--text-mute); font-size: 10px; margin-top: 3px;">${extras.join(' · ')}</div>`
+            : '';
           return `
             <div style="padding: 10px; border-bottom: 1px solid rgba(59,130,246,0.2); font-size: 12px; display: flex; align-items: center; gap: 8px; ${car._dup ? 'opacity: 0.55;' : ''}">
               <div style="width: 6px; height: 6px; border-radius: 50%; background: ${car._dup ? 'var(--orange)' : 'var(--blue)'}; flex-shrink: 0;"></div>
@@ -4051,6 +4079,7 @@
                   ${phoneChip}
                   ${dupChip}
                 </div>
+                ${extrasLine}
               </div>
             </div>
           `;
@@ -4097,6 +4126,18 @@
         // Map AI output onto uniform, whitelisted rows: a stray key invented
         // by the model would otherwise reject a whole batch ("column not
         // found"), and NOT NULL columns need string fallbacks.
+        // Resolve an event name from the file to an event_id; fall back to the
+        // currently-selected active event so imported cars land in the right one.
+        const resolveEventId = (name) => {
+          const n = String(name || '').trim().toLowerCase();
+          if (n) {
+            const m = (state.events || []).find(e =>
+              String(e.title || e.name || '').trim().toLowerCase() === n);
+            if (m) return m.id;
+          }
+          return state.activeEventId ? Number(state.activeEventId) : null;
+        };
+        const toYear = (v) => { const y = parseInt(String(v).replace(/\D/g, ''), 10); return Number.isFinite(y) && y > 1800 && y < 2200 ? y : null; };
         const rows = fresh.map(c => ({
           model: c.model || '',
           owner: c.owner || '',
@@ -4109,6 +4150,14 @@
           email: c.email || null,
           brand: c.brand || null,
           city: c.city || null,
+          year: toYear(c.year),
+          category: (c.category || '').trim() || null,
+          telegram: (c.telegram || '').trim() || null,
+          modifications: (c.modifications || '').trim() || null,
+          responsible_person: (c.responsible_person || '').trim() || null,
+          transport_info: (c.transport_info || '').trim() || null,
+          social_links: (c.social_links || '').trim() || null,
+          event_id: resolveEventId(c.event),
           contact: c.contact || c.phone || null
         }));
         // Bulk insert in batches instead of one request per row — far fewer
