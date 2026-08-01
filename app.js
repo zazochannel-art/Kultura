@@ -1413,7 +1413,12 @@
       if (msg) { msg.className = 'modal-msg show'; msg.style.color = 'var(--text-dim)'; msg.textContent = t('sheetsync.running'); }
       try {
         const { data, error } = await supa.functions.invoke('import-participants', { body: {} });
-        if (error) throw new Error(error.message || 'invoke failed');
+        if (error) {
+          // A non-2xx response carries the real reason in error.context (a Response).
+          let body = null;
+          try { body = await error.context.json(); } catch (_) {}
+          throw new Error(body?.note || body?.error || error.message || 'invoke failed');
+        }
         if (data && data.error) throw new Error(data.note || data.error);
         if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('sheetsync.done', { n: data?.inserted ?? 0, s: data?.skipped ?? 0 }); }
         await loadData();
