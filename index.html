@@ -694,6 +694,27 @@
           </div>
         </div>
 
+        <div class="setting-block" id="sheetSyncBlock" style="display:none;">
+          <div class="setting-label" data-i18n="sheetsync.label">IMPORT AUTOMAT</div>
+          <div class="setting-row" style="align-items:flex-start;">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+            </div>
+            <div class="txt" style="flex:1;">
+              <strong data-i18n="sheetsync.title">Sincronizare din Google Sheets</strong>
+              <span data-i18n="sheetsync.sub">Lipește linkul CSV publicat (Fișier → Partajează → Publică pe web → CSV). Participanții se adaugă automat la fiecare câteva minute, fără dubluri.</span>
+              <div class="announce-compose">
+                <input type="url" id="sheetSyncUrl" data-i18n-placeholder="sheetsync.url_ph" placeholder="https://docs.google.com/.../pub?output=csv">
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button type="button" class="btn small" id="sheetSyncSaveBtn" data-i18n="sheetsync.save">Salvează</button>
+                  <button type="button" class="btn ghost small" id="sheetSyncNowBtn" data-i18n="sheetsync.now">Sincronizează acum</button>
+                </div>
+                <div class="modal-msg" id="sheetSyncMsg" style="margin-top:6px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="setting-block" id="announceBlock" style="display:none;">
           <div class="setting-label" data-i18n="announce.label">ANUNȚURI</div>
           <div class="setting-row" style="align-items:flex-start;">

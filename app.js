@@ -392,12 +392,10 @@
         clearTimeout(selectSection._t);
         selectSection._t = setTimeout(() => activeSection.classList.remove('just-switched'), 650);
       }
-      // The active-event picker lives only on the Home page.
-      const picker = document.querySelector('.event-picker');
-      if (picker) picker.style.display = (name === 'home') ? 'inline-flex' : 'none';
       // Scroll top of content when switching sections on mobile
       window.scrollTo({ top: 0, behavior: 'smooth' });
       if (name === 'map') loadMap();
+      if (name === 'settings') { try { loadSheetSyncUrl(); } catch (_) {} }
     }
     document.querySelectorAll('.tab, .mtab').forEach(t => {
       t.addEventListener('click', () => selectSection(t.dataset.section));
@@ -1385,6 +1383,46 @@
       }
     });
 
+    // ----- Google Sheets auto-sync (admin) -----
+    // The saved CSV link lives in ui_settings; a pg_cron job pulls it every few
+    // minutes. This just lets an admin set the link and trigger a sync on demand.
+    async function loadSheetSyncUrl() {
+      const inp = el('sheetSyncUrl');
+      if (!inp) return;
+      try {
+        const { data } = await supa.from('ui_settings').select('value').eq('key', 'cars_sheet_csv_url').maybeSingle();
+        if (document.activeElement !== inp) inp.value = data?.value || '';
+      } catch (_) {}
+    }
+    el('sheetSyncSaveBtn')?.addEventListener('click', async () => {
+      const inp = el('sheetSyncUrl'), msg = el('sheetSyncMsg');
+      const url = (inp?.value || '').trim();
+      const { error } = await supa.from('ui_settings').upsert(
+        { key: 'cars_sheet_csv_url', value: url, updated_at: new Date().toISOString() },
+        { onConflict: 'key' }
+      );
+      if (msg) {
+        msg.className = 'modal-msg show';
+        msg.style.color = error ? 'var(--red)' : 'var(--green)';
+        msg.textContent = error ? (t('common.error') + ': ' + error.message) : t('sheetsync.saved');
+      }
+    });
+    el('sheetSyncNowBtn')?.addEventListener('click', async () => {
+      const msg = el('sheetSyncMsg'), btn = el('sheetSyncNowBtn');
+      if (btn) btn.disabled = true;
+      if (msg) { msg.className = 'modal-msg show'; msg.style.color = 'var(--text-dim)'; msg.textContent = t('sheetsync.running'); }
+      try {
+        const { data, error } = await supa.functions.invoke('import-participants', { body: {} });
+        if (error) throw new Error(error.message || 'invoke failed');
+        if (data && data.error) throw new Error(data.note || data.error);
+        if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('sheetsync.done', { n: data?.inserted ?? 0, s: data?.skipped ?? 0 }); }
+        await loadData();
+        try { renderVip(); } catch (_) {}
+      } catch (e) {
+        if (msg) { msg.style.color = 'var(--red)'; msg.textContent = t('common.error') + ': ' + (e.message || e); }
+      } finally { if (btn) btn.disabled = false; }
+    });
+
     // ----- TASK ACTIONS CORE -----
     async function apiTaskTake(taskId) {
       if (!currentUser) { uiAlert('Trebuie să fii autentificat.'); return false; }
@@ -1637,6 +1675,8 @@
       if (dz) dz.style.display = admin ? 'block' : 'none';
       const deptBlock = el('deptSettingsBlock');
       if (deptBlock) deptBlock.style.display = admin ? 'block' : 'none';
+      const sheetBlock = el('sheetSyncBlock');
+      if (sheetBlock) sheetBlock.style.display = admin ? 'block' : 'none';
       const annBlock = el('announceBlock');
       if (annBlock) annBlock.style.display = staff ? 'block' : 'none';
       const arrBtn = el('zoneArrangeBtn');
