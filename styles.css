@@ -3573,7 +3573,15 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
   font-weight: 800; font-size: 16px; color: #fff;
 }
 .vip-main { flex: 1; min-width: 0; }
-.vip-name { font-size: 15.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vip-nrow { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.vip-name { font-size: 15.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.vip-badge {
+  flex: 0 0 auto; font-size: 9.5px; font-weight: 800;
+  letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px;
+  line-height: 1.4;
+}
+.vip-badge.vip { color: #C084FC; background: rgba(168,85,247,.16); border: 1px solid rgba(168,85,247,.34); }
+.vip-badge.participant { color: #38BDF8; background: rgba(56,189,248,.14); border: 1px solid rgba(56,189,248,.32); }
 .vip-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vip-meta { display: flex; align-items: center; gap: 10px; margin-top: 7px; flex-wrap: wrap; }
 .vip-status { font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
