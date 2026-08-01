@@ -4517,15 +4517,15 @@
         });
       }
       for (const c of activeCars()) {
-        const carName = [c.brand, c.model].filter(Boolean).join(' ');
-        const name = (c.owner || '').trim() || carName || (c.plate || '').trim() || t('vip.unnamed');
-        // Sub-line: whatever identifies the car that isn't already the name.
-        const subParts = [];
-        if ((c.owner || '').trim() && carName) subParts.push(carName);
-        if ((c.plate || '').trim()) subParts.push(c.plate.trim());
+        // The participant is shown by the OWNER's name — never by the car.
+        // Fall back to the plate only when there is no owner, so the card is
+        // never blank.
+        const name = (c.owner || '').trim() || (c.plate || '').trim() || t('vip.unnamed');
+        // Sub-line kept minimal: just the plate for identification at the gate.
+        const sub = (c.owner || '').trim() && (c.plate || '').trim() ? c.plate.trim() : '';
         out.push({
           kind: 'car', id: c.id, key: 'car-' + c.id,
-          name, sub: subParts.join(' · '),
+          name, sub,
           arrived: statusKey(c.status) === 'sosit', guests: 0,
           search: [c.owner, c.brand, c.model, c.plate].filter(Boolean).join(' ').toLowerCase()
         });
