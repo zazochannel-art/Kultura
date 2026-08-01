@@ -931,11 +931,10 @@
 
     el('avatarBadge').addEventListener('click', () => selectSection('settings'));
 
-    // Active-event picker: scope cars/tasks/stats to the chosen event.
-    el('activeEventSelect').addEventListener('change', (e) => {
+    // Event filtering removed — the active-event picker no longer exists in the
+    // UI. Guarded in case an old cached shell still has the element.
+    el('activeEventSelect')?.addEventListener('change', (e) => {
       state.activeEventId = e.target.value || '';
-      if (state.activeEventId) localStorage.setItem('kultura_active_event', state.activeEventId);
-      else localStorage.removeItem('kultura_active_event');
       applyActiveEvent();
     });
 
@@ -1540,18 +1539,21 @@
       tasksPreset: localStorage.getItem('kultura_tasks_preset') || 'all',
       eventsFilter: 'all', eventsSearch: '',
       teamSearch: '',
-      activeEventId: localStorage.getItem('kultura_active_event') || ''
+      // Event filtering removed — always empty so nothing is scoped to an event.
+      activeEventId: ''
     };
+    try { localStorage.removeItem('kultura_active_event'); } catch (_) {}
 
     // ----- ACTIVE EVENT FILTER -----
     // When an event is selected in the header, cars/tasks/stats are scoped to
     // it. Empty string = all events. Rows with no event_id are "unassigned" and
     // stay visible under any active event, so imported data that predates events
     // never silently disappears from the lists.
-    function matchesActiveEvent(row) {
-      if (!state.activeEventId) return true;
-      if (row.event_id == null || row.event_id === '') return true;
-      return String(row.event_id) === String(state.activeEventId);
+    // Event filtering was removed — every list shows all records regardless of
+    // which event they belong to. Kept as a pass-through so existing callers
+    // (activeCars/activeTasks/activeVips/agenda) keep working unchanged.
+    function matchesActiveEvent(_row) {
+      return true;
     }
     function activeCars()  { return (state.cars  || []).filter(matchesActiveEvent); }
     function activeTasks() { return (state.tasks || []).filter(matchesActiveEvent); }
@@ -4515,15 +4517,15 @@
         });
       }
       for (const c of activeCars()) {
-        const carName = [c.brand, c.model].filter(Boolean).join(' ');
-        const name = (c.owner || '').trim() || carName || (c.plate || '').trim() || t('vip.unnamed');
-        // Sub-line: whatever identifies the car that isn't already the name.
-        const subParts = [];
-        if ((c.owner || '').trim() && carName) subParts.push(carName);
-        if ((c.plate || '').trim()) subParts.push(c.plate.trim());
+        // The participant is shown by the OWNER's name — never by the car.
+        // Fall back to the plate only when there is no owner, so the card is
+        // never blank.
+        const name = (c.owner || '').trim() || (c.plate || '').trim() || t('vip.unnamed');
+        // Sub-line kept minimal: just the plate for identification at the gate.
+        const sub = (c.owner || '').trim() && (c.plate || '').trim() ? c.plate.trim() : '';
         out.push({
           kind: 'car', id: c.id, key: 'car-' + c.id,
-          name, sub: subParts.join(' · '),
+          name, sub,
           arrived: statusKey(c.status) === 'sosit', guests: 0,
           search: [c.owner, c.brand, c.model, c.plate].filter(Boolean).join(' ').toLowerCase()
         });
