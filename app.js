@@ -1370,6 +1370,22 @@
       }
     });
 
+    el('deleteAllVipsBtn')?.addEventListener('click', async () => {
+      if (!await uiConfirm(t('settings.confirm_delete_all_vips'))) return;
+      try {
+        const { error } = await supa.from('vip_guests').delete().neq('id', 0);
+        if (error) {
+          uiAlert(t('common.error') + ': ' + error.message);
+        } else {
+          uiAlert(t('settings.deleted_all_vips'));
+          await loadData();
+          try { renderVip(); } catch (_) {}
+        }
+      } catch (err) {
+        uiAlert(t('common.error') + ': ' + err.message);
+      }
+    });
+
     // ----- TASK ACTIONS CORE -----
     async function apiTaskTake(taskId) {
       if (!currentUser) { uiAlert('Trebuie să fii autentificat.'); return false; }
