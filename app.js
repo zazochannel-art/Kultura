@@ -4209,7 +4209,7 @@
           zone: c.zone || '',
           status: c.status || 'Invitat',
           status_color: c.status_color || '#3B82F6',
-          is_vip: c.is_vip === true,
+          is_vip: false, // importul nu marchează mașini ca VIP
           phone: c.phone || c.contact || null,
           email: c.email || null,
           brand: c.brand || null,
