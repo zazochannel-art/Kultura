@@ -3965,17 +3965,22 @@
             - social_links (string - social media links or handles: Instagram, Facebook, TikTok)
             - event (string - event name if mentioned)
 
-            COLUMN / LABEL HINTS — recognize these headers in the source:
-            - Plate column labels: "placă", "placa", "placuță", "placuta", "nr. înmatriculare", "nr inmatriculare", "număr de înmatriculare", "matriculă", "matricula", "plate", "license plate", "reg. no", "номер"
-            - Phone column labels: "telefon", "nr. telefon", "număr de telefon", "contact", "phone", "mobile", "gsm", "тел", "телефон"
-            - Year column labels: "an", "an fabricație", "an fabricatie", "anul", "year", "год", "год выпуска"
-            - Category column labels: "categorie", "categoria", "clasă", "clasa", "category", "class", "класс", "категория"
-            - Telegram column labels: "telegram", "тг", "@username"
-            - Modifications column labels: "modificări", "modificari", "detalii tehnice", "tuning", "modifications", "модификации", "тюнинг"
-            - Responsible person labels: "responsabil", "persoană responsabilă", "persoana responsabila", "organizare", "organizator", "responsible", "organizer", "ответственный"
-            - Transport labels: "transport", "platformă", "platforma", "remorcă", "remorca", "trailer", "platform", "транспорт"
-            - Social links labels: "rețele sociale", "retele sociale", "social", "instagram", "facebook", "tiktok", "соцсети"
-            - Email column labels: "email", "e-mail", "mail", "почта"
+            COLUMN / LABEL HINTS — recognize these headers in the source. Headers may be in Romanian, English OR RUSSIAN (Cyrillic). Match case-insensitively and ignore punctuation.
+            - Plate column labels: "placă", "placa", "placuță", "placuta", "nr. înmatriculare", "nr inmatriculare", "număr de înmatriculare", "matriculă", "matricula", "plate", "license plate", "reg. no", | RUSSIAN: "номерной знак", "номерной", "гос номер", "гос. номер", "госномер", "номер авто", "номер машины", "рег номер", "рег. номер", "номер" (a Russian plate header like "номерной знак" ALWAYS maps to plate, never to phone)
+            - Phone column labels: "telefon", "nr. telefon", "număr de telefon", "contact", "phone", "mobile", "gsm", | RUSSIAN: "телефон", "номер телефона", "тел", "тел.", "моб", "мобильный", "контакт"
+            - Owner (person name) labels: "proprietar", "nume", "prenume", "nume complet", "owner", "name", "participant", | RUSSIAN: "имя", "фамилия", "фио", "имя фамилия", "участник", "владелец", "водитель", "пилот", "полное имя"
+            - Brand labels: "marcă", "marca", "brand", "make", | RUSSIAN: "марка", "производитель"
+            - Model labels: "model", "modelul", | RUSSIAN: "модель", "машина", "авто"
+            - City labels: "oraș", "oras", "localitate", "city", | RUSSIAN: "город", "нас пункт", "населённый пункт"
+            - Zone labels: "zonă", "zona", "parcare", "zone", | RUSSIAN: "зона", "парковка", "сектор"
+            - Year column labels: "an", "an fabricație", "an fabricatie", "anul", "year", | RUSSIAN: "год", "год выпуска"
+            - Category column labels: "categorie", "categoria", "clasă", "clasa", "category", "class", | RUSSIAN: "класс", "категория"
+            - Telegram column labels: "telegram", "тг", "@username", | RUSSIAN: "телеграм", "телеграмм"
+            - Modifications column labels: "modificări", "modificari", "detalii tehnice", "tuning", "modifications", | RUSSIAN: "модификации", "тюнинг", "доработки"
+            - Responsible person labels: "responsabil", "persoană responsabilă", "persoana responsabila", "organizare", "organizator", "responsible", "organizer", | RUSSIAN: "ответственный", "организатор"
+            - Transport labels: "transport", "platformă", "platforma", "remorcă", "remorca", "trailer", "platform", | RUSSIAN: "транспорт", "платформа", "прицеп", "эвакуатор"
+            - Social links labels: "rețele sociale", "retele sociale", "social", "instagram", "facebook", "tiktok", | RUSSIAN: "соцсети", "социальные сети"
+            - Email column labels: "email", "e-mail", "mail", | RUSSIAN: "почта", "электронная почта"
             - If the source has TABULAR data (Excel/CSV rows), match values to columns by header. Do NOT mix a phone column into the plate field.
 
             PLATE FORMATS to look for (short alphanumeric, mixing letters + digits, usually 5-9 chars):
