@@ -3997,6 +3997,8 @@
             - Test: if a value has 7+ pure digits (only digits, +, -, spaces) → it's a phone → "phone" field.
             - Test: if a value is short and mixes letters with digits (like "CE 007", "B 123 ABC") → it's a plate → "plate" field.
             - "owner" is the person's name (not the car brand, not a plate, not a phone).
+            - "telegram" MUST be a Telegram @username or t.me link. NEVER put a license plate or phone number in "telegram". If there is no Telegram value, leave it empty.
+            - A license plate value (like "номерной знак" / "CE 007" / "B 123 ABC") ALWAYS goes to "plate" — never to "telegram", "phone" or "owner". Apply this to EVERY row, including the first one.
             - If a field is genuinely not present in the source, set it to empty string "". Do NOT copy another field's value to fill a blank.
             - It is REQUIRED that if the source has both a plate and a phone, BOTH are extracted into their correct fields.
 
@@ -4078,6 +4080,12 @@
           else if (looksLikePlate(ph) && !looksLikePhone(ph) && !p) {
             car.plate = ph;
             car.phone = '';
+          }
+          // Case 3: the plate ended up in the telegram field (and plate is
+          // empty) → move it back to plate. Telegram is a @handle, not a plate.
+          if (!car.plate && looksLikePlate(car.telegram) && !looksLikePhone(car.telegram)) {
+            car.plate = car.telegram;
+            car.telegram = '';
           }
         }
 
