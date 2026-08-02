@@ -1726,7 +1726,7 @@
     // (notes, modifications, photos, checklist, detailed_description, …) are only
     // needed in the detail view, which hydrates them on demand. `updated_at` is
     // included so any edit still bumps the fingerprint.
-    const CAR_LIST_COLS  = 'id,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at';
+    const CAR_LIST_COLS  = 'id,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,vip_arrived,vip_arrived_at';
     const TASK_LIST_COLS = 'id,title,event,date,status,status_color,is_completed,event_id,due_at,created_at,assigned_user_id,assigned_user_name,started_at,completed_at,completed_by_user_id,completed_by_user_name,priority,category,due_date,created_by,assigned_to,assigned_at,completed_by,team,updated_at,reminder_sent';
 
     // Canonical parking zones (car categories). Single source of truth for the
@@ -1744,7 +1744,7 @@
       return html;
     }
 
-    const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at'];
+    const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at','vip_arrived'];
     const VIP_FP_FIELDS   = ['id','first_name','last_name','company','role','guests_count','phone','arrived','arrived_at','event_id','companions','updated_at'];
     const AGENDA_FP_FIELDS = ['id','event_id','title','at_time','notes','updated_at'];
     const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','email','city','category','status','created_at'];
@@ -4588,7 +4588,8 @@
         out.push({
           kind: 'car', id: c.id, key: 'car-' + c.id,
           name, sub,
-          arrived: statusKey(c.status) === 'sosit', guests: 0,
+          // Sosirea în VIP e separată de statusul de la poartă (vip_arrived).
+          arrived: !!c.vip_arrived, guests: 0,
           search: [c.owner, c.brand, c.model, c.plate].filter(Boolean).join(' ').toLowerCase()
         });
       }
@@ -4683,22 +4684,20 @@
       }
       showToast(arrived ? t('vip.toast_arrived', { name: vipFullName(v) }) : t('vip.toast_undo', { name: vipFullName(v) }));
     }
-    // Arrive toggle for a participant (car) shown in the VIP list. Uses the same
-    // offline-safe outbox path as the gate, then refreshes the VIP list.
+    // Arrive toggle for a participant (car) shown in the VIP list. This is a
+    // SEPARATE arrival state (vip_arrived) — it does NOT touch the gate status.
     function toggleCarArrivedFromVip(id) {
       const car = (state.cars || []).find(c => String(c.id) === String(id));
       if (!car) return;
-      const arrived = statusKey(car.status) === 'sosit';
-      const patch = arrived
-        ? { status: 'Invitat', status_color: '#3B82F6' }
-        : { status: 'Sosit', status_color: '#10B981' };
+      const arrived = !car.vip_arrived;
+      const patch = { vip_arrived: arrived, vip_arrived_at: arrived ? new Date().toISOString() : null };
       applyLocalCarPatch(id, patch);
       enqueueAction({ type: 'car-update', carId: id, patch });
       flushOutbox();
-      if (!arrived) { haptic(120); try { auroraPulse(); } catch (_) {} }
+      if (arrived) { haptic(120); try { auroraPulse(); } catch (_) {} }
       try { renderVip(); } catch (_) {}
       const name = (car.owner || '').trim() || [car.brand, car.model].filter(Boolean).join(' ') || car.plate || '';
-      showToast(!arrived ? t('vip.toast_arrived', { name }) : t('vip.toast_undo', { name }));
+      showToast(arrived ? t('vip.toast_arrived', { name }) : t('vip.toast_undo', { name }));
     }
     // WhatsApp + Call buttons for a VIP guest (uses the phone field).
     function vipContactButtons(v) {
