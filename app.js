@@ -1412,6 +1412,21 @@
       if (btn) btn.disabled = true;
       if (msg) { msg.className = 'modal-msg show'; msg.style.color = 'var(--text-dim)'; msg.textContent = t('sheetsync.running'); }
       try {
+        // Private method: an Apps Script Web App URL. We can't read its response
+        // from the browser (CORS/redirect), so fire it and reload after a moment.
+        const cfgUrl = (el('sheetSyncUrl')?.value || '').trim();
+        if (/script\.google\.com/.test(cfgUrl)) {
+          try { await fetch(cfgUrl, { method: 'GET', mode: 'no-cors' }); } catch (_) {}
+          if (msg) { msg.style.color = 'var(--text-dim)'; msg.textContent = t('sheetsync.started'); }
+          setTimeout(async () => {
+            try { await loadData(); } catch (_) {}
+            try { renderVip(); } catch (_) {}
+            if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('sheetsync.started_done'); }
+            if (btn) btn.disabled = false;
+          }, 6000);
+          return;
+        }
+        // Public CSV method: the edge function pulls it and reports counts.
         const { data, error } = await supa.functions.invoke('import-participants', { body: {} });
         if (error) {
           // A non-2xx response carries the real reason in error.context (a Response).
@@ -1423,9 +1438,11 @@
         if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('sheetsync.done', { n: data?.inserted ?? 0, s: data?.skipped ?? 0 }); }
         await loadData();
         try { renderVip(); } catch (_) {}
+        if (btn) btn.disabled = false;
       } catch (e) {
         if (msg) { msg.style.color = 'var(--red)'; msg.textContent = t('common.error') + ': ' + (e.message || e); }
-      } finally { if (btn) btn.disabled = false; }
+        if (btn) btn.disabled = false;
+      }
     });
 
     // ----- TASK ACTIONS CORE -----
@@ -4192,7 +4209,7 @@
           zone: c.zone || '',
           status: c.status || 'Invitat',
           status_color: c.status_color || '#3B82F6',
-          is_vip: c.is_vip === true,
+          is_vip: false, // importul nu marchează mașini ca VIP
           phone: c.phone || c.contact || null,
           email: c.email || null,
           brand: c.brand || null,
