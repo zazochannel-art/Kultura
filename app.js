@@ -1745,7 +1745,7 @@
     }
 
     const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at','vip_arrived'];
-    const VIP_FP_FIELDS   = ['id','first_name','last_name','company','role','guests_count','phone','arrived','arrived_at','event_id','companions','updated_at'];
+    const VIP_FP_FIELDS   = ['id','first_name','last_name','company','role','category','guests_count','phone','arrived','arrived_at','event_id','companions','updated_at'];
     const AGENDA_FP_FIELDS = ['id','event_id','title','at_time','notes','updated_at'];
     const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','email','city','category','status','created_at'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
@@ -4571,9 +4571,11 @@
     function vipEntries() {
       const out = [];
       for (const v of activeVips()) {
+        const cat = (v.category || 'VIP').trim() || 'VIP';
         out.push({
           kind: 'vip', id: v.id, key: 'vip-' + v.id,
           name: vipFullName(v), sub: vipSubtitle(v),
+          badgeText: cat, badgeClass: vipBadgeClass(cat),
           arrived: !!v.arrived, guests: vipCompanions(v).length,
           search: [v.first_name, v.last_name, v.company].filter(Boolean).join(' ').toLowerCase()
         });
@@ -4588,6 +4590,7 @@
         out.push({
           kind: 'car', id: c.id, key: 'car-' + c.id,
           name, sub,
+          badgeText: t('vip.badge_participant'), badgeClass: 'participant',
           // Sosirea în VIP e separată de statusul de la poartă (vip_arrived).
           arrived: !!c.vip_arrived, guests: 0,
           search: [c.owner, c.brand, c.model, c.plate].filter(Boolean).join(' ').toLowerCase()
@@ -4595,18 +4598,28 @@
       }
       return out;
     }
+    // Map a person category to a badge colour class.
+    function vipBadgeClass(cat) {
+      const k = (cat || '').toLowerCase();
+      if (k.includes('particip')) return 'participant';
+      if (k.includes('organiz')) return 'organizator';
+      if (k.includes('partener') || k.includes('partner')) return 'partener';
+      if (k.includes('drift')) return 'drift';
+      return 'vip';
+    }
     function vipCardHTML(e) {
       const name = e.name;
       const arrived = !!e.arrived;
       const isCar = e.kind === 'car';
-      const badgeLabel = isCar ? t('vip.badge_participant') : t('vip.badge_vip');
+      const badgeLabel = e.badgeText || (isCar ? t('vip.badge_participant') : t('vip.badge_vip'));
+      const badgeClass = e.badgeClass || (isCar ? 'participant' : 'vip');
       const arriveAttr = isCar ? `data-car-arrive="${e.id}"` : `data-vip-arrive="${e.id}"`;
       const idAttr = isCar ? `data-car-id="${e.id}"` : `data-vip-id="${e.id}"`;
       return `
         <article class="vip-card ${arrived ? 'arrived' : ''}" ${idAttr}>
           <div class="vip-av" style="${avatarBg(name)}">${escape(twoInitials(name))}</div>
           <div class="vip-main">
-            <div class="vip-nrow"><span class="vip-name">${escape(name)}</span><span class="vip-badge ${isCar ? 'participant' : 'vip'}">${escape(badgeLabel)}</span></div>
+            <div class="vip-nrow"><span class="vip-name">${escape(name)}</span><span class="vip-badge ${badgeClass}">${escape(badgeLabel)}</span></div>
             ${e.sub ? `<div class="vip-sub">${escape(e.sub)}</div>` : ''}
             <div class="vip-meta">
               <span class="vip-status ${arrived ? 'on' : 'off'}">${arrived ? '🟢' : '🔴'} ${escape(arrived ? t('vip.arrived_yes') : t('vip.arrived_no'))}</span>
@@ -4847,6 +4860,7 @@
         last_name: (fd.get('last_name') || '').trim(),
         company: (fd.get('company') || '').trim() || null,
         role: (fd.get('role') || '').trim() || null,
+        category: (fd.get('category') || 'VIP').trim() || 'VIP',
         phone: (fd.get('phone') || '').trim() || null,
         notes: (fd.get('notes') || '').trim() || null,
         event_id: fd.get('event_id') ? Number(fd.get('event_id')) : null
