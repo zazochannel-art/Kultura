@@ -4207,8 +4207,8 @@
           owner: c.owner || '',
           plate: c.plate || '',
           zone: c.zone || '',
-          status: c.status || 'Invitat',
-          status_color: c.status_color || '#3B82F6',
+          status: 'Invitat', // importul nu marchează sosirea — se face doar la poartă
+          status_color: '#3B82F6',
           is_vip: false, // importul nu marchează mașini ca VIP
           phone: c.phone || c.contact || null,
           email: c.email || null,
