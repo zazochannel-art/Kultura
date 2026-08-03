@@ -180,6 +180,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
         <span data-i18n="nav.map">Hartă</span>
       </button>
+      <button class="tab admin-only-tab" data-section="sms" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span data-i18n="nav.sms">SMS</span>
+      </button>
       <button class="tab" data-section="settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         <span data-i18n="nav.settings">Setări</span>
@@ -217,6 +221,10 @@
       <button class="mtab" data-section="map" aria-label="Hartă">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
         <span class="label" data-i18n="nav.map">Hartă</span>
+      </button>
+      <button class="mtab admin-only-tab" data-section="sms" aria-label="SMS" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="label" data-i18n="nav.sms">SMS</span>
       </button>
     </nav>
 
@@ -810,6 +818,108 @@
         </div>
         </div>
       </section>
+
+      <!-- SMS CENTER (admin) -->
+      <section class="section" id="section-sms">
+        <div class="greeting-row">
+          <div class="greeting">
+            <h2 style="display:flex;align-items:center;gap:8px;">📱 <span data-i18n="sms.title">SMS Center</span></h2>
+            <p data-i18n="sms.sub">Trimite mesaje către participanți și invitați</p>
+          </div>
+        </div>
+
+        <div id="smsProviderNote" class="conn-banner" style="display:none;margin-bottom:14px;"></div>
+
+        <!-- Statistici -->
+        <div class="sms-stats">
+          <div class="card sms-stat"><div class="sms-stat-n" id="smsStatTotal">0</div><div class="sms-stat-l" data-i18n="sms.stat_total">Total participanți</div></div>
+          <div class="card sms-stat"><div class="sms-stat-n" id="smsStatValid">0</div><div class="sms-stat-l" data-i18n="sms.stat_valid">Numere valide</div></div>
+          <div class="card sms-stat"><div class="sms-stat-n" id="smsStatToday">0</div><div class="sms-stat-l" data-i18n="sms.stat_today">SMS trimise azi</div></div>
+          <div class="card sms-stat"><div class="sms-stat-n" id="smsStatRemaining">∞</div><div class="sms-stat-l" data-i18n="sms.stat_remaining">SMS rămase</div></div>
+        </div>
+
+        <!-- Destinatari -->
+        <div class="card sms-card">
+          <div class="sms-card-h" data-i18n="sms.recipients">Destinatari</div>
+          <div class="sms-aud" id="smsAudience">
+            <label class="sms-check"><input type="checkbox" data-sms-aud="all" checked> <span data-i18n="sms.aud_all">Toți participanții</span></label>
+            <label class="sms-check"><input type="checkbox" data-sms-aud="vip"> <span data-i18n="sms.aud_vip">VIP</span></label>
+            <label class="sms-check"><input type="checkbox" data-sms-aud="media"> <span data-i18n="sms.aud_media">Media</span></label>
+            <label class="sms-check"><input type="checkbox" data-sms-aud="staff"> <span data-i18n="sms.aud_staff">Staff</span></label>
+            <label class="sms-check"><input type="checkbox" data-sms-aud="expozanti"> <span data-i18n="sms.aud_exhibitors">Expozanți</span></label>
+            <label class="sms-check"><input type="checkbox" data-sms-aud="voluntari"> <span data-i18n="sms.aud_volunteers">Voluntari</span></label>
+            <label class="sms-check"><input type="checkbox" data-sms-aud="confirmed"> <span data-i18n="sms.aud_confirmed">Participanți confirmați</span></label>
+            <label class="sms-check"><input type="checkbox" data-sms-aud="unconfirmed"> <span data-i18n="sms.aud_unconfirmed">Participanți neconfirmați</span></label>
+          </div>
+          <div class="sms-filters">
+            <div class="form-field"><label data-i18n="sms.f_brand">Marcă</label><select id="smsFilterBrand"><option value="" data-i18n="sms.f_any">— Toate —</option></select></div>
+            <div class="form-field"><label data-i18n="sms.f_category">Categorie</label><select id="smsFilterCategory"><option value="" data-i18n="sms.f_any">— Toate —</option></select></div>
+            <div class="form-field"><label data-i18n="sms.f_city">Oraș</label><select id="smsFilterCity"><option value="" data-i18n="sms.f_any">— Toate —</option></select></div>
+          </div>
+          <div class="sms-count-live" id="smsRecipientCount"></div>
+        </div>
+
+        <!-- Editor mesaj -->
+        <div class="card sms-card">
+          <div class="sms-card-h" data-i18n="sms.editor">Editor mesaj</div>
+          <div class="sms-vars" id="smsVars">
+            <button type="button" class="chip" data-sms-var="prenume">{{prenume}}</button>
+            <button type="button" class="chip" data-sms-var="nume">{{nume}}</button>
+            <button type="button" class="chip" data-sms-var="marca">{{marca}}</button>
+            <button type="button" class="chip" data-sms-var="model">{{model}}</button>
+            <button type="button" class="chip" data-sms-var="numar">{{numar}}</button>
+            <button type="button" class="chip" data-sms-var="categoria">{{categoria}}</button>
+            <button type="button" class="chip" data-sms-var="qr_code">{{qr_code}}</button>
+          </div>
+          <textarea id="smsMessage" rows="5" data-i18n-placeholder="sms.msg_ph" placeholder="Scrie mesajul... Poți folosi {{prenume}}, {{marca}} etc."></textarea>
+          <div class="sms-meta-row">
+            <span id="smsCharCount">0</span>
+            <button type="button" class="btn ghost small" id="smsPreviewBtn" data-i18n="sms.preview">Previzualizare mesaj</button>
+          </div>
+          <div class="sms-preview" id="smsPreviewBox" style="display:none;"></div>
+        </div>
+
+        <!-- Programare -->
+        <div class="card sms-card">
+          <div class="sms-card-h" data-i18n="sms.schedule">Programare</div>
+          <label class="sms-radio"><input type="radio" name="smsWhen" value="now" checked> <span data-i18n="sms.send_now">Trimite acum</span></label>
+          <label class="sms-radio"><input type="radio" name="smsWhen" value="scheduled"> <span data-i18n="sms.schedule_it">Programează</span></label>
+          <div class="sms-sched-fields" id="smsSchedFields" style="display:none;">
+            <div class="form-field"><label data-i18n="sms.date">Data</label><input type="date" id="smsDate"></div>
+            <div class="form-field"><label data-i18n="sms.time">Ora</label><input type="time" id="smsTime"></div>
+          </div>
+        </div>
+
+        <!-- Acțiuni + progres -->
+        <div class="card sms-card">
+          <button class="btn sms-send-btn" id="smsSendBtn" type="button">📱 <span data-i18n="sms.send">Trimite SMS</span></button>
+          <div class="sms-progress-wrap" id="smsProgressWrap" style="display:none;">
+            <div class="sms-progress"><div class="sms-progress-fill" id="smsProgressFill"></div></div>
+            <div class="sms-progress-row"><span id="smsProgressText">0%</span><button class="btn danger small" id="smsCancelBtn" type="button" data-i18n="sms.cancel">Anulează</button></div>
+          </div>
+          <div class="modal-msg" id="smsSendMsg"></div>
+        </div>
+
+        <!-- Istoric -->
+        <div class="card sms-card">
+          <div class="sms-card-h" data-i18n="sms.history">Istoric SMS</div>
+          <div class="sms-table-wrap">
+            <table class="sms-table">
+              <thead><tr>
+                <th data-i18n="sms.h_date">Data</th>
+                <th data-i18n="sms.h_recipients">Destinatari</th>
+                <th data-i18n="sms.h_message">Mesaj</th>
+                <th data-i18n="sms.h_sent">Trimise</th>
+                <th data-i18n="sms.h_delivered">Livrate</th>
+                <th data-i18n="sms.h_failed">Eșuate</th>
+                <th data-i18n="sms.h_status">Status</th>
+                <th></th>
+              </tr></thead>
+              <tbody id="smsHistoryBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- MODAL: What's new -->
@@ -1001,6 +1111,10 @@
               <option value="Organizator">Organizator</option>
               <option value="Partener">Partener</option>
               <option value="Drift">Drift</option>
+              <option value="Media">Media</option>
+              <option value="Staff">Staff</option>
+              <option value="Expozant">Expozant</option>
+              <option value="Voluntar">Voluntar</option>
             </select>
           </div>
           <div class="form-row">
@@ -1394,6 +1508,7 @@
     <div class="ui-dialog">
       <div class="ui-dialog-title" id="uiDialogTitle"></div>
       <div class="ui-dialog-message" id="uiDialogMessage"></div>
+      <textarea id="uiDialogInput" rows="3" style="display:none;width:100%;margin-top:10px;"></textarea>
       <div class="ui-dialog-actions">
         <button type="button" class="ui-dialog-btn" id="uiDialogCancel">Anulează</button>
         <button type="button" class="ui-dialog-btn primary" id="uiDialogOk">OK</button>
