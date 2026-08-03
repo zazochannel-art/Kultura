@@ -396,6 +396,7 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
       if (name === 'map') loadMap();
       if (name === 'settings') { try { loadSheetSyncUrl(); } catch (_) {} }
+      if (name === 'sms') { try { renderSmsCenter(); } catch (_) {} }
     }
     document.querySelectorAll('.tab, .mtab').forEach(t => {
       t.addEventListener('click', () => selectSection(t.dataset.section));
@@ -1445,6 +1446,287 @@
       }
     });
 
+    // ================= SMS CENTER (admin) =================
+    // Recipients come from cars (participants) + vip_guests (by category).
+    // Sending goes through the send-sms edge function; live progress is polled
+    // from the sms_history row it updates.
+    const SMS_VAR_KEYS = ['prenume', 'nume', 'marca', 'model', 'numar', 'categoria', 'qr_code'];
+    let _smsHistory = [];
+    let _smsSending = false;
+    let _smsPoll = null;
+
+    function smsPhoneOk(p) { return !!normalizePhone(p); }
+    function smsSelectedAud() {
+      return Array.from(document.querySelectorAll('#smsAudience input[type=checkbox]:checked'))
+        .map(c => c.dataset.smsAud);
+    }
+    // Map an audience checkbox to a vip_guests.category (case-insensitive contains).
+    const SMS_AUD_TO_CAT = { vip: 'vip', media: 'media', staff: 'staff', expozanti: 'expozant', voluntari: 'voluntar' };
+
+    // Build the de-duplicated recipient list from the current selection + filters.
+    function smsRecipients() {
+      const aud = new Set(smsSelectedAud());
+      const fb = (el('smsFilterBrand')?.value || '').trim();
+      const fc = (el('smsFilterCategory')?.value || '').trim();
+      const fcity = (el('smsFilterCity')?.value || '').trim();
+      const byPhone = new Map();
+      const add = (phone, vars) => {
+        const n = normalizePhone(phone);
+        if (!n) return;
+        if (!byPhone.has(n)) byPhone.set(n, { phone, vars });
+      };
+      // Participants (cars)
+      const wantAll = aud.has('all'), wantConf = aud.has('confirmed'), wantUnconf = aud.has('unconfirmed');
+      if (wantAll || wantConf || wantUnconf) {
+        for (const c of activeCars()) {
+          if (fb && (c.brand || '') !== fb) continue;
+          if (fc && (c.category || '') !== fc) continue;
+          if (fcity && (c.city || '') !== fcity) continue;
+          const arrived = statusKey(c.status) === 'sosit';
+          if (!(wantAll || (wantConf && arrived) || (wantUnconf && !arrived))) continue;
+          const parts = (c.owner || '').trim().split(/\s+/);
+          add(c.phone, {
+            prenume: parts.shift() || '', nume: parts.join(' '),
+            marca: c.brand || '', model: c.model || '', numar: c.plate || '',
+            categoria: c.category || '', qr_code: 'KULTURA:' + c.id + ':' + (c.plate || '')
+          });
+        }
+      }
+      // VIP guests by category
+      const cats = Array.from(aud).map(a => SMS_AUD_TO_CAT[a]).filter(Boolean);
+      if (cats.length) {
+        for (const v of activeVips()) {
+          const cat = (v.category || 'VIP').toLowerCase();
+          if (!cats.some(k => cat.includes(k))) continue;
+          add(v.phone, {
+            prenume: v.first_name || '', nume: v.last_name || '',
+            marca: '', model: '', numar: '', categoria: v.category || '', qr_code: ''
+          });
+        }
+      }
+      return Array.from(byPhone.values());
+    }
+
+    function smsSegments(txt) {
+      const len = (txt || '').length;
+      if (!len) return 0;
+      const unicode = [...txt].some(ch => ch.charCodeAt(0) > 127); // diacritice/chirilice -> segmente de 70
+      const single = unicode ? 70 : 160, multi = unicode ? 67 : 153;
+      return len <= single ? 1 : Math.ceil(len / multi);
+    }
+    function smsSubstitute(msg, vars) {
+      return String(msg || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => (vars && vars[k] != null ? vars[k] : ''));
+    }
+
+    function updateSmsCount() {
+      const n = smsRecipients().length;
+      const box = el('smsRecipientCount');
+      if (box) box.textContent = t('sms.will_receive', { n });
+    }
+    function updateSmsMeta() {
+      const txt = el('smsMessage')?.value || '';
+      const seg = smsSegments(txt);
+      const cc = el('smsCharCount');
+      if (cc) cc.textContent = t('sms.char_meta', { c: txt.length, n: seg });
+    }
+    function renderSmsFilters() {
+      const cars = activeCars();
+      const fill = (id, values, cur) => {
+        const sel = el(id); if (!sel) return;
+        const keep = cur != null ? cur : sel.value;
+        const opts = ['<option value="">' + escape(t('sms.f_any')) + '</option>']
+          .concat(values.map(v => `<option value="${escape(v)}">${escape(v)}</option>`));
+        sel.innerHTML = opts.join('');
+        sel.value = keep;
+      };
+      const uniq = (arr) => Array.from(new Set(arr.filter(x => x && String(x).trim()))).sort((a, b) => a.localeCompare(b, 'ro'));
+      fill('smsFilterBrand', uniq(cars.map(c => c.brand)));
+      fill('smsFilterCategory', uniq(cars.map(c => c.category)));
+      fill('smsFilterCity', uniq(cars.map(c => c.city)));
+    }
+    function renderSmsStats() {
+      const cars = activeCars(), vips = activeVips();
+      const people = cars.length + vips.length;
+      const valid = cars.filter(c => smsPhoneOk(c.phone)).length + vips.filter(v => smsPhoneOk(v.phone)).length;
+      const today = new Date().toISOString().slice(0, 10);
+      const sentToday = _smsHistory
+        .filter(h => (h.created_at || '').slice(0, 10) === today)
+        .reduce((s, h) => s + (h.sent_count || 0), 0);
+      const set = (id, val) => { const n = el(id); if (n) n.textContent = val; };
+      set('smsStatTotal', people); set('smsStatValid', valid); set('smsStatToday', sentToday);
+    }
+    function smsStatusBadge(s) {
+      const map = { sent: 'green', sending: 'blue', scheduled: 'blue', pending: 'blue', cancelling: 'orange', cancelled: 'orange', error: 'red' };
+      return map[s] || 'blue';
+    }
+    async function loadSmsHistory() {
+      const { data } = await supa.from('sms_history').select('*').order('created_at', { ascending: false }).limit(50);
+      _smsHistory = data || [];
+      renderSmsHistory(); renderSmsStats();
+    }
+    function renderSmsHistory() {
+      const body = el('smsHistoryBody');
+      if (!body) return;
+      if (!_smsHistory.length) { body.innerHTML = `<tr><td colspan="8" class="sms-empty">${escape(t('sms.no_history'))}</td></tr>`; return; }
+      body.innerHTML = _smsHistory.map(h => `
+        <tr>
+          <td>${escape(fmtDateTime(h.created_at))}</td>
+          <td>${h.recipient_count || 0}</td>
+          <td class="sms-msg-cell">${escape((h.message || '').slice(0, 60))}${(h.message || '').length > 60 ? '…' : ''}</td>
+          <td>${h.sent_count || 0}</td>
+          <td>${h.delivered_count || 0}</td>
+          <td>${h.failed_count || 0}</td>
+          <td><span class="badge ${smsStatusBadge(h.status)}">${escape(t('sms.status_' + h.status) || h.status)}</span></td>
+          <td class="sms-actions-cell">
+            <button class="btn ghost small" data-sms-detail="${h.id}">${escape(t('sms.details'))}</button>
+            <button class="btn ghost small" data-sms-resend="${h.id}">${escape(t('sms.resend'))}</button>
+          </td>
+        </tr>`).join('');
+    }
+    function renderSmsCenter() {
+      renderSmsFilters(); updateSmsCount(); updateSmsMeta();
+      loadSmsHistory();
+      // Show a hint if the provider isn't configured yet (best-effort probe).
+      const note = el('smsProviderNote');
+      if (note && !note.dataset.checked) {
+        note.dataset.checked = '1';
+      }
+    }
+
+    // Live progress: poll the history row while the campaign is sending.
+    function startSmsProgress(historyId, total) {
+      const wrap = el('smsProgressWrap'); if (wrap) wrap.style.display = 'block';
+      clearInterval(_smsPoll);
+      const tick = async () => {
+        const { data: h } = await supa.from('sms_history').select('sent_count,failed_count,status').eq('id', historyId).maybeSingle();
+        if (!h) return;
+        const done = (h.sent_count || 0) + (h.failed_count || 0);
+        const pct = total ? Math.round(done * 100 / total) : 0;
+        const fill = el('smsProgressFill'); if (fill) fill.style.width = pct + '%';
+        const txt = el('smsProgressText'); if (txt) txt.textContent = pct + '% (' + done + '/' + total + ')';
+        if (['sent', 'cancelled', 'error'].includes(h.status)) { clearInterval(_smsPoll); _smsPoll = null; }
+      };
+      _smsPoll = setInterval(tick, 1000); tick();
+    }
+
+    async function sendSmsCampaign() {
+      if (_smsSending) return;
+      const message = (el('smsMessage')?.value || '').trim();
+      const msgEl = el('smsSendMsg');
+      const setMsg = (txt, ok) => { if (msgEl) { msgEl.className = 'modal-msg show'; msgEl.style.color = ok ? 'var(--green)' : 'var(--red)'; msgEl.textContent = txt; } };
+      if (!message) { setMsg(t('sms.err_empty'), false); return; }
+      const recips = smsRecipients();
+      if (!recips.length) { setMsg(t('sms.err_no_recipients'), false); return; }
+      const when = document.querySelector('input[name="smsWhen"]:checked')?.value || 'now';
+      const filters = { audiences: smsSelectedAud(), brand: el('smsFilterBrand')?.value || '', category: el('smsFilterCategory')?.value || '', city: el('smsFilterCity')?.value || '' };
+
+      // Scheduled: store a row, a server job would pick it up at scheduled_at.
+      if (when === 'scheduled') {
+        const d = el('smsDate')?.value, tm = el('smsTime')?.value;
+        if (!d || !tm) { setMsg(t('sms.err_schedule'), false); return; }
+        const at = new Date(d + 'T' + tm).toISOString();
+        const { error } = await supa.from('sms_history').insert({ message, recipient_count: recips.length, status: 'scheduled', scheduled_at: at, filters, created_by: currentUserName() });
+        if (error) { setMsg(t('common.error') + ': ' + error.message, false); return; }
+        setMsg(t('sms.scheduled_ok', { n: recips.length }), true);
+        loadSmsHistory();
+        return;
+      }
+
+      if (!await uiConfirm(t('sms.confirm_send', { n: recips.length }))) return;
+      _smsSending = true;
+      const btn = el('smsSendBtn'); if (btn) btn.disabled = true;
+      setMsg(t('sms.sending'), true);
+      // Create the campaign row, then hand the recipient list to the edge function.
+      const { data: hist, error } = await supa.from('sms_history')
+        .insert({ message, recipient_count: recips.length, status: 'sending', filters, created_by: currentUserName() })
+        .select().single();
+      if (error) { setMsg(t('common.error') + ': ' + error.message, false); _smsSending = false; if (btn) btn.disabled = false; return; }
+      el('smsProgressWrap').dataset.historyId = hist.id;
+      startSmsProgress(hist.id, recips.length);
+      try {
+        const { data, error: fnErr } = await supa.functions.invoke('send-sms', { body: { history_id: hist.id, message, recipients: recips } });
+        if (fnErr) {
+          let b = null; try { b = await fnErr.context.json(); } catch (_) {}
+          throw new Error(b?.note || b?.error || fnErr.message);
+        }
+        if (data?.error) throw new Error(data.note || data.error);
+        setMsg(t('sms.done', { sent: data?.sent ?? 0, failed: data?.failed ?? 0 }), true);
+      } catch (e) {
+        setMsg(t('common.error') + ': ' + (e.message || e), false);
+      } finally {
+        _smsSending = false; if (btn) btn.disabled = false;
+        clearInterval(_smsPoll); _smsPoll = null;
+        loadSmsHistory();
+      }
+    }
+
+    // Send a single SMS to one participant, straight from the car detail.
+    async function sendSingleSms(carId) {
+      const c = (state.cars || []).find(x => String(x.id) === String(carId));
+      if (!c) return;
+      const phone = normalizePhone(c.phone || c.contact);
+      if (!phone) { showToast(t('sms.no_phone'), 'error'); return; }
+      const msg = await uiPrompt(t('sms.single_prompt', { name: c.owner || c.plate || '' }), { placeholder: t('sms.msg_ph'), okLabel: t('sms.send') });
+      if (msg == null || msg === false || !String(msg).trim()) return;
+      const parts = (c.owner || '').trim().split(/\s+/);
+      const vars = { prenume: parts.shift() || '', nume: parts.join(' '), marca: c.brand || '', model: c.model || '', numar: c.plate || '', categoria: c.category || '', qr_code: 'KULTURA:' + c.id + ':' + (c.plate || '') };
+      const { data: hist } = await supa.from('sms_history')
+        .insert({ message: String(msg), recipient_count: 1, status: 'sending', filters: { single: c.id }, created_by: currentUserName() })
+        .select().single();
+      try {
+        const { data, error } = await supa.functions.invoke('send-sms', { body: { history_id: hist?.id, message: String(msg), recipients: [{ phone: c.phone || c.contact, vars }] } });
+        if (error) { let b = null; try { b = await error.context.json(); } catch (_) {} throw new Error(b?.note || b?.error || error.message); }
+        if (data?.error) throw new Error(data.note || data.error);
+        showToast(t('sms.single_sent'));
+      } catch (e) {
+        showToast(t('common.error') + ': ' + (e.message || e), 'error');
+      }
+    }
+
+    // Wiring
+    el('smsAudience')?.addEventListener('change', updateSmsCount);
+    ['smsFilterBrand', 'smsFilterCategory', 'smsFilterCity'].forEach(id => el(id)?.addEventListener('change', updateSmsCount));
+    el('smsMessage')?.addEventListener('input', updateSmsMeta);
+    el('smsVars')?.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-sms-var]'); if (!b) return;
+      const ta = el('smsMessage'); if (!ta) return;
+      const token = '{{' + b.dataset.smsVar + '}}';
+      const s = ta.selectionStart ?? ta.value.length, en = ta.selectionEnd ?? ta.value.length;
+      ta.value = ta.value.slice(0, s) + token + ta.value.slice(en);
+      ta.focus(); ta.selectionStart = ta.selectionEnd = s + token.length;
+      updateSmsMeta();
+    });
+    el('smsPreviewBtn')?.addEventListener('click', () => {
+      const box = el('smsPreviewBox'); if (!box) return;
+      const sample = smsRecipients()[0]?.vars || { prenume: 'Andrei', nume: 'Popescu', marca: 'BMW', model: 'M3', numar: 'CE 007', categoria: 'Participant', qr_code: 'KULTURA:1:CE 007' };
+      box.style.display = 'block';
+      box.textContent = smsSubstitute(el('smsMessage')?.value || '', sample) || t('sms.preview_empty');
+    });
+    document.querySelectorAll('input[name="smsWhen"]').forEach(r => r.addEventListener('change', () => {
+      const f = el('smsSchedFields'); if (f) f.style.display = (document.querySelector('input[name="smsWhen"]:checked')?.value === 'scheduled') ? 'grid' : 'none';
+    }));
+    el('smsSendBtn')?.addEventListener('click', sendSmsCampaign);
+    el('smsCancelBtn')?.addEventListener('click', async () => {
+      const id = el('smsProgressWrap')?.dataset.historyId;
+      if (id) await supa.from('sms_history').update({ status: 'cancelling' }).eq('id', id);
+    });
+    el('smsHistoryBody')?.addEventListener('click', (e) => {
+      const d = e.target.closest('[data-sms-detail]');
+      if (d) {
+        const h = _smsHistory.find(x => String(x.id) === d.dataset.smsDetail);
+        if (h) {
+          const rep = h.delivery_report && h.delivery_report.errors ? h.delivery_report.errors.length : 0;
+          uiAlert(`${t('sms.h_sent')}: ${h.sent_count || 0}\n${t('sms.h_delivered')}: ${h.delivered_count || 0}\n${t('sms.h_failed')}: ${h.failed_count || 0}\n\n${escape(h.message || '')}`);
+        }
+        return;
+      }
+      const r = e.target.closest('[data-sms-resend]');
+      if (r) {
+        const h = _smsHistory.find(x => String(x.id) === r.dataset.smsResend);
+        if (h) { const ta = el('smsMessage'); if (ta) { ta.value = h.message || ''; updateSmsMeta(); } showToast(t('sms.loaded_for_resend')); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+      }
+    });
+
     // ----- TASK ACTIONS CORE -----
     async function apiTaskTake(taskId) {
       if (!currentUser) { uiAlert('Trebuie să fii autentificat.'); return false; }
@@ -1699,6 +1981,8 @@
       if (deptBlock) deptBlock.style.display = admin ? 'block' : 'none';
       const sheetBlock = el('sheetSyncBlock');
       if (sheetBlock) sheetBlock.style.display = admin ? 'block' : 'none';
+      // SMS Center is admin-only (both desktop and mobile nav entries).
+      document.querySelectorAll('.admin-only-tab').forEach(b => { b.style.display = admin ? '' : 'none'; });
       const annBlock = el('announceBlock');
       if (annBlock) annBlock.style.display = staff ? 'block' : 'none';
       const arrBtn = el('zoneArrangeBtn');
@@ -5464,14 +5748,21 @@
       const r = _dialogResolve; _dialogResolve = null;
       if (r) r(result);
     }
-    function uiDialog({ title = '', message = '', okLabel = 'OK', cancelLabel = null, danger = false }) {
+    let _dialogInput = false;
+    function uiDialog({ title = '', message = '', okLabel = 'OK', cancelLabel = null, danger = false, input = false, inputValue = '', inputPlaceholder = '' }) {
       return new Promise((resolve) => {
         // A dialog opened over another one settles the previous as cancelled.
-        if (_dialogResolve) _dialogClose(false);
+        if (_dialogResolve) _dialogClose(input ? null : false);
         _dialogResolve = resolve;
+        _dialogInput = !!input;
         el('uiDialogTitle').textContent = title;
         el('uiDialogTitle').style.display = title ? 'block' : 'none';
         el('uiDialogMessage').textContent = message;
+        const inp = el('uiDialogInput');
+        if (inp) {
+          inp.style.display = input ? 'block' : 'none';
+          if (input) { inp.value = inputValue || ''; inp.placeholder = inputPlaceholder || ''; }
+        }
         const ok = el('uiDialogOk');
         const cancel = el('uiDialogCancel');
         ok.textContent = okLabel;
@@ -5479,10 +5770,19 @@
         cancel.style.display = cancelLabel ? 'inline-block' : 'none';
         if (cancelLabel) cancel.textContent = cancelLabel;
         el('uiDialog').classList.add('show');
-        ok.focus();
+        if (input && inp) inp.focus(); else ok.focus();
       });
     }
-    el('uiDialogOk').addEventListener('click', () => _dialogClose(true));
+    // Text-input dialog: resolves the entered string, or null on cancel.
+    function uiPrompt(message, opts = {}) {
+      return uiDialog({
+        title: opts.title || '', message,
+        okLabel: opts.okLabel || t('common.confirm'),
+        cancelLabel: opts.cancelLabel || t('common.cancel'),
+        input: true, inputValue: opts.value || '', inputPlaceholder: opts.placeholder || '',
+      });
+    }
+    el('uiDialogOk').addEventListener('click', () => _dialogClose(_dialogInput ? (el('uiDialogInput')?.value ?? '') : true));
     el('uiDialogCancel').addEventListener('click', () => _dialogClose(false));
     el('uiDialog').addEventListener('click', (e) => { if (e.target === el('uiDialog')) _dialogClose(false); });
     document.addEventListener('keydown', (e) => {
@@ -6180,6 +6480,7 @@
         <button class="btn ghost" data-detail-action="car-qr" data-car-id="${c.id}">${escape(t('car.detail.qr'))}</button>
         <button class="btn ghost" data-detail-action="car-status" data-car-id="${c.id}" data-label="Sosit" data-color="#10B981">${escape(t('car.detail.action_confirm'))}</button>
         <button class="btn ghost" data-detail-action="car-status" data-car-id="${c.id}" data-label="Plecat" data-color="#8B5CF6">${escape(t('car.detail.action_reject'))}</button>
+        ${roleAtLeast('staff') && (c.phone || c.contact) ? `<button class="btn ghost" data-detail-action="car-sms" data-car-id="${c.id}">${escape(t('car.detail.sms'))}</button>` : ''}
         ${canDelete ? `<button class="btn danger" data-detail-action="car-delete" data-car-id="${c.id}" data-car-label="${escape(title)}">${escape(t('car.action.delete'))}</button>` : ''}
       `;
 
@@ -6509,6 +6810,12 @@
           const id = btn.dataset.carId;
           btn.disabled = false;
           showCarQr(id);
+          return;
+
+        } else if (action === 'car-sms') {
+          const id = btn.dataset.carId;
+          btn.disabled = false;
+          await sendSingleSms(id);
           return;
 
         } else if (action === 'car-delete') {

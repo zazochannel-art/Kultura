@@ -78,6 +78,9 @@ try {
     regQueue: !!document.getElementById('regQueue'),
     gateLogout: !!document.getElementById('gateLogoutBtn'),
     agendaBlock: !!document.getElementById('agendaBlock'),
+    smsSection: !!document.getElementById('section-sms'),
+    smsMessage: !!document.getElementById('smsMessage'),
+    smsHistory: !!document.getElementById('smsHistoryBody'),
   }));
   Object.entries(els).forEach(([k, v]) => check('element:' + k, v));
 
