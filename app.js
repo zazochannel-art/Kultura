@@ -1283,6 +1283,25 @@
       }
     });
 
+    // Change password (Supabase auth).
+    el('form-change-password')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = el('pwdMsg'), btn = el('changePwdBtn');
+      const setMsg = (txt, ok) => { if (msg) { msg.className = 'modal-msg show'; msg.style.color = ok ? 'var(--green)' : 'var(--red)'; msg.textContent = txt; } };
+      const p1 = el('pwdNew')?.value || '', p2 = el('pwdConfirm')?.value || '';
+      if (p1.length < 6) { setMsg(t('settings.password.too_short'), false); return; }
+      if (p1 !== p2) { setMsg(t('settings.password.mismatch'), false); return; }
+      if (btn) btn.disabled = true;
+      try {
+        const { error } = await supa.auth.updateUser({ password: p1 });
+        if (error) throw error;
+        setMsg(t('settings.password.done'), true);
+        el('pwdNew').value = ''; el('pwdConfirm').value = '';
+      } catch (err) {
+        setMsg(t('common.error') + ': ' + (err.message || err), false);
+      } finally { if (btn) btn.disabled = false; }
+    });
+
     el('manualRefreshBtn').addEventListener('click', async () => {
       const btn = el('manualRefreshBtn');
       btn.disabled = true;
