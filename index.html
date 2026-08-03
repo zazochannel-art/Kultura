@@ -588,62 +588,17 @@
       <section class="section" id="section-settings">
         <div class="page-grid-2">
         <div class="setting-block">
-          <div class="setting-label" data-i18n="settings.profile">PROFIL</div>
-          <div class="avatar-row">
-            <div class="avatar-preview" id="settingsAvatarPreview">?</div>
+          <div class="setting-label" data-i18n="settings.account">CONT</div>
+          <div class="setting-row">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
             <div class="txt">
-              <strong data-i18n="settings.profile.photo">Poza de profil</strong>
-              <span data-i18n="settings.profile.photo_help">JPG sau PNG, decupată automat pătrat</span>
+              <strong data-i18n="settings.account.title">Contul meu</strong>
+              <span data-i18n="settings.account.sub">Profil, poză și parolă</span>
             </div>
-            <button type="button" class="btn small ghost" id="avatarChangeBtn" data-i18n="settings.profile.photo_change">Schimbă poza</button>
-            <input type="file" id="avatarFileInput" accept="image/*" style="display:none">
+            <button type="button" class="btn small" id="openAccountBtn" data-i18n="settings.account.open">Deschide</button>
           </div>
-          <form id="profileForm">
-            <div class="form-row">
-              <div class="form-field">
-                <label data-i18n="settings.profile.firstName">Prenume</label>
-                <input type="text" id="settingsFirstName" data-i18n-placeholder="settings.profile.firstName" placeholder="Prenume">
-              </div>
-              <div class="form-field">
-                <label data-i18n="settings.profile.lastName">Nume</label>
-                <input type="text" id="settingsLastName" data-i18n-placeholder="settings.profile.lastName" placeholder="Nume">
-              </div>
-            </div>
-            <div class="form-field">
-              <label data-i18n="settings.profile.phone">Nr de Telefon</label>
-              <input type="tel" id="settingsPhone" data-i18n-placeholder="settings.profile.phone" placeholder="Telefon">
-            </div>
-            <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
-              <button type="submit" class="btn small" id="saveProfileBtn" data-i18n="settings.profile.save">Salvează Modificările</button>
-            </div>
-          </form>
-        </div>
-
-        <div class="setting-block">
-          <div class="setting-label" data-i18n="settings.password">PAROLĂ</div>
-          <form id="form-change-password" autocomplete="off">
-            <div class="setting-row" style="align-items:flex-start;">
-              <div class="icon-box">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              </div>
-              <div class="txt" style="flex:1;">
-                <strong data-i18n="settings.password.title">Schimbă parola</strong>
-                <span data-i18n="settings.password.sub">Alege o parolă nouă de minim 6 caractere</span>
-                <div class="form-field" style="margin-top:8px;">
-                  <label data-i18n="settings.password.new">Parolă nouă</label>
-                  <input type="password" id="pwdNew" autocomplete="new-password" data-i18n-placeholder="settings.password.new" placeholder="Parolă nouă">
-                </div>
-                <div class="form-field">
-                  <label data-i18n="settings.password.confirm">Confirmă parola</label>
-                  <input type="password" id="pwdConfirm" autocomplete="new-password" data-i18n-placeholder="settings.password.confirm" placeholder="Confirmă parola">
-                </div>
-                <div class="modal-msg" id="pwdMsg"></div>
-                <div style="display:flex; justify-content:flex-end; margin-top:8px;">
-                  <button type="submit" class="btn small" id="changePwdBtn" data-i18n="settings.password.save">Schimbă parola</button>
-                </div>
-              </div>
-            </div>
-          </form>
         </div>
 
         <div class="setting-block">
@@ -1017,6 +972,62 @@
             <button type="submit" class="btn" data-i18n="common.save">Salvează</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- MODAL: Account (profil + parolă) -->
+    <div class="modal-backdrop" id="modal-account" data-modal-name="account">
+      <div class="modal">
+        <h2 data-i18n="settings.account.title">Contul meu</h2>
+        <div class="setting-label" data-i18n="settings.profile" style="margin-top:6px;">PROFIL</div>
+        <div class="avatar-row">
+          <div class="avatar-preview" id="settingsAvatarPreview">?</div>
+          <div class="txt">
+            <strong data-i18n="settings.profile.photo">Poza de profil</strong>
+            <span data-i18n="settings.profile.photo_help">JPG sau PNG, decupată automat pătrat</span>
+          </div>
+          <button type="button" class="btn small ghost" id="avatarChangeBtn" data-i18n="settings.profile.photo_change">Schimbă poza</button>
+          <input type="file" id="avatarFileInput" accept="image/*" style="display:none">
+        </div>
+        <form id="profileForm">
+          <div class="form-row">
+            <div class="form-field">
+              <label data-i18n="settings.profile.firstName">Prenume</label>
+              <input type="text" id="settingsFirstName" data-i18n-placeholder="settings.profile.firstName" placeholder="Prenume">
+            </div>
+            <div class="form-field">
+              <label data-i18n="settings.profile.lastName">Nume</label>
+              <input type="text" id="settingsLastName" data-i18n-placeholder="settings.profile.lastName" placeholder="Nume">
+            </div>
+          </div>
+          <div class="form-field">
+            <label data-i18n="settings.profile.phone">Nr de Telefon</label>
+            <input type="tel" id="settingsPhone" data-i18n-placeholder="settings.profile.phone" placeholder="Telefon">
+          </div>
+          <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+            <button type="submit" class="btn small" id="saveProfileBtn" data-i18n="settings.profile.save">Salvează Modificările</button>
+          </div>
+        </form>
+
+        <div class="setting-label" data-i18n="settings.password" style="margin-top:18px;">PAROLĂ</div>
+        <form id="form-change-password" autocomplete="off">
+          <div class="form-field">
+            <label data-i18n="settings.password.new">Parolă nouă</label>
+            <input type="password" id="pwdNew" autocomplete="new-password" data-i18n-placeholder="settings.password.new" placeholder="Parolă nouă">
+          </div>
+          <div class="form-field">
+            <label data-i18n="settings.password.confirm">Confirmă parola</label>
+            <input type="password" id="pwdConfirm" autocomplete="new-password" data-i18n-placeholder="settings.password.confirm" placeholder="Confirmă parola">
+          </div>
+          <div class="modal-msg" id="pwdMsg"></div>
+          <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+            <button type="submit" class="btn small" id="changePwdBtn" data-i18n="settings.password.save">Schimbă parola</button>
+          </div>
+        </form>
+
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn ghost" data-close data-i18n="common.close">Închide</button>
+        </div>
       </div>
     </div>
 
