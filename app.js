@@ -928,7 +928,11 @@
       });
     });
 
-    el('avatarBadge').addEventListener('click', () => selectSection('settings'));
+    // Tapping the profile photo opens the Account modal (profile + password);
+    // the rest of the preferences stay on the Settings page.
+    function openAccount() { openModal('account'); }
+    el('avatarBadge').addEventListener('click', openAccount);
+    el('openAccountBtn')?.addEventListener('click', openAccount);
 
     // Event filtering removed — the active-event picker no longer exists in the
     // UI. Guarded in case an old cached shell still has the element.
