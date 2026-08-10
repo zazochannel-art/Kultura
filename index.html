@@ -419,6 +419,7 @@
           </button>
         </div>
         <div class="reg-queue" id="regQueue" hidden></div>
+        <div class="dup-banner" id="dupBanner" hidden></div>
         <div class="chips" id="carsChips"></div>
         <div id="carsList"></div>
       </section>
@@ -780,6 +781,19 @@
           <div class="modal-msg" id="smsSendMsg"></div>
         </div>
 
+        <!-- Automatizări -->
+        <div class="card sms-card">
+          <div class="sms-card-h" data-i18n="sms.autom">Automatizări</div>
+          <label class="sms-check"><input type="checkbox" id="smsWelcomeEnabled"> <span data-i18n="sms.welcome_enable">Trimite SMS de bun venit la sosire (la poartă)</span></label>
+          <textarea id="smsWelcomeTemplate" rows="2" data-i18n-placeholder="sms.welcome_ph" placeholder="Bine ai venit, {{prenume}}!" style="margin-top:8px;"></textarea>
+          <label class="sms-check" style="margin-top:14px;"><input type="checkbox" id="smsReminderEnabled"> <span data-i18n="sms.reminder_enable">Trimite reminder automat cu 24h și 2h înainte de eveniment</span></label>
+          <textarea id="smsReminderTemplate" rows="2" data-i18n-placeholder="sms.reminder_ph" placeholder="Salut {{prenume}}! Evenimentul se apropie." style="margin-top:8px;"></textarea>
+          <div style="display:flex; justify-content:flex-end; margin-top:10px;">
+            <button type="button" class="btn small" id="smsAutomSaveBtn" data-i18n="sms.autom_save">Salvează automatizările</button>
+          </div>
+          <div class="modal-msg" id="smsAutomMsg"></div>
+        </div>
+
         <!-- Istoric -->
         <div class="card sms-card">
           <div class="sms-card-h" data-i18n="sms.history">Istoric SMS</div>
@@ -870,6 +884,18 @@
             <button type="submit" class="btn" data-i18n="common.save">Salvează</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- MODAL: Duplicates -->
+    <div class="modal-backdrop" id="modal-duplicates" data-modal-name="duplicates">
+      <div class="modal">
+        <h2 data-i18n="dup.title">Posibile dubluri</h2>
+        <p class="sub-help" data-i18n="dup.sub">Aceeași placă sau același nume + telefon apar de mai multe ori. Poți șterge exemplarele în plus.</p>
+        <div id="dupList"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn ghost" data-close data-i18n="common.close">Închide</button>
+        </div>
       </div>
     </div>
 
@@ -1512,7 +1538,25 @@
           window.location.reload();
         });
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('sw.js').catch((err) => {
+          navigator.serviceWorker.register('sw.js').then((reg) => {
+            // Auto-update: an installed PWA can stay open for days, so poll for a
+            // new service worker. When one is found we activate it immediately;
+            // controllerchange above then reloads once. Fixes "I don't see the
+            // new version" without any manual hard-refresh.
+            const checkUpdate = () => { try { reg.update(); } catch (_) {} };
+            reg.addEventListener('updatefound', () => {
+              const nw = reg.installing;
+              if (!nw) return;
+              nw.addEventListener('statechange', () => {
+                if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                  try { nw.postMessage({ type: 'SKIP_WAITING' }); } catch (_) {}
+                }
+              });
+            });
+            setInterval(checkUpdate, 15 * 60 * 1000); // la fiecare 15 min
+            document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
+            window.addEventListener('online', checkUpdate);
+          }).catch((err) => {
             console.warn('SW register failed:', err);
           });
         });

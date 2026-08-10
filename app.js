@@ -1606,9 +1606,32 @@
           </td>
         </tr>`).join('');
     }
+    async function loadSmsAutomations() {
+      try {
+        const { data } = await supa.from('ui_settings').select('key,value')
+          .in('key', ['sms_welcome_enabled', 'sms_welcome_template', 'sms_reminder_enabled', 'sms_reminder_template']);
+        const m = {}; (data || []).forEach(r => { m[r.key] = r.value; });
+        if (el('smsWelcomeEnabled')) el('smsWelcomeEnabled').checked = m.sms_welcome_enabled === '1';
+        if (el('smsReminderEnabled')) el('smsReminderEnabled').checked = m.sms_reminder_enabled === '1';
+        if (el('smsWelcomeTemplate') && document.activeElement !== el('smsWelcomeTemplate')) el('smsWelcomeTemplate').value = m.sms_welcome_template || '';
+        if (el('smsReminderTemplate') && document.activeElement !== el('smsReminderTemplate')) el('smsReminderTemplate').value = m.sms_reminder_template || '';
+      } catch (_) {}
+    }
+    el('smsAutomSaveBtn')?.addEventListener('click', async () => {
+      const msg = el('smsAutomMsg');
+      const rows = [
+        { key: 'sms_welcome_enabled', value: el('smsWelcomeEnabled')?.checked ? '1' : '' },
+        { key: 'sms_welcome_template', value: (el('smsWelcomeTemplate')?.value || '').trim() },
+        { key: 'sms_reminder_enabled', value: el('smsReminderEnabled')?.checked ? '1' : '' },
+        { key: 'sms_reminder_template', value: (el('smsReminderTemplate')?.value || '').trim() },
+      ].map(r => ({ ...r, updated_at: new Date().toISOString() }));
+      const { error } = await supa.from('ui_settings').upsert(rows, { onConflict: 'key' });
+      if (msg) { msg.className = 'modal-msg show'; msg.style.color = error ? 'var(--red)' : 'var(--green)'; msg.textContent = error ? (t('common.error') + ': ' + error.message) : t('sms.autom_saved'); }
+    });
+
     function renderSmsCenter() {
       renderSmsFilters(); updateSmsCount(); updateSmsMeta();
-      loadSmsHistory();
+      loadSmsHistory(); loadSmsAutomations();
       // Show a hint if the provider isn't configured yet (best-effort probe).
       const note = el('smsProviderNote');
       if (note && !note.dataset.checked) {
@@ -3632,7 +3655,74 @@
         }, { rootMargin: '600px' });
         _carsIO.observe(sentinel);
       }
+      try { renderDupBanner(); } catch (_) {}
     }
+
+    // ----- Duplicate detector (staff) -----
+    // Groups cars that share a normalized plate, or (plate-less) the same
+    // owner name + phone. Lets an admin review and delete the extra copies.
+    function findDuplicateCars() {
+      const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9А-ЯЁ]/gi, '');
+      const digits = (s) => String(s || '').replace(/\D/g, '');
+      const groups = new Map();
+      for (const c of (state.cars || [])) {
+        const p = norm(c.plate);
+        let key = null;
+        if (p.length >= 3) key = 'p:' + p;
+        else {
+          const o = (c.owner || '').trim().toLowerCase();
+          if (o) key = 'n:' + o + '|' + digits(c.phone);
+        }
+        if (!key) continue;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(c);
+      }
+      return Array.from(groups.values()).filter(g => g.length > 1);
+    }
+    function renderDupBanner() {
+      const b = el('dupBanner');
+      if (!b) return;
+      const groups = roleAtLeast('staff') ? findDuplicateCars() : [];
+      if (!groups.length) { b.hidden = true; b.innerHTML = ''; return; }
+      const extras = groups.reduce((s, g) => s + (g.length - 1), 0);
+      b.hidden = false;
+      b.innerHTML = `<span>⚠️ ${escape(t('dup.found', { n: extras }))}</span>
+        <button class="btn small" id="dupOpenBtn" type="button">${escape(t('dup.review'))}</button>`;
+    }
+    function showDuplicates() {
+      const box = el('dupList');
+      if (!box) return;
+      const groups = findDuplicateCars();
+      if (!groups.length) { box.innerHTML = `<div class="dup-empty">${escape(t('dup.none'))}</div>`; return; }
+      box.innerHTML = groups.map(g => {
+        const rows = g.map((c, i) => {
+          const name = (c.owner || '').trim() || [c.brand, c.model].filter(Boolean).join(' ') || '—';
+          const sub = [c.plate, c.phone, [c.brand, c.model].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
+          return `<div class="dup-item">
+            <div class="dup-item-txt"><strong>${escape(name)}</strong><span>${escape(sub)}</span></div>
+            ${i === 0 ? `<span class="dup-keep">${escape(t('dup.keep'))}</span>`
+                      : `<button class="btn danger small" data-dup-del="${c.id}" type="button">${escape(t('common.delete'))}</button>`}
+          </div>`;
+        }).join('');
+        return `<div class="dup-group">${rows}</div>`;
+      }).join('');
+    }
+    el('dupBanner')?.addEventListener('click', (e) => {
+      if (e.target.closest('#dupOpenBtn')) { showDuplicates(); openModal('duplicates'); }
+    });
+    el('dupList')?.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-dup-del]');
+      if (!btn) return;
+      const id = btn.dataset.dupDel;
+      if (!await uiConfirm(t('dup.confirm_del'))) return;
+      const snapshot = (state.cars || []).find(c => String(c.id) === String(id)) || null;
+      const { error } = await supa.from('cars').delete().eq('id', id);
+      if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
+      state.cars = (state.cars || []).filter(c => String(c.id) !== String(id));
+      showDuplicates();
+      try { renderCars(); } catch (_) {}
+      if (snapshot) showUndoToast(t('undo.car_deleted'), () => restoreRow('cars', snapshot));
+    });
 
     function renderTeam() {
       const q = (state.teamSearch || '').toLowerCase();
