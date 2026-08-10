@@ -3,7 +3,7 @@
 // served from cache immediately (instant startup), while a fresh copy is
 // fetched in the background and used on the next load. Bump the cache version
 // to force a clean refresh after a deploy.
-const CACHE = 'kultura-v39';
+const CACHE = 'kultura-v40';
 const PRECACHE = [
   './',
   './index.html',
@@ -32,6 +32,11 @@ self.addEventListener('install', (e) => {
       .then((c) => Promise.allSettled(PRECACHE.map((u) => c.add(u))))
       .then(() => self.skipWaiting())
   );
+});
+
+// Let the page activate a freshly-installed worker on demand (auto-update).
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
