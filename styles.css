@@ -3728,6 +3728,7 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .cars-split.has-reg .cars-col-title { display: block; }
 @media (max-width: 760px) { .cars-split.has-reg { grid-template-columns: 1fr; } }
 
+.reg-accent { height: 10px; border-radius: 999px; margin: 0 0 12px; background: rgba(245,158,11,.14); border: 1px solid rgba(245,158,11,.32); }
 .reg-chips { margin: 6px 0 10px; }
 .reg-empty { text-align: center; color: var(--text-mute); font-size: 13px; padding: 16px 0; }
 .reg-card.is-hold { opacity: .82; }

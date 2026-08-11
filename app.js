@@ -5608,7 +5608,6 @@
       // detail (all fields + zone assignment + approve/hold/reject).
       const chev = '<svg class="reg-card-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
       box.innerHTML =
-        `<div class="reg-head">${escape(t('reg.title'))} <span class="reg-count">${all.length}</span></div>` +
         `<div class="chips reg-chips">${tab('pending', t('reg.tab_new'), nNew)}${tab('hold', t('reg.tab_hold'), nHold)}</div>` +
         (regs.length ? '' : `<div class="reg-empty">${escape(t('reg.tab_empty'))}</div>`) +
         regs.map(r => {
