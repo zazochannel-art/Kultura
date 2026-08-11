@@ -1469,6 +1469,37 @@
       }
     });
 
+    // ---- Public registration link (admin) ----
+    // register.html lets participants sign their own car up; entries land in the
+    // approval queue on Home. Here we just hand admins the shareable link + QR.
+    function registrationUrl() {
+      return new URL('register.html', location.href).href;
+    }
+    (function initRegShare() {
+      const inp = el('regLink');
+      if (inp) inp.value = registrationUrl();
+      el('regCopyBtn')?.addEventListener('click', async () => {
+        const url = registrationUrl();
+        try { await navigator.clipboard.writeText(url); }
+        catch (_) { if (inp) { inp.select(); document.execCommand && document.execCommand('copy'); } }
+        const msg = el('regMsg'); if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('reg.share_copied'); setTimeout(() => { msg.textContent = ''; }, 2500); }
+      });
+      el('regOpenBtn')?.addEventListener('click', () => { window.open(registrationUrl(), '_blank'); });
+      el('regQrBtn')?.addEventListener('click', async () => {
+        const box = el('regQrBox'); if (!box) return;
+        if (box.style.display !== 'none' && box.innerHTML) { box.style.display = 'none'; return; }
+        box.style.display = 'block';
+        box.innerHTML = `<div class="qr-loading"></div>`;
+        try {
+          const qrlib = await ensureQrLib();
+          const qr = qrlib(0, 'M'); qr.addData(registrationUrl()); qr.make();
+          box.innerHTML = qr.createSvgTag({ scalable: true, margin: 1 });
+        } catch (e) {
+          box.innerHTML = `<div class="qr-err">${escape(t('common.error'))}</div>`;
+        }
+      });
+    })();
+
     // ================= SMS CENTER (admin) =================
     // Recipients come from cars (participants) + vip_guests (by category).
     // Sending goes through the send-sms edge function; live progress is polled
@@ -2027,6 +2058,8 @@
       if (deptBlock) deptBlock.style.display = admin ? 'block' : 'none';
       const sheetBlock = el('sheetSyncBlock');
       if (sheetBlock) sheetBlock.style.display = admin ? 'block' : 'none';
+      const regBlock = el('regBlock');
+      if (regBlock) regBlock.style.display = admin ? 'block' : 'none';
       // SMS Center is admin-only (both desktop and mobile nav entries).
       document.querySelectorAll('.admin-only-tab').forEach(b => { b.style.display = admin ? '' : 'none'; });
       const annBlock = el('announceBlock');

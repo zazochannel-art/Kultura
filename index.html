@@ -670,6 +670,29 @@
           </div>
         </div>
 
+        <div class="setting-block" id="regBlock" style="display:none;">
+          <div class="setting-label" data-i18n="reg.share_label">ÎNSCRIERE PARTICIPANȚI</div>
+          <div class="setting-row" style="align-items:flex-start;">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+            </div>
+            <div class="txt" style="flex:1;">
+              <strong data-i18n="reg.share_title">Pagină publică de înscriere</strong>
+              <span data-i18n="reg.share_sub">Distribuie linkul (sau codul QR). Participanții își înscriu mașina singuri, iar înscrierile apar mai jos, pe Acasă, pentru aprobare.</span>
+              <div class="announce-compose">
+                <input type="text" id="regLink" readonly onclick="this.select()">
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button type="button" class="btn small" id="regCopyBtn" data-i18n="reg.share_copy">Copiază linkul</button>
+                  <button type="button" class="btn ghost small" id="regOpenBtn" data-i18n="reg.share_open">Deschide pagina</button>
+                  <button type="button" class="btn ghost small" id="regQrBtn" data-i18n="reg.share_qr">Cod QR</button>
+                </div>
+                <div id="regQrBox" style="display:none; background:#fff; border-radius:14px; padding:12px; margin-top:10px; width:200px; max-width:100%;"></div>
+                <div class="modal-msg" id="regMsg" style="margin-top:6px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="setting-block" id="announceBlock" style="display:none;">
           <div class="setting-label" data-i18n="announce.label">ANUNȚURI</div>
           <div class="setting-row" style="align-items:flex-start;">
