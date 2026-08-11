@@ -108,10 +108,8 @@
         <textarea name="modifications" rows="3" placeholder="Ex: kit body, jante 19&quot;, evacuare sport, remapare..."></textarea>
         <label>Rețele sociale (Instagram etc.)</label>
         <input name="social_links" placeholder="instagram.com/... / @cont">
-        <div class="row">
-          <div><label>Transport</label><input name="transport_info" placeholder="Pe roți / platformă / remorcă"></div>
-          <div><label>Persoană responsabilă</label><input name="responsible_person" placeholder="Dacă altcineva se ocupă"></div>
-        </div>
+        <label>Transport</label>
+        <input name="transport_info" placeholder="Pe roți / platformă / remorcă">
         <label>Observații</label>
         <textarea name="note" rows="2" placeholder="Cerințe speciale..."></textarea>
         <label>Poze cu mașina</label>
@@ -256,7 +254,6 @@
         telegram: g('telegram') || null, email: g('email') || null,
         year: (parseInt((g('year') || '').replace(/\D/g, ''), 10) || null),
         social_links: g('social_links') || null, transport_info: g('transport_info') || null,
-        responsible_person: g('responsible_person') || null,
         modifications: g('modifications') || null, note: g('note') || null,
         status: 'pending'
       };
