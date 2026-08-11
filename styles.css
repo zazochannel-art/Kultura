@@ -3728,10 +3728,7 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .cars-split.has-reg .cars-col-title { display: block; }
 @media (max-width: 760px) { .cars-split.has-reg { grid-template-columns: 1fr; } }
 
-.reg-tabs { display: flex; gap: 8px; margin: 4px 0 6px; }
-.reg-tab { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--fill); color: var(--text-dim); font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; }
-.reg-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-.reg-tab-n { font-size: 12px; font-weight: 800; opacity: .85; }
+.reg-chips { margin: 6px 0 10px; }
 .reg-empty { text-align: center; color: var(--text-mute); font-size: 13px; padding: 16px 0; }
 .reg-card.is-hold { opacity: .82; }
 .reg-hold-badge { font-size: 11px; font-weight: 800; letter-spacing: .02em; color: var(--orange); background: rgba(245,158,11,.16); border-radius: 999px; padding: 2px 8px; text-transform: uppercase; }

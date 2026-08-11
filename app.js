@@ -5603,13 +5603,13 @@
       if (_regFilter === 'hold' && !nHold && nNew) _regFilter = 'pending';
       const regs = all.filter(r => r.status === _regFilter);
       const tab = (key, label, n) =>
-        `<button type="button" class="reg-tab${_regFilter === key ? ' active' : ''}" data-reg-filter="${key}">${escape(label)} <span class="reg-tab-n">${n}</span></button>`;
+        `<button type="button" class="chip${_regFilter === key ? ' active' : ''}" data-reg-filter="${key}">${escape(label)} <span class="count">· ${n}</span></button>`;
       // Compact card: brand + model + photo thumbnails. Tap to open the full
       // detail (all fields + zone assignment + approve/hold/reject).
       const chev = '<svg class="reg-card-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
       box.innerHTML =
         `<div class="reg-head">${escape(t('reg.title'))} <span class="reg-count">${all.length}</span></div>` +
-        `<div class="reg-tabs">${tab('pending', t('reg.tab_new'), nNew)}${tab('hold', t('reg.tab_hold'), nHold)}</div>` +
+        `<div class="chips reg-chips">${tab('pending', t('reg.tab_new'), nNew)}${tab('hold', t('reg.tab_hold'), nHold)}</div>` +
         (regs.length ? '' : `<div class="reg-empty">${escape(t('reg.tab_empty'))}</div>`) +
         regs.map(r => {
           const name = [r.brand, r.model].filter(Boolean).join(' ') || r.owner || '—';
