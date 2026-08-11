@@ -41,6 +41,14 @@
     input::placeholder,textarea::placeholder{color:var(--text-mute)}
     .row{display:flex;gap:12px}
     .row>div{flex:1;min-width:0}
+    .phone-row{display:flex;gap:10px}
+    .phone-row select{
+      flex:0 0 auto;max-width:44%;width:auto;padding:13px 10px;background:var(--fill);border:1px solid var(--border);
+      border-radius:12px;color:var(--text);font-family:inherit;font-size:15px;outline:none;
+    }
+    .phone-row select:focus{border-color:var(--cyan)}
+    .phone-row input{flex:1;min-width:0}
+    option{background:var(--surface);color:var(--text)}
     button.submit{
       width:100%;margin-top:22px;padding:15px;border:none;border-radius:14px;cursor:pointer;
       font-family:inherit;font-size:16px;font-weight:800;color:#fff;
@@ -76,12 +84,15 @@
           <div><label>Nume proprietar <span class="req">*</span></label><input name="owner" required placeholder="Ion Popescu"></div>
           <div><label>Oraș</label><input name="city" placeholder="București"></div>
         </div>
+        <label>Telefon (WhatsApp) <span class="req">*</span></label>
+        <div class="phone-row">
+          <select id="dial" aria-label="Cod țară"></select>
+          <input name="phone" required type="tel" inputmode="tel" placeholder="6X XXX XXX">
+        </div>
         <div class="row">
-          <div><label>Telefon <span class="req">*</span></label><input name="phone" required type="tel" placeholder="+40 7XX XXX XXX"></div>
+          <div><label>Telegram</label><input name="telegram" placeholder="@username"></div>
           <div><label>Email</label><input name="email" type="email" placeholder="exemplu@mail.ro"></div>
         </div>
-        <label>Categorie</label>
-        <input name="category" placeholder="Stance / JDM / Retro...">
         <label>Observații</label>
         <textarea name="note" rows="3" placeholder="Modificări, cerințe speciale..."></textarea>
         <button type="submit" class="submit" id="submitBtn">Trimite înscrierea</button>
@@ -102,6 +113,51 @@
       'https://knphmxxokowwkruimdus.supabase.co',
       'sb_publishable_9b7WSJF4UlfF1JIdCDjWqQ_dxOTpqSW'
     );
+    // Country dial codes (ISO2 + dial). Flags are derived from the ISO code so
+    // we don't hand-type 200 emoji. Moldova is preselected (event is in MD).
+    const COUNTRIES = [
+      ['Moldova','MD','373'],['România','RO','40'],['Ucraina','UA','380'],['Rusia','RU','7'],
+      ['Afganistan','AF','93'],['Albania','AL','355'],['Algeria','DZ','213'],['Andorra','AD','376'],
+      ['Angola','AO','244'],['Argentina','AR','54'],['Armenia','AM','374'],['Australia','AU','61'],
+      ['Austria','AT','43'],['Azerbaidjan','AZ','994'],['Bahrain','BH','973'],['Bangladesh','BD','880'],
+      ['Belarus','BY','375'],['Belgia','BE','32'],['Bolivia','BO','591'],['Bosnia și Herțegovina','BA','387'],
+      ['Brazilia','BR','55'],['Bulgaria','BG','359'],['Cambodgia','KH','855'],['Canada','CA','1'],
+      ['Chile','CL','56'],['China','CN','86'],['Cipru','CY','357'],['Columbia','CO','57'],
+      ['Coreea de Sud','KR','82'],['Costa Rica','CR','506'],['Croația','HR','385'],['Cuba','CU','53'],
+      ['Danemarca','DK','45'],['Egipt','EG','20'],['Elveția','CH','41'],['Emiratele Arabe Unite','AE','971'],
+      ['Ecuador','EC','593'],['Estonia','EE','372'],['Etiopia','ET','251'],['Filipine','PH','63'],
+      ['Finlanda','FI','358'],['Franța','FR','33'],['Georgia','GE','995'],['Germania','DE','49'],
+      ['Grecia','GR','30'],['Guatemala','GT','502'],['Hong Kong','HK','852'],['India','IN','91'],
+      ['Indonezia','ID','62'],['Irak','IQ','964'],['Iran','IR','98'],['Irlanda','IE','353'],
+      ['Islanda','IS','354'],['Israel','IL','972'],['Italia','IT','39'],['Japonia','JP','81'],
+      ['Iordania','JO','962'],['Kazahstan','KZ','7'],['Kenya','KE','254'],['Kosovo','XK','383'],
+      ['Kuweit','KW','965'],['Letonia','LV','371'],['Liban','LB','961'],['Libia','LY','218'],
+      ['Liechtenstein','LI','423'],['Lituania','LT','370'],['Luxemburg','LU','352'],['Macedonia de Nord','MK','389'],
+      ['Malaezia','MY','60'],['Malta','MT','356'],['Maroc','MA','212'],['Mexic','MX','52'],
+      ['Monaco','MC','377'],['Muntenegru','ME','382'],['Norvegia','NO','47'],['Noua Zeelandă','NZ','64'],
+      ['Nigeria','NG','234'],['Olanda','NL','31'],['Oman','OM','968'],['Pakistan','PK','92'],
+      ['Panama','PA','507'],['Paraguay','PY','595'],['Peru','PE','51'],['Polonia','PL','48'],
+      ['Portugalia','PT','351'],['Qatar','QA','974'],['Regatul Unit','GB','44'],['Republica Cehă','CZ','420'],
+      ['Republica Dominicană','DO','1'],['Serbia','RS','381'],['Singapore','SG','65'],['Siria','SY','963'],
+      ['Slovacia','SK','421'],['Slovenia','SI','386'],['Spania','ES','34'],['Statele Unite','US','1'],
+      ['Suedia','SE','46'],['Africa de Sud','ZA','27'],['Tailanda','TH','66'],['Taiwan','TW','886'],
+      ['Tanzania','TZ','255'],['Tunisia','TN','216'],['Turcia','TR','90'],['Turkmenistan','TM','993'],
+      ['Uganda','UG','256'],['Ungaria','HU','36'],['Uruguay','UY','598'],['Uzbekistan','UZ','998'],
+      ['Venezuela','VE','58'],['Vietnam','VN','84']
+    ];
+    const isoFlag = (iso) => iso.toUpperCase().replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
+    const dial = document.getElementById('dial');
+    // Keep the first 4 (MD/RO/UA/RU) up top, sort the rest alphabetically.
+    const top = COUNTRIES.slice(0, 4);
+    const rest = COUNTRIES.slice(4).sort((a, b) => a[0].localeCompare(b[0], 'ro'));
+    [...top, ...rest].forEach(([name, iso, code]) => {
+      const o = document.createElement('option');
+      o.value = '+' + code;
+      o.textContent = `${isoFlag(iso)} ${name} +${code}`;
+      dial.appendChild(o);
+    });
+    dial.value = '+373';
+
     const form = document.getElementById('regForm');
     const btn = document.getElementById('submitBtn');
     const msg = document.getElementById('msg');
@@ -110,10 +166,12 @@
       e.preventDefault();
       const fd = new FormData(form);
       const g = (k) => (fd.get(k) || '').toString().trim();
+      const localPhone = g('phone');
+      const fullPhone = localPhone ? (dial.value + ' ' + localPhone).trim() : null;
       const row = {
         brand: g('brand') || null, model: g('model') || null, plate: g('plate') || null,
-        owner: g('owner') || null, city: g('city') || null, phone: g('phone') || null,
-        email: g('email') || null, category: g('category') || null, note: g('note') || null,
+        owner: g('owner') || null, city: g('city') || null, phone: fullPhone,
+        telegram: g('telegram') || null, email: g('email') || null, note: g('note') || null,
         status: 'pending'
       };
       if (!row.brand || !row.model || !row.owner || !row.phone) {

@@ -2110,7 +2110,7 @@
     const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at','vip_arrived'];
     const VIP_FP_FIELDS   = ['id','first_name','last_name','company','role','category','guests_count','phone','arrived','arrived_at','event_id','companions','updated_at'];
     const AGENDA_FP_FIELDS = ['id','event_id','title','at_time','notes','updated_at'];
-    const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','email','city','category','status','created_at'];
+    const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','telegram','email','city','category','status','created_at'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
     const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','cover_url','starts_at','days_left'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
@@ -5596,7 +5596,7 @@
       box.innerHTML = `<div class="reg-head">${escape(t('reg.title'))} <span class="reg-count">${regs.length}</span></div>` +
         regs.map(r => {
           const name = [r.brand, r.model].filter(Boolean).join(' ') || '—';
-          const sub = [r.owner, r.plate, r.phone].filter(Boolean).join(' · ');
+          const sub = [r.owner, r.plate, r.phone, r.telegram].filter(Boolean).join(' · ');
           return `<div class="reg-item" data-reg-id="${r.id}">
               <div class="reg-main">
                 <div class="reg-name">${escape(name)}</div>
@@ -5615,7 +5615,8 @@
       if (!r) return;
       const car = {
         brand: r.brand || null, model: r.model || '', plate: r.plate || null, owner: r.owner || null,
-        phone: r.phone || null, email: r.email || null, city: r.city || null, category: r.category || null,
+        phone: r.phone || null, contact: r.phone || null, telegram: r.telegram || null,
+        email: r.email || null, city: r.city || null, category: r.category || null,
         additional_notes: r.note || null, status: 'Invitat', status_color: '#3B82F6',
         event_id: r.event_id || (state.activeEventId ? Number(state.activeEventId) : null)
       };
@@ -6538,8 +6539,15 @@
       if (ev?.title) parts.push(`Vă contactăm în legătură cu evenimentul ${ev.title}.`);
       if (carName) parts.push(`Mașină: ${carName}${c.plate ? ' (' + c.plate + ')' : ''}.`);
       if (c.zone) parts.push(`Zona dvs. de parcare: ${c.zone}.`);
-      const msg = encodeURIComponent(parts.join(' '));
+      // Attach the participant's personal ticket (QR) link so it's ready to send.
+      const ticket = ticketUrl(c);
+      parts.push(`Biletul dvs.: ${ticket}`);
+      const message = parts.join(' ');
+      const msg = encodeURIComponent(message);
       const wa = phone ? `https://wa.me/${phone}?text=${msg}` : '';
+      // Telegram can't pre-fill a direct chat, so use its share dialog: the
+      // ticket link + message come pre-filled and the sender picks the chat.
+      const tgShare = `https://t.me/share/url?url=${encodeURIComponent(ticket)}&text=${encodeURIComponent(parts.slice(0, -1).join(' '))}`;
       const tel = phone ? `tel:+${phone}` : '';
       const waBtn = wa ? `
         <a class="btn ghost contact-wa" href="${wa}" target="_blank" rel="noopener">
@@ -6547,7 +6555,7 @@
           WhatsApp
         </a>` : '';
       const tgBtn = tg ? `
-        <a class="btn ghost contact-tg" href="${tg}" target="_blank" rel="noopener">
+        <a class="btn ghost contact-tg" href="${tgShare}" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M21.94 4.58 18.9 19.2c-.23 1.02-.83 1.27-1.68.79l-4.64-3.42-2.24 2.16c-.25.25-.46.46-.94.46l.33-4.73 8.6-7.77c.37-.33-.08-.52-.58-.19L7.25 13.1l-4.58-1.43c-1-.31-1.02-1 .21-1.48L20.65 3.2c.83-.31 1.56.19 1.29 1.38z"/></svg>
           Telegram
         </a>` : '';
