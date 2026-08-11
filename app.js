@@ -6597,9 +6597,6 @@
       const message = parts.join(' ');
       const msg = encodeURIComponent(message);
       const wa = phone ? `https://wa.me/${phone}?text=${msg}` : '';
-      // Telegram can't pre-fill a direct chat, so use its share dialog: the
-      // ticket link + message come pre-filled and the sender picks the chat.
-      const tgShare = `https://t.me/share/url?url=${encodeURIComponent(ticket)}&text=${encodeURIComponent(parts.slice(0, -1).join(' '))}`;
       const tel = phone ? `tel:+${phone}` : '';
       const waBtn = wa ? `
         <a class="btn ghost contact-wa" href="${wa}" target="_blank" rel="noopener">
@@ -6607,7 +6604,7 @@
           WhatsApp
         </a>` : '';
       const tgBtn = tg ? `
-        <a class="btn ghost contact-tg" href="${tgShare}" target="_blank" rel="noopener">
+        <a class="btn ghost contact-tg" href="${tg}" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M21.94 4.58 18.9 19.2c-.23 1.02-.83 1.27-1.68.79l-4.64-3.42-2.24 2.16c-.25.25-.46.46-.94.46l.33-4.73 8.6-7.77c.37-.33-.08-.52-.58-.19L7.25 13.1l-4.58-1.43c-1-.31-1.02-1 .21-1.48L20.65 3.2c.83-.31 1.56.19 1.29 1.38z"/></svg>
           Telegram
         </a>` : '';
