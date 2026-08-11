@@ -3784,3 +3784,24 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .dup-item-txt span { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dup-keep { font-size: 12px; font-weight: 700; color: var(--green); flex: 0 0 auto; }
 .dup-empty { text-align: center; color: var(--text-mute); padding: 20px; }
+
+/* ---- Aflux (arrivals dashboard) ---- */
+.aflux-block { margin-bottom: 16px; }
+.aflux-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.aflux-summary { font-size: 13px; font-weight: 700; color: var(--green); }
+.aflux-sub { font-size: 12px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; margin: 12px 0 8px; }
+.aflux-bars { display: flex; align-items: flex-end; gap: 6px; height: 120px; padding-top: 6px; }
+.aflux-hbar { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+.aflux-hbar-fill { width: 100%; max-width: 26px; min-height: 3px; border-radius: 6px 6px 0 0; background: linear-gradient(180deg, var(--blue), #6366f1); transition: height .4s ease; }
+.aflux-hbar-lbl { font-size: 10px; color: var(--text-mute); margin-top: 4px; }
+.aflux-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.aflux-row { margin-bottom: 8px; }
+.aflux-row-top { display: flex; justify-content: space-between; font-size: 12px; color: var(--text); margin-bottom: 3px; gap: 8px; }
+.aflux-row-top span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aflux-track { height: 6px; border-radius: 999px; background: var(--elev, rgba(255,255,255,.06)); overflow: hidden; }
+.aflux-track-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--green), #22d3ee); transition: width .4s ease; }
+.aflux-op { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.aflux-op:last-child { border-bottom: 0; }
+.aflux-op-n { font-weight: 800; color: var(--blue); }
+.aflux-empty { text-align: center; color: var(--text-mute); padding: 16px; font-size: 13px; }
+@media (max-width: 560px) { .aflux-cols { grid-template-columns: 1fr; gap: 4px; } }
