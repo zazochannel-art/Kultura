@@ -2110,7 +2110,7 @@
     const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at','vip_arrived'];
     const VIP_FP_FIELDS   = ['id','first_name','last_name','company','role','category','guests_count','phone','arrived','arrived_at','event_id','companions','updated_at'];
     const AGENDA_FP_FIELDS = ['id','event_id','title','at_time','notes','updated_at'];
-    const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','telegram','email','city','category','modifications','photos','status','created_at'];
+    const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','telegram','email','city','category','year','social_links','transport_info','responsible_person','modifications','photos','status','created_at'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
     const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','cover_url','starts_at','days_left'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
@@ -5630,11 +5630,15 @@
       el('regDetailInfo').innerHTML =
         row(t('reg.f_owner'), r.owner) +
         row(t('reg.f_car'), [r.brand, r.model].filter(Boolean).join(' ')) +
+        row(t('reg.f_year'), r.year) +
         row(t('reg.f_plate'), r.plate) +
         row(t('reg.f_phone'), r.phone) +
         row(t('reg.f_telegram'), r.telegram) +
         row(t('reg.f_email'), r.email) +
         row(t('reg.f_city'), r.city) +
+        row(t('reg.f_social'), r.social_links) +
+        row(t('reg.f_transport'), r.transport_info) +
+        row(t('reg.f_responsible'), r.responsible_person) +
         row(t('reg.f_mods'), r.modifications) +
         row(t('reg.f_note'), r.note);
       const zoneSel = el('regDetailZone');
@@ -5664,6 +5668,8 @@
         phone: r.phone || null, contact: r.phone || null, telegram: r.telegram || null,
         email: r.email || null, city: r.city || null, category: r.category || null,
         zone: (zone || '').trim() || '',
+        year: r.year || null, social_links: r.social_links || null,
+        transport_info: r.transport_info || null, responsible_person: r.responsible_person || null,
         modifications: r.modifications || null,
         photos: Array.isArray(r.photos) ? r.photos : [],
         additional_notes: r.note || null, status: 'Invitat', status_color: '#3B82F6',
