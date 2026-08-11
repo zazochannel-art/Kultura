@@ -65,6 +65,15 @@
     .done h2{font-size:20px;margin-bottom:8px}
     .done p{color:var(--text-dim);font-size:14px}
     .foot{text-align:center;color:var(--text-mute);font-size:12px;margin-top:20px}
+    .photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:2px}
+    .photo-add{aspect-ratio:1;border:1.5px dashed var(--border);border-radius:12px;background:var(--fill);
+      color:var(--text-dim);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+      cursor:pointer;font-family:inherit;font-size:12px}
+    .photo-add svg{width:22px;height:22px}
+    .photo-thumb{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;border:1px solid var(--border)}
+    .photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+    .photo-thumb .rm{position:absolute;top:4px;right:4px;width:24px;height:24px;border:none;border-radius:50%;
+      background:rgba(0,0,0,.6);color:#fff;font-size:16px;line-height:1;cursor:pointer;display:grid;place-items:center}
   </style>
 </head>
 <body>
@@ -97,6 +106,14 @@
         <textarea name="modifications" rows="3" placeholder="Ex: kit body, jante 19&quot;, evacuare sport, remapare..."></textarea>
         <label>Observații</label>
         <textarea name="note" rows="2" placeholder="Cerințe speciale..."></textarea>
+        <label>Poze cu mașina</label>
+        <div id="photoGrid" class="photo-grid">
+          <button type="button" id="photoAdd" class="photo-add" aria-label="Adaugă poze">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>Adaugă</span>
+          </button>
+        </div>
+        <input id="photoInput" type="file" accept="image/*" multiple style="display:none">
         <button type="submit" class="submit" id="submitBtn">Trimite înscrierea</button>
         <div class="msg" id="msg"></div>
       </form>
@@ -160,6 +177,61 @@
     });
     dial.value = '+373';
 
+    // ----- Photos: pick, preview, downscale, upload -----
+    const MAX_PHOTOS = 6;
+    const photos = []; // { file, url (objectURL) }
+    const grid = document.getElementById('photoGrid');
+    const addBtn = document.getElementById('photoAdd');
+    const fileInput = document.getElementById('photoInput');
+    addBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+      for (const f of Array.from(fileInput.files || [])) {
+        if (photos.length >= MAX_PHOTOS) break;
+        if (!/^image\//.test(f.type)) continue;
+        photos.push({ file: f, url: URL.createObjectURL(f) });
+      }
+      fileInput.value = '';
+      renderPhotos();
+    });
+    function renderPhotos() {
+      grid.querySelectorAll('.photo-thumb').forEach((n) => n.remove());
+      photos.forEach((p, i) => {
+        const d = document.createElement('div');
+        d.className = 'photo-thumb';
+        d.innerHTML = '<img src="' + p.url + '" alt=""><button type="button" class="rm" aria-label="Șterge">&times;</button>';
+        d.querySelector('.rm').addEventListener('click', () => { URL.revokeObjectURL(p.url); photos.splice(i, 1); renderPhotos(); });
+        grid.insertBefore(d, addBtn);
+      });
+      addBtn.style.display = photos.length >= MAX_PHOTOS ? 'none' : '';
+    }
+    // Downscale to <=1600px, JPEG ~0.8, to keep uploads small.
+    function compress(file) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const max = 1600;
+          let { width: w, height: h } = img;
+          if (w > max || h > max) { const s = max / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
+          const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+          cv.getContext('2d').drawImage(img, 0, 0, w, h);
+          cv.toBlob((b) => resolve(b || file), 'image/jpeg', 0.8);
+        };
+        img.onerror = () => resolve(file);
+        img.src = URL.createObjectURL(file);
+      });
+    }
+    async function uploadPhotos() {
+      const urls = [];
+      for (const p of photos) {
+        const blob = await compress(p.file);
+        const path = 'reg/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+        const { error } = await supa.storage.from('registration-photos').upload(path, blob, { contentType: 'image/jpeg' });
+        if (error) throw error;
+        urls.push(supa.storage.from('registration-photos').getPublicUrl(path).data.publicUrl);
+      }
+      return urls;
+    }
+
     const form = document.getElementById('regForm');
     const btn = document.getElementById('submitBtn');
     const msg = document.getElementById('msg');
@@ -170,18 +242,22 @@
       const g = (k) => (fd.get(k) || '').toString().trim();
       const localPhone = g('phone');
       const fullPhone = localPhone ? (dial.value + ' ' + localPhone).trim() : null;
-      const row = {
+      const base = {
         brand: g('brand') || null, model: g('model') || null, plate: g('plate') || null,
         owner: g('owner') || null, city: g('city') || null, phone: fullPhone,
         telegram: g('telegram') || null, email: g('email') || null,
         modifications: g('modifications') || null, note: g('note') || null,
         status: 'pending'
       };
-      if (!row.brand || !row.model || !row.owner || !row.phone) {
+      if (!base.brand || !base.model || !base.owner || !base.phone) {
         showMsg('Completează marca, modelul, numele și telefonul.', 'err'); return;
       }
       btn.disabled = true;
-      const { error } = await supa.from('car_registrations').insert(row);
+      let uploaded = [];
+      try {
+        if (photos.length) { showMsg('Se încarcă pozele…', 'ok'); uploaded = await uploadPhotos(); }
+      } catch (err) { btn.disabled = false; showMsg('Nu s-au putut încărca pozele: ' + (err.message || err), 'err'); return; }
+      const { error } = await supa.from('car_registrations').insert({ ...base, photos: uploaded });
       btn.disabled = false;
       if (error) { showMsg('Eroare: ' + error.message, 'err'); return; }
       document.getElementById('done').style.display = 'block';
