@@ -87,8 +87,10 @@
           <div><label>Marcă <span class="req">*</span></label><input name="brand" required placeholder="BMW"></div>
           <div><label>Model <span class="req">*</span></label><input name="model" required placeholder="M4"></div>
         </div>
-        <label>Număr de înmatriculare</label>
-        <input name="plate" placeholder="B 100 XYZ">
+        <div class="row">
+          <div><label>Număr de înmatriculare</label><input name="plate" placeholder="B 100 XYZ"></div>
+          <div><label>An fabricație</label><input name="year" inputmode="numeric" maxlength="4" placeholder="2018"></div>
+        </div>
         <div class="row">
           <div><label>Nume proprietar <span class="req">*</span></label><input name="owner" required placeholder="Ion Popescu"></div>
           <div><label>Oraș</label><input name="city" placeholder="București"></div>
@@ -104,6 +106,12 @@
         </div>
         <label>Modificări / detalii tehnice</label>
         <textarea name="modifications" rows="3" placeholder="Ex: kit body, jante 19&quot;, evacuare sport, remapare..."></textarea>
+        <label>Rețele sociale (Instagram etc.)</label>
+        <input name="social_links" placeholder="instagram.com/... / @cont">
+        <div class="row">
+          <div><label>Transport</label><input name="transport_info" placeholder="Pe roți / platformă / remorcă"></div>
+          <div><label>Persoană responsabilă</label><input name="responsible_person" placeholder="Dacă altcineva se ocupă"></div>
+        </div>
         <label>Observații</label>
         <textarea name="note" rows="2" placeholder="Cerințe speciale..."></textarea>
         <label>Poze cu mașina</label>
@@ -246,6 +254,9 @@
         brand: g('brand') || null, model: g('model') || null, plate: g('plate') || null,
         owner: g('owner') || null, city: g('city') || null, phone: fullPhone,
         telegram: g('telegram') || null, email: g('email') || null,
+        year: (parseInt((g('year') || '').replace(/\D/g, ''), 10) || null),
+        social_links: g('social_links') || null, transport_info: g('transport_info') || null,
+        responsible_person: g('responsible_person') || null,
         modifications: g('modifications') || null, note: g('note') || null,
         status: 'pending'
       };
