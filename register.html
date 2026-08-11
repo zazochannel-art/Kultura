@@ -93,8 +93,10 @@
           <div><label>Telegram</label><input name="telegram" placeholder="@username"></div>
           <div><label>Email</label><input name="email" type="email" placeholder="exemplu@mail.ro"></div>
         </div>
+        <label>Modificări / detalii tehnice</label>
+        <textarea name="modifications" rows="3" placeholder="Ex: kit body, jante 19&quot;, evacuare sport, remapare..."></textarea>
         <label>Observații</label>
-        <textarea name="note" rows="3" placeholder="Modificări, cerințe speciale..."></textarea>
+        <textarea name="note" rows="2" placeholder="Cerințe speciale..."></textarea>
         <button type="submit" class="submit" id="submitBtn">Trimite înscrierea</button>
         <div class="msg" id="msg"></div>
       </form>
@@ -171,7 +173,8 @@
       const row = {
         brand: g('brand') || null, model: g('model') || null, plate: g('plate') || null,
         owner: g('owner') || null, city: g('city') || null, phone: fullPhone,
-        telegram: g('telegram') || null, email: g('email') || null, note: g('note') || null,
+        telegram: g('telegram') || null, email: g('email') || null,
+        modifications: g('modifications') || null, note: g('note') || null,
         status: 'pending'
       };
       if (!row.brand || !row.model || !row.owner || !row.phone) {

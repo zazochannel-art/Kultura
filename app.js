@@ -2110,7 +2110,7 @@
     const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at','vip_arrived'];
     const VIP_FP_FIELDS   = ['id','first_name','last_name','company','role','category','guests_count','phone','arrived','arrived_at','event_id','companions','updated_at'];
     const AGENDA_FP_FIELDS = ['id','event_id','title','at_time','notes','updated_at'];
-    const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','telegram','email','city','category','status','created_at'];
+    const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','telegram','email','city','category','modifications','status','created_at'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
     const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','cover_url','starts_at','days_left'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
@@ -5617,6 +5617,7 @@
         brand: r.brand || null, model: r.model || '', plate: r.plate || null, owner: r.owner || null,
         phone: r.phone || null, contact: r.phone || null, telegram: r.telegram || null,
         email: r.email || null, city: r.city || null, category: r.category || null,
+        modifications: r.modifications || null,
         additional_notes: r.note || null, status: 'Invitat', status_color: '#3B82F6',
         event_id: r.event_id || (state.activeEventId ? Number(state.activeEventId) : null)
       };
