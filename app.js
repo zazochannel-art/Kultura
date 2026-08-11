@@ -2204,7 +2204,7 @@
             supa.from('announcements').select('*').order('id', { ascending: false }).limit(20),
             supa.from('vip_guests').select('*').order('id', { ascending: false }),
             supa.from('event_agenda').select('*').order('at_time', { ascending: true }),
-            supa.from('car_registrations').select('*').eq('status', 'pending').order('id', { ascending: false })
+            supa.from('car_registrations').select('*').in('status', ['pending', 'hold']).order('id', { ascending: false })
           ]);
 
           // Only overwrite each slice if the fetch succeeded; otherwise keep
@@ -5590,23 +5590,24 @@
     function renderRegQueue() {
       const box = el('regQueue'); if (!box) return;
       const staff = roleAtLeast('staff');
-      const regs = (state.registrations || []).filter(r => r.status === 'pending');
+      const regs = (state.registrations || []).filter(r => r.status === 'pending' || r.status === 'hold');
       if (!staff || !regs.length) { box.hidden = true; box.innerHTML = ''; return; }
       box.hidden = false;
-      // Compact card: brand + photo thumbnails. Tap to open the full detail
-      // (all fields + zone assignment + approve/reject).
+      // Compact card: brand + model + photo thumbnails. Tap to open the full
+      // detail (all fields + zone assignment + approve/hold/reject).
       const chev = '<svg class="reg-card-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
       box.innerHTML = `<div class="reg-head">${escape(t('reg.title'))} <span class="reg-count">${regs.length}</span></div>` +
         regs.map(r => {
-          const brand = r.brand || r.model || r.owner || '—';
+          const name = [r.brand, r.model].filter(Boolean).join(' ') || r.owner || '—';
+          const hold = r.status === 'hold' ? `<span class="reg-hold-badge">${escape(t('reg.hold'))}</span>` : '';
           const pics = Array.isArray(r.photos) ? r.photos : [];
           const shown = pics.slice(0, 3);
           const extra = pics.length - shown.length;
           const thumbs = pics.length
             ? `<div class="reg-card-thumbs">${shown.map(u => `<img src="${escape(u)}" alt="" loading="lazy">`).join('')}${extra > 0 ? `<div class="reg-card-more">+${extra}</div>` : ''}</div>`
             : '';
-          return `<div class="reg-card" data-reg-open="${r.id}" role="button" tabindex="0">
-              <div class="reg-card-brand">${escape(brand)}</div>
+          return `<div class="reg-card${r.status === 'hold' ? ' is-hold' : ''}" data-reg-open="${r.id}" role="button" tabindex="0">
+              <div class="reg-card-brand">${escape(name)}${hold}</div>
               ${thumbs}
               ${chev}
             </div>`;
@@ -5651,6 +5652,11 @@
       closeModal(document.getElementById('modal-reg-detail'));
       approveRegistration(id, zone);
     });
+    el('regDetailHold')?.addEventListener('click', () => {
+      const id = _regDetailId; if (!id) return;
+      closeModal(document.getElementById('modal-reg-detail'));
+      holdRegistration(id);
+    });
     el('regDetailReject')?.addEventListener('click', async () => {
       const id = _regDetailId; if (!id) return;
       if (!(await uiConfirm(t('reg.reject_confirm')))) return;
@@ -5683,6 +5689,15 @@
       renderRegQueue();
       showToast(t('reg.approved', { name: [r.brand, r.model].filter(Boolean).join(' ') || r.owner || '' }));
     }
+    async function holdRegistration(id) {
+      const { error } = await supa.from('car_registrations').update({ status: 'hold' }).eq('id', id);
+      if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
+      const r = (state.registrations || []).find(x => String(x.id) === String(id));
+      if (r) r.status = 'hold';
+      _fp.regs = makeFp(state.registrations, REG_FP_FIELDS);
+      renderRegQueue();
+      showToast(t('reg.held'));
+    }
     async function rejectRegistration(id, skipConfirm) {
       if (!skipConfirm && !(await uiConfirm(t('reg.reject_confirm')))) return;
       const { error } = await supa.from('car_registrations').delete().eq('id', id);
@@ -5703,7 +5718,7 @@
       if (eventType === 'DELETE') {
         state.registrations = state.registrations.filter(r => String(r.id) !== String(ou?.id));
       } else if (nu) {
-        if (nu.status !== 'pending') {
+        if (nu.status !== 'pending' && nu.status !== 'hold') {
           state.registrations = state.registrations.filter(r => String(r.id) !== String(nu.id));
         } else {
           const i = state.registrations.findIndex(r => String(r.id) === String(nu.id));
