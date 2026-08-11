@@ -1459,7 +1459,7 @@
           throw new Error(body?.note || body?.error || error.message || 'invoke failed');
         }
         if (data && data.error) throw new Error(data.note || data.error);
-        if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('sheetsync.done', { n: data?.inserted ?? 0, s: data?.skipped ?? 0 }); }
+        if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('sheetsync.done', { n: data?.inserted ?? 0, u: data?.updated ?? 0, s: data?.skipped ?? 0 }); }
         await loadData();
         try { renderVip(); } catch (_) {}
         if (btn) btn.disabled = false;
@@ -2056,7 +2056,7 @@
     // (notes, modifications, photos, checklist, detailed_description, …) are only
     // needed in the detail view, which hydrates them on demand. `updated_at` is
     // included so any edit still bumps the fingerprint.
-    const CAR_LIST_COLS  = 'id,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,vip_arrived,vip_arrived_at';
+    const CAR_LIST_COLS  = 'id,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,vip_arrived,vip_arrived_at,arrived_at,checked_in_by';
     const TASK_LIST_COLS = 'id,title,event,date,status,status_color,is_completed,event_id,due_at,created_at,assigned_user_id,assigned_user_name,started_at,completed_at,completed_by_user_id,completed_by_user_name,priority,category,due_date,created_by,assigned_to,assigned_at,completed_by,team,updated_at,reminder_sent';
 
     // Canonical parking zones (car categories). Single source of truth for the
@@ -3111,7 +3111,62 @@
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     });
 
+    // Live arrivals dashboard (staff): counters, arrivals-per-hour, per-zone /
+    // per-category arrival rate, and check-ins per operator.
+    function renderAflux() {
+      const block = el('afluxBlock');
+      if (!block) return;
+      if (!roleAtLeast('staff')) { block.hidden = true; return; }
+      const cars = activeCars();
+      const isArr = (c) => (c.status || '').toLowerCase().includes('sosit');
+      const arrived = cars.filter(isArr);
+      block.hidden = false;
+      const sum = el('afluxSummary');
+      if (sum) sum.textContent = t('aflux.summary', { a: arrived.length, n: cars.length });
+
+      // Arrivals per hour (from arrived_at). Only hours with data.
+      const byHour = {};
+      arrived.forEach(c => { if (c.arrived_at) { const h = new Date(c.arrived_at).getHours(); byHour[h] = (byHour[h] || 0) + 1; } });
+      const hours = Object.keys(byHour).map(Number).sort((a, b) => a - b);
+      const maxH = Math.max(1, ...hours.map(h => byHour[h]));
+      const hoursBox = el('afluxHours');
+      if (hoursBox) {
+        hoursBox.innerHTML = hours.length
+          ? hours.map(h => `<div class="aflux-hbar" title="${h}:00 — ${byHour[h]}">
+              <div class="aflux-hbar-fill" style="height:${Math.round(byHour[h] / maxH * 100)}%"></div>
+              <div class="aflux-hbar-lbl">${String(h).padStart(2, '0')}</div></div>`).join('')
+          : `<div class="aflux-empty">${escape(t('aflux.no_arrivals'))}</div>`;
+      }
+
+      // Grouped arrival rate (arrived / total) for a key.
+      const groupRate = (keyFn) => {
+        const g = {};
+        cars.forEach(c => { const k = (keyFn(c) || '').trim(); if (!k) return; g[k] = g[k] || { a: 0, n: 0 }; g[k].n++; if (isArr(c)) g[k].a++; });
+        return Object.entries(g).sort((a, b) => b[1].n - a[1].n).slice(0, 12);
+      };
+      const renderRates = (id, rows) => {
+        const box = el(id); if (!box) return;
+        box.innerHTML = rows.length ? rows.map(([k, v]) => {
+          const pct = v.n ? Math.round(v.a / v.n * 100) : 0;
+          return `<div class="aflux-row"><div class="aflux-row-top"><span>${escape(k)}</span><span>${v.a}/${v.n}</span></div>
+            <div class="aflux-track"><div class="aflux-track-fill" style="width:${pct}%"></div></div></div>`;
+        }).join('') : `<div class="aflux-empty">—</div>`;
+      };
+      renderRates('afluxZones', groupRate(c => c.zone));
+      renderRates('afluxCats', groupRate(c => c.category));
+
+      // Check-ins per operator.
+      const ops = {};
+      arrived.forEach(c => { const o = (c.checked_in_by || '').trim(); if (o) ops[o] = (ops[o] || 0) + 1; });
+      const opRows = Object.entries(ops).sort((a, b) => b[1] - a[1]).slice(0, 12);
+      const opBox = el('afluxOps');
+      if (opBox) opBox.innerHTML = opRows.length
+        ? opRows.map(([o, n]) => `<div class="aflux-op"><span>${escape(o.split('@')[0])}</span><span class="aflux-op-n">${n}</span></div>`).join('')
+        : `<div class="aflux-empty">${escape(t('aflux.no_operators'))}</div>`;
+    }
+
     function renderStats(cars, tasks, events) {
+      try { renderAflux(); } catch (_) {}
       // Cars/tasks respect the active-event filter; events count stays global.
       const scopedCars = activeCars();
       const scopedTasks = activeTasks();
@@ -4518,7 +4573,7 @@
         }
 
         statusDiv.textContent = `Analiză completă! Am găsit ${cars.length} mașini` +
-          (dupCount ? ` (${dupCount} dubluri — vor fi sărite la import).` : '.');
+          (dupCount ? ` (${dupCount} existente — vor fi actualizate).` : '.');
         statusDiv.style.color = 'var(--green)';
         setTimeout(() => { el('aiProgressBarContainer').style.display = 'none'; }, 1000);
 
@@ -4533,7 +4588,7 @@
             ? `<span style="background: rgba(16,185,129,0.15); color: var(--green); padding: 2px 6px; border-radius: 4px; font-family: monospace;">Tel: ${escape(car.phone)}</span>`
             : `<span style="background: rgba(255,255,255,0.05); color: var(--text-mute); padding: 2px 6px; border-radius: 4px; font-style: italic;">Tel lipsă</span>`;
           const dupChip = car._dup
-            ? `<span style="background: rgba(245,158,11,0.18); color: var(--orange); padding: 2px 6px; border-radius: 4px; font-weight: 700;">DUBLURĂ — se sare</span>`
+            ? `<span style="background: rgba(245,158,11,0.18); color: var(--orange); padding: 2px 6px; border-radius: 4px; font-weight: 700;">EXISTĂ — se actualizează</span>`
             : '';
           // Extra fields detected, shown so the user can confirm they came through.
           const extras = [];
@@ -4593,15 +4648,10 @@
       el('aiImportConfirmBtn').disabled = true;
 
       try {
-        // Skip rows flagged as duplicates during the preview step.
+        // Rows flagged as duplicates in the preview are merged into the existing
+        // car (new/changed fields only); the rest are inserted.
         const fresh = cars.filter(c => !c._dup);
-        const skipped = cars.length - fresh.length;
-        if (fresh.length === 0) {
-          statusDiv.textContent = 'Toate mașinile din fișier există deja — nimic de importat.';
-          statusDiv.style.color = 'var(--orange)';
-          el('aiImportConfirmBtn').disabled = false;
-          return;
-        }
+        const dups = cars.filter(c => c._dup);
         // Map AI output onto uniform, whitelisted rows: a stray key invented
         // by the model would otherwise reject a whole batch ("column not
         // found"), and NOT NULL columns need string fallbacks.
@@ -4647,8 +4697,31 @@
           if (error) throw new Error(`Lotul ${Math.floor(i / BATCH) + 1}: ${error.message}`);
         }
 
-        statusDiv.textContent = `Au fost importate ${rows.length} mașini cu succes!` +
-          (skipped ? ` ${skipped} dubluri au fost sărite.` : '');
+        // Smart merge: for each duplicate row, refresh the matching existing car
+        // with new/changed fields only. Gate/arrival/VIP state is never touched.
+        const normPl = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const byPlate = new Map();
+        (state.cars || []).forEach(x => { const p = normPl(x.plate); if (p.length >= 3 && !byPlate.has(p)) byPlate.set(p, x); });
+        const MERGE_FIELDS = ['model', 'owner', 'zone', 'phone', 'email', 'brand', 'city', 'category', 'telegram', 'modifications', 'responsible_person', 'transport_info', 'social_links'];
+        let updated = 0, skipped = 0;
+        for (const c of dups) {
+          const ex = byPlate.get(normPl(c.plate));
+          if (!ex) { skipped++; continue; }
+          const patch = {};
+          for (const f of MERGE_FIELDS) {
+            const nv = String((f === 'phone' ? (c.phone || c.contact) : c[f]) || '').trim();
+            if (nv && String(ex[f] || '').trim() !== nv) patch[f] = nv;
+          }
+          if (patch.phone && String(ex.contact || '').trim() !== patch.phone) patch.contact = patch.phone;
+          const ny = toYear(c.year);
+          if (ny != null && ex.year !== ny) patch.year = ny;
+          if (!Object.keys(patch).length) { skipped++; continue; }
+          const { error } = await supa.from('cars').update(patch).eq('id', ex.id);
+          if (!error) updated++; else skipped++;
+        }
+
+        statusDiv.textContent = `Import finalizat: ${rows.length} adăugate` +
+          (updated ? `, ${updated} actualizate` : '') + (skipped ? `, ${skipped} sărite` : '') + '.';
         statusDiv.style.color = 'var(--green)';
         await loadData();
 
