@@ -5593,36 +5593,77 @@
       const regs = (state.registrations || []).filter(r => r.status === 'pending');
       if (!staff || !regs.length) { box.hidden = true; box.innerHTML = ''; return; }
       box.hidden = false;
+      // Compact card: brand + photo thumbnails. Tap to open the full detail
+      // (all fields + zone assignment + approve/reject).
+      const chev = '<svg class="reg-card-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
       box.innerHTML = `<div class="reg-head">${escape(t('reg.title'))} <span class="reg-count">${regs.length}</span></div>` +
         regs.map(r => {
-          const name = [r.brand, r.model].filter(Boolean).join(' ') || '—';
-          const sub = [r.owner, r.plate, r.phone, r.telegram].filter(Boolean).join(' · ');
+          const brand = r.brand || r.model || r.owner || '—';
           const pics = Array.isArray(r.photos) ? r.photos : [];
+          const shown = pics.slice(0, 3);
+          const extra = pics.length - shown.length;
           const thumbs = pics.length
-            ? `<div class="reg-thumbs">${pics.slice(0, 4).map(u => `<img src="${escape(u)}" alt="" loading="lazy" data-reg-photo="${escape(u)}">`).join('')}</div>`
+            ? `<div class="reg-card-thumbs">${shown.map(u => `<img src="${escape(u)}" alt="" loading="lazy">`).join('')}${extra > 0 ? `<div class="reg-card-more">+${extra}</div>` : ''}</div>`
             : '';
-          return `<div class="reg-item" data-reg-id="${r.id}">
-              <div class="reg-main">
-                <div class="reg-name">${escape(name)}</div>
-                ${sub ? `<div class="reg-sub">${escape(sub)}</div>` : ''}
-                ${r.modifications ? `<div class="reg-note">${escape(r.modifications)}</div>` : ''}
-                ${r.note ? `<div class="reg-note">${escape(r.note)}</div>` : ''}
-                ${thumbs}
-              </div>
-              <div class="reg-actions">
-                <button class="btn small" data-reg-approve="${r.id}" type="button">${escape(t('reg.approve'))}</button>
-                <button class="btn small ghost" data-reg-reject="${r.id}" type="button">${escape(t('reg.reject'))}</button>
-              </div>
+          return `<div class="reg-card" data-reg-open="${r.id}" role="button" tabindex="0">
+              <div class="reg-card-brand">${escape(brand)}</div>
+              ${thumbs}
+              ${chev}
             </div>`;
         }).join('');
     }
-    async function approveRegistration(id) {
+
+    // Full detail of a pending registration, with zone assignment + actions.
+    let _regDetailId = null;
+    function showRegDetail(id) {
+      const r = (state.registrations || []).find(x => String(x.id) === String(id));
+      if (!r) return;
+      _regDetailId = id;
+      const title = [r.brand, r.model].filter(Boolean).join(' ') || r.owner || '—';
+      el('regDetailTitle').textContent = title;
+      const sub = el('regDetailSub');
+      if (sub) sub.textContent = r.plate || '';
+      const pics = Array.isArray(r.photos) ? r.photos : [];
+      el('regDetailPhotos').innerHTML = pics.map(u =>
+        `<img src="${escape(u)}" alt="" loading="lazy" data-reg-photo="${escape(u)}">`).join('');
+      const row = (k, v) => v ? `<div class="reg-detail-row"><span class="k">${escape(k)}</span><span class="v">${escape(v)}</span></div>` : '';
+      el('regDetailInfo').innerHTML =
+        row(t('reg.f_owner'), r.owner) +
+        row(t('reg.f_car'), [r.brand, r.model].filter(Boolean).join(' ')) +
+        row(t('reg.f_plate'), r.plate) +
+        row(t('reg.f_phone'), r.phone) +
+        row(t('reg.f_telegram'), r.telegram) +
+        row(t('reg.f_email'), r.email) +
+        row(t('reg.f_city'), r.city) +
+        row(t('reg.f_mods'), r.modifications) +
+        row(t('reg.f_note'), r.note);
+      const zoneSel = el('regDetailZone');
+      if (zoneSel) zoneSel.innerHTML = zoneOptionsHTML('');
+      openModal('reg-detail');
+    }
+    el('regDetailApprove')?.addEventListener('click', () => {
+      const id = _regDetailId; if (!id) return;
+      const zone = (el('regDetailZone')?.value || '').trim();
+      closeModal(document.getElementById('modal-reg-detail'));
+      approveRegistration(id, zone);
+    });
+    el('regDetailReject')?.addEventListener('click', async () => {
+      const id = _regDetailId; if (!id) return;
+      if (!(await uiConfirm(t('reg.reject_confirm')))) return;
+      closeModal(document.getElementById('modal-reg-detail'));
+      rejectRegistration(id, true);
+    });
+    el('regDetailPhotos')?.addEventListener('click', (e) => {
+      const ph = e.target.closest('[data-reg-photo]'); if (ph) window.open(ph.dataset.regPhoto, '_blank', 'noopener');
+    });
+    async function approveRegistration(id, zone) {
       const r = (state.registrations || []).find(x => String(x.id) === String(id));
       if (!r) return;
       const car = {
         brand: r.brand || null, model: r.model || '', plate: r.plate || null, owner: r.owner || null,
         phone: r.phone || null, contact: r.phone || null, telegram: r.telegram || null,
         email: r.email || null, city: r.city || null, category: r.category || null,
+        zone: (zone || '').trim() || '',
         modifications: r.modifications || null,
         photos: Array.isArray(r.photos) ? r.photos : [],
         additional_notes: r.note || null, status: 'Invitat', status_color: '#3B82F6',
@@ -5636,17 +5677,19 @@
       renderRegQueue();
       showToast(t('reg.approved', { name: [r.brand, r.model].filter(Boolean).join(' ') || r.owner || '' }));
     }
-    async function rejectRegistration(id) {
-      if (!(await uiConfirm(t('reg.reject_confirm')))) return;
+    async function rejectRegistration(id, skipConfirm) {
+      if (!skipConfirm && !(await uiConfirm(t('reg.reject_confirm')))) return;
       const { error } = await supa.from('car_registrations').delete().eq('id', id);
       if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
       state.registrations = (state.registrations || []).filter(x => String(x.id) !== String(id));
       renderRegQueue();
     }
     el('regQueue')?.addEventListener('click', (e) => {
-      const ph = e.target.closest('[data-reg-photo]'); if (ph) { window.open(ph.dataset.regPhoto, '_blank', 'noopener'); return; }
-      const a = e.target.closest('[data-reg-approve]'); if (a) { approveRegistration(a.dataset.regApprove); return; }
-      const rj = e.target.closest('[data-reg-reject]'); if (rj) { rejectRegistration(rj.dataset.regReject); return; }
+      const open = e.target.closest('[data-reg-open]'); if (open) { showRegDetail(open.dataset.regOpen); }
+    });
+    el('regQueue')?.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const open = e.target.closest('[data-reg-open]'); if (open) { e.preventDefault(); showRegDetail(open.dataset.regOpen); }
     });
     function applyRealtimeReg(payload) {
       if (!state.registrations) state.registrations = [];

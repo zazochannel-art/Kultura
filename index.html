@@ -877,6 +877,30 @@
       </div>
     </div>
 
+    <!-- MODAL: Registration detail (approval) -->
+    <div class="modal-backdrop" id="modal-reg-detail" data-modal-name="reg-detail">
+      <div class="modal" style="max-width: 560px;">
+        <div class="detail-head">
+          <div style="flex:1;min-width:0;">
+            <h2 id="regDetailTitle">—</h2>
+            <p class="sub-help" id="regDetailSub" style="margin:0;"></p>
+          </div>
+          <button class="detail-close" data-close aria-label="Închide">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div id="regDetailPhotos" class="reg-detail-photos"></div>
+        <div id="regDetailInfo" class="reg-detail-info"></div>
+        <label class="setting-label" for="regDetailZone" style="margin-top:6px;" data-i18n="reg.zone_label">ZONĂ LA EVENIMENT</label>
+        <select id="regDetailZone"></select>
+        <div class="modal-actions">
+          <button type="button" class="btn ghost" data-close data-i18n="common.close">Închide</button>
+          <button type="button" class="btn danger" id="regDetailReject" data-i18n="reg.reject">Respinge</button>
+          <button type="button" class="btn" id="regDetailApprove" data-i18n="reg.approve">Aprobă</button>
+        </div>
+      </div>
+    </div>
+
     <!-- MODAL: User Profile / Department -->
     <!-- MAP CROP / RESIZE EDITOR -->
     <div class="modal-backdrop" id="modal-map-crop" data-modal-name="map-crop">
