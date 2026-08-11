@@ -5592,8 +5592,10 @@
       const box = el('regQueue'); if (!box) return;
       const staff = roleAtLeast('staff');
       const all = (state.registrations || []).filter(r => r.status === 'pending' || r.status === 'hold');
-      if (!staff || !all.length) { box.hidden = true; box.innerHTML = ''; return; }
+      const split = el('carsSplit');
+      if (!staff || !all.length) { box.hidden = true; box.innerHTML = ''; if (split) split.classList.remove('has-reg'); return; }
       box.hidden = false;
+      if (split) split.classList.add('has-reg');
       const nNew = all.filter(r => r.status === 'pending').length;
       const nHold = all.filter(r => r.status === 'hold').length;
       // Fall back to a tab that actually has items so the list is never blank.
