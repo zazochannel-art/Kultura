@@ -6604,7 +6604,7 @@
           WhatsApp
         </a>` : '';
       const tgBtn = tg ? `
-        <a class="btn ghost contact-tg" href="${tg}" target="_blank" rel="noopener">
+        <a class="btn ghost contact-tg" href="${tg}" target="_blank" rel="noopener" data-tg-msg="${escape(message)}">
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M21.94 4.58 18.9 19.2c-.23 1.02-.83 1.27-1.68.79l-4.64-3.42-2.24 2.16c-.25.25-.46.46-.94.46l.33-4.73 8.6-7.77c.37-.33-.08-.52-.58-.19L7.25 13.1l-4.58-1.43c-1-.31-1.02-1 .21-1.48L20.65 3.2c.83-.31 1.56.19 1.29 1.38z"/></svg>
           Telegram
         </a>` : '';
@@ -6615,6 +6615,24 @@
         </a>` : '';
       return waBtn + tgBtn + telBtn;
     }
+
+    // Telegram can't pre-fill a direct chat via URL, so when the Telegram
+    // contact button is tapped we copy the message (with the ticket link) to
+    // the clipboard — the sender just pastes it into the chat that opens.
+    document.addEventListener('click', (e) => {
+      const tgLink = e.target.closest && e.target.closest('.contact-tg');
+      if (!tgLink) return;
+      const text = tgLink.getAttribute('data-tg-msg') || '';
+      if (!text) return;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(
+            () => { try { showToast(t('car.contact.tg_copied')); } catch (_) {} },
+            () => {}
+          );
+        }
+      } catch (_) {}
+    });
 
     // ----- CAR DETAIL -----
     async function showCarDetail(carId) {
