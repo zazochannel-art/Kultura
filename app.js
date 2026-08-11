@@ -1511,7 +1511,7 @@
           add(c.phone, {
             prenume: parts.shift() || '', nume: parts.join(' '),
             marca: c.brand || '', model: c.model || '', numar: c.plate || '',
-            categoria: c.category || '', qr_code: 'KULTURA:' + c.id + ':' + (c.plate || '')
+            categoria: c.category || '', qr_code: ticketUrl(c)
           });
         }
       }
@@ -1715,7 +1715,7 @@
       const msg = await uiPrompt(t('sms.single_prompt', { name: c.owner || c.plate || '' }), { placeholder: t('sms.msg_ph'), okLabel: t('sms.send') });
       if (msg == null || msg === false || !String(msg).trim()) return;
       const parts = (c.owner || '').trim().split(/\s+/);
-      const vars = { prenume: parts.shift() || '', nume: parts.join(' '), marca: c.brand || '', model: c.model || '', numar: c.plate || '', categoria: c.category || '', qr_code: 'KULTURA:' + c.id + ':' + (c.plate || '') };
+      const vars = { prenume: parts.shift() || '', nume: parts.join(' '), marca: c.brand || '', model: c.model || '', numar: c.plate || '', categoria: c.category || '', qr_code: ticketUrl(c) };
       const { data: hist } = await supa.from('sms_history')
         .insert({ message: String(msg), recipient_count: 1, status: 'sending', filters: { single: c.id }, created_by: currentUserName() })
         .select().single();
@@ -2706,6 +2706,11 @@
     // The QR payload is compact and offline-friendly: "KULTURA:<id>:<plate>".
     function carQrPayload(car) {
       return 'KULTURA:' + car.id + ':' + (car.plate || '');
+    }
+    // Public "My ticket" link for a participant (works without login).
+    function ticketUrl(car) {
+      try { return new URL('ticket.html?c=' + car.id + '&k=' + encodeURIComponent(car.plate || ''), location.href).href; }
+      catch (_) { return 'ticket.html?c=' + car.id; }
     }
     function findCarByQr(text) {
       if (!text) return null;
@@ -6591,6 +6596,7 @@
       el('carDetailActions').innerHTML = `
         ${contactButtons(c)}
         <button class="btn ghost" data-detail-action="car-qr" data-car-id="${c.id}">${escape(t('car.detail.qr'))}</button>
+        <button class="btn ghost" data-detail-action="car-ticket" data-car-id="${c.id}">${escape(t('car.detail.ticket'))}</button>
         <button class="btn ghost" data-detail-action="car-status" data-car-id="${c.id}" data-label="Sosit" data-color="#10B981">${escape(t('car.detail.action_confirm'))}</button>
         <button class="btn ghost" data-detail-action="car-status" data-car-id="${c.id}" data-label="Plecat" data-color="#8B5CF6">${escape(t('car.detail.action_reject'))}</button>
         ${roleAtLeast('staff') && (c.phone || c.contact) ? `<button class="btn ghost" data-detail-action="car-sms" data-car-id="${c.id}">${escape(t('car.detail.sms'))}</button>` : ''}
@@ -6923,6 +6929,17 @@
           const id = btn.dataset.carId;
           btn.disabled = false;
           showCarQr(id);
+          return;
+
+        } else if (action === 'car-ticket') {
+          const id = btn.dataset.carId;
+          btn.disabled = false;
+          const car = (state.cars || []).find(c => String(c.id) === String(id));
+          if (car) {
+            const url = ticketUrl(car);
+            try { await navigator.clipboard.writeText(url); showToast(t('ticket.copied')); }
+            catch (_) { try { window.open(url, '_blank'); } catch (e) {} }
+          }
           return;
 
         } else if (action === 'car-sms') {
