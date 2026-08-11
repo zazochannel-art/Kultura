@@ -5587,16 +5587,28 @@
     }
 
     // ============ PUBLIC REGISTRATION APPROVAL QUEUE (#2) ============
+    let _regFilter = 'pending'; // 'pending' = Înscrise, 'hold' = În așteptare
     function renderRegQueue() {
       const box = el('regQueue'); if (!box) return;
       const staff = roleAtLeast('staff');
-      const regs = (state.registrations || []).filter(r => r.status === 'pending' || r.status === 'hold');
-      if (!staff || !regs.length) { box.hidden = true; box.innerHTML = ''; return; }
+      const all = (state.registrations || []).filter(r => r.status === 'pending' || r.status === 'hold');
+      if (!staff || !all.length) { box.hidden = true; box.innerHTML = ''; return; }
       box.hidden = false;
+      const nNew = all.filter(r => r.status === 'pending').length;
+      const nHold = all.filter(r => r.status === 'hold').length;
+      // Fall back to a tab that actually has items so the list is never blank.
+      if (_regFilter === 'pending' && !nNew && nHold) _regFilter = 'hold';
+      if (_regFilter === 'hold' && !nHold && nNew) _regFilter = 'pending';
+      const regs = all.filter(r => r.status === _regFilter);
+      const tab = (key, label, n) =>
+        `<button type="button" class="reg-tab${_regFilter === key ? ' active' : ''}" data-reg-filter="${key}">${escape(label)} <span class="reg-tab-n">${n}</span></button>`;
       // Compact card: brand + model + photo thumbnails. Tap to open the full
       // detail (all fields + zone assignment + approve/hold/reject).
       const chev = '<svg class="reg-card-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
-      box.innerHTML = `<div class="reg-head">${escape(t('reg.title'))} <span class="reg-count">${regs.length}</span></div>` +
+      box.innerHTML =
+        `<div class="reg-head">${escape(t('reg.title'))} <span class="reg-count">${all.length}</span></div>` +
+        `<div class="reg-tabs">${tab('pending', t('reg.tab_new'), nNew)}${tab('hold', t('reg.tab_hold'), nHold)}</div>` +
+        (regs.length ? '' : `<div class="reg-empty">${escape(t('reg.tab_empty'))}</div>`) +
         regs.map(r => {
           const name = [r.brand, r.model].filter(Boolean).join(' ') || r.owner || '—';
           const hold = r.status === 'hold' ? `<span class="reg-hold-badge">${escape(t('reg.hold'))}</span>` : '';
@@ -5705,6 +5717,8 @@
       renderRegQueue();
     }
     el('regQueue')?.addEventListener('click', (e) => {
+      const fil = e.target.closest('[data-reg-filter]');
+      if (fil) { _regFilter = fil.dataset.regFilter; renderRegQueue(); return; }
       const open = e.target.closest('[data-reg-open]'); if (open) { showRegDetail(open.dataset.regOpen); }
     });
     el('regQueue')?.addEventListener('keydown', (e) => {
