@@ -3716,6 +3716,19 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .reg-note { font-size: 12px; color: var(--text-mute); margin-top: 3px; }
 .reg-thumbs { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
 .reg-thumbs img { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; }
+.reg-card { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); cursor: pointer; }
+.reg-card:first-of-type { border-top: none; }
+.reg-card-brand { font-size: 15px; font-weight: 700; color: var(--text); flex: 0 0 auto; }
+.reg-card-thumbs { display: flex; gap: 6px; margin-left: auto; }
+.reg-card-thumbs img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+.reg-card-more { width: 44px; height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--fill); display: grid; place-items: center; font-size: 12px; color: var(--text-dim); }
+.reg-card-chev { flex: 0 0 auto; color: var(--text-mute); }
+.reg-detail-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 4px 0 14px; }
+.reg-detail-photos img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); cursor: pointer; }
+.reg-detail-info { display: flex; flex-direction: column; gap: 8px; }
+.reg-detail-row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+.reg-detail-row .k { color: var(--text-dim); flex: 0 0 auto; }
+.reg-detail-row .v { color: var(--text); font-weight: 600; text-align: right; word-break: break-word; }
 .reg-actions { display: flex; gap: 6px; flex: 0 0 auto; }
 @media (max-width: 480px) { .reg-item { flex-direction: column; align-items: stretch; } .reg-actions { justify-content: flex-end; } }
 
