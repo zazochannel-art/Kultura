@@ -338,6 +338,7 @@ export const translations = {
         "events.edit_title": "Editează eveniment",
         // --- CARS ---
         "cars.title": "Mașini",
+        "cars.col_approved": "Aprobate",
         "cars.count_suffix": "mașini în total",
         "cars.search": "Caută model, proprietar sau plăcuță...",
         "cars.add": "Adaugă",
@@ -982,6 +983,7 @@ export const translations = {
         "events.add_title": "Add event",
         "events.edit_title": "Edit event",
         "cars.title": "Cars",
+        "cars.col_approved": "Approved",
         "cars.count_suffix": "cars total",
         "cars.search": "Search model, owner or plate...",
         "cars.add": "Add",
@@ -1619,6 +1621,7 @@ export const translations = {
         "events.add_title": "Добавить событие",
         "events.edit_title": "Редактировать событие",
         "cars.title": "Машины",
+        "cars.col_approved": "Одобренные",
         "cars.count_suffix": "машин всего",
         "cars.search": "Поиск модели, владельца или номера...",
         "cars.add": "Добавить",

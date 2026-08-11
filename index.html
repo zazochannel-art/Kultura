@@ -437,10 +437,17 @@
             <span data-i18n="cars.add">Adaugă</span>
           </button>
         </div>
-        <div class="reg-queue" id="regQueue" hidden></div>
-        <div class="dup-banner" id="dupBanner" hidden></div>
-        <div class="chips" id="carsChips"></div>
-        <div id="carsList"></div>
+        <div id="carsSplit" class="cars-split">
+          <div class="cars-col cars-col-reg">
+            <div class="reg-queue" id="regQueue" hidden></div>
+          </div>
+          <div class="cars-col cars-col-approved">
+            <div class="cars-col-title" data-i18n="cars.col_approved">Aprobate</div>
+            <div class="dup-banner" id="dupBanner" hidden></div>
+            <div class="chips" id="carsChips"></div>
+            <div id="carsList"></div>
+          </div>
+        </div>
       </section>
 
       <!-- VIP GUESTS -->
