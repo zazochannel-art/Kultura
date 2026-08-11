@@ -6703,8 +6703,6 @@
         ${contactButtons(c)}
         <button class="btn ghost" data-detail-action="car-qr" data-car-id="${c.id}">${escape(t('car.detail.qr'))}</button>
         <button class="btn ghost" data-detail-action="car-ticket" data-car-id="${c.id}">${escape(t('car.detail.ticket'))}</button>
-        <button class="btn ghost" data-detail-action="car-status" data-car-id="${c.id}" data-label="Sosit" data-color="#10B981">${escape(t('car.detail.action_confirm'))}</button>
-        <button class="btn ghost" data-detail-action="car-status" data-car-id="${c.id}" data-label="Plecat" data-color="#8B5CF6">${escape(t('car.detail.action_reject'))}</button>
         ${roleAtLeast('staff') && (c.phone || c.contact) ? `<button class="btn ghost" data-detail-action="car-sms" data-car-id="${c.id}">${escape(t('car.detail.sms'))}</button>` : ''}
         ${canDelete ? `<button class="btn danger" data-detail-action="car-delete" data-car-id="${c.id}" data-car-label="${escape(title)}">${escape(t('car.action.delete'))}</button>` : ''}
       `;
@@ -7020,16 +7018,6 @@
             closeModal(document.getElementById('modal-task-detail'));
             await loadData();
           }
-
-        } else if (action === 'car-status') {
-          const id = btn.dataset.carId;
-          const { error } = await supa.from('cars').update({
-            status: btn.dataset.label, status_color: btn.dataset.color
-          }).eq('id', id);
-          if (error) throw error;
-          showToast(t('car.detail.toast_status_updated'));
-          await loadData();
-          showCarDetail(id);
 
         } else if (action === 'car-qr') {
           const id = btn.dataset.carId;
