@@ -3736,6 +3736,15 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .reg-detail-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 4px 0 14px; }
 .reg-detail-photos img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); cursor: pointer; }
 .reg-detail-info { display: flex; flex-direction: column; gap: 8px; }
+.reg-detail-form { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
+.reg-detail-form label { font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+.reg-detail-form input, .reg-detail-form textarea {
+  width: 100%; background: var(--surface-elev, var(--surface)); border: 1px solid var(--border); border-radius: 10px;
+  padding: 9px 12px; color: var(--text); font-family: inherit; font-size: 14px; outline: none; }
+.reg-detail-form input:focus, .reg-detail-form textarea:focus { border-color: var(--accent); }
+.reg-detail-form textarea { resize: vertical; }
+.reg-detail-form .rd-row { display: flex; gap: 10px; }
+.reg-detail-form .rd-row > div { flex: 1; min-width: 0; }
 .reg-detail-row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
 .reg-detail-row .k { color: var(--text-dim); flex: 0 0 auto; }
 .reg-detail-row .v { color: var(--text); font-weight: 600; text-align: right; word-break: break-word; }
