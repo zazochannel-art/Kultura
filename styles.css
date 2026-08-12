@@ -2572,10 +2572,10 @@
   cursor: pointer;
 }
 .gate-scan-close svg { width: 18px; height: 18px; }
-.gate-scan-result { position: absolute; inset: 0; z-index: 6; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(0,0,0,.72); backdrop-filter: blur(4px); }
+.gate-scan-result { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(0,0,0,.82); backdrop-filter: blur(4px); overflow-y: auto; }
 .gate-scan-result[hidden] { display: none; }
-.gsr-card { width: 100%; max-width: 340px; background: var(--card, #141821); border: 1px solid var(--border); border-radius: 20px; padding: 20px; text-align: center; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
-.gsr-photo { width: 100%; aspect-ratio: 16/10; border-radius: 14px; margin-bottom: 14px; background-size: cover; background-position: center; display: grid; place-items: center; color: #fff; font-size: 34px; font-weight: 800; }
+.gsr-card { width: 100%; max-width: 360px; max-height: 92vh; overflow-y: auto; background: var(--card, #141821); border: 1px solid var(--border); border-radius: 20px; padding: 20px; text-align: center; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
+.gsr-photo { width: 100%; height: 190px; border-radius: 14px; margin-bottom: 14px; background-size: cover; background-position: center; display: grid; place-items: center; color: #fff; font-size: 34px; font-weight: 800; }
 .gsr-name { font-size: 21px; font-weight: 800; }
 .gsr-sub { color: var(--text-dim); font-size: 14px; margin-top: 4px; }
 .gsr-status { margin-top: 12px; }
