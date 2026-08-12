@@ -899,13 +899,47 @@
           </button>
         </div>
         <div id="regDetailPhotos" class="reg-detail-photos"></div>
-        <div id="regDetailInfo" class="reg-detail-info"></div>
+        <form id="regDetailForm" class="reg-detail-form" autocomplete="off">
+          <div class="rd-row">
+            <div><label data-i18n="reg.f_car">Marcă</label><input name="brand" data-i18n-placeholder="car.detail.brand"></div>
+            <div><label data-i18n="car.detail.model">Model</label><input name="model"></div>
+          </div>
+          <div class="rd-row">
+            <div><label data-i18n="reg.f_plate">Nr. înmatriculare</label><input name="plate" style="text-transform:uppercase"></div>
+            <div><label data-i18n="reg.f_year">An</label><input name="year" inputmode="numeric" maxlength="4"></div>
+          </div>
+          <label data-i18n="reg.f_owner">Proprietar</label>
+          <input name="owner">
+          <div class="rd-row">
+            <div><label data-i18n="reg.f_phone">Telefon</label><input name="phone" type="tel"></div>
+            <div><label data-i18n="reg.f_telegram">Telegram</label><input name="telegram"></div>
+          </div>
+          <div class="rd-row">
+            <div><label data-i18n="reg.f_email">Email</label><input name="email" type="email"></div>
+            <div><label data-i18n="reg.f_city">Oraș</label><input name="city"></div>
+          </div>
+          <label data-i18n="reg.f_social">Rețele sociale</label>
+          <input name="social_links">
+          <label data-i18n="reg.f_transport">Transport</label>
+          <input name="transport_info">
+          <label data-i18n="reg.f_mods">Modificări</label>
+          <textarea name="modifications" rows="2"></textarea>
+          <label data-i18n="reg.f_note">Observații</label>
+          <textarea name="note" rows="2"></textarea>
+        </form>
         <label class="setting-label" for="regDetailZone" style="margin-top:6px;" data-i18n="reg.zone_label">ZONĂ LA EVENIMENT</label>
         <select id="regDetailZone"></select>
+        <label class="setting-label" style="margin-top:12px;" data-i18n="reg.confirm_label">TRIMITE CONFIRMAREA</label>
+        <div class="chips" id="regDetailChannel">
+          <button type="button" class="chip active" data-reg-channel="none" data-i18n="reg.confirm_none">Nu trimite</button>
+          <button type="button" class="chip" data-reg-channel="whatsapp">WhatsApp</button>
+          <button type="button" class="chip" data-reg-channel="telegram">Telegram</button>
+          <button type="button" class="chip" data-reg-channel="sms">SMS</button>
+        </div>
         <div class="modal-actions">
-          <button type="button" class="btn ghost" data-close data-i18n="common.close">Închide</button>
           <button type="button" class="btn danger" id="regDetailReject" data-i18n="reg.reject">Respinge</button>
           <button type="button" class="btn ghost" id="regDetailHold" data-i18n="reg.hold">În așteptare</button>
+          <button type="button" class="btn ghost" id="regDetailSave" data-i18n="reg.save">Salvează</button>
           <button type="button" class="btn" id="regDetailApprove" data-i18n="reg.approve">Aprobă</button>
         </div>
       </div>

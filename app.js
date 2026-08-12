@@ -5627,42 +5627,64 @@
         }).join('');
     }
 
-    // Full detail of a pending registration, with zone assignment + actions.
+    // Full detail of a pending registration: editable fields, zone assignment,
+    // confirmation channel and actions.
     let _regDetailId = null;
+    let _regChannel = 'none';
+    const REG_EDIT_FIELDS = ['brand', 'model', 'plate', 'year', 'owner', 'phone', 'telegram', 'email', 'city', 'social_links', 'transport_info', 'modifications', 'note'];
+    function readRegForm() {
+      const f = document.getElementById('regDetailForm'); const o = {};
+      if (!f) return o;
+      REG_EDIT_FIELDS.forEach(n => { const inp = f.elements[n]; o[n] = inp ? String(inp.value || '').trim() : ''; });
+      const y = parseInt(String(o.year).replace(/\D/g, ''), 10);
+      o.year = Number.isFinite(y) && y > 1800 && y < 2200 ? y : null;
+      return o;
+    }
     function showRegDetail(id) {
       const r = (state.registrations || []).find(x => String(x.id) === String(id));
       if (!r) return;
       _regDetailId = id;
-      const title = [r.brand, r.model].filter(Boolean).join(' ') || r.owner || '—';
-      el('regDetailTitle').textContent = title;
-      const sub = el('regDetailSub');
-      if (sub) sub.textContent = r.plate || '';
+      el('regDetailTitle').textContent = [r.brand, r.model].filter(Boolean).join(' ') || r.owner || '—';
+      const sub = el('regDetailSub'); if (sub) sub.textContent = r.plate || '';
       const pics = Array.isArray(r.photos) ? r.photos : [];
       el('regDetailPhotos').innerHTML = pics.map(u =>
         `<img src="${escape(u)}" alt="" loading="lazy" data-reg-photo="${escape(u)}">`).join('');
-      const row = (k, v) => v ? `<div class="reg-detail-row"><span class="k">${escape(k)}</span><span class="v">${escape(v)}</span></div>` : '';
-      el('regDetailInfo').innerHTML =
-        row(t('reg.f_owner'), r.owner) +
-        row(t('reg.f_car'), [r.brand, r.model].filter(Boolean).join(' ')) +
-        row(t('reg.f_year'), r.year) +
-        row(t('reg.f_plate'), r.plate) +
-        row(t('reg.f_phone'), r.phone) +
-        row(t('reg.f_telegram'), r.telegram) +
-        row(t('reg.f_email'), r.email) +
-        row(t('reg.f_city'), r.city) +
-        row(t('reg.f_social'), r.social_links) +
-        row(t('reg.f_transport'), r.transport_info) +
-        row(t('reg.f_mods'), r.modifications) +
-        row(t('reg.f_note'), r.note);
+      const f = document.getElementById('regDetailForm');
+      if (f) REG_EDIT_FIELDS.forEach(n => { const inp = f.elements[n]; if (inp) inp.value = r[n] == null ? '' : String(r[n]); });
       const zoneSel = el('regDetailZone');
       if (zoneSel) zoneSel.innerHTML = zoneOptionsHTML('');
+      _regChannel = 'none';
+      document.querySelectorAll('#regDetailChannel .chip').forEach(c => c.classList.toggle('active', c.dataset.regChannel === 'none'));
       openModal('reg-detail');
     }
+    el('regDetailChannel')?.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-reg-channel]'); if (!b) return;
+      _regChannel = b.dataset.regChannel;
+      el('regDetailChannel').querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c === b));
+    });
+    el('regDetailSave')?.addEventListener('click', async () => {
+      const id = _regDetailId; if (!id) return;
+      const e = readRegForm();
+      const patch = {
+        brand: e.brand || null, model: e.model || null, plate: e.plate || null, year: e.year,
+        owner: e.owner || null, phone: e.phone || null, telegram: e.telegram || null, email: e.email || null,
+        city: e.city || null, social_links: e.social_links || null, transport_info: e.transport_info || null,
+        modifications: e.modifications || null, note: e.note || null
+      };
+      const { error } = await supa.from('car_registrations').update(patch).eq('id', id);
+      if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
+      const r = (state.registrations || []).find(x => String(x.id) === String(id)); if (r) Object.assign(r, patch);
+      _fp.regs = makeFp(state.registrations, REG_FP_FIELDS);
+      renderRegQueue();
+      showToast(t('reg.saved'));
+    });
     el('regDetailApprove')?.addEventListener('click', () => {
       const id = _regDetailId; if (!id) return;
       const zone = (el('regDetailZone')?.value || '').trim();
+      const edits = readRegForm();
+      const channel = _regChannel;
       closeModal(document.getElementById('modal-reg-detail'));
-      approveRegistration(id, zone);
+      approveRegistration(id, zone, edits, channel);
     });
     el('regDetailHold')?.addEventListener('click', () => {
       const id = _regDetailId; if (!id) return;
@@ -5678,28 +5700,56 @@
     el('regDetailPhotos')?.addEventListener('click', (e) => {
       const ph = e.target.closest('[data-reg-photo]'); if (ph) window.open(ph.dataset.regPhoto, '_blank', 'noopener');
     });
-    async function approveRegistration(id, zone) {
+    // Send the participant a confirmation (with their ticket link) on the chosen channel.
+    function sendRegConfirmation(channel, data, car) {
+      const ev = (state.events || []).find(e => String(e.id) === String(car.event_id || data.event_id));
+      const carName = [data.brand, data.model].filter(Boolean).join(' ');
+      const ticket = ticketUrl(car);
+      const msg = [
+        `Salut${data.owner ? ' ' + data.owner : ''}!`,
+        `Mașina ta${carName ? ' ' + carName : ''} este confirmată${ev?.title ? ' pentru ' + ev.title : ''}.`,
+        `Biletul tău: ${ticket}`
+      ].join(' ');
+      const phone = normalizePhone(data.phone);
+      if (channel === 'whatsapp') {
+        if (!phone) { showToast(t('reg.no_phone'), 'error'); return; }
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+      } else if (channel === 'telegram') {
+        const tg = telegramLink(data.telegram) || (phone ? `https://t.me/+${phone}` : '');
+        if (!tg) { showToast(t('reg.no_tg'), 'error'); return; }
+        try { if (navigator.clipboard) navigator.clipboard.writeText(msg); showToast(t('car.contact.tg_copied')); } catch (_) {}
+        window.open(tg, '_blank', 'noopener');
+      } else if (channel === 'sms') {
+        if (!phone) { showToast(t('reg.no_phone'), 'error'); return; }
+        window.open(`sms:${phone}?body=${encodeURIComponent(msg)}`, '_blank');
+      }
+    }
+    async function approveRegistration(id, zone, edits, channel) {
       const r = (state.registrations || []).find(x => String(x.id) === String(id));
       if (!r) return;
+      const m = Object.assign({}, r, edits || {});
       const car = {
-        brand: r.brand || null, model: r.model || '', plate: r.plate || null, owner: r.owner || null,
-        phone: r.phone || null, contact: r.phone || null, telegram: r.telegram || null,
-        email: r.email || null, city: r.city || null, category: r.category || null,
+        brand: m.brand || null, model: m.model || '', plate: m.plate || null, owner: m.owner || null,
+        phone: m.phone || null, contact: m.phone || null, telegram: m.telegram || null,
+        email: m.email || null, city: m.city || null, category: r.category || null,
         zone: (zone || '').trim() || '',
-        year: r.year || null, social_links: r.social_links || null,
-        transport_info: r.transport_info || null,
-        modifications: r.modifications || null,
+        year: m.year || null, social_links: m.social_links || null,
+        transport_info: m.transport_info || null,
+        modifications: m.modifications || null,
         photos: Array.isArray(r.photos) ? r.photos : [],
-        additional_notes: r.note || null, status: 'Invitat', status_color: '#3B82F6',
+        additional_notes: m.note || null, status: 'Invitat', status_color: '#3B82F6',
         event_id: r.event_id || (state.activeEventId ? Number(state.activeEventId) : null)
       };
-      const { error } = await supa.from('cars').insert(car);
+      const { data: ins, error } = await supa.from('cars').insert(car).select('id, plate').single();
       if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
       await supa.from('car_registrations').delete().eq('id', id);
       state.registrations = (state.registrations || []).filter(x => String(x.id) !== String(id));
       await loadData();
       renderRegQueue();
-      showToast(t('reg.approved', { name: [r.brand, r.model].filter(Boolean).join(' ') || r.owner || '' }));
+      showToast(t('reg.approved', { name: [m.brand, m.model].filter(Boolean).join(' ') || m.owner || '' }));
+      if (channel && channel !== 'none' && ins) {
+        try { sendRegConfirmation(channel, Object.assign({}, m, { event_id: car.event_id }), ins); } catch (_) {}
+      }
     }
     async function holdRegistration(id) {
       const { error } = await supa.from('car_registrations').update({ status: 'hold' }).eq('id', id);
