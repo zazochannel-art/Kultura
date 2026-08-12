@@ -1375,6 +1375,49 @@
       }
     });
 
+    // Printable catalog (with photos) → the browser's "Save as PDF" gives a
+    // photo catalog of the filtered cars, no extra library needed.
+    el('catalogBtn')?.addEventListener('click', async () => {
+      const btn = el('catalogBtn');
+      const list = filterCars();
+      if (!list.length) return showToast(t('common.nothing_found'), 'error');
+      btn.disabled = true;
+      try {
+        const photoMap = {};
+        if (navigator.onLine) {
+          try {
+            const ids = list.map(c => c.id);
+            const { data } = await supa.from('cars').select('id, photos').in('id', ids);
+            (data || []).forEach(r => { const p = Array.isArray(r.photos) ? r.photos : []; if (p.length) photoMap[r.id] = p[0]; });
+          } catch (_) {}
+        }
+        const evTitle = (id) => { const ev = (state.events || []).find(e => String(e.id) === String(id)); return ev ? (ev.title || '') : ''; };
+        const esc = (s) => escape(String(s == null ? '' : s));
+        const cards = list.map(c => {
+          const name = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
+          const photo = photoMap[c.id];
+          const media = photo ? `<div class="ph" style="background-image:url('${esc(photo)}')"></div>` : `<div class="ph noph">—</div>`;
+          const meta = [c.owner && ('<b>' + esc(c.owner) + '</b>'), c.plate && esc(c.plate), c.category && esc(c.category), c.zone && ('Zonă: ' + esc(c.zone)), (c.phone || c.contact) && esc(c.phone || c.contact)].filter(Boolean).join(' · ');
+          return `<div class="cat-card">${media}<div class="cat-b"><div class="cat-n">${esc(name)}</div><div class="cat-s">${meta}</div></div></div>`;
+        }).join('');
+        const title = 'KULTURA — ' + t('cars.catalog') + (state.activeEventId ? ' · ' + esc(evTitle(state.activeEventId)) : '');
+        const html = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>
+          *{box-sizing:border-box;font-family:-apple-system,Segoe UI,Roboto,sans-serif;}
+          body{margin:0;padding:20px;background:#fff;color:#111;}
+          h1{font-size:20px;margin:0 0 16px;}
+          .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+          .cat-card{border:1px solid #ddd;border-radius:10px;overflow:hidden;break-inside:avoid;}
+          .ph{width:100%;aspect-ratio:16/10;background-size:cover;background-position:center;background:#eee;}
+          .ph.noph{display:flex;align-items:center;justify-content:center;color:#bbb;font-size:24px;}
+          .cat-b{padding:8px 10px;} .cat-n{font-weight:800;font-size:14px;} .cat-s{font-size:11px;color:#555;margin-top:3px;}
+        </style></head><body><h1>${title} — ${list.length}</h1><div class="grid">${cards}</div>
+        <script>window.onload=function(){setTimeout(function(){window.print();},500);};<\/script></body></html>`;
+        const w = window.open('', '_blank');
+        if (!w) { showToast(t('common.error'), 'error'); return; }
+        w.document.open(); w.document.write(html); w.document.close();
+      } finally { btn.disabled = false; }
+    });
+
     el('deleteAllCarsBtn').addEventListener('click', async () => {
       if (!await uiConfirm('Ești sigur că vrei să ștergi TOATE mașinile din baza de date?\n\nAceastă acțiune este ireversibilă!')) return;
 
@@ -3242,8 +3285,41 @@
         : `<div class="aflux-empty">${escape(t('aflux.no_operators'))}</div>`;
     }
 
+    function renderRegStats() {
+      const block = el('regStatsBlock'); if (!block) return;
+      if (!roleAtLeast('staff')) { block.hidden = true; return; }
+      block.hidden = false;
+      const regs = (state.registrations || []).filter(r => r.status === 'pending' || r.status === 'hold');
+      const pending = regs.filter(r => r.status === 'pending').length;
+      const hold = regs.filter(r => r.status === 'hold').length;
+      const cars = activeCars();
+      const sum = el('regStatsSummary');
+      if (sum) sum.textContent = t('regstats.summary', { p: pending, h: hold, a: cars.length });
+      // Approved-per-day over the last 7 days (cars.created_at).
+      const days = []; const now = new Date();
+      for (let i = 6; i >= 0; i--) { const d = new Date(now); d.setDate(now.getDate() - i); days.push(d); }
+      const dayKey = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      const counts = {}; days.forEach(d => counts[dayKey(d)] = 0);
+      cars.forEach(c => { if (c.created_at) { const k = dayKey(new Date(c.created_at)); if (k in counts) counts[k]++; } });
+      const maxD = Math.max(1, ...Object.values(counts));
+      const box = el('regStatsDays');
+      if (box) box.innerHTML = days.map(d => {
+        const k = dayKey(d); const n = counts[k];
+        const lbl = d.toLocaleDateString(currentLang || 'ro', { weekday: 'short' }).slice(0, 2);
+        return `<div class="aflux-hbar" title="${k} — ${n}"><div class="aflux-hbar-fill" style="height:${Math.round(n / maxD * 100)}%"></div><div class="aflux-hbar-lbl">${escape(lbl)}</div></div>`;
+      }).join('');
+      const top = (keyFn) => { const g = {}; cars.forEach(c => { const k = (keyFn(c) || '').trim(); if (!k) return; g[k] = (g[k] || 0) + 1; }); return Object.entries(g).sort((a, b) => b[1] - a[1]).slice(0, 8); };
+      const renderList = (id, rows) => {
+        const b = el(id); if (!b) return; const max = Math.max(1, ...rows.map(r => r[1]));
+        b.innerHTML = rows.length ? rows.map(([k, v]) => `<div class="aflux-row"><div class="aflux-row-top"><span>${escape(k)}</span><span>${v}</span></div><div class="aflux-track"><div class="aflux-track-fill" style="width:${Math.round(v / max * 100)}%"></div></div></div>`).join('') : `<div class="aflux-empty">—</div>`;
+      };
+      renderList('regStatsCities', top(c => c.city));
+      renderList('regStatsCats', top(c => c.category));
+    }
+
     function renderStats(cars, tasks, events) {
       try { renderAflux(); } catch (_) {}
+      try { renderRegStats(); } catch (_) {}
       // Cars/tasks respect the active-event filter; events count stays global.
       const scopedCars = activeCars();
       const scopedTasks = activeTasks();
@@ -3735,6 +3811,7 @@
           `;
       }).join('');
       const carName = [car.brand, car.model].filter(Boolean).join(' ') || car.model;
+      const isNewToday = car.created_at && new Date(car.created_at).toDateString() === new Date().toDateString();
       return `
           <div class="card car-row card-stripe stripe-${active || 'invitat'}${car.is_vip ? ' card-vip' : ''}" data-row-id="${car.id}" style="cursor:pointer; padding: 16px; margin-bottom: 0;">
             <div style="display:flex; align-items:flex-start; gap:12px;">
@@ -3745,6 +3822,7 @@
                 <div class="row-title" style="display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
                   <span>${escape(carName)}</span>
                   ${car.is_vip ? '<span class="badge purple" style="font-size:8px; padding:2px 6px;">VIP</span>' : ''}
+                  ${isNewToday ? `<span class="badge new-today">${escape(t('car.new_today'))}</span>` : ''}
                 </div>
                 <div class="row-sub" style="margin-top:2px;">
                   <span style="color: var(--blue); font-weight: 700;">${escape(car.owner || '—')}</span>
