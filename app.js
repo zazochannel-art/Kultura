@@ -2850,14 +2850,24 @@
       return src.find(c => (c.plate || '').toLowerCase().replace(/\s+/g, '') === norm) || null;
     }
 
-    let _scanStream = null, _scanRAF = null, _scanDetector = null, _scanBusy = false, _lastScanAt = 0;
+    let _scanStream = null, _scanRAF = null, _scanDetector = null, _scanBusy = false, _lastScanAt = 0, _scanCanvas = null, _jsqrLoading = null;
+    // Lazy-load the vendored pure-JS QR decoder (fallback for browsers without
+    // BarcodeDetector — notably iPhone/Safari).
+    function ensureJsQr() {
+      if (window.jsQR) return Promise.resolve(window.jsQR);
+      if (_jsqrLoading) return _jsqrLoading;
+      _jsqrLoading = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'vendor/jsqr.js';
+        s.onload = () => window.jsQR ? resolve(window.jsQR) : reject(new Error('jsQR missing'));
+        s.onerror = () => { _jsqrLoading = null; reject(new Error('jsQR load failed')); };
+        document.head.appendChild(s);
+      });
+      return _jsqrLoading;
+    }
     async function startGateScanner() {
       const panel = el('gateScanner'), video = el('gateVideo'), hint = el('gateScanHint');
       if (!panel || !video) return;
-      if (!('BarcodeDetector' in window)) {
-        showToast(t('gate.scan_unsupported'), 'error');
-        return;
-      }
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         showToast(t('gate.scan_unsupported'), 'error');
         return;
@@ -2865,15 +2875,42 @@
       panel.hidden = false;
       if (hint) hint.textContent = t('gate.scan_hint');
       try {
-        _scanDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+        // Native BarcodeDetector (Android/Chrome) when available; otherwise the
+        // jsQR fallback so iPhone/Safari can scan too.
+        if ('BarcodeDetector' in window) {
+          _scanDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+        } else {
+          _scanDetector = null;
+          await ensureJsQr();
+        }
         _scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         video.srcObject = _scanStream;
+        video.setAttribute('playsinline', 'true'); // iOS: keep the preview inline
         await video.play();
         _scanLoop();
       } catch (err) {
         stopGateScanner();
         showToast(t('gate.scan_denied'), 'error');
       }
+    }
+    // Return the decoded QR text from the current video frame, via whichever
+    // engine is active.
+    async function _decodeGateFrame(video) {
+      if (_scanDetector) {
+        const codes = await _scanDetector.detect(video);
+        return (codes && codes.length) ? codes[0].rawValue : null;
+      }
+      const w = video.videoWidth, h = video.videoHeight;
+      if (!w || !h || !window.jsQR) return null;
+      if (!_scanCanvas) _scanCanvas = document.createElement('canvas');
+      const scale = Math.min(1, 640 / Math.max(w, h));
+      const cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+      _scanCanvas.width = cw; _scanCanvas.height = ch;
+      const ctx = _scanCanvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(video, 0, 0, cw, ch);
+      const img = ctx.getImageData(0, 0, cw, ch);
+      const res = window.jsQR(img.data, cw, ch, { inversionAttempts: 'dontInvert' });
+      return res ? res.data : null;
     }
     function _scanLoop() {
       const video = el('gateVideo');
@@ -2882,9 +2919,9 @@
         if (!_scanBusy && Date.now() - _lastScanAt > 700) {
           _scanBusy = true;
           try {
-            const codes = await _scanDetector.detect(video);
-            if (codes && codes.length) {
-              const car = findCarByQr(codes[0].rawValue);
+            const val = await _decodeGateFrame(video);
+            if (val) {
+              const car = findCarByQr(val);
               _lastScanAt = Date.now();
               if (car) {
                 if (statusKey(car.status) === 'sosit') {
