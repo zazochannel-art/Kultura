@@ -3839,3 +3839,25 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .aflux-op-n { font-weight: 800; color: var(--blue); }
 .aflux-empty { text-align: center; color: var(--text-mute); padding: 16px; font-size: 13px; }
 @media (max-width: 560px) { .aflux-cols { grid-template-columns: 1fr; gap: 4px; } }
+
+/* ---- Arrivals wall (live full-screen display) ---- */
+.wall-overlay { position: fixed; inset: 0; z-index: 3000; display: none; flex-direction: column;
+  padding: 20px 24px 28px; background: radial-gradient(1200px 800px at 50% -10%, #182034, #07080d); color: var(--text); }
+.wall-overlay.show { display: flex; }
+.wall-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.wall-title { display: flex; align-items: baseline; gap: 12px; }
+.wall-title h2 { font-size: 26px; font-weight: 900; }
+.wall-count { font-size: 22px; font-weight: 800; color: var(--green); }
+.wall-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; align-content: start; }
+.wall-card { background: var(--card, #141821); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; animation: wallIn .45s ease; }
+@keyframes wallIn { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+.wall-photo { width: 100%; aspect-ratio: 16/10; background-size: cover; background-position: center; }
+.wall-photo.wall-ph { display: grid; place-items: center; color: #fff; font-size: 40px; font-weight: 800; }
+.wall-info { padding: 12px 14px; }
+.wall-name { font-size: 18px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wall-owner { font-size: 14px; color: var(--text-dim); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wall-meta { display: flex; gap: 10px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.wall-plate { font-family: monospace; font-weight: 700; background: rgba(59,130,246,.15); color: var(--blue); padding: 2px 8px; border-radius: 6px; font-size: 13px; }
+.wall-time { font-size: 12px; color: var(--green); }
+.wall-empty { flex: 1; display: grid; place-items: center; color: var(--text-mute); font-size: 18px; }
+.wall-empty[hidden] { display: none; }

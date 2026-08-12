@@ -2717,6 +2717,50 @@
 
     // Gate wiring
     el('gateOpenBtn')?.addEventListener('click', openGate);
+
+    // ---- Arrivals wall: a live, full-screen display of who just checked in. ----
+    let _wallPhotos = {};
+    async function openArrivalsWall() {
+      const ov = el('arrivalsWall'); if (!ov) return;
+      ov.classList.add('show'); ov.setAttribute('aria-hidden', 'false');
+      try {
+        const { data } = await supa.from('cars').select('id, photos').not('photos', 'is', null);
+        _wallPhotos = {};
+        (data || []).forEach(r => { const p = Array.isArray(r.photos) ? r.photos : []; if (p.length) _wallPhotos[r.id] = p[0]; });
+      } catch (_) {}
+      renderArrivalsWall();
+    }
+    function closeArrivalsWall() {
+      const ov = el('arrivalsWall'); if (!ov) return;
+      ov.classList.remove('show'); ov.setAttribute('aria-hidden', 'true');
+    }
+    function renderArrivalsWall() {
+      const ov = el('arrivalsWall'); if (!ov || !ov.classList.contains('show')) return;
+      const grid = el('wallGrid'), empty = el('wallEmpty'), count = el('wallCount');
+      const arrived = ((state.cars && state.cars.length) ? state.cars : loadCachedCars())
+        .filter(c => matchesActiveEvent(c) && statusKey(c.status) === 'sosit')
+        .sort((a, b) => new Date(b.arrived_at || 0) - new Date(a.arrived_at || 0));
+      if (count) count.textContent = arrived.length;
+      if (empty) empty.hidden = arrived.length > 0;
+      if (!grid) return;
+      grid.innerHTML = arrived.slice(0, 48).map(c => {
+        const name = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
+        const photo = _wallPhotos[c.id];
+        const media = photo
+          ? `<div class="wall-photo" style="background-image:url('${escape(photo)}')"></div>`
+          : `<div class="wall-photo wall-ph" style="${avatarBg(c.owner || name)}">${escape(twoInitials(c.owner || name))}</div>`;
+        return `<div class="wall-card">
+            ${media}
+            <div class="wall-info">
+              <div class="wall-name">${escape(name)}</div>
+              ${c.owner ? `<div class="wall-owner">${escape(c.owner)}</div>` : ''}
+              <div class="wall-meta">${c.plate ? `<span class="wall-plate">${escape(c.plate)}</span>` : ''}${c.arrived_at ? `<span class="wall-time">${escape(fmtRelative(c.arrived_at))}</span>` : ''}</div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+    el('wallOpenBtn')?.addEventListener('click', openArrivalsWall);
+    el('wallCloseBtn')?.addEventListener('click', closeArrivalsWall);
     el('gateCloseBtn')?.addEventListener('click', closeGate);
     el('gateSyncBtn')?.addEventListener('click', flushOutbox);
     el('gateSearch')?.addEventListener('input', (e) => { state.gateSearch = e.target.value; renderGate(); });
@@ -3726,6 +3770,7 @@
     const CARS_CHUNK = 60;
     let _carsIO = null;
     function renderCars() {
+      try { renderArrivalsWall(); } catch (_) {}
       el('carsCount').textContent = state.cars.length;
       const list = filterCars();
       const c = el('carsList');
