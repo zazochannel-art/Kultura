@@ -5737,7 +5737,14 @@
         } else {
           const i = state.registrations.findIndex(r => String(r.id) === String(nu.id));
           if (i >= 0) state.registrations[i] = nu; else state.registrations.unshift(nu);
-          if (eventType === 'INSERT') { try { sendAppNotification(t('reg.new'), [nu.brand, nu.model].filter(Boolean).join(' ')); } catch (_) {} }
+          if (eventType === 'INSERT') {
+            // In-app alert only for the Participanți department (+ admins);
+            // offline members get a Web Push via the DB trigger.
+            const myDept = (currentUser?.user_metadata || {}).department || '';
+            if (isAdmin() || myDept === 'Participanți') {
+              try { sendAppNotification(t('reg.new'), [nu.brand, nu.model].filter(Boolean).join(' ')); } catch (_) {}
+            }
+          }
         }
       }
       _fp.regs = makeFp(state.registrations, REG_FP_FIELDS);
