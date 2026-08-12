@@ -2850,7 +2850,7 @@
       return src.find(c => (c.plate || '').toLowerCase().replace(/\s+/g, '') === norm) || null;
     }
 
-    let _scanStream = null, _scanRAF = null, _scanDetector = null, _scanBusy = false, _lastScanAt = 0, _scanCanvas = null, _jsqrLoading = null;
+    let _scanStream = null, _scanRAF = null, _scanDetector = null, _scanBusy = false, _lastScanAt = 0, _scanCanvas = null, _jsqrLoading = null, _scanPaused = false;
     // Lazy-load the vendored pure-JS QR decoder (fallback for browsers without
     // BarcodeDetector — notably iPhone/Safari).
     function ensureJsQr() {
@@ -2916,6 +2916,7 @@
       const video = el('gateVideo');
       const tick = async () => {
         if (!_scanStream || !video) return;
+        if (_scanPaused) { _scanRAF = requestAnimationFrame(tick); return; }
         if (!_scanBusy && Date.now() - _lastScanAt > 700) {
           _scanBusy = true;
           try {
@@ -2924,12 +2925,8 @@
               const car = findCarByQr(val);
               _lastScanAt = Date.now();
               if (car) {
-                if (statusKey(car.status) === 'sosit') {
-                  showToast(t('gate.scan_already', { plate: car.plate || car.id }));
-                } else {
-                  gateCheckIn(car.id);
-                  try { navigator.vibrate && navigator.vibrate(120); } catch (_) {}
-                }
+                try { navigator.vibrate && navigator.vibrate(80); } catch (_) {}
+                showGateScanResult(car);
               } else {
                 showToast(t('gate.scan_notfound'), 'error');
               }
@@ -2941,12 +2938,47 @@
       };
       _scanRAF = requestAnimationFrame(tick);
     }
+    // On a successful scan, pause and show a confirmation card with the car so
+    // the operator taps „Sosit" (instead of auto-marking arrival).
+    function showGateScanResult(car) {
+      const res = el('gateScanResult'); if (!res) return;
+      _scanPaused = true;
+      const name = [car.brand, car.model].filter(Boolean).join(' ') || car.model || '—';
+      el('gsrName').textContent = name;
+      el('gsrSub').textContent = [car.owner, car.plate].filter(Boolean).join(' · ');
+      el('gsrStatus').innerHTML = `<span class="badge ${statusToBadge(car.status)}">${escape(translateStatus(car.status, 'car'))}</span>`;
+      const arrived = statusKey(car.status) === 'sosit';
+      const btn = el('gsrArrive');
+      if (btn) { btn.dataset.carId = car.id; btn.disabled = arrived; btn.textContent = arrived ? t('gate.scan_already_short') : t('car.status.arrived'); }
+      const ph = el('gsrPhoto');
+      if (ph) { ph.textContent = twoInitials(car.owner || name); ph.setAttribute('style', avatarBg(car.owner || name)); }
+      // Fetch the photo lazily (lean list omits it).
+      supa.from('cars').select('photos').eq('id', car.id).single().then(({ data }) => {
+        const p = data && Array.isArray(data.photos) ? data.photos : [];
+        if (p.length && ph && !res.hidden) { ph.textContent = ''; ph.setAttribute('style', `background-image:url('${p[0]}');background-size:cover;background-position:center;`); }
+      }).catch(() => {});
+      res.hidden = false;
+    }
+    function hideGateScanResult() {
+      const res = el('gateScanResult'); if (res) res.hidden = true;
+      _scanPaused = false;
+      _lastScanAt = Date.now(); // debounce so the same code isn't re-read instantly
+    }
+    el('gsrCancel')?.addEventListener('click', hideGateScanResult);
+    el('gsrArrive')?.addEventListener('click', () => {
+      const id = el('gsrArrive')?.dataset.carId; if (!id) return;
+      gateCheckIn(id);
+      try { navigator.vibrate && navigator.vibrate(120); } catch (_) {}
+      hideGateScanResult();
+    });
     function stopGateScanner() {
       const panel = el('gateScanner'), video = el('gateVideo'), cap = el('gatePlateCapture');
       if (_scanRAF) { cancelAnimationFrame(_scanRAF); _scanRAF = null; }
       if (_scanStream) { try { _scanStream.getTracks().forEach(tr => tr.stop()); } catch (_) {} _scanStream = null; }
       if (video) { try { video.pause(); video.srcObject = null; } catch (_) {} }
       _scanBusy = false;
+      _scanPaused = false;
+      const res = el('gateScanResult'); if (res) res.hidden = true;
       if (cap) cap.hidden = true;
       if (panel) panel.hidden = true;
     }

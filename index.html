@@ -1548,6 +1548,18 @@
         <button type="button" class="gate-scan-close" id="gateScanClose" aria-label="Închide">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
+        <div class="gate-scan-result" id="gateScanResult" hidden>
+          <div class="gsr-card">
+            <div class="gsr-photo" id="gsrPhoto"></div>
+            <div class="gsr-name" id="gsrName">—</div>
+            <div class="gsr-sub" id="gsrSub"></div>
+            <div class="gsr-status" id="gsrStatus"></div>
+            <div class="gsr-actions">
+              <button type="button" class="btn ghost" id="gsrCancel" data-i18n="gate.scan_continue">Continuă</button>
+              <button type="button" class="btn" id="gsrArrive" data-i18n="car.status.arrived">Sosit</button>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="gate-results" id="gateResults"></div>
     </div>
