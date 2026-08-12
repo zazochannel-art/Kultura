@@ -3701,11 +3701,7 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .agenda-add-row input:focus { border-color: var(--accent); }
 
 /* ========== PUBLIC REGISTRATION APPROVAL QUEUE (#2) ========== */
-.reg-queue {
-  background: linear-gradient(180deg, rgba(6,182,212,0.10), rgba(139,92,246,0.06));
-  border: 1px solid rgba(6,182,212,0.30); border-radius: 18px;
-  padding: 14px 16px; margin: 0 0 14px;
-}
+.reg-queue { margin: 0; }
 .reg-head { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .reg-count { background: var(--accent); color: #fff; font-size: 12px; font-weight: 800; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; }
 .reg-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
