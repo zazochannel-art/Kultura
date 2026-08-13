@@ -2765,9 +2765,22 @@
 
     // ---- Arrivals wall: a live, full-screen display of who just checked in. ----
     let _wallPhotos = {};
+    let _wallAutoScroll = false, _wallScrollTimer = null, _wallLastCount = -1;
+    function wallBeep() {
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+        const a = new AC(), o = a.createOscillator(), g = a.createGain();
+        o.connect(g); g.connect(a.destination); o.type = 'sine'; o.frequency.value = 880;
+        g.gain.setValueAtTime(0.0001, a.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.18, a.currentTime + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + 0.4);
+        o.start(); o.stop(a.currentTime + 0.42);
+      } catch (_) {}
+    }
     async function openArrivalsWall() {
       const ov = el('arrivalsWall'); if (!ov) return;
       ov.classList.add('show'); ov.setAttribute('aria-hidden', 'false');
+      _wallLastCount = -1; // avoid a chime on the first render
       try {
         const { data } = await supa.from('cars').select('id, photos').not('photos', 'is', null);
         _wallPhotos = {};
@@ -2778,7 +2791,33 @@
     function closeArrivalsWall() {
       const ov = el('arrivalsWall'); if (!ov) return;
       ov.classList.remove('show'); ov.setAttribute('aria-hidden', 'true');
+      _wallAutoScroll = false; stopWallAutoScroll();
+      el('wallPresentBtn')?.classList.remove('active');
+      try { if (document.fullscreenElement) document.exitFullscreen(); } catch (_) {}
     }
+    function startWallAutoScroll() {
+      stopWallAutoScroll();
+      const grid = el('wallGrid'); if (!grid) return;
+      _wallScrollTimer = setInterval(() => {
+        if (!el('arrivalsWall')?.classList.contains('show')) return;
+        if (grid.scrollTop + grid.clientHeight >= grid.scrollHeight - 2) grid.scrollTo({ top: 0, behavior: 'smooth' });
+        else grid.scrollBy({ top: 1 });
+      }, 45);
+    }
+    function stopWallAutoScroll() { if (_wallScrollTimer) { clearInterval(_wallScrollTimer); _wallScrollTimer = null; } }
+    function toggleWallPresent() {
+      const ov = el('arrivalsWall'); if (!ov) return;
+      _wallAutoScroll = !_wallAutoScroll;
+      el('wallPresentBtn')?.classList.toggle('active', _wallAutoScroll);
+      if (_wallAutoScroll) {
+        try { if (ov.requestFullscreen) ov.requestFullscreen(); } catch (_) {}
+        startWallAutoScroll();
+      } else {
+        stopWallAutoScroll();
+        try { if (document.fullscreenElement) document.exitFullscreen(); } catch (_) {}
+      }
+    }
+    el('wallPresentBtn')?.addEventListener('click', toggleWallPresent);
     function renderArrivalsWall() {
       const ov = el('arrivalsWall'); if (!ov || !ov.classList.contains('show')) return;
       const grid = el('wallGrid'), empty = el('wallEmpty'), count = el('wallCount');
@@ -2787,6 +2826,9 @@
         .sort((a, b) => new Date(b.arrived_at || 0) - new Date(a.arrived_at || 0));
       if (count) count.textContent = arrived.length;
       if (empty) empty.hidden = arrived.length > 0;
+      // Chime when a new arrival shows up (not on the first render).
+      if (_wallLastCount >= 0 && arrived.length > _wallLastCount) wallBeep();
+      _wallLastCount = arrived.length;
       if (!grid) return;
       grid.innerHTML = arrived.slice(0, 48).map(c => {
         const name = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
