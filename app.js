@@ -2105,6 +2105,10 @@
       if (regBlock) regBlock.style.display = admin ? 'block' : 'none';
       const blockBlk = el('blocklistBlock');
       if (blockBlk) blockBlk.style.display = staff ? 'block' : 'none';
+      const backupBlk = el('backupBlock');
+      if (backupBlk) { backupBlk.style.display = admin ? 'block' : 'none'; if (admin) { try { renderBackupList(); } catch (_) {} } }
+      const gdprBlk = el('gdprBlock');
+      if (gdprBlk) gdprBlk.style.display = admin ? 'block' : 'none';
       // SMS Center is admin-only (both desktop and mobile nav entries).
       document.querySelectorAll('.admin-only-tab').forEach(b => { b.style.display = admin ? '' : 'none'; });
       const annBlock = el('announceBlock');
@@ -2971,6 +2975,95 @@
       const { error } = await supa.from('plate_blocklist').delete().eq('plate_norm', d.dataset.blockDel);
       if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
       await loadData();
+    });
+
+    // ----- Backups (admin) — list, download, run-now. -----
+    let _backupBusy = false;
+    async function renderBackupList() {
+      const box = el('backupList'); if (!box) return;
+      const { data, error } = await supa.storage.from('backups').list('', {
+        limit: 100, sortBy: { column: 'name', order: 'desc' },
+      });
+      if (error) { box.innerHTML = `<div class="block-empty">${escape(error.message)}</div>`; return; }
+      const files = (data || []).filter(f => f.name && f.name.endsWith('.json'));
+      if (!files.length) { box.innerHTML = `<div class="block-empty">${escape(t('backup.empty'))}</div>`; return; }
+      box.innerHTML = files.map(f => {
+        const bytes = f.metadata && f.metadata.size ? Math.max(1, Math.round(f.metadata.size / 1024)) + ' KB' : '';
+        // Human date pulled from the ISO stamp embedded in the filename.
+        const m = f.name.match(/(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})/);
+        const when = m ? `${m[1]} ${m[2]}:${m[3]}` : f.name;
+        return `<div class="backup-item">
+            <div class="backup-item-txt"><strong>${escape(when)}</strong>${bytes ? `<span>${escape(bytes)}</span>` : ''}</div>
+            <button class="btn small ghost" data-backup-dl="${escape(f.name)}" data-i18n="backup.download">Descarcă</button>
+          </div>`;
+      }).join('');
+    }
+    el('backupRunBtn')?.addEventListener('click', async () => {
+      if (_backupBusy) return;
+      const msg = el('backupMsg');
+      _backupBusy = true;
+      if (msg) { msg.style.color = 'var(--text-dim)'; msg.textContent = t('backup.running'); }
+      const { error } = await supa.rpc('run_backup');
+      if (error) { if (msg) { msg.style.color = 'var(--red)'; msg.textContent = t('common.error') + ': ' + error.message; } _backupBusy = false; return; }
+      // The upload happens asynchronously server-side; refresh the list shortly.
+      setTimeout(async () => {
+        try { await renderBackupList(); } catch (_) {}
+        if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('backup.done'); setTimeout(() => { msg.textContent = ''; }, 2500); }
+        _backupBusy = false;
+      }, 2500);
+    });
+    el('backupList')?.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-backup-dl]'); if (!b) return;
+      const name = b.dataset.backupDl;
+      const { data, error } = await supa.storage.from('backups').createSignedUrl(name, 120, { download: name });
+      if (error || !data) { showToast(t('common.error') + (error ? ': ' + error.message : ''), 'error'); return; }
+      window.open(data.signedUrl, '_blank');
+    });
+
+    // ----- GDPR data deletion (admin) — search (dry-run) then confirm-delete. -----
+    let _gdprLast = '';
+    function renderGdprResults(res) {
+      const box = el('gdprResults'); if (!box) return;
+      const matches = (res && res.matches) || [];
+      if (!matches.length) { box.innerHTML = `<div class="block-empty">${escape(t('gdpr.none'))}</div>`; return; }
+      box.innerHTML =
+        matches.map(m => `<div class="gdpr-item">
+            <div class="gdpr-item-txt">
+              <strong>${escape(m.plate || m.owner || '—')}</strong>
+              <span>${escape([m.owner, m.phone, m.email].filter(Boolean).join(' · '))}</span>
+              <span class="gdpr-src">${escape(m.source === 'cars' ? t('gdpr.src_car') : t('gdpr.src_reg'))}${m.photos ? ' · 📷 ' + m.photos : ''}</span>
+            </div>
+          </div>`).join('') +
+        `<button type="button" class="btn danger small" id="gdprDeleteBtn" style="margin-top:8px;">${escape(t('gdpr.delete', { n: matches.length }))}</button>`;
+    }
+    async function gdprInvoke(dryRun) {
+      const q = (el('gdprQuery')?.value || '').trim();
+      if (q.length < 3) { const msg = el('gdprMsg'); if (msg) { msg.style.color = 'var(--red)'; msg.textContent = t('gdpr.too_short'); } return null; }
+      _gdprLast = q;
+      const { data, error } = await supa.functions.invoke('gdpr-delete', { body: { query: q, dry_run: dryRun } });
+      if (error) {
+        const msg = el('gdprMsg'); if (msg) { msg.style.color = 'var(--red)'; msg.textContent = t('common.error') + ': ' + error.message; }
+        return null;
+      }
+      return data;
+    }
+    el('gdprSearchBtn')?.addEventListener('click', async () => {
+      const msg = el('gdprMsg'); if (msg) { msg.style.color = 'var(--text-dim)'; msg.textContent = t('gdpr.searching'); }
+      const res = await gdprInvoke(true);
+      if (!res) return;
+      if (msg) msg.textContent = t('gdpr.found', { n: res.count || 0 });
+      renderGdprResults(res);
+    });
+    el('gdprResults')?.addEventListener('click', async (e) => {
+      if (!e.target.closest('#gdprDeleteBtn')) return;
+      if (!(await uiConfirm(t('gdpr.confirm', { q: _gdprLast }), { danger: true }))) return;
+      const msg = el('gdprMsg'); if (msg) { msg.style.color = 'var(--text-dim)'; msg.textContent = t('gdpr.deleting'); }
+      const res = await gdprInvoke(false);
+      if (!res) return;
+      if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('gdpr.deleted', { n: res.deleted || 0 }); }
+      el('gdprResults').innerHTML = '';
+      if (el('gdprQuery')) el('gdprQuery').value = '';
+      try { await loadData(); } catch (_) {}
     });
 
     let _scanStream = null, _scanRAF = null, _scanDetector = null, _scanBusy = false, _lastScanAt = 0, _scanCanvas = null, _jsqrLoading = null, _scanPaused = false;

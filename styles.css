@@ -3926,6 +3926,15 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .block-item-txt span { font-size: 12px; color: var(--text-dim); }
 .block-del { border: none; background: transparent; color: var(--red); font-size: 20px; line-height: 1; cursor: pointer; flex: 0 0 auto; }
 .block-empty { text-align: center; color: var(--text-mute); font-size: 13px; padding: 12px; }
+/* ---- Backups & GDPR (admin) ---- */
+.backup-list, .gdpr-results { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.backup-item, .gdpr-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--fill); }
+.backup-item-txt, .gdpr-item-txt { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.backup-item-txt strong { font-size: 13px; }
+.backup-item-txt span, .gdpr-item-txt span { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gdpr-item-txt strong { font-size: 14px; font-family: monospace; }
+.gdpr-item-txt .gdpr-src { font-size: 11px; color: var(--text-mute); }
+.btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text-dim); }
 /* gate warnings */
 .gsr-blocked { margin-top: 10px; background: rgba(239,68,68,.16); color: var(--red); border-radius: 10px; padding: 8px 12px; font-weight: 800; font-size: 14px; }
 .gsr-card.is-blocked { border-color: rgba(239,68,68,.6); box-shadow: 0 0 0 2px rgba(239,68,68,.35), 0 30px 80px rgba(0,0,0,.5); }
