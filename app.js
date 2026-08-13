@@ -5948,14 +5948,16 @@
         regs.map(r => {
           const name = [r.brand, r.model].filter(Boolean).join(' ') || r.owner || '—';
           const hold = r.status === 'hold' ? `<span class="reg-hold-badge">${escape(t('reg.hold'))}</span>` : '';
+          const blockReason = plateBlocked(r.plate);
+          const blockBadge = blockReason !== null ? `<span class="reg-block-badge" title="${escape(blockReason || '')}">⛔ ${escape(t('block.reg_badge'))}</span>` : '';
           const pics = Array.isArray(r.photos) ? r.photos : [];
           const shown = pics.slice(0, 3);
           const extra = pics.length - shown.length;
           const thumbs = pics.length
             ? `<div class="reg-card-thumbs">${shown.map(u => `<img src="${escape(u)}" alt="" loading="lazy">`).join('')}${extra > 0 ? `<div class="reg-card-more">+${extra}</div>` : ''}</div>`
             : '';
-          return `<div class="reg-card${r.status === 'hold' ? ' is-hold' : ''}" data-reg-open="${r.id}" role="button" tabindex="0">
-              <div class="reg-card-brand">${escape(name)}${hold}</div>
+          return `<div class="reg-card${r.status === 'hold' ? ' is-hold' : ''}${blockReason !== null ? ' is-blocked' : ''}" data-reg-open="${r.id}" role="button" tabindex="0">
+              <div class="reg-card-brand">${escape(name)}${hold}${blockBadge}</div>
               ${thumbs}
               ${chev}
             </div>`;
@@ -5981,6 +5983,14 @@
       _regDetailId = id;
       el('regDetailTitle').textContent = [r.brand, r.model].filter(Boolean).join(' ') || r.owner || '—';
       const sub = el('regDetailSub'); if (sub) sub.textContent = r.plate || '';
+      const warn = el('regDetailBlock');
+      if (warn) {
+        const reason = plateBlocked(r.plate);
+        if (reason !== null) {
+          warn.hidden = false;
+          warn.innerHTML = `<strong>⛔ ${escape(t('block.reg_warn'))}</strong>` + (reason ? `<span>${escape(reason)}</span>` : '');
+        } else { warn.hidden = true; warn.innerHTML = ''; }
+      }
       const pics = Array.isArray(r.photos) ? r.photos : [];
       el('regDetailPhotos').innerHTML = pics.map(u =>
         `<img src="${escape(u)}" alt="" loading="lazy" data-reg-photo="${escape(u)}">`).join('');

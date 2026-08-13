@@ -3763,6 +3763,11 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .reg-empty { text-align: center; color: var(--text-mute); font-size: 13px; padding: 16px 0; }
 .reg-card.is-hold { opacity: .82; }
 .reg-hold-badge { font-size: 11px; font-weight: 800; letter-spacing: .02em; color: var(--orange); background: rgba(245,158,11,.16); border-radius: 999px; padding: 2px 8px; text-transform: uppercase; }
+.reg-block-badge { font-size: 11px; font-weight: 800; letter-spacing: .02em; color: #ef4444; background: rgba(239,68,68,.16); border-radius: 999px; padding: 2px 8px; text-transform: uppercase; }
+.reg-card.is-blocked { background: rgba(239,68,68,.05); }
+.reg-block-warn { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 10px; padding: 10px 12px; border-radius: 12px; background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.35); color: #ef4444; font-size: 13px; }
+.reg-block-warn strong { font-size: 14px; }
+.reg-block-warn span { color: var(--text); opacity: .85; }
 .reg-card-thumbs { display: flex; gap: 6px; margin-left: auto; }
 .reg-card-thumbs img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
 .reg-card-more { width: 44px; height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--fill); display: grid; place-items: center; font-size: 12px; color: var(--text-dim); }
