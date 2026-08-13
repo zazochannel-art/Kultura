@@ -723,6 +723,28 @@
           </div>
         </div>
 
+        <div class="setting-block" id="blocklistBlock" style="display:none;">
+          <div class="setting-label" data-i18n="block.label">LISTĂ NEAGRĂ</div>
+          <div class="setting-row" style="align-items:flex-start;">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>
+            </div>
+            <div class="txt" style="flex:1;">
+              <strong data-i18n="block.title">Plăci interzise</strong>
+              <span data-i18n="block.sub">Plăcile de aici sunt semnalate la poartă cu un avertisment.</span>
+              <div class="announce-compose">
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <input type="text" id="blockPlateInput" data-i18n-placeholder="block.plate_ph" placeholder="Placa" style="flex:1; min-width:110px; text-transform:uppercase;">
+                  <input type="text" id="blockReasonInput" data-i18n-placeholder="block.reason_ph" placeholder="Motiv (opțional)" style="flex:2; min-width:120px;">
+                  <button type="button" class="btn small" id="blockAddBtn" data-i18n="block.add">Adaugă</button>
+                </div>
+                <div class="modal-msg" id="blockMsg" style="margin-top:6px;"></div>
+                <div id="blocklistList" class="block-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="setting-block" id="announceBlock" style="display:none;">
           <div class="setting-label" data-i18n="announce.label">ANUNȚURI</div>
           <div class="setting-row" style="align-items:flex-start;">
