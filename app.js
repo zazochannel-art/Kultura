@@ -2103,6 +2103,8 @@
       if (sheetBlock) sheetBlock.style.display = admin ? 'block' : 'none';
       const regBlock = el('regBlock');
       if (regBlock) regBlock.style.display = admin ? 'block' : 'none';
+      const blockBlk = el('blocklistBlock');
+      if (blockBlk) blockBlk.style.display = staff ? 'block' : 'none';
       // SMS Center is admin-only (both desktop and mobile nav entries).
       document.querySelectorAll('.admin-only-tab').forEach(b => { b.style.display = admin ? '' : 'none'; });
       const annBlock = el('announceBlock');
@@ -2247,7 +2249,8 @@
             supa.from('announcements').select('*').order('id', { ascending: false }).limit(20),
             supa.from('vip_guests').select('*').order('id', { ascending: false }),
             supa.from('event_agenda').select('*').order('at_time', { ascending: true }),
-            supa.from('car_registrations').select('*').in('status', ['pending', 'hold']).order('id', { ascending: false })
+            supa.from('car_registrations').select('*').in('status', ['pending', 'hold']).order('id', { ascending: false }),
+            supa.from('plate_blocklist').select('plate, plate_norm, reason').order('id', { ascending: false })
           ]);
 
           // Only overwrite each slice if the fetch succeeded; otherwise keep
@@ -2260,6 +2263,7 @@
           const nextVips     = results[5] && results[5].status === 'fulfilled' && !results[5].value.error ? (results[5].value.data || []) : null;
           const nextAgenda   = results[6] && results[6].status === 'fulfilled' && !results[6].value.error ? (results[6].value.data || []) : null;
           const nextRegs     = results[7] && results[7].status === 'fulfilled' && !results[7].value.error ? (results[7].value.data || []) : null;
+          const nextBlock    = results[8] && results[8].status === 'fulfilled' && !results[8].value.error ? (results[8].value.data || []) : null;
 
           if (nextCars     !== null) state.cars     = nextCars;
           if (nextTasks    !== null) state.tasks    = nextTasks;
@@ -2269,6 +2273,7 @@
           if (nextVips     !== null) state.vips     = nextVips;
           if (nextAgenda   !== null) state.agenda   = nextAgenda;
           if (nextRegs     !== null) state.registrations = nextRegs;
+          if (nextBlock    !== null) { state.blocklist = nextBlock; rebuildBlockSet(); try { renderBlocklist(); } catch (_) {} }
 
           // Persist the car list so the offline gate check-in can look cars up
           // with no connection (the PWA shell is cached; the data is not).
@@ -2744,10 +2749,11 @@
       box.innerHTML = list.slice(0, 60).map(c => {
         const arrived = statusKey(c.status) === 'sosit';
         const name = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
+        const blocked = plateBlocked(c.plate) !== null;
         return `
-          <div class="gate-car ${arrived ? 'arrived' : ''}" data-car-id="${c.id}">
+          <div class="gate-car ${arrived ? 'arrived' : ''}${blocked ? ' blocked' : ''}" data-car-id="${c.id}">
             <div class="gate-car-info">
-              <div class="gate-plate">${escape(c.plate || '—')}${c.is_vip ? ' <span class="gate-vip">VIP</span>' : ''}</div>
+              <div class="gate-plate">${escape(c.plate || '—')}${c.is_vip ? ' <span class="gate-vip">VIP</span>' : ''}${blocked ? ' <span class="gate-blocked">⛔</span>' : ''}</div>
               <div class="gate-car-sub">${escape(name)}${c.owner ? ' · ' + escape(c.owner) : ''}</div>
             </div>
             <select class="gate-zone" data-gate-zone="${c.id}" title="${escape(t('gate.zone_ph'))}">${zoneOptionsHTML(c.zone)}</select>
@@ -2894,6 +2900,47 @@
       return src.find(c => (c.plate || '').toLowerCase().replace(/\s+/g, '') === norm) || null;
     }
 
+    // ----- PLATE BLOCKLIST (plăci interzise) -----
+    let _blockSet = new Map(); // normalized plate -> reason
+    const normPlateKey = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9А-ЯЁ]/gi, '');
+    function rebuildBlockSet() {
+      _blockSet = new Map();
+      (state.blocklist || []).forEach(b => { const k = b.plate_norm || normPlateKey(b.plate); if (k) _blockSet.set(k, b.reason || ''); });
+    }
+    // Returns the block reason (string, possibly empty) if the plate is blocked, else null.
+    function plateBlocked(plate) {
+      const k = normPlateKey(plate);
+      if (k.length < 2) return null;
+      return _blockSet.has(k) ? (_blockSet.get(k) || '') : null;
+    }
+    function renderBlocklist() {
+      const box = el('blocklistList'); if (!box) return;
+      const list = state.blocklist || [];
+      box.innerHTML = list.length
+        ? list.map(b => `<div class="block-item">
+            <div class="block-item-txt"><strong>${escape(b.plate || b.plate_norm || '—')}</strong>${b.reason ? `<span>${escape(b.reason)}</span>` : ''}</div>
+            <button class="block-del" data-block-del="${escape(b.plate_norm || normPlateKey(b.plate))}" aria-label="${escape(t('common.delete'))}">&times;</button>
+          </div>`).join('')
+        : `<div class="block-empty">${escape(t('block.empty'))}</div>`;
+    }
+    el('blockAddBtn')?.addEventListener('click', async () => {
+      const pi = el('blockPlateInput'), ri = el('blockReasonInput'), msg = el('blockMsg');
+      const plate = (pi?.value || '').trim();
+      const norm = normPlateKey(plate);
+      if (norm.length < 2) { if (msg) { msg.style.color = 'var(--red)'; msg.textContent = t('block.invalid'); } return; }
+      const { error } = await supa.from('plate_blocklist').insert({ plate, plate_norm: norm, reason: (ri?.value || '').trim() || null, created_by: currentUserEmail() });
+      if (error) { if (msg) { msg.style.color = 'var(--red)'; msg.textContent = t('common.error') + ': ' + error.message; } return; }
+      if (pi) pi.value = ''; if (ri) ri.value = '';
+      if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('block.added'); setTimeout(() => { msg.textContent = ''; }, 2000); }
+      await loadData();
+    });
+    el('blocklistList')?.addEventListener('click', async (e) => {
+      const d = e.target.closest('[data-block-del]'); if (!d) return;
+      const { error } = await supa.from('plate_blocklist').delete().eq('plate_norm', d.dataset.blockDel);
+      if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
+      await loadData();
+    });
+
     let _scanStream = null, _scanRAF = null, _scanDetector = null, _scanBusy = false, _lastScanAt = 0, _scanCanvas = null, _jsqrLoading = null, _scanPaused = false;
     // Lazy-load the vendored pure-JS QR decoder (fallback for browsers without
     // BarcodeDetector — notably iPhone/Safari).
@@ -2990,7 +3037,11 @@
       const name = [car.brand, car.model].filter(Boolean).join(' ') || car.model || '—';
       el('gsrName').textContent = name;
       el('gsrSub').textContent = [car.owner, car.plate].filter(Boolean).join(' · ');
-      el('gsrStatus').innerHTML = `<span class="badge ${statusToBadge(car.status)}">${escape(translateStatus(car.status, 'car'))}</span>`;
+      const blockReason = plateBlocked(car.plate);
+      el('gsrStatus').innerHTML = `<span class="badge ${statusToBadge(car.status)}">${escape(translateStatus(car.status, 'car'))}</span>`
+        + (blockReason !== null ? `<div class="gsr-blocked">⛔ ${escape(t('block.gate_warn'))}${blockReason ? ' — ' + escape(blockReason) : ''}</div>` : '');
+      const card = document.querySelector('#gateScanResult .gsr-card');
+      if (card) card.classList.toggle('is-blocked', blockReason !== null);
       const arrived = statusKey(car.status) === 'sosit';
       const btn = el('gsrArrive');
       if (btn) { btn.dataset.carId = car.id; btn.disabled = arrived; btn.textContent = arrived ? t('gate.scan_already_short') : t('car.status.arrived'); }
