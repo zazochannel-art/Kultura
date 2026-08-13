@@ -2446,6 +2446,7 @@
     // ticks are skipped while the tab is hidden, a save runs, or the user types.
     let pollTimer = null;
     let _pollBooted = false;
+    let _realtimeOk = false;
     function shouldSkipPoll() {
       if (document.hidden) return true; // tab in background → pause polling
       if (document.querySelector('.action-btn.loading')) return true; // save in progress
@@ -2461,10 +2462,11 @@
     }
     function _scheduleNextPoll() {
       if (!_pollBooted) return; // stopped
-      // 1s when healthy; back off on repeated errors (2s → 4s → 8s … cap 2min)
-      // so a broken connection doesn't hammer the server.
+      // Realtime is the primary refresh path, so poll is only a fallback:
+      // 25s when the realtime socket is live, 3s while it's down. Back off on
+      // repeated errors (2s → 4s → 8s … cap 2min) so a broken link doesn't hammer.
       const delay = _consecutiveErrors === 0
-        ? 1000
+        ? (_realtimeOk ? 25000 : 3000)
         : Math.min(120000, 2000 * Math.pow(2, _consecutiveErrors - 1));
       pollTimer = setTimeout(async () => {
         if (!_pollBooted) return;
@@ -6082,8 +6084,11 @@
         applyRealtimeReg(payload);
       })
       .subscribe((status) => {
+        // Track realtime health so polling can back off when it's live and
+        // speed up when it drops.
+        _realtimeOk = status === 'SUBSCRIBED';
         // On every (re)connect pull a fresh snapshot — changes that happened
-        // while the socket was down would otherwise wait for the 20s poll.
+        // while the socket was down would otherwise wait for the next poll.
         if (status === 'SUBSCRIBED') loadData().catch(() => {});
       });
 
