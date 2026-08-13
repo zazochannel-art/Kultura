@@ -2134,7 +2134,7 @@
     // (notes, modifications, photos, checklist, detailed_description, …) are only
     // needed in the detail view, which hydrates them on demand. `updated_at` is
     // included so any edit still bumps the fingerprint.
-    const CAR_LIST_COLS  = 'id,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,vip_arrived,vip_arrived_at,arrived_at,checked_in_by';
+    const CAR_LIST_COLS  = 'id,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,vip_arrived,vip_arrived_at,arrived_at,checked_in_by,checked_in_gate';
     const TASK_LIST_COLS = 'id,title,event,date,status,status_color,is_completed,event_id,due_at,created_at,assigned_user_id,assigned_user_name,started_at,completed_at,completed_by_user_id,completed_by_user_name,priority,category,due_date,created_by,assigned_to,assigned_at,completed_by,team,updated_at,reminder_sent';
 
     // Canonical parking zones (car categories). Single source of truth for the
@@ -2649,15 +2649,46 @@
       }
     }
 
-    // Perform a gate check-in (mark arrived) — optimistic + queued.
+    // Per-device gate label so several operators can scan in parallel and each
+    // arrival records which gate handled it (avoids "who checked this in?" mixups).
+    function gateLabel() {
+      try { return (localStorage.getItem('kultura_gate_label') || '').trim(); } catch (_) { return ''; }
+    }
+    function setGateLabel(v) {
+      try {
+        const s = String(v || '').trim().slice(0, 40);
+        if (s) localStorage.setItem('kultura_gate_label', s);
+        else localStorage.removeItem('kultura_gate_label');
+      } catch (_) {}
+      renderGateLabel();
+    }
+    function renderGateLabel() {
+      const b = el('gateLabelBtn');
+      if (!b) return;
+      const lbl = gateLabel();
+      b.textContent = lbl ? ('📍 ' + lbl) : t('gate.label_set');
+      b.classList.toggle('is-set', !!lbl);
+    }
+    el('gateLabelBtn')?.addEventListener('click', async () => {
+      const cur = gateLabel();
+      const v = await uiPrompt(t('gate.label_prompt'), { value: cur, placeholder: t('gate.label_ph') });
+      if (v === false) return;
+      setGateLabel(v);
+    });
+
+    // Perform a gate check-in (mark arrived) — optimistic + queued. Stamps which
+    // gate did it so parallel operators never overwrite each other's records.
     function gateCheckIn(carId) {
-      applyLocalCarPatch(carId, { status: 'Sosit', status_color: '#10B981' });
-      enqueueAction({ type: 'car-update', carId, patch: { status: 'Sosit', status_color: '#10B981' } });
+      const patch = { status: 'Sosit', status_color: '#10B981' };
+      const g = gateLabel();
+      if (g) patch.checked_in_gate = g;
+      applyLocalCarPatch(carId, patch);
+      enqueueAction({ type: 'car-update', carId, patch });
       renderGate(); updateGateSyncUI();
       flushOutbox();
       haptic(40);
       try { confettiBurst(); auroraPulse(); } catch (_) {}
-      showToast(t('gate.checked_in'));
+      showToast(g ? t('gate.checked_in_at', { gate: g }) : t('gate.checked_in'));
     }
     function gateSetZone(carId, zone) {
       const z = (zone || '').trim();
@@ -2709,6 +2740,7 @@
       if (inp) inp.value = '';
       renderGate();
       renderGateZones();
+      renderGateLabel();
       updateGateSyncUI();
       flushOutbox();
       setTimeout(() => inp && inp.focus(), 60);
@@ -2754,7 +2786,7 @@
           <div class="gate-car ${arrived ? 'arrived' : ''}${blocked ? ' blocked' : ''}" data-car-id="${c.id}">
             <div class="gate-car-info">
               <div class="gate-plate">${escape(c.plate || '—')}${c.is_vip ? ' <span class="gate-vip">VIP</span>' : ''}${blocked ? ' <span class="gate-blocked">⛔</span>' : ''}</div>
-              <div class="gate-car-sub">${escape(name)}${c.owner ? ' · ' + escape(c.owner) : ''}</div>
+              <div class="gate-car-sub">${escape(name)}${c.owner ? ' · ' + escape(c.owner) : ''}${arrived && c.checked_in_gate ? ' <span class="gate-car-at">📍 ' + escape(c.checked_in_gate) + '</span>' : ''}</div>
             </div>
             <select class="gate-zone" data-gate-zone="${c.id}" title="${escape(t('gate.zone_ph'))}">${zoneOptionsHTML(c.zone)}</select>
             <button class="gate-arrive ${arrived ? 'done' : ''}" data-gate-arrive="${c.id}" ${arrived ? 'disabled' : ''}>
@@ -5916,14 +5948,16 @@
         regs.map(r => {
           const name = [r.brand, r.model].filter(Boolean).join(' ') || r.owner || '—';
           const hold = r.status === 'hold' ? `<span class="reg-hold-badge">${escape(t('reg.hold'))}</span>` : '';
+          const blockReason = plateBlocked(r.plate);
+          const blockBadge = blockReason !== null ? `<span class="reg-block-badge" title="${escape(blockReason || '')}">⛔ ${escape(t('block.reg_badge'))}</span>` : '';
           const pics = Array.isArray(r.photos) ? r.photos : [];
           const shown = pics.slice(0, 3);
           const extra = pics.length - shown.length;
           const thumbs = pics.length
             ? `<div class="reg-card-thumbs">${shown.map(u => `<img src="${escape(u)}" alt="" loading="lazy">`).join('')}${extra > 0 ? `<div class="reg-card-more">+${extra}</div>` : ''}</div>`
             : '';
-          return `<div class="reg-card${r.status === 'hold' ? ' is-hold' : ''}" data-reg-open="${r.id}" role="button" tabindex="0">
-              <div class="reg-card-brand">${escape(name)}${hold}</div>
+          return `<div class="reg-card${r.status === 'hold' ? ' is-hold' : ''}${blockReason !== null ? ' is-blocked' : ''}" data-reg-open="${r.id}" role="button" tabindex="0">
+              <div class="reg-card-brand">${escape(name)}${hold}${blockBadge}</div>
               ${thumbs}
               ${chev}
             </div>`;
@@ -5949,6 +5983,14 @@
       _regDetailId = id;
       el('regDetailTitle').textContent = [r.brand, r.model].filter(Boolean).join(' ') || r.owner || '—';
       const sub = el('regDetailSub'); if (sub) sub.textContent = r.plate || '';
+      const warn = el('regDetailBlock');
+      if (warn) {
+        const reason = plateBlocked(r.plate);
+        if (reason !== null) {
+          warn.hidden = false;
+          warn.innerHTML = `<strong>⛔ ${escape(t('block.reg_warn'))}</strong>` + (reason ? `<span>${escape(reason)}</span>` : '');
+        } else { warn.hidden = true; warn.innerHTML = ''; }
+      }
       const pics = Array.isArray(r.photos) ? r.photos : [];
       el('regDetailPhotos').innerHTML = pics.map(u =>
         `<img src="${escape(u)}" alt="" loading="lazy" data-reg-photo="${escape(u)}">`).join('');
