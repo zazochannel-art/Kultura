@@ -3925,8 +3925,9 @@
       }).join('');
       const carName = [car.brand, car.model].filter(Boolean).join(' ') || car.model;
       const isNewToday = car.created_at && new Date(car.created_at).toDateString() === new Date().toDateString();
+      const photo = _carPhotos && _carPhotos[car.id];
       return `
-          <div class="card car-row card-stripe stripe-${active || 'invitat'}${car.is_vip ? ' card-vip' : ''}" data-row-id="${car.id}" style="cursor:pointer; padding: 16px; margin-bottom: 0;">
+          <div class="card car-row card-stripe stripe-${active || 'invitat'}${car.is_vip ? ' card-vip' : ''}${photo ? ' has-photo' : ''}" data-row-id="${car.id}" style="cursor:pointer; padding: 16px; margin-bottom: 0;${photo ? `--car-bg:url('${escape(photo)}');` : ''}">
             <div style="display:flex; align-items:flex-start; gap:12px;">
               <div class="row-icon blue" style="flex-shrink:0;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
@@ -3960,8 +3961,23 @@
     // lists cheap without recycling DOM (so swipe + detail keep working).
     const CARS_CHUNK = 60;
     let _carsIO = null;
+    // Cache of car id → first photo (the list fetch is lean and omits photos),
+    // used for a subtle background on car rows. Fetched once, refreshed when a
+    // photo is added; invalidate by setting _carPhotos = null.
+    let _carPhotos = null, _carPhotosLoading = false;
+    function ensureCarPhotos() {
+      if (_carPhotos || _carPhotosLoading || !navigator.onLine) return;
+      _carPhotosLoading = true;
+      supa.from('cars').select('id, photos').not('photos', 'is', null).then(({ data }) => {
+        _carPhotos = {};
+        (data || []).forEach(r => { const p = Array.isArray(r.photos) ? r.photos : []; if (p.length) _carPhotos[r.id] = p[0]; });
+        _carPhotosLoading = false;
+        try { renderCars(); } catch (_) {}
+      }).catch(() => { _carPhotosLoading = false; });
+    }
     function renderCars() {
       try { renderArrivalsWall(); } catch (_) {}
+      ensureCarPhotos();
       el('carsCount').textContent = state.cars.length;
       const list = filterCars();
       const c = el('carsList');
@@ -7181,6 +7197,7 @@
           const { error: upErr } = await supa.from('cars')
             .update({ photos: [...photos, ...urls] }).eq('id', c.id);
           if (upErr) throw upErr;
+          _carPhotos = null; // refresh row backgrounds
           await loadData();
           showCarDetail(c.id);
         } catch (err) {
@@ -7198,6 +7215,7 @@
           const { error } = await supa.from('cars')
             .update({ photos: photos.filter((_, i2) => i2 !== idx) }).eq('id', c.id);
           if (error) return uiAlert('Eroare: ' + error.message);
+          _carPhotos = null; // refresh row backgrounds
           // Best-effort storage cleanup — the DB row is the source of truth.
           const objPath = (url || '').split('/car-photos/')[1];
           if (objPath) supa.storage.from('car-photos').remove([decodeURIComponent(objPath)]);
