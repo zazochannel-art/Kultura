@@ -2256,6 +2256,8 @@
       if (actBlk) { actBlk.style.display = admin ? 'block' : 'none'; if (admin) { try { renderActivityLog(); } catch (_) {} } }
       const votingBlk = el('votingBlock');
       if (votingBlk) { votingBlk.style.display = admin ? 'block' : 'none'; if (admin) { try { renderVotingAdmin(); } catch (_) {} } }
+      const fbBlk = el('feedbackBlock');
+      if (fbBlk) { fbBlk.style.display = staff ? 'block' : 'none'; if (staff) { try { renderFeedback(); } catch (_) {} } }
       // SMS Center is admin-only (both desktop and mobile nav entries).
       document.querySelectorAll('.admin-only-tab').forEach(b => { b.style.display = admin ? '' : 'none'; });
       const annBlock = el('announceBlock');
@@ -3223,6 +3225,31 @@
         return `<div class="voting-row"><span class="voting-rank">${i + 1}</span><span class="voting-name">${escape(name)}</span><span class="voting-n">${n} ⭐</span></div>`;
       }).join('');
     }
+    // ----- Post-event feedback (staff view) -----
+    async function renderFeedback() {
+      const list = el('fbList'), sum = el('fbSummary'); if (!list) return;
+      const { data, error } = await supa.from('event_feedback')
+        .select('rating, comment, contact, created_at').order('created_at', { ascending: false }).limit(80);
+      if (error) { list.innerHTML = `<div class="block-empty">${escape(error.message)}</div>`; if (sum) sum.textContent = ''; return; }
+      const rows = data || [];
+      if (sum) {
+        if (rows.length) {
+          const avg = rows.reduce((s, r) => s + (r.rating || 0), 0) / rows.length;
+          sum.innerHTML = `<span class="fb-avg">${avg.toFixed(1)} ★</span> <span class="fb-count">· ${rows.length} ${escape(t('fb.responses'))}</span>`;
+        } else sum.textContent = '';
+      }
+      if (!rows.length) { list.innerHTML = `<div class="block-empty">${escape(t('fb.empty'))}</div>`; return; }
+      list.innerHTML = rows.map(r => {
+        const stars = '★'.repeat(r.rating || 0) + '☆'.repeat(Math.max(0, 5 - (r.rating || 0)));
+        return `<div class="fb-item">
+            <div class="fb-top"><span class="fb-stars">${stars}</span>${r.contact ? `<span class="fb-contact">${escape(r.contact)}</span>` : ''}</div>
+            ${r.comment ? `<div class="fb-comment">${escape(r.comment)}</div>` : ''}
+            <div class="fb-when">${r.created_at ? escape(fmtRelative(r.created_at)) : ''}</div>
+          </div>`;
+      }).join('');
+    }
+    el('fbRefreshBtn')?.addEventListener('click', () => { try { renderFeedback(); } catch (_) {} });
+
     el('votingOpenBtn')?.addEventListener('click', () => { const s = el('votingEventSel'); if (s && s.value) setVotingEvent(s.value); });
     el('votingCloseBtn')?.addEventListener('click', () => setVotingEvent(''));
     el('votingEventSel')?.addEventListener('change', renderVotingBoard);
