@@ -3935,8 +3935,41 @@
       renderList('regStatsCats', top(c => c.category));
     }
 
+    // Compare participation across events (uses all loaded cars, grouped by event).
+    function renderCompare() {
+      const block = el('compareBlock'); if (!block) return;
+      if (!roleAtLeast('staff')) { block.hidden = true; return; }
+      const evs = (state.events || []);
+      if (evs.length < 2) { block.hidden = true; return; }
+      const isArr = (c) => statusKey(c.status) === 'sosit' || statusKey(c.status) === 'plecat' || !!c.arrived_at;
+      const byEvent = {};
+      (state.cars || []).forEach(c => {
+        const k = c.event_id == null ? '' : String(c.event_id);
+        if (!byEvent[k]) byEvent[k] = { total: 0, arr: 0 };
+        byEvent[k].total++; if (isArr(c)) byEvent[k].arr++;
+      });
+      const rows = evs.map(e => ({ e, s: byEvent[String(e.id)] || { total: 0, arr: 0 } }))
+        .filter(r => r.s.total > 0)
+        .sort((a, b) => String(b.e.date || b.e.starts_at || '').localeCompare(String(a.e.date || a.e.starts_at || '')))
+        .slice(0, 10);
+      if (!rows.length) { block.hidden = true; return; }
+      block.hidden = false;
+      const max = Math.max(1, ...rows.map(r => r.s.total));
+      const box = el('compareList');
+      if (box) box.innerHTML = rows.map(r => {
+        const name = r.e.title || r.e.name || ('#' + r.e.id);
+        const pct = r.s.total ? Math.round(r.s.arr / r.s.total * 100) : 0;
+        const w = Math.round(r.s.total / max * 100);
+        return `<div class="cmp-row">
+            <div class="cmp-top"><span class="cmp-name">${escape(name)}</span><span class="cmp-val">${r.s.total} 🚗 · ${r.s.arr} ✓ (${pct}%)</span></div>
+            <div class="cmp-track"><div class="cmp-fill" style="width:${w}%"></div></div>
+          </div>`;
+      }).join('');
+    }
+
     function renderStats(cars, tasks, events) {
       try { renderAflux(); } catch (_) {}
+      try { renderCompare(); } catch (_) {}
       try { renderRegStats(); } catch (_) {}
       // Cars/tasks respect the active-event filter; events count stays global.
       const scopedCars = activeCars();
