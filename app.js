@@ -745,6 +745,48 @@
     }
     el('carQrPrintBtn')?.addEventListener('click', () => { try { window.print(); } catch (_) {} });
 
+    // Bulk QR passes: build an A6-card sheet for the currently filtered cars and
+    // send it straight to the printer (one QR pass per car).
+    let _passBusy = false;
+    async function printAllPasses() {
+      if (_passBusy) return;
+      const sheet = el('passSheet'); if (!sheet) return;
+      const cars = (typeof filterCars === 'function' ? filterCars() : activeCars());
+      if (!cars.length) { showToast(t('pass.none'), 'error'); return; }
+      _passBusy = true;
+      showToast(t('pass.building', { n: cars.length }));
+      try {
+        const qrlib = await ensureQrLib();
+        const ev = (state.events || []).find(e => String(e.id) === String(state.activeEventId));
+        const evName = ev ? (ev.title || ev.name || '') : '';
+        sheet.innerHTML = cars.map(car => {
+          const qr = qrlib(0, 'M');
+          qr.addData(carQrPayload(car));
+          qr.make();
+          const svg = qr.createSvgTag({ scalable: true, margin: 1 });
+          const name = [car.brand, car.model].filter(Boolean).join(' ') || car.model || '';
+          return `<div class="pass-card">
+              <div class="pass-qr">${svg}</div>
+              <div class="pass-plate">${escape(car.plate || '—')}</div>
+              <div class="pass-name">${escape(name)}</div>
+              ${car.owner ? `<div class="pass-owner">${escape(car.owner)}</div>` : ''}
+              ${evName ? `<div class="pass-event">${escape(evName)}</div>` : ''}
+            </div>`;
+        }).join('');
+        document.body.classList.add('printing-passes');
+        // Let the layout settle before invoking the print dialog.
+        await new Promise(r => setTimeout(r, 120));
+        window.print();
+      } catch (e) {
+        showToast(t('common.error') + ': ' + (e.message || e), 'error');
+      } finally {
+        document.body.classList.remove('printing-passes');
+        _passBusy = false;
+      }
+    }
+    el('passPrintBtn')?.addEventListener('click', printAllPasses);
+    window.addEventListener('afterprint', () => { document.body.classList.remove('printing-passes'); });
+
     // Turn any chosen file into an image data URL. PDFs render their first
     // page to a canvas at high resolution.
     async function fileToImageSrc(file) {
