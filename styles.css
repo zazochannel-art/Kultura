@@ -2457,6 +2457,9 @@
   padding: 0;
 }
 .gate-arrive.done svg { width: 20px; height: 20px; }
+.gate-arrive.out { background: linear-gradient(90deg, #8b5cf6, #6366f1); }
+.gate-arrive.left { background: transparent; border: 1px solid var(--border); color: var(--text-mute); font-weight: 700; }
+.gate-car.left { opacity: 0.6; }
 @media (max-width: 420px) {
   .gate-zone { width: 92px; }
   .gate-car-sub { font-size: 12px; }
@@ -3862,6 +3865,14 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .aflux-block { margin-bottom: 16px; }
 .aflux-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .aflux-summary { font-size: 13px; font-weight: 700; color: var(--green); }
+.aflux-counters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+.aflux-tile { display: flex; flex-direction: column; gap: 2px; padding: 10px; border-radius: 12px; background: var(--fill); border: 1px solid var(--border); }
+.aflux-tile b { font-size: 22px; font-weight: 800; line-height: 1; }
+.aflux-tile span { font-size: 10.5px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .03em; }
+.aflux-tile.ok b { color: var(--green); }
+.aflux-tile.mut b { color: #8b5cf6; }
+.aflux-tile.hot b { color: var(--orange, #f59e0b); }
+@media (max-width: 520px) { .aflux-counters { grid-template-columns: repeat(2, 1fr); } }
 .aflux-sub { font-size: 12px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; margin: 12px 0 8px; }
 .aflux-bars { display: flex; align-items: flex-end; gap: 6px; height: 120px; padding-top: 6px; }
 .aflux-hbar { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
