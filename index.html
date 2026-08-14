@@ -282,14 +282,21 @@
             <h2 style="display:flex;align-items:center;gap:8px;">📊 <span data-i18n="aflux.title">Aflux</span></h2>
             <span class="aflux-summary" id="afluxSummary"></span>
           </div>
+          <div class="aflux-counters" id="afluxCounters"></div>
           <div class="aflux-sub" data-i18n="aflux.by_hour">Sosiri pe oră</div>
           <div class="aflux-bars" id="afluxHours"></div>
           <div class="aflux-cols">
             <div><div class="aflux-sub" data-i18n="aflux.by_zone">Pe zone</div><div id="afluxZones"></div></div>
             <div><div class="aflux-sub" data-i18n="aflux.by_category">Pe categorii</div><div id="afluxCats"></div></div>
           </div>
-          <div class="aflux-sub" data-i18n="aflux.by_operator" style="margin-top:14px;">Check-in pe operator</div>
-          <div id="afluxOps"></div>
+          <div class="aflux-cols">
+            <div><div class="aflux-sub" data-i18n="aflux.by_brand">Pe mărci</div><div id="afluxBrands"></div></div>
+            <div><div class="aflux-sub" data-i18n="aflux.by_city">Pe orașe</div><div id="afluxCities"></div></div>
+          </div>
+          <div class="aflux-cols">
+            <div><div class="aflux-sub" data-i18n="aflux.by_operator">Check-in pe operator</div><div id="afluxOps"></div></div>
+            <div><div class="aflux-sub" data-i18n="aflux.by_gate">Pe poartă</div><div id="afluxGates"></div></div>
+          </div>
         </div>
 
         <div class="card aflux-block" id="regStatsBlock" hidden>

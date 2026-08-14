@@ -2138,7 +2138,7 @@
     // (notes, modifications, photos, checklist, detailed_description, …) are only
     // needed in the detail view, which hydrates them on demand. `updated_at` is
     // included so any edit still bumps the fingerprint.
-    const CAR_LIST_COLS  = 'id,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,vip_arrived,vip_arrived_at,arrived_at,checked_in_by,checked_in_gate';
+    const CAR_LIST_COLS  = 'id,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,vip_arrived,vip_arrived_at,arrived_at,checked_in_by,checked_in_gate,left_at,checked_out_by';
     const TASK_LIST_COLS = 'id,title,event,date,status,status_color,is_completed,event_id,due_at,created_at,assigned_user_id,assigned_user_name,started_at,completed_at,completed_by_user_id,completed_by_user_name,priority,category,due_date,created_by,assigned_to,assigned_at,completed_by,team,updated_at,reminder_sent';
 
     // Canonical parking zones (car categories). Single source of truth for the
@@ -2694,6 +2694,16 @@
       try { confettiBurst(); auroraPulse(); } catch (_) {}
       showToast(g ? t('gate.checked_in_at', { gate: g }) : t('gate.checked_in'));
     }
+    // Mark a departure (check-out) — same optimistic/queued path as check-in.
+    function gateCheckOut(carId) {
+      const patch = { status: 'Plecat', status_color: '#8B5CF6' };
+      applyLocalCarPatch(carId, patch);
+      enqueueAction({ type: 'car-update', carId, patch });
+      renderGate(); updateGateSyncUI();
+      flushOutbox();
+      haptic(30);
+      showToast(t('gate.checked_out'));
+    }
     function gateSetZone(carId, zone) {
       const z = (zone || '').trim();
       // Warn (soft) if the target zone is already at capacity.
@@ -2783,21 +2793,25 @@
         return;
       }
       box.innerHTML = list.slice(0, 60).map(c => {
-        const arrived = statusKey(c.status) === 'sosit';
+        const sk = statusKey(c.status);
+        const arrived = sk === 'sosit';
+        const left = sk === 'plecat';
         const name = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
         const blocked = plateBlocked(c.plate) !== null;
+        // Not arrived → check-in; arrived → check-out (Plecare); left → done.
+        const actionBtn = left
+          ? `<button class="gate-arrive left" disabled>${escape(t('car.status.left'))}</button>`
+          : arrived
+            ? `<button class="gate-arrive out" data-gate-checkout="${c.id}">${escape(t('gate.leave'))}</button>`
+            : `<button class="gate-arrive" data-gate-arrive="${c.id}">${escape(t('gate.arrive'))}</button>`;
         return `
-          <div class="gate-car ${arrived ? 'arrived' : ''}${blocked ? ' blocked' : ''}" data-car-id="${c.id}">
+          <div class="gate-car ${arrived ? 'arrived' : ''}${left ? ' left' : ''}${blocked ? ' blocked' : ''}" data-car-id="${c.id}">
             <div class="gate-car-info">
               <div class="gate-plate">${escape(c.plate || '—')}${c.is_vip ? ' <span class="gate-vip">VIP</span>' : ''}${blocked ? ' <span class="gate-blocked">⛔</span>' : ''}</div>
               <div class="gate-car-sub">${escape(name)}${c.owner ? ' · ' + escape(c.owner) : ''}${arrived && c.checked_in_gate ? ' <span class="gate-car-at">📍 ' + escape(c.checked_in_gate) + '</span>' : ''}</div>
             </div>
             <select class="gate-zone" data-gate-zone="${c.id}" title="${escape(t('gate.zone_ph'))}">${zoneOptionsHTML(c.zone)}</select>
-            <button class="gate-arrive ${arrived ? 'done' : ''}" data-gate-arrive="${c.id}" ${arrived ? 'disabled' : ''}>
-              ${arrived
-                ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
-                : escape(t('gate.arrive'))}
-            </button>
+            ${actionBtn}
           </div>`;
       }).join('') + (list.length > 60 ? `<div class="gate-more">${escape(t('gate.more', { n: list.length - 60 }))}</div>` : '');
     }
@@ -2896,6 +2910,8 @@
     el('gateResults')?.addEventListener('click', (e) => {
       const arr = e.target.closest('[data-gate-arrive]');
       if (arr && !arr.disabled) { gateCheckIn(arr.dataset.gateArrive); return; }
+      const out = e.target.closest('[data-gate-checkout]');
+      if (out && !out.disabled) { gateCheckOut(out.dataset.gateCheckout); return; }
     });
     el('gateResults')?.addEventListener('change', (e) => {
       const zi = e.target.closest('[data-gate-zone]');
@@ -3528,10 +3544,28 @@
       if (!roleAtLeast('staff')) { block.hidden = true; return; }
       const cars = activeCars();
       const isArr = (c) => (c.status || '').toLowerCase().includes('sosit');
+      const isLeft = (c) => (c.status || '').toLowerCase().includes('plecat');
       const arrived = cars.filter(isArr);
+      const leftCars = cars.filter(isLeft);
+      // Anyone who ever arrived (present now + already left).
+      const everArrived = cars.filter(c => isArr(c) || isLeft(c) || c.arrived_at);
       block.hidden = false;
       const sum = el('afluxSummary');
       if (sum) sum.textContent = t('aflux.summary', { a: arrived.length, n: cars.length });
+
+      // Headline counters: present now, left, ever-arrived, and check-ins in
+      // the last 15 minutes (live pace).
+      const cnt = el('afluxCounters');
+      if (cnt) {
+        const now = Date.now();
+        const recent = everArrived.filter(c => c.arrived_at && (now - new Date(c.arrived_at).getTime()) <= 15 * 60000).length;
+        const tile = (n, label, cls) => `<div class="aflux-tile ${cls}"><b>${n}</b><span>${escape(label)}</span></div>`;
+        cnt.innerHTML =
+          tile(arrived.length, t('aflux.present_now'), 'ok') +
+          tile(leftCars.length, t('aflux.left'), 'mut') +
+          tile(everArrived.length, t('aflux.arrived_total'), '') +
+          tile(recent, t('aflux.last15'), 'hot');
+      }
 
       // Arrivals per hour (from arrived_at). Only hours with data.
       const byHour = {};
@@ -3563,15 +3597,25 @@
       };
       renderRates('afluxZones', groupRate(c => c.zone));
       renderRates('afluxCats', groupRate(c => c.category));
+      renderRates('afluxBrands', groupRate(c => c.brand));
+      renderRates('afluxCities', groupRate(c => c.city));
 
+      // Simple count list (label → n), reused for operators and gates.
+      const countList = (id, map, emptyKey) => {
+        const rows = Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 12);
+        const box = el(id); if (!box) return;
+        box.innerHTML = rows.length
+          ? rows.map(([o, n]) => `<div class="aflux-op"><span>${escape(o.split('@')[0])}</span><span class="aflux-op-n">${n}</span></div>`).join('')
+          : `<div class="aflux-empty">${escape(t(emptyKey))}</div>`;
+      };
       // Check-ins per operator.
       const ops = {};
       arrived.forEach(c => { const o = (c.checked_in_by || '').trim(); if (o) ops[o] = (ops[o] || 0) + 1; });
-      const opRows = Object.entries(ops).sort((a, b) => b[1] - a[1]).slice(0, 12);
-      const opBox = el('afluxOps');
-      if (opBox) opBox.innerHTML = opRows.length
-        ? opRows.map(([o, n]) => `<div class="aflux-op"><span>${escape(o.split('@')[0])}</span><span class="aflux-op-n">${n}</span></div>`).join('')
-        : `<div class="aflux-empty">${escape(t('aflux.no_operators'))}</div>`;
+      countList('afluxOps', ops, 'aflux.no_operators');
+      // Arrivals per gate (parallel-gate breakdown).
+      const gates = {};
+      arrived.forEach(c => { const g = (c.checked_in_gate || '').trim(); if (g) gates[g] = (gates[g] || 0) + 1; });
+      countList('afluxGates', gates, 'aflux.no_gates');
     }
 
     function renderRegStats() {
