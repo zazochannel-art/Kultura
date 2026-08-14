@@ -2254,6 +2254,8 @@
       if (gdprBlk) gdprBlk.style.display = admin ? 'block' : 'none';
       const actBlk = el('activityBlock');
       if (actBlk) { actBlk.style.display = admin ? 'block' : 'none'; if (admin) { try { renderActivityLog(); } catch (_) {} } }
+      const votingBlk = el('votingBlock');
+      if (votingBlk) { votingBlk.style.display = admin ? 'block' : 'none'; if (admin) { try { renderVotingAdmin(); } catch (_) {} } }
       // SMS Center is admin-only (both desktop and mobile nav entries).
       document.querySelectorAll('.admin-only-tab').forEach(b => { b.style.display = admin ? '' : 'none'; });
       const annBlock = el('announceBlock');
@@ -3172,6 +3174,58 @@
       }).join('');
     }
     el('activityRefreshBtn')?.addEventListener('click', () => { try { renderActivityLog(); } catch (_) {} });
+
+    // ----- Best Car voting (admin control + leaderboard) -----
+    let _votingEventId = '';
+    async function loadVotingSetting() {
+      try {
+        const { data } = await supa.from('ui_settings').select('value').eq('key', 'voting_event_id').maybeSingle();
+        _votingEventId = data && data.value ? String(data.value) : '';
+      } catch (_) { _votingEventId = ''; }
+    }
+    async function renderVotingAdmin() {
+      const sel = el('votingEventSel'); if (!sel) return;
+      await loadVotingSetting();
+      const evs = (state.events || []).slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+      sel.innerHTML = evs.map(e => `<option value="${e.id}"${String(e.id) === _votingEventId ? ' selected' : ''}>${escape(e.title || e.name || ('#' + e.id))}</option>`).join('');
+      const msg = el('votingMsg');
+      const link = el('votingLink');
+      if (_votingEventId) {
+        if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('voting.is_open'); }
+        if (link) { link.style.display = 'inline-block'; link.textContent = '🔗 vote.html'; }
+      } else {
+        if (msg) { msg.style.color = 'var(--text-dim)'; msg.textContent = t('voting.is_closed'); }
+        if (link) link.style.display = 'none';
+      }
+      renderVotingBoard();
+    }
+    async function setVotingEvent(id) {
+      const { error } = await supa.from('ui_settings').upsert(
+        { key: 'voting_event_id', value: id ? String(id) : '', updated_at: new Date().toISOString() }, { onConflict: 'key' });
+      if (error) { const m = el('votingMsg'); if (m) { m.style.color = 'var(--red)'; m.textContent = t('common.error') + ': ' + error.message; } return; }
+      _votingEventId = id ? String(id) : '';
+      renderVotingAdmin();
+    }
+    async function renderVotingBoard() {
+      const box = el('votingBoard'); if (!box) return;
+      const evId = _votingEventId || (el('votingEventSel') && el('votingEventSel').value);
+      if (!evId) { box.innerHTML = ''; return; }
+      const { data, error } = await supa.from('car_votes').select('car_id').eq('event_id', Number(evId));
+      if (error) { box.innerHTML = `<div class="block-empty">${escape(error.message)}</div>`; return; }
+      const tally = {};
+      (data || []).forEach(v => { tally[v.car_id] = (tally[v.car_id] || 0) + 1; });
+      const rows = Object.entries(tally).sort((a, b) => b[1] - a[1]).slice(0, 15);
+      if (!rows.length) { box.innerHTML = `<div class="block-empty">${escape(t('voting.no_votes'))}</div>`; return; }
+      const carById = (id) => (state.cars || []).find(c => String(c.id) === String(id));
+      box.innerHTML = rows.map(([cid, n], i) => {
+        const c = carById(cid);
+        const name = c ? ([c.brand, c.model].filter(Boolean).join(' ') || c.plate || ('#' + cid)) : ('#' + cid);
+        return `<div class="voting-row"><span class="voting-rank">${i + 1}</span><span class="voting-name">${escape(name)}</span><span class="voting-n">${n} ⭐</span></div>`;
+      }).join('');
+    }
+    el('votingOpenBtn')?.addEventListener('click', () => { const s = el('votingEventSel'); if (s && s.value) setVotingEvent(s.value); });
+    el('votingCloseBtn')?.addEventListener('click', () => setVotingEvent(''));
+    el('votingEventSel')?.addEventListener('change', renderVotingBoard);
 
     async function renderBackupList() {
       const box = el('backupList'); if (!box) return;

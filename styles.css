@@ -4013,6 +4013,13 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .activity-txt { min-width: 0; }
 .activity-top { font-size: 13px; color: var(--text); }
 .activity-meta { font-size: 11px; color: var(--text-mute); margin-top: 1px; }
+.voting-link { font-size: 12px; font-weight: 700; color: var(--brand, #6366f1); margin-top: 8px; display: inline-block; }
+.voting-board { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+.voting-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 10px; background: var(--fill); }
+.voting-rank { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%; background: var(--border); color: var(--text); font-size: 12px; font-weight: 800; display: grid; place-items: center; }
+.voting-row:nth-child(1) .voting-rank { background: #f5c542; color: #07080d; }
+.voting-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.voting-n { font-size: 13px; font-weight: 800; color: #f5c542; }
 /* gate warnings */
 .gsr-blocked { margin-top: 10px; background: rgba(239,68,68,.16); color: var(--red); border-radius: 10px; padding: 8px 12px; font-weight: 800; font-size: 14px; }
 .gsr-card.is-blocked { border-color: rgba(239,68,68,.6); box-shadow: 0 0 0 2px rgba(239,68,68,.35), 0 30px 80px rgba(0,0,0,.5); }
