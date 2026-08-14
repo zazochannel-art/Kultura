@@ -1557,6 +1557,92 @@
       } finally { btn.disabled = false; }
     });
 
+    // ----- Event summary report (printable / save-as-PDF) -----
+    el('reportBtn')?.addEventListener('click', async () => {
+      const btn = el('reportBtn');
+      btn.disabled = true;
+      try {
+        const esc = (s) => escape(String(s == null ? '' : s));
+        const cars = activeCars();
+        const ev = (state.events || []).find(e => String(e.id) === String(state.activeEventId));
+        const evName = ev ? (ev.title || ev.name || '') : t('report.all_events');
+        const evMeta = ev ? [ev.date, ev.location].filter(Boolean).join(' · ') : '';
+        const isArr = (c) => statusKey(c.status) === 'sosit';
+        const isLeft = (c) => statusKey(c.status) === 'plecat';
+        const arrived = cars.filter(isArr).length;
+        const left = cars.filter(isLeft).length;
+        const everArrived = cars.filter(c => isArr(c) || isLeft(c) || c.arrived_at).length;
+        // Arrivals per hour.
+        const byHour = {};
+        cars.forEach(c => { if (c.arrived_at) { const h = new Date(c.arrived_at).getHours(); byHour[h] = (byHour[h] || 0) + 1; } });
+        const hours = Object.keys(byHour).map(Number).sort((a, b) => a - b);
+        const maxH = Math.max(1, ...hours.map(h => byHour[h]));
+        const hoursBars = hours.length ? hours.map(h => `<div style="display:inline-block;text-align:center;width:34px;vertical-align:bottom;">
+            <div style="background:#3b82f6;width:20px;margin:0 auto;height:${Math.round(byHour[h] / maxH * 90) + 4}px;border-radius:4px 4px 0 0;"></div>
+            <div style="font-size:10px;color:#666;margin-top:3px;">${String(h).padStart(2, '0')}</div>
+            <div style="font-size:10px;color:#111;font-weight:700;">${byHour[h]}</div></div>`).join('') : '<span style="color:#999;">—</span>';
+        // Top-N tally helper.
+        const topBy = (keyFn) => {
+          const g = {}; cars.forEach(c => { const k = (keyFn(c) || '').trim(); if (k) g[k] = (g[k] || 0) + 1; });
+          return Object.entries(g).sort((a, b) => b[1] - a[1]).slice(0, 8);
+        };
+        const tableRows = (rows) => rows.length ? rows.map(([k, n]) => `<tr><td>${esc(k)}</td><td style="text-align:right;font-weight:700;">${n}</td></tr>`).join('') : '<tr><td colspan="2" style="color:#999;">—</td></tr>';
+        // Optional: feedback average + votes for the active event.
+        let extra = '';
+        if (ev && navigator.onLine) {
+          try {
+            const [{ data: fb }, { data: vt }] = await Promise.all([
+              supa.from('event_feedback').select('rating').eq('event_id', ev.id),
+              supa.from('car_votes').select('id').eq('event_id', ev.id),
+            ]);
+            const fbRows = fb || [];
+            const avg = fbRows.length ? (fbRows.reduce((s, r) => s + (r.rating || 0), 0) / fbRows.length).toFixed(1) : null;
+            const bits = [];
+            if (avg) bits.push(`${t('report.feedback')}: <b>${avg} ★</b> (${fbRows.length})`);
+            if (vt && vt.length) bits.push(`${t('report.votes')}: <b>${vt.length}</b>`);
+            if (bits.length) extra = `<p style="margin:6px 0 0;color:#333;">${bits.join(' &nbsp;·&nbsp; ')}</p>`;
+          } catch (_) {}
+        }
+        const stat = (n, label) => `<div class="stat"><div class="n">${n}</div><div class="l">${esc(label)}</div></div>`;
+        const now = new Date().toLocaleString('ro-RO');
+        const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(t('report.title'))} — ${esc(evName)}</title><style>
+          *{box-sizing:border-box;font-family:-apple-system,Segoe UI,Roboto,sans-serif;}
+          body{margin:0;padding:28px;background:#fff;color:#111;}
+          h1{font-size:22px;margin:0;} .meta{color:#666;font-size:13px;margin:2px 0 18px;}
+          .stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:22px;}
+          .stat{border:1px solid #e2e2e2;border-radius:12px;padding:12px 16px;min-width:110px;}
+          .stat .n{font-size:26px;font-weight:800;} .stat .l{font-size:11px;color:#666;text-transform:uppercase;letter-spacing:.04em;}
+          h2{font-size:14px;margin:20px 0 8px;text-transform:uppercase;letter-spacing:.04em;color:#444;}
+          .bars{border:1px solid #eee;border-radius:10px;padding:14px;min-height:120px;}
+          table{width:100%;border-collapse:collapse;} td{padding:5px 8px;border-bottom:1px solid #eee;font-size:13px;}
+          .cols{display:flex;gap:18px;flex-wrap:wrap;} .cols>div{flex:1;min-width:200px;}
+          .foot{margin-top:24px;color:#999;font-size:11px;}
+        </style></head><body>
+          <h1>🏁 ${esc(t('report.title'))} — ${esc(evName)}</h1>
+          <div class="meta">${esc(evMeta)}</div>
+          <div class="stats">
+            ${stat(cars.length, t('report.total_cars'))}
+            ${stat(arrived, t('aflux.present_now'))}
+            ${stat(left, t('aflux.left'))}
+            ${stat(everArrived, t('aflux.arrived_total'))}
+          </div>
+          ${extra}
+          <h2>${esc(t('aflux.by_hour'))}</h2>
+          <div class="bars">${hoursBars}</div>
+          <div class="cols">
+            <div><h2>${esc(t('aflux.by_zone'))}</h2><table>${tableRows(topBy(c => c.zone))}</table></div>
+            <div><h2>${esc(t('aflux.by_brand'))}</h2><table>${tableRows(topBy(c => c.brand))}</table></div>
+            <div><h2>${esc(t('aflux.by_city'))}</h2><table>${tableRows(topBy(c => c.city))}</table></div>
+          </div>
+          <div class="foot">Kultura · ${esc(now)}</div>
+          <script>window.onload=function(){setTimeout(function(){window.print();},400);};<\/script>
+        </body></html>`;
+        const w = window.open('', '_blank');
+        if (!w) { showToast(t('common.error'), 'error'); return; }
+        w.document.open(); w.document.write(html); w.document.close();
+      } finally { btn.disabled = false; }
+    });
+
     el('deleteAllCarsBtn').addEventListener('click', async () => {
       if (!await uiConfirm('Ești sigur că vrei să ștergi TOATE mașinile din baza de date?\n\nAceastă acțiune este ireversibilă!')) return;
 
