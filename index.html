@@ -140,6 +140,9 @@
           <span class="live-dot"></span>
           <span class="live-text">Live</span>
         </div>
+        <button class="notif-btn" id="cmdkOpenBtn" data-i18n-title="cmdk.ph" title="Căutare rapidă">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </button>
         <button class="notif-btn" id="notifPanelBtn" title="Notificări">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           <span class="notif-badge" id="notifBellBadge"></span>
@@ -1814,6 +1817,18 @@
         <button type="button" class="ui-dialog-btn" id="uiDialogCancel">Anulează</button>
         <button type="button" class="ui-dialog-btn primary" id="uiDialogOk">OK</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Command palette (Ctrl/Cmd-K): jump to any car, VIP, event or task. -->
+  <div class="cmdk-backdrop" id="cmdk" aria-hidden="true">
+    <div class="cmdk" role="dialog" aria-modal="true" aria-label="Căutare rapidă">
+      <div class="cmdk-input-row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="cmdkInput" data-i18n-placeholder="cmdk.ph" placeholder="Caută mașină, VIP, eveniment, task…" autocomplete="off" spellcheck="false">
+        <kbd class="cmdk-esc">ESC</kbd>
+      </div>
+      <div class="cmdk-results" id="cmdkResults"></div>
     </div>
   </div>
 
