@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#07080d">
+  <title>Kultura — Votează mașina preferată</title>
+  <link rel="stylesheet" href="vendor/fonts/fonts.css">
+  <style>
+    :root{
+      --bg:#07080d; --surface:#14182b; --border:rgba(255,255,255,0.12);
+      --text:#f8fafc; --text-dim:#94a3b8; --text-mute:#64748b;
+      --blue:#3b82f6; --cyan:#06b6d4; --purple:#8b5cf6; --green:#10b981; --gold:#f5c542;
+      --fill:rgba(255,255,255,0.03);
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+      background:var(--bg); color:var(--text); min-height:100vh; line-height:1.5;
+      -webkit-font-smoothing:antialiased; padding:28px 16px 64px; overflow-x:hidden;
+    }
+    body::before,body::after{content:"";position:fixed;border-radius:50%;filter:blur(130px);pointer-events:none;z-index:0}
+    body::before{width:460px;height:460px;background:var(--purple);opacity:.24;top:-150px;left:-150px}
+    body::after{width:400px;height:400px;background:var(--blue);opacity:.18;bottom:-150px;right:-150px}
+    .wrap{max-width:640px;margin:0 auto;position:relative;z-index:1}
+    .brand{display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+    .brand img{width:clamp(110px,30vw,150px);height:auto;filter:drop-shadow(0 5px 16px rgba(139,92,246,.28))}
+    h1{font-size:clamp(20px,5vw,26px);font-weight:900;text-align:center;letter-spacing:-.02em}
+    .sub{text-align:center;color:var(--text-dim);font-size:14px;margin:4px 0 18px}
+    .total{text-align:center;color:var(--text-mute);font-size:12px;margin-bottom:14px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+    .vcard{
+      background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden;
+      cursor:pointer;transition:transform .12s ease,border-color .15s ease;position:relative;
+    }
+    .vcard:active{transform:scale(.97)}
+    .vcard.mine{border-color:var(--gold);box-shadow:0 0 0 2px rgba(245,197,66,.35)}
+    .vcard .ph{aspect-ratio:4/3;background:#0b0e18 center/cover no-repeat;display:block}
+    .vcard .noph{aspect-ratio:4/3;display:grid;place-items:center;color:var(--text-mute);font-size:34px;background:var(--fill)}
+    .vcard .body{padding:10px 12px}
+    .vcard .nm{font-size:14px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .vcard .pl{font-size:12px;color:var(--text-dim);font-family:monospace}
+    .vcard .row{display:flex;align-items:center;justify-content:space-between;margin-top:8px;gap:8px}
+    .vcard .votes{font-size:13px;font-weight:900;color:var(--gold)}
+    .vcard .pick{font-size:11px;font-weight:800;color:#07080d;background:var(--gold);border-radius:999px;padding:2px 8px}
+    .rank{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;font-weight:800;border-radius:999px;padding:2px 8px;backdrop-filter:blur(4px)}
+    .msg{text-align:center;color:var(--text-dim);padding:60px 20px;font-size:15px}
+    .foot{text-align:center;color:var(--text-mute);font-size:12px;margin-top:26px}
+    .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;
+      background:var(--green);color:#04120b;font-weight:800;font-size:14px;padding:10px 18px;border-radius:999px;
+      transition:all .25s ease;z-index:10;pointer-events:none}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand"><img src="logo.png" alt="Kultura"></div>
+    <h1>🏆 Votează mașina preferată</h1>
+    <div class="sub" id="evName"></div>
+    <div class="total" id="total"></div>
+    <div id="content"><div class="msg">Se încarcă…</div></div>
+    <p class="foot">© 2026 Kultura · Un vot per dispozitiv</p>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const FN = 'https://knphmxxokowwkruimdus.supabase.co/functions/v1/vote';
+    const ANON = 'sb_publishable_9b7WSJF4UlfF1JIdCDjWqQ_dxOTpqSW';
+    const HEAD = { 'Content-Type': 'application/json', 'apikey': ANON, 'Authorization': 'Bearer ' + ANON };
+    // Stable per-device voter token.
+    let voter = '';
+    try {
+      voter = localStorage.getItem('kultura_voter') || '';
+      if (!voter) { voter = 'v_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('kultura_voter', voter); }
+    } catch (_) { voter = 'v_' + Math.random().toString(36).slice(2); }
+
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const content = document.getElementById('content');
+    const toastEl = document.getElementById('toast');
+    let _t = null;
+    function toast(m) { toastEl.textContent = m; toastEl.classList.add('show'); clearTimeout(_t); _t = setTimeout(() => toastEl.classList.remove('show'), 1800); }
+
+    function render(data) {
+      document.getElementById('evName').textContent = data.event || '';
+      document.getElementById('total').textContent = data.total ? (data.total + ' voturi') : '';
+      if (!data.cars || !data.cars.length) { content.innerHTML = `<div class="msg">Încă nu sunt mașini de votat.</div>`; return; }
+      content.innerHTML = `<div class="grid">${data.cars.map((c, i) => {
+        const mine = data.my_choice === c.id;
+        const rank = i < 3 && c.votes > 0 ? `<span class="rank">#${i + 1}</span>` : '';
+        const ph = c.photo ? `<span class="ph" style="background-image:url('${esc(c.photo)}')"></span>` : `<span class="noph">🚗</span>`;
+        return `<div class="vcard${mine ? ' mine' : ''}" data-id="${c.id}">
+            ${ph}${rank}
+            <div class="body">
+              <div class="nm">${esc(c.name || '—')}</div>
+              <div class="pl">${esc(c.plate || '')}</div>
+              <div class="row">
+                <span class="votes">${c.votes} ⭐</span>
+                ${mine ? `<span class="pick">Votul tău</span>` : ''}
+              </div>
+            </div>
+          </div>`;
+      }).join('')}</div>`;
+    }
+
+    async function load() {
+      try {
+        const r = await fetch(FN + '?voter=' + encodeURIComponent(voter), { headers: HEAD });
+        const data = await r.json();
+        if (!data.open) { content.innerHTML = `<div class="msg">Votarea nu este deschisă momentan.<br>Revino în timpul evenimentului. 🏁</div>`; document.getElementById('total').textContent=''; return; }
+        render(data);
+      } catch (_) { content.innerHTML = `<div class="msg">Eroare de conexiune. Încearcă din nou.</div>`; }
+    }
+
+    async function vote(carId) {
+      try {
+        const r = await fetch(FN, { method: 'POST', headers: HEAD, body: JSON.stringify({ car_id: carId, voter }) });
+        const data = await r.json();
+        if (data.open === false) { toast('Votarea s-a închis'); return; }
+        if (data.error) { toast('Eroare'); return; }
+        render(data); toast('Votul tău a fost înregistrat! ⭐');
+      } catch (_) { toast('Eroare de conexiune'); }
+    }
+
+    content.addEventListener('click', (e) => {
+      const card = e.target.closest('[data-id]');
+      if (card) vote(parseInt(card.dataset.id, 10));
+    });
+    load();
+    setInterval(load, 7000); // live results
+  </script>
+</body>
+</html>

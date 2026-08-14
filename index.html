@@ -836,6 +836,29 @@
           </div>
         </div>
 
+        <div class="setting-block" id="votingBlock" style="display:none;">
+          <div class="setting-label" data-i18n="voting.label">VOTARE BEST CAR</div>
+          <div class="setting-row" style="align-items:flex-start;">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>
+            </div>
+            <div class="txt" style="flex:1;">
+              <strong data-i18n="voting.title">Votare publică „Best Car"</strong>
+              <span data-i18n="voting.sub">Deschide votarea pentru un eveniment. Participanții votează pe pagina publică (vote.html).</span>
+              <div class="announce-compose">
+                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                  <select id="votingEventSel" style="flex:1; min-width:160px;"></select>
+                  <button type="button" class="btn small" id="votingOpenBtn" data-i18n="voting.open">Deschide</button>
+                  <button type="button" class="btn small danger" id="votingCloseBtn" data-i18n="voting.close">Închide</button>
+                </div>
+                <div class="modal-msg" id="votingMsg" style="margin-top:6px;"></div>
+                <a id="votingLink" href="vote.html" target="_blank" rel="noopener" class="voting-link" style="display:none;"></a>
+                <div id="votingBoard" class="voting-board"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="setting-block" id="dangerZoneBlock" style="display:none;">
           <div class="setting-label" data-i18n="settings.danger">DATE</div>
           <div class="setting-row">

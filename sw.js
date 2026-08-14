@@ -3,7 +3,7 @@
 // served from cache immediately (instant startup), while a fresh copy is
 // fetched in the background and used on the next load. Bump the cache version
 // to force a clean refresh after a deploy.
-const CACHE = 'kultura-v83';
+const CACHE = 'kultura-v84';
 const PRECACHE = [
   './',
   './index.html',
