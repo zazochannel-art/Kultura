@@ -2,8 +2,10 @@
     import { translations } from './i18n.js';
     import {
       escape, reduceMotion as _reduceMotion, normalizePhone, telegramLink,
-      nameHue, avatarBg, twoInitials, hexToRgba, downscaleImage
+      nameHue, avatarBg, twoInitials, hexToRgba, downscaleImage,
+      statusKey, normPlateKey, fmtDateTime, fmtRelative
     } from './utils.js';
+    import { haptic, confettiBurst, successCheck, auroraPulse } from './effects.js';
 
     const SUPABASE_URL = 'https://knphmxxokowwkruimdus.supabase.co';
     const SUPABASE_ANON = 'sb_publishable_9b7WSJF4UlfF1JIdCDjWqQ_dxOTpqSW';
@@ -3097,7 +3099,6 @@
 
     // ----- PLATE BLOCKLIST (plăci interzise) -----
     let _blockSet = new Map(); // normalized plate -> reason
-    const normPlateKey = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9А-ЯЁ]/gi, '');
     function rebuildBlockSet() {
       _blockSet = new Map();
       (state.blocklist || []).forEach(b => { const k = b.plate_norm || normPlateKey(b.plate); if (k) _blockSet.set(k, b.reason || ''); });
@@ -3478,7 +3479,6 @@
     updateConnBanner();
 
     // ----- Haptic feedback (no-op where unsupported) -----
-    function haptic(ms = 25) { try { navigator.vibrate && navigator.vibrate(ms); } catch (_) {} }
 
 
     // ----- Count-up number animation (stats) -----
@@ -3497,65 +3497,6 @@
     }
 
     // ----- Confetti burst (success moments) -----
-    function confettiBurst() {
-      if (_reduceMotion()) return;
-      const cv = document.createElement('canvas');
-      cv.className = 'confetti-canvas';
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
-      const W = window.innerWidth, H = window.innerHeight;
-      cv.width = W * dpr; cv.height = H * dpr;
-      document.body.appendChild(cv);
-      const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
-      const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
-      const N = 130, cx = W / 2, cy = H * 0.32;
-      const parts = Array.from({ length: N }, () => {
-        const a = Math.random() * Math.PI * 2, sp = 4 + Math.random() * 7;
-        return { x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 3,
-          w: 5 + Math.random() * 6, h: 3 + Math.random() * 4, rot: Math.random() * 6.28,
-          vr: (Math.random() - 0.5) * 0.4, c: colors[(Math.random() * colors.length) | 0], life: 0 };
-      });
-      const t0 = performance.now();
-      (function frame(now) {
-        const dt = Math.min(32, now - (frame._l || now)); frame._l = now;
-        ctx.clearRect(0, 0, W, H);
-        let alive = false;
-        for (const p of parts) {
-          p.vy += 0.14 * (dt / 16); p.vx *= 0.99;
-          p.x += p.vx * (dt / 16); p.y += p.vy * (dt / 16); p.rot += p.vr; p.life = now - t0;
-          const alpha = Math.max(0, 1 - p.life / 1400);
-          if (alpha > 0 && p.y < H + 20) alive = true;
-          ctx.save(); ctx.globalAlpha = alpha; ctx.translate(p.x, p.y); ctx.rotate(p.rot);
-          ctx.fillStyle = p.c; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); ctx.restore();
-        }
-        if (alive) requestAnimationFrame(frame); else cv.remove();
-      })(t0);
-    }
-
-    // ----- Animated success checkmark (task completed) -----
-    function successCheck() {
-      if (_reduceMotion()) return;
-      const o = document.createElement('div');
-      o.className = 'success-check';
-      o.innerHTML = `<svg viewBox="0 0 64 64" aria-hidden="true">
-        <circle class="sc-halo" cx="32" cy="32" r="30"></circle>
-        <circle class="sc-circle" cx="32" cy="32" r="27"></circle>
-        <path class="sc-check" d="M20 33l8 8 16-17"></path>
-      </svg>`;
-      document.body.appendChild(o);
-      requestAnimationFrame(() => o.classList.add('done'));
-      setTimeout(() => o.remove(), 1500);
-    }
-
-    // ----- Aurora briefly intensifies (ambient "someone arrived") -----
-    let _auroraT = null;
-    function auroraPulse() {
-      const a = document.querySelector('.app-aurora');
-      if (!a || _reduceMotion()) return;
-      a.classList.add('pulse');
-      clearTimeout(_auroraT);
-      _auroraT = setTimeout(() => a.classList.remove('pulse'), 1500);
-    }
-
     // ----- Spotlight glow following the pointer on stat tiles (desktop) -----
     if (window.matchMedia && window.matchMedia('(hover: hover)').matches) {
       document.addEventListener('pointermove', (e) => {
@@ -4257,13 +4198,6 @@
       { key: 'sosit',   label: 'Sosit',   color: '#10B981' },
       { key: 'plecat',  label: 'Plecat',  color: '#8B5CF6' }
     ];
-    function statusKey(status) {
-      const s = (status || '').toLowerCase();
-      if (s.includes('sosit')) return 'sosit';
-      if (s.includes('plecat')) return 'plecat';
-      if (s.includes('invitat')) return 'invitat';
-      return null;
-    }
 
     function filterCars() {
       const q = state.carsSearch.toLowerCase();
@@ -6863,26 +6797,6 @@
 
     // NOTE: both fmt helpers return PLAIN text — callers are responsible for
     // escaping (they all pass the result through escape()).
-    function fmtDateTime(v) {
-      if (!v) return '—';
-      try {
-        const d = new Date(v);
-        if (isNaN(d)) return String(v);
-        return d.toLocaleString('ro-RO', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-      } catch { return String(v); }
-    }
-
-    function fmtRelative(v) {
-      if (!v) return '';
-      const d = new Date(v);
-      if (isNaN(d)) return String(v);
-      const diff = (Date.now() - d.getTime()) / 1000;
-      if (diff < 60) return 'acum câteva secunde';
-      if (diff < 3600) return `acum ${Math.floor(diff/60)} min`;
-      if (diff < 86400) return `acum ${Math.floor(diff/3600)} h`;
-      return fmtDateTime(v);
-    }
-
     function fieldRow(k, v, opts = {}) {
       const isEmpty = v == null || v === '' || v === undefined;
       const val = isEmpty ? '—' : String(v);

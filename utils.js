@@ -67,6 +67,42 @@ export function hexToRgba(hex, a) {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
+// Canonical car status bucket from a free-text DB status ('sosit' / 'plecat'
+// / 'invitat'), or null when it matches none.
+export function statusKey(status) {
+  const s = (status || '').toLowerCase();
+  if (s.includes('sosit')) return 'sosit';
+  if (s.includes('plecat')) return 'plecat';
+  if (s.includes('invitat')) return 'invitat';
+  return null;
+}
+
+// Normalize a plate to a comparison key (uppercase, strip non-alphanumerics,
+// Latin + Cyrillic). Used for plate matching / blocklist / duplicate checks.
+export const normPlateKey = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9А-ЯЁ]/gi, '');
+
+// Absolute date-time in Romanian locale (used in detail views).
+export function fmtDateTime(v) {
+  if (!v) return '—';
+  try {
+    const d = new Date(v);
+    if (isNaN(d)) return String(v);
+    return d.toLocaleString('ro-RO', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch { return String(v); }
+}
+
+// Short relative time ("acum 5 min"), falling back to an absolute date.
+export function fmtRelative(v) {
+  if (!v) return '';
+  const d = new Date(v);
+  if (isNaN(d)) return String(v);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return 'acum câteva secunde';
+  if (diff < 3600) return `acum ${Math.floor(diff / 60)} min`;
+  if (diff < 86400) return `acum ${Math.floor(diff / 3600)} h`;
+  return fmtDateTime(v);
+}
+
 // Downscale an image client-side before upload (max side px, JPEG quality).
 // Falls back to the original file for formats canvas can't decode (HEIC).
 export async function downscaleImage(file, maxSide = 1600, quality = 0.82) {
