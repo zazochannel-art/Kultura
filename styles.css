@@ -4020,6 +4020,16 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .voting-row:nth-child(1) .voting-rank { background: #f5c542; color: #07080d; }
 .voting-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .voting-n { font-size: 13px; font-weight: 800; color: #f5c542; }
+.fb-summary { margin-top: 10px; font-size: 13px; }
+.fb-avg { font-size: 18px; font-weight: 900; color: #f5c542; }
+.fb-count { color: var(--text-dim); }
+.fb-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow-y: auto; }
+.fb-item { padding: 9px 11px; border-radius: 10px; background: var(--fill); border: 1px solid var(--border); }
+.fb-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fb-stars { color: #f5c542; font-size: 14px; letter-spacing: 1px; }
+.fb-contact { font-size: 11px; color: var(--text-mute); }
+.fb-comment { font-size: 13px; color: var(--text); margin-top: 3px; }
+.fb-when { font-size: 11px; color: var(--text-mute); margin-top: 3px; }
 /* gate warnings */
 .gsr-blocked { margin-top: 10px; background: rgba(239,68,68,.16); color: var(--red); border-radius: 10px; padding: 8px 12px; font-weight: 800; font-size: 14px; }
 .gsr-card.is-blocked { border-color: rgba(239,68,68,.6); box-shadow: 0 0 0 2px rgba(239,68,68,.35), 0 30px 80px rgba(0,0,0,.5); }
