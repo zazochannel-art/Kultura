@@ -4290,6 +4290,18 @@
       }
       return Array.from(groups.values()).filter(g => g.length > 1);
     }
+    // Does a pending registration's plate already exist as a car (or another
+    // registration)? Returns a short label describing the clash, or null.
+    function regDuplicate(reg) {
+      const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9А-ЯЁ]/gi, '');
+      const p = norm(reg && reg.plate);
+      if (p.length < 3) return null;
+      const car = (state.cars || []).find(c => norm(c.plate) === p);
+      if (car) return t('regdup.in_cars', { name: (car.owner || [car.brand, car.model].filter(Boolean).join(' ') || car.plate || '') });
+      const other = (state.registrations || []).find(x => String(x.id) !== String(reg.id) && norm(x.plate) === p);
+      if (other) return t('regdup.in_regs');
+      return null;
+    }
     function renderDupBanner() {
       const b = el('dupBanner');
       if (!b) return;
@@ -6133,6 +6145,8 @@
           const hold = r.status === 'hold' ? `<span class="reg-hold-badge">${escape(t('reg.hold'))}</span>` : '';
           const blockReason = plateBlocked(r.plate);
           const blockBadge = blockReason !== null ? `<span class="reg-block-badge" title="${escape(blockReason || '')}">⛔ ${escape(t('block.reg_badge'))}</span>` : '';
+          const dup = regDuplicate(r);
+          const dupBadge = dup ? `<span class="reg-dup-badge" title="${escape(dup)}">⧉ ${escape(t('regdup.badge'))}</span>` : '';
           const pics = Array.isArray(r.photos) ? r.photos : [];
           const shown = pics.slice(0, 3);
           const extra = pics.length - shown.length;
@@ -6140,7 +6154,7 @@
             ? `<div class="reg-card-thumbs">${shown.map(u => `<img src="${escape(u)}" alt="" loading="lazy">`).join('')}${extra > 0 ? `<div class="reg-card-more">+${extra}</div>` : ''}</div>`
             : '';
           return `<div class="reg-card${r.status === 'hold' ? ' is-hold' : ''}${blockReason !== null ? ' is-blocked' : ''}" data-reg-open="${r.id}" role="button" tabindex="0">
-              <div class="reg-card-brand">${escape(name)}${hold}${blockBadge}</div>
+              <div class="reg-card-brand">${escape(name)}${hold}${blockBadge}${dupBadge}</div>
               ${thumbs}
               ${chev}
             </div>`;
@@ -6169,10 +6183,12 @@
       const warn = el('regDetailBlock');
       if (warn) {
         const reason = plateBlocked(r.plate);
-        if (reason !== null) {
-          warn.hidden = false;
-          warn.innerHTML = `<strong>⛔ ${escape(t('block.reg_warn'))}</strong>` + (reason ? `<span>${escape(reason)}</span>` : '');
-        } else { warn.hidden = true; warn.innerHTML = ''; }
+        const dup = regDuplicate(r);
+        let html = '';
+        if (reason !== null) html += `<div class="reg-warn-block"><strong>⛔ ${escape(t('block.reg_warn'))}</strong>` + (reason ? `<span>${escape(reason)}</span>` : '') + `</div>`;
+        if (dup) html += `<div class="reg-warn-dup"><strong>⧉ ${escape(t('regdup.warn'))}</strong><span>${escape(dup)}</span></div>`;
+        warn.hidden = !html;
+        warn.innerHTML = html;
       }
       const pics = Array.isArray(r.photos) ? r.photos : [];
       el('regDetailPhotos').innerHTML = pics.map(u =>
