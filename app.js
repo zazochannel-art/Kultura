@@ -1725,12 +1725,14 @@
     async function loadSmsAutomations() {
       try {
         const { data } = await supa.from('ui_settings').select('key,value')
-          .in('key', ['sms_welcome_enabled', 'sms_welcome_template', 'sms_reminder_enabled', 'sms_reminder_template']);
+          .in('key', ['sms_welcome_enabled', 'sms_welcome_template', 'sms_reminder_enabled', 'sms_reminder_template', 'sms_approved_enabled', 'sms_approved_template']);
         const m = {}; (data || []).forEach(r => { m[r.key] = r.value; });
         if (el('smsWelcomeEnabled')) el('smsWelcomeEnabled').checked = m.sms_welcome_enabled === '1';
         if (el('smsReminderEnabled')) el('smsReminderEnabled').checked = m.sms_reminder_enabled === '1';
+        if (el('smsApprovedEnabled')) el('smsApprovedEnabled').checked = m.sms_approved_enabled === '1';
         if (el('smsWelcomeTemplate') && document.activeElement !== el('smsWelcomeTemplate')) el('smsWelcomeTemplate').value = m.sms_welcome_template || '';
         if (el('smsReminderTemplate') && document.activeElement !== el('smsReminderTemplate')) el('smsReminderTemplate').value = m.sms_reminder_template || '';
+        if (el('smsApprovedTemplate') && document.activeElement !== el('smsApprovedTemplate')) el('smsApprovedTemplate').value = m.sms_approved_template || '';
       } catch (_) {}
     }
     el('smsAutomSaveBtn')?.addEventListener('click', async () => {
@@ -1740,6 +1742,8 @@
         { key: 'sms_welcome_template', value: (el('smsWelcomeTemplate')?.value || '').trim() },
         { key: 'sms_reminder_enabled', value: el('smsReminderEnabled')?.checked ? '1' : '' },
         { key: 'sms_reminder_template', value: (el('smsReminderTemplate')?.value || '').trim() },
+        { key: 'sms_approved_enabled', value: el('smsApprovedEnabled')?.checked ? '1' : '' },
+        { key: 'sms_approved_template', value: (el('smsApprovedTemplate')?.value || '').trim() },
       ].map(r => ({ ...r, updated_at: new Date().toISOString() }));
       const { error } = await supa.from('ui_settings').upsert(rows, { onConflict: 'key' });
       if (msg) { msg.className = 'modal-msg show'; msg.style.color = error ? 'var(--red)' : 'var(--green)'; msg.textContent = error ? (t('common.error') + ': ' + error.message) : t('sms.autom_saved'); }
@@ -6271,6 +6275,8 @@
       await loadData();
       renderRegQueue();
       showToast(t('reg.approved', { name: [m.brand, m.model].filter(Boolean).join(' ') || m.owner || '' }));
+      // Automatic approval SMS (server-side, no-op unless enabled in settings).
+      if (ins) { try { supa.rpc('send_approval_sms', { p_car_id: ins.id }); } catch (_) {} }
       if (channel && channel !== 'none' && ins) {
         try { sendRegConfirmation(channel, Object.assign({}, m, { event_id: car.event_id }), ins); } catch (_) {}
       }
