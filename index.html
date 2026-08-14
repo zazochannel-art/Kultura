@@ -452,6 +452,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
             <span data-i18n="cars.catalog">Catalog</span>
           </button>
+          <button class="add-btn muted" id="passPrintBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M7 20h10"/><path d="M7 8h4M7 12h2"/><rect x="14.5" y="8" width="4" height="4"/></svg>
+            <span data-i18n="pass.print">Pass-uri</span>
+          </button>
           <button class="add-btn grad-gate" id="gateOpenBtn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>
             <span data-i18n="gate.open">Poartă</span>
@@ -474,6 +478,8 @@
             <div id="carsList"></div>
           </div>
         </div>
+        <!-- Hidden A6-card sheet, populated on demand and sent to the printer. -->
+        <div id="passSheet" class="pass-sheet" aria-hidden="true"></div>
       </section>
 
       <!-- VIP GUESTS -->
