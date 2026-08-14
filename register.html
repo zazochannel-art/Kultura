@@ -74,6 +74,8 @@
     .photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
     .photo-thumb .rm{position:absolute;top:4px;right:4px;width:24px;height:24px;border:none;border-radius:50%;
       background:rgba(0,0,0,.6);color:#fff;font-size:16px;line-height:1;cursor:pointer;display:grid;place-items:center}
+    /* Honeypot — kept in the layout but invisible/unfocusable for humans. */
+    .hp-field{position:absolute!important;left:-9999px!important;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none}
   </style>
 </head>
 <body>
@@ -83,6 +85,11 @@
       <h1>Înscrie-ți mașina</h1>
       <p class="sub">Completează datele — organizatorii le verifică și te contactează.</p>
       <form id="regForm">
+        <!-- Honeypot: hidden from humans, bots tend to fill it. Do not remove. -->
+        <div class="hp-field" aria-hidden="true">
+          <label>Website</label>
+          <input type="text" name="company_website" tabindex="-1" autocomplete="off">
+        </div>
         <div class="row">
           <div><label>Marcă <span class="req">*</span></label><input name="brand" required placeholder="BMW"></div>
           <div><label>Model <span class="req">*</span></label><input name="model" required placeholder="M4"></div>
@@ -242,10 +249,25 @@
     const btn = document.getElementById('submitBtn');
     const msg = document.getElementById('msg');
     const showMsg = (txt, kind) => { msg.textContent = txt; msg.className = 'msg show ' + kind; };
+    // Anti-spam: when the form first became interactive (bots submit instantly).
+    const _formReadyAt = Date.now();
+    const RATE_MS = 60000; // one submit per minute per browser
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(form);
       const g = (k) => (fd.get(k) || '').toString().trim();
+      // 1) Honeypot filled → almost certainly a bot. Pretend success, don't insert.
+      if (g('company_website')) { document.getElementById('done').style.display = 'block'; form.style.display = 'none'; return; }
+      // 2) Submitted implausibly fast → treat as bot, same silent no-op.
+      if (Date.now() - _formReadyAt < 4000) { document.getElementById('done').style.display = 'block'; form.style.display = 'none'; return; }
+      // 3) Rate-limit repeated submits from the same browser.
+      try {
+        const last = parseInt(localStorage.getItem('kultura_reg_last') || '0', 10);
+        if (last && Date.now() - last < RATE_MS) {
+          showMsg('Ai trimis deja o înscriere. Așteaptă un minut înainte de a trimite alta.', 'err');
+          return;
+        }
+      } catch (_) {}
       const localPhone = g('phone');
       const fullPhone = localPhone ? (dial.value + ' ' + localPhone).trim() : null;
       const base = {
@@ -268,6 +290,7 @@
       const { error } = await supa.from('car_registrations').insert({ ...base, photos: uploaded });
       btn.disabled = false;
       if (error) { showMsg('Eroare: ' + error.message, 'err'); return; }
+      try { localStorage.setItem('kultura_reg_last', String(Date.now())); } catch (_) {}
       document.getElementById('done').style.display = 'block';
       form.style.display = 'none';
     });
