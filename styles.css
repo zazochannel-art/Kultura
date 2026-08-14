@@ -3916,6 +3916,7 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .dup-group { border: 1px solid var(--border); border-radius: 14px; padding: 10px; margin-bottom: 12px; background: var(--surface-elev); }
 .dup-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 4px; border-bottom: 1px solid rgba(255,255,255,.05); }
 .dup-item:last-child { border-bottom: none; }
+.dup-acts { display: flex; gap: 6px; flex: 0 0 auto; }
 .dup-item-txt { display: flex; flex-direction: column; min-width: 0; }
 .dup-item-txt strong { font-size: 14px; }
 .dup-item-txt span { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

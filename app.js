@@ -4589,7 +4589,10 @@
           return `<div class="dup-item">
             <div class="dup-item-txt"><strong>${escape(name)}</strong><span>${escape(sub)}</span></div>
             ${i === 0 ? `<span class="dup-keep">${escape(t('dup.keep'))}</span>`
-                      : `<button class="btn danger small" data-dup-del="${c.id}" type="button">${escape(t('common.delete'))}</button>`}
+                      : `<div class="dup-acts">
+                           <button class="btn small" data-dup-merge="${c.id}" data-dup-into="${g[0].id}" type="button">${escape(t('dup.merge'))}</button>
+                           <button class="btn danger small" data-dup-del="${c.id}" type="button">${escape(t('common.delete'))}</button>
+                         </div>`}
           </div>`;
         }).join('');
         return `<div class="dup-group">${rows}</div>`;
@@ -4597,6 +4600,42 @@
     }
     el('dupBanner')?.addEventListener('click', (e) => {
       if (e.target.closest('#dupOpenBtn')) { showDuplicates(); openModal('duplicates'); }
+    });
+    // Merge a duplicate into the primary (kept) row: fill the primary's empty
+    // fields from the duplicate, union photos, then delete the duplicate.
+    el('dupList')?.addEventListener('click', async (e) => {
+      const m = e.target.closest('[data-dup-merge]');
+      if (!m) return;
+      const dupId = m.dataset.dupMerge, keepId = m.dataset.dupInto;
+      if (!await uiConfirm(t('dup.confirm_merge'))) return;
+      try {
+        const { data: rows, error: fe } = await supa.from('cars').select('*').in('id', [keepId, dupId]);
+        if (fe) throw fe;
+        const keep = (rows || []).find(r => String(r.id) === String(keepId));
+        const dup = (rows || []).find(r => String(r.id) === String(dupId));
+        if (!keep || !dup) { showToast(t('common.error'), 'error'); return; }
+        const patch = {};
+        const isEmpty = (v) => v == null || (typeof v === 'string' && v.trim() === '');
+        for (const k of Object.keys(dup)) {
+          if (k === 'id' || k === 'created_at' || k === 'updated_at') continue;
+          if (k === 'photos') continue;
+          if (isEmpty(keep[k]) && !isEmpty(dup[k])) patch[k] = dup[k];
+        }
+        const kp = Array.isArray(keep.photos) ? keep.photos : [];
+        const dp = Array.isArray(dup.photos) ? dup.photos : [];
+        const merged = [...kp]; dp.forEach(u => { if (!merged.includes(u)) merged.push(u); });
+        if (merged.length !== kp.length) patch.photos = merged;
+        if (Object.keys(patch).length) {
+          const { error: ue } = await supa.from('cars').update(patch).eq('id', keepId);
+          if (ue) throw ue;
+        }
+        const { error: de } = await supa.from('cars').delete().eq('id', dupId);
+        if (de) throw de;
+        await loadData();
+        showDuplicates();
+        try { renderCars(); } catch (_) {}
+        showToast(t('dup.merged'));
+      } catch (err) { showToast(t('common.error') + ': ' + (err.message || err), 'error'); }
     });
     el('dupList')?.addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-dup-del]');
