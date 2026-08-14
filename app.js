@@ -2250,6 +2250,8 @@
       if (backupBlk) { backupBlk.style.display = admin ? 'block' : 'none'; if (admin) { try { renderBackupList(); } catch (_) {} } }
       const gdprBlk = el('gdprBlock');
       if (gdprBlk) gdprBlk.style.display = admin ? 'block' : 'none';
+      const actBlk = el('activityBlock');
+      if (actBlk) { actBlk.style.display = admin ? 'block' : 'none'; if (admin) { try { renderActivityLog(); } catch (_) {} } }
       // SMS Center is admin-only (both desktop and mobile nav entries).
       document.querySelectorAll('.admin-only-tab').forEach(b => { b.style.display = admin ? '' : 'none'; });
       const annBlock = el('announceBlock');
@@ -3136,6 +3138,40 @@
 
     // ----- Backups (admin) — list, download, run-now. -----
     let _backupBusy = false;
+    // ----- Activity log (admin): who did what -----
+    const ACT_ICON = { status: '🚦', created: '➕', deleted: '🗑️', delete: '🗑️', update: '✏️', gdpr: '🧹' };
+    function actEntityLabel(entity) {
+      if (entity === 'car') return t('cmdk.car');
+      if (entity === 'gdpr') return 'GDPR';
+      return entity || '—';
+    }
+    async function renderActivityLog() {
+      const box = el('activityList'); if (!box) return;
+      box.innerHTML = `<div class="block-empty">…</div>`;
+      const { data, error } = await supa.from('activity_log')
+        .select('entity, action, old_value, new_value, user_email, created_at')
+        .order('created_at', { ascending: false }).limit(60);
+      if (error) { box.innerHTML = `<div class="block-empty">${escape(error.message)}</div>`; return; }
+      if (!data || !data.length) { box.innerHTML = `<div class="block-empty">${escape(t('activity.empty'))}</div>`; return; }
+      box.innerHTML = data.map(r => {
+        const icon = ACT_ICON[r.action] || '•';
+        const who = (r.user_email || '').split('@')[0] || '—';
+        let change = '';
+        if (r.old_value && r.new_value) change = `${escape(r.old_value)} → ${escape(r.new_value)}`;
+        else if (r.new_value) change = escape(r.new_value);
+        else if (r.old_value) change = escape(r.old_value);
+        const when = r.created_at ? fmtRelative(r.created_at) : '';
+        return `<div class="activity-item">
+            <span class="activity-ic">${icon}</span>
+            <div class="activity-txt">
+              <div class="activity-top"><strong>${escape(actEntityLabel(r.entity))}</strong> · ${escape(r.action || '')}${change ? ' · ' + change : ''}</div>
+              <div class="activity-meta">${escape(who)}${when ? ' · ' + escape(when) : ''}</div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+    el('activityRefreshBtn')?.addEventListener('click', () => { try { renderActivityLog(); } catch (_) {} });
+
     async function renderBackupList() {
       const box = el('backupList'); if (!box) return;
       const { data, error } = await supa.storage.from('backups').list('', {
