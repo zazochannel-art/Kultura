@@ -402,6 +402,101 @@
       t.addEventListener('click', () => selectSection(t.dataset.section));
     });
 
+    // ----- Command palette (Ctrl/Cmd-K): jump to any car, VIP, event or task -----
+    let _cmdkItems = [], _cmdkIdx = 0;
+    function openCmdk() {
+      const ov = el('cmdk'); if (!ov) return;
+      ov.classList.add('show'); ov.setAttribute('aria-hidden', 'false');
+      const inp = el('cmdkInput');
+      if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 30); }
+      renderCmdk('');
+    }
+    function closeCmdk() {
+      const ov = el('cmdk'); if (!ov) return;
+      ov.classList.remove('show'); ov.setAttribute('aria-hidden', 'true');
+    }
+    function cmdkBuild(q) {
+      const s = q.trim().toLowerCase();
+      const items = [];
+      const hit = (txt) => s && String(txt || '').toLowerCase().includes(s);
+      // Cars
+      for (const c of (state.cars || [])) {
+        if (!s || hit(c.plate) || hit(c.owner) || hit(c.brand) || hit(c.model)) {
+          const name = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
+          items.push({ type: t('cmdk.car'), label: c.plate || name, sub: [name, c.owner].filter(Boolean).join(' · '),
+            run: () => { selectSection('cars'); setTimeout(() => { try { showCarDetail(c.id); } catch (_) {} }, 60); } });
+        }
+        if (items.length > 40) break;
+      }
+      // VIP guests
+      for (const v of (state.vips || [])) {
+        const nm = [v.first_name, v.last_name].filter(Boolean).join(' ');
+        if (!s || hit(nm) || hit(v.company) || hit(v.phone)) {
+          items.push({ type: t('cmdk.vip'), label: nm || v.company || '—', sub: [v.company, v.role].filter(Boolean).join(' · '),
+            run: () => { selectSection('vip'); setTimeout(() => { try { showVipDetail(v.id); } catch (_) {} }, 60); } });
+        }
+        if (items.length > 60) break;
+      }
+      // Events
+      for (const ev of (state.events || [])) {
+        if (!s || hit(ev.title) || hit(ev.name) || hit(ev.location)) {
+          items.push({ type: t('cmdk.event'), label: ev.title || ev.name || '—', sub: ev.location || '',
+            run: () => { selectSection('events'); } });
+        }
+      }
+      // Tasks
+      for (const tk of (state.tasks || [])) {
+        if (!s || hit(tk.title)) {
+          items.push({ type: t('cmdk.task'), label: tk.title || '—', sub: tk.team || tk.category || '',
+            run: () => { selectSection('tasks'); } });
+        }
+        if (items.length > 90) break;
+      }
+      return items.slice(0, 30);
+    }
+    function renderCmdk(q) {
+      const box = el('cmdkResults'); if (!box) return;
+      _cmdkItems = cmdkBuild(q); _cmdkIdx = 0;
+      if (!_cmdkItems.length) { box.innerHTML = `<div class="cmdk-empty">${escape(t('cmdk.empty'))}</div>`; return; }
+      box.innerHTML = _cmdkItems.map((it, i) => `
+        <button class="cmdk-item${i === 0 ? ' active' : ''}" data-cmdk-i="${i}">
+          <span class="cmdk-type">${escape(it.type)}</span>
+          <span class="cmdk-label">${escape(it.label)}</span>
+          ${it.sub ? `<span class="cmdk-sub">${escape(it.sub)}</span>` : ''}
+        </button>`).join('');
+    }
+    function cmdkRun(i) {
+      const it = _cmdkItems[i]; if (!it) return;
+      closeCmdk();
+      try { it.run(); } catch (_) {}
+    }
+    function cmdkMove(delta) {
+      const box = el('cmdkResults'); if (!box || !_cmdkItems.length) return;
+      _cmdkIdx = (_cmdkIdx + delta + _cmdkItems.length) % _cmdkItems.length;
+      box.querySelectorAll('.cmdk-item').forEach((b, i) => b.classList.toggle('active', i === _cmdkIdx));
+      const act = box.querySelector('.cmdk-item.active');
+      if (act) act.scrollIntoView({ block: 'nearest' });
+    }
+    el('cmdkInput')?.addEventListener('input', (e) => renderCmdk(e.target.value));
+    el('cmdkInput')?.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); cmdkMove(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); cmdkMove(-1); }
+      else if (e.key === 'Enter') { e.preventDefault(); cmdkRun(_cmdkIdx); }
+      else if (e.key === 'Escape') { e.preventDefault(); closeCmdk(); }
+    });
+    el('cmdkResults')?.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-cmdk-i]'); if (b) cmdkRun(parseInt(b.dataset.cmdkI, 10));
+    });
+    el('cmdk')?.addEventListener('click', (e) => { if (e.target === el('cmdk')) closeCmdk(); });
+    el('cmdkOpenBtn')?.addEventListener('click', openCmdk);
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        const ov = el('cmdk');
+        if (ov && ov.classList.contains('show')) closeCmdk(); else openCmdk();
+      }
+    });
+
     // ----- ZONE MAP -----
     let _mapUrl = null;
     async function loadMap() {
