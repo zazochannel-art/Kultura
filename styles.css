@@ -4007,6 +4007,7 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .backup-item, .gdpr-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--fill); }
 .backup-item-txt, .gdpr-item-txt { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
 .backup-item-txt strong { font-size: 13px; }
+.backup-acts { display: flex; gap: 6px; flex: 0 0 auto; }
 .backup-item-txt span, .gdpr-item-txt span { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gdpr-item-txt strong { font-size: 14px; font-family: monospace; }
 .gdpr-item-txt .gdpr-src { font-size: 11px; color: var(--text-mute); }
