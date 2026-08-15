@@ -19,7 +19,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v102';
+    const APP_VERSION = 'v103';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -3582,6 +3582,15 @@
       }).join('');
     }
     el('fbRefreshBtn')?.addEventListener('click', () => { try { renderFeedback(); } catch (_) {} });
+    // Share the feedback page from the card itself. The generic "public pages"
+    // block is admin-only and easy to miss, so staff had no way to get this link.
+    const feedbackUrl = () => new URL('feedback.html', location.href).href;
+    el('fbShareBtn')?.addEventListener('click', async () => {
+      const url = feedbackUrl();
+      try { await navigator.clipboard.writeText(url); showToast(t('reg.share_copied')); }
+      catch (_) { showToast(url); }
+    });
+    el('fbOpenBtn')?.addEventListener('click', () => { window.open(feedbackUrl(), '_blank', 'noopener'); });
 
     // ----- Reported client errors (staff view) -----
     async function renderErrorLog() {

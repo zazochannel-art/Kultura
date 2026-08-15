@@ -730,7 +730,7 @@
         </div>
 
         <div class="setting-block" id="regBlock" style="display:none;">
-          <div class="setting-label" data-i18n="reg.share_label">ÎNSCRIERE PARTICIPANȚI</div>
+          <div class="setting-label" data-i18n="pub.share_label">PAGINI PUBLICE</div>
           <div class="setting-row" style="align-items:flex-start;">
             <div class="icon-box">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
@@ -894,7 +894,11 @@
               <strong data-i18n="fb.title">Feedback participanți</strong>
               <span data-i18n="fb.sub">Părerile trimise pe pagina publică (feedback.html).</span>
               <div class="announce-compose">
-                <button type="button" class="btn small ghost" id="fbRefreshBtn" data-i18n="activity.refresh">Reîmprospătează</button>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button type="button" class="btn small" id="fbShareBtn" data-i18n="fb.share">Copiază linkul</button>
+                  <button type="button" class="btn small ghost" id="fbOpenBtn" data-i18n="reg.share_open">Deschide pagina</button>
+                  <button type="button" class="btn small ghost" id="fbRefreshBtn" data-i18n="activity.refresh">Reîmprospătează</button>
+                </div>
                 <div id="fbSummary" class="fb-summary"></div>
                 <div id="fbList" class="fb-list"></div>
               </div>
