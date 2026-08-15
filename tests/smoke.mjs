@@ -246,6 +246,122 @@ try {
   check('gate-flush-not-resent', patches.length === before);
   await ctx.unroute('**://*.supabase.co/rest/v1/cars**');
 
+  // 4c. Blocklisted plates must be visible on the car itself, not only in the
+  // registration queue it arrived through. Runs in its own context: it needs a
+  // signed-in session and goes offline, neither of which should leak into the
+  // checks above.
+  {
+    const bctx = await browser.newContext();
+    await bctx.route('**://*.supabase.co/**', (r) => r.abort());
+    const bp = await bctx.newPage();
+    try {
+      await bp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await bp.evaluate(() => {
+        // A persisted session so the app boots past the login screen. Every
+        // backend call is aborted, so nothing here reaches production.
+        localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+          access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+          expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+          user: {
+            id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+            aud: 'authenticated', role: 'authenticated',
+            app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+          },
+        }));
+        // The offline app cache a previous online session would have left —
+        // including the blocklist, which is what makes the flag work with no
+        // signal (the gate case).
+        localStorage.setItem('kultura_cache_v1', JSON.stringify({
+          cars: [
+            { id: 1, brand: 'Dacia', model: 'Logan', owner: 'QA', plate: 'CJ 12 ABC', status: 'Invitat' },
+            // Written differently from the blocklist entry on purpose: matching
+            // has to survive case and punctuation.
+            { id: 2, brand: 'BMW', model: 'M3', owner: 'QA', plate: 'b-100-xyz', status: 'Invitat' },
+          ],
+          tasks: [], events: [], profiles: [],
+          blocklist: [{ plate: 'B 100 XYZ', plate_norm: 'B100XYZ', reason: 'QA reason' }],
+          ts: Date.now(),
+        }));
+      });
+      await bp.reload({ waitUntil: 'domcontentloaded' });
+      await bp.waitForFunction(
+        () => document.querySelectorAll('#carsList .car-row').length === 2,
+        null, { timeout: 8000 });
+      const list = await bp.evaluate(() => ({
+        blocked: document.querySelectorAll('#carsList .car-row.is-blocked').length,
+        onBlocked: !!document.querySelector('[data-row-id="2"] .block-badge'),
+        onClean: !!document.querySelector('[data-row-id="1"] .block-badge'),
+        reason: document.querySelector('[data-row-id="2"] .block-badge')?.title,
+      }));
+      check('block-hydrates-from-cache', list.onBlocked);
+      check('block-card-flagged', list.blocked === 1 && list.onBlocked);
+      check('block-clean-car-unflagged', !list.onClean);
+      check('block-reason-in-tooltip', list.reason === 'QA reason');
+
+      // Offline first: showCarDetail otherwise awaits a hydration fetch that an
+      // aborted route leaves hanging. It is also the real gate scenario.
+      await bctx.setOffline(true);
+      await bp.evaluate(() => document.querySelector('.tab[data-section="cars"]')?.click());
+      await bp.locator('[data-row-id="2"] .row-title').click();
+      await bp.waitForSelector('#carDetailBody .block-warn', { state: 'attached', timeout: 5000 });
+      const det = await bp.evaluate(() => ({
+        warn: (document.querySelector('#carDetailBody .block-warn')?.innerText || ''),
+        badges: [...document.querySelectorAll('#carDetailBadges .badge')].map((x) => x.textContent.trim()),
+      }));
+      check('block-detail-warns', /lista neagră|blocklist|чёрн/i.test(det.warn));
+      check('block-detail-shows-reason', det.warn.includes('QA reason'));
+      check('block-detail-badge', det.badges.some((b) => /⛔/.test(b)));
+    } catch (e) {
+      for (const n of ['block-hydrates-from-cache', 'block-card-flagged', 'block-clean-car-unflagged',
+        'block-reason-in-tooltip', 'block-detail-warns', 'block-detail-shows-reason', 'block-detail-badge']) {
+        if (!checks.some((c) => c.name === n)) check(n, false);
+      }
+      console.log(`blocklist checks: ${e.message}`);
+    }
+    await bctx.close();
+  }
+
+  // 4d. The other half of the same story: a signed-in session must *write* the
+  // blocklist into the offline cache. The checks above seed that cache by hand,
+  // so they pass whether or not the app ever persists it — which is exactly the
+  // bug being fixed here. Serve the blocklist endpoint for real and look at
+  // what lands in localStorage.
+  {
+    const wctx = await browser.newContext();
+    await wctx.route('**://*.supabase.co/**', (r) => r.abort());
+    await wctx.route('**://*.supabase.co/rest/v1/plate_blocklist**', (r) =>
+      r.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify([{ plate: 'B 100 XYZ', plate_norm: 'B100XYZ', reason: 'QA persisted' }]),
+      }));
+    const wp = await wctx.newPage();
+    try {
+      await wp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await wp.evaluate(() => {
+        localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+          access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+          expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+          user: {
+            id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+            aud: 'authenticated', role: 'authenticated',
+            app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+          },
+        }));
+        localStorage.removeItem('kultura_cache_v1');   // start with nothing cached
+      });
+      await wp.reload({ waitUntil: 'domcontentloaded' });
+      const persisted = await wp.waitForFunction(() => {
+        const c = JSON.parse(localStorage.getItem('kultura_cache_v1') || 'null');
+        return !!(c && Array.isArray(c.blocklist) && c.blocklist.length);
+      }, null, { timeout: 10000 }).then(() => true).catch(() => false);
+      check('block-persisted-to-cache', persisted);
+    } catch (e) {
+      if (!checks.some((c) => c.name === 'block-persisted-to-cache')) check('block-persisted-to-cache', false);
+      console.log(`blocklist persistence check: ${e.message}`);
+    }
+    await wctx.close();
+  }
+
   // 5. Public pages (given out by QR at the event) must render standalone.
   // They talk to Supabase, which is unreachable here, so we only assert the
   // static shell renders and nothing throws before the network call.

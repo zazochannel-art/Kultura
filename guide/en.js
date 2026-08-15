@@ -72,7 +72,7 @@ export default {
         {
           title: 'Approve the registrations',
           where: 'Cars → the "Registered" column',
-          body: 'Each card opens for details. You can Approve (it becomes a car, with a zone), put it On hold, or Reject. Watch the flags: ⛔ means the plate is on the blocklist, ⧉ means the plate already exists in the system.',
+          body: 'Each card opens for details. You can Approve (it becomes a car, with a zone), put it On hold, or Reject. Watch the flags: ⛔ means the plate is on the blocklist, ⧉ means the plate already exists in the system. The blocklist flag stays on the car after approval too — you see it on the card in the Cars list, and at the gate.',
         },
         {
           title: 'Print the passes',
