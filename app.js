@@ -3417,7 +3417,10 @@
         const when = m ? `${m[1]} ${m[2]}:${m[3]}` : f.name;
         return `<div class="backup-item">
             <div class="backup-item-txt"><strong>${escape(when)}</strong>${bytes ? `<span>${escape(bytes)}</span>` : ''}</div>
-            <button class="btn small ghost" data-backup-dl="${escape(f.name)}" data-i18n="backup.download">Descarcă</button>
+            <div class="backup-acts">
+              <button class="btn small ghost" data-backup-dl="${escape(f.name)}">${escape(t('backup.download'))}</button>
+              <button class="btn small ghost" data-backup-restore="${escape(f.name)}">${escape(t('restore.btn'))}</button>
+            </div>
           </div>`;
       }).join('');
     }
@@ -3436,12 +3439,49 @@
       }, 2500);
     });
     el('backupList')?.addEventListener('click', async (e) => {
-      const b = e.target.closest('[data-backup-dl]'); if (!b) return;
-      const name = b.dataset.backupDl;
-      const { data, error } = await supa.storage.from('backups').createSignedUrl(name, 120, { download: name });
-      if (error || !data) { showToast(t('common.error') + (error ? ': ' + error.message : ''), 'error'); return; }
-      window.open(data.signedUrl, '_blank');
+      const b = e.target.closest('[data-backup-dl]');
+      if (b) {
+        const name = b.dataset.backupDl;
+        const { data, error } = await supa.storage.from('backups').createSignedUrl(name, 120, { download: name });
+        if (error || !data) { showToast(t('common.error') + (error ? ': ' + error.message : ''), 'error'); return; }
+        window.open(data.signedUrl, '_blank');
+        return;
+      }
+      const r = e.target.closest('[data-backup-restore]');
+      if (r) restoreBackup(r.dataset.backupRestore);
     });
+
+    // Restore is two-step: a dry run shows exactly what would come back, and
+    // only an explicit confirmation performs the (additive) restore.
+    async function restoreBackup(path) {
+      const msg = el('backupMsg');
+      const say = (txt, color) => { if (msg) { msg.style.color = color || 'var(--text-dim)'; msg.textContent = txt; } };
+      say(t('restore.checking'));
+      const { data: pre, error: preErr } = await supa.functions.invoke('restore', { body: { path, dry_run: true } });
+      if (preErr || !pre || pre.error) { say(t('common.error') + ': ' + (preErr?.message || pre?.error || ''), 'var(--red)'); return; }
+      const lines = Object.entries(pre.report || {})
+        .filter(([, v]) => v.backup > 0)
+        .map(([tbl, v]) => `• ${tbl}: ${v.backup} (${t('restore.now')}: ${v.current})`);
+      if (!lines.length) { say(t('restore.empty'), 'var(--red)'); return; }
+      say('');
+      const ok = await uiConfirm(
+        t('restore.confirm', { path }) + '\n\n' + lines.join('\n') + '\n\n' + t('restore.note'),
+        { danger: true }
+      );
+      if (!ok) return;
+      say(t('restore.running'));
+      const { data, error } = await supa.functions.invoke('restore', { body: { path, dry_run: false } });
+      if (error || !data || data.error) { say(t('common.error') + ': ' + (error?.message || data?.error || ''), 'var(--red)'); return; }
+      const total = Object.values(data.restored || {}).reduce((s, n) => s + n, 0);
+      const failedKeys = Object.keys(data.failed || {});
+      if (failedKeys.length) {
+        say(t('restore.partial', { n: total, tables: failedKeys.join(', ') }), 'var(--orange)');
+      } else {
+        say(t('restore.done', { n: total }), 'var(--green)');
+      }
+      try { await loadData(); } catch (_) {}
+      try { renderBackupList(); } catch (_) {}
+    }
 
     // ----- GDPR data deletion (admin) — search (dry-run) then confirm-delete. -----
     let _gdprLast = '';
