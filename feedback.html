@@ -106,7 +106,10 @@
     // Pull the current event name/id (reuses the public event-info function).
     (async () => {
       try {
-        const r = await fetch(URL + '/functions/v1/event-info', { headers: { apikey: ANON, Authorization: 'Bearer ' + ANON } });
+        const evParam = new URLSearchParams(location.search).get('event') || '';
+        const r = await fetch(URL + '/functions/v1/event-info'
+          + (evParam ? '?event=' + encodeURIComponent(evParam) : ''),
+          { headers: { apikey: ANON, Authorization: 'Bearer ' + ANON } });
         const d = await r.json();
         if (d.event) { eventId = d.event.id; if (d.event.title) document.getElementById('evName').textContent = d.event.title; }
       } catch (_) {}

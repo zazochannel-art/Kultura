@@ -4379,3 +4379,14 @@ html {
 }
 .backup-health.is-ok  { color: var(--green); background: rgba(16,185,129,.10); border-color: rgba(16,185,129,.30); }
 .backup-health.is-bad { color: var(--red);   background: rgba(239,68,68,.10);  border-color: rgba(239,68,68,.32); }
+
+/* Label above the event picker in Settings → Public pages. */
+.pub-ev-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-mute);
+  margin-bottom: 4px;
+}

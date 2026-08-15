@@ -63,7 +63,12 @@
   </div>
 
   <script>
-    const FN = 'https://knphmxxokowwkruimdus.supabase.co/functions/v1/event-info';
+    // A link or QR printed for one specific event carries ?event=<id>; pass it
+    // through so the poster keeps showing that event even after the pinned one
+    // in Settings moves on.
+    const EV_PARAM = new URLSearchParams(location.search).get('event') || '';
+    const FN = 'https://knphmxxokowwkruimdus.supabase.co/functions/v1/event-info'
+      + (EV_PARAM ? '?event=' + encodeURIComponent(EV_PARAM) : '');
     const ANON = 'sb_publishable_9b7WSJF4UlfF1JIdCDjWqQ_dxOTpqSW';
     const HEAD = { 'apikey': ANON, 'Authorization': 'Bearer ' + ANON };
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

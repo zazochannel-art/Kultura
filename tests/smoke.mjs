@@ -652,11 +652,90 @@ try {
       // The unassigned row appears under every scope — never swallowed.
       check('event-scope-unassigned-always-visible',
         [a, b2, c, d].every((x) => x.plates.includes('P4')));
+
+      // Counts, the approval queue and the public link must follow the scope
+      // too. They didn't at first: the list filtered but the chips above it
+      // kept advertising cars from other events.
+      const CARS2 = [
+        { id: 1, brand: 'A', model: 'Unu', owner: 'o', plate: 'P1', status: 'Sosit', zone: 'Stance', event_id: 6 },
+        { id: 2, brand: 'B', model: 'Doi', owner: 'o', plate: 'P2', status: 'Invitat', zone: 'JDM', event_id: 6 },
+        { id: 3, brand: 'C', model: 'Trei', owner: 'o', plate: 'P3', status: 'Invitat', zone: 'Retro', event_id: 3 },
+      ];
+      const TASKS2 = [
+        { id: 1, title: 'T1', status: 'available', event_id: 6 },
+        { id: 2, title: 'T2', status: 'available', event_id: 3 },
+      ];
+      const REGS2 = [
+        { id: 11, brand: 'R', model: 'Ev6', owner: 'o', plate: 'R1', status: 'pending', event_id: 6, photos: [], created_at: new Date().toISOString() },
+        { id: 12, brand: 'R', model: 'Ev3', owner: 'o', plate: 'R2', status: 'pending', event_id: 3, photos: [], created_at: new Date().toISOString() },
+      ];
+      const cctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+      await cctx.route('**://*.supabase.co/**', (r) => {
+        const u = r.request().url();
+        const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+        if (u.includes('/rest/v1/car_registrations')) return J(REGS2);
+        if (u.includes('/rest/v1/cars')) return J(CARS2);
+        if (u.includes('/rest/v1/tasks')) return J(TASKS2);
+        if (u.includes('/rest/v1/events')) return J([ACTIVE, PLANNED]);
+        if (u.includes('/rest/v1/profiles')) {
+          return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+        }
+        if (u.includes('/rest/v1/')) return J([]);
+        return r.abort();
+      });
+      const cp = await cctx.newPage();
+      await cp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await cp.evaluate(() => {
+        localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+          access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+          expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+          user: {
+            id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+            aud: 'authenticated', role: 'authenticated',
+            app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+          },
+        }));
+        localStorage.removeItem('kultura_active_event');
+      });
+      await cp.reload({ waitUntil: 'domcontentloaded' });
+      await cp.waitForSelector('#carsList .car-row', { state: 'attached', timeout: 12000 }).catch(() => {});
+      await cp.waitForTimeout(1200);
+      const readCounts = () => cp.evaluate(() => {
+        const n = (s) => {
+          const el2 = [...document.querySelectorAll(s)][0];
+          return el2 ? Number((el2.textContent.match(/(\d+)\s*$/) || [])[1]) : null;
+        };
+        return {
+          carsCount: Number(document.getElementById('carsCount')?.textContent),
+          carsAll: n('#carsChips .chip'),
+          tasksAll: n('#tasksChips .chip'),
+          regs: document.querySelectorAll('#regQueue .reg-card').length,
+          pubLink: document.getElementById('regLink')?.value || '',
+        };
+      });
+      const on6 = await readCounts();
+      check('scope-cars-count-follows', on6.carsCount === 2);
+      check('scope-cars-chip-follows', on6.carsAll === 2);
+      check('scope-tasks-chip-follows', on6.tasksAll === 1);
+      check('scope-reg-queue-follows', on6.regs === 1);
+      check('scope-public-link-carries-event', /[?&]event=6\b/.test(on6.pubLink));
+
+      await cp.evaluate(() => {
+        const s = document.getElementById('activeEventSelect');
+        s.value = '3'; s.dispatchEvent(new Event('change'));
+      });
+      await cp.waitForTimeout(900);
+      const on3 = await readCounts();
+      check('scope-counts-update-on-switch',
+        on3.carsCount === 1 && on3.carsAll === 1 && on3.tasksAll === 1 && on3.regs === 1);
+      await cctx.close();
     } catch (e) {
       for (const n of ['event-scope-defaults-to-active', 'event-scope-shows-only-that-event',
         'event-scope-moves-on-when-finished', 'event-scope-finished-data-hidden',
         'event-scope-finished-still-reachable', 'event-scope-all-shows-everything',
-        'event-scope-unassigned-always-visible']) {
+        'event-scope-unassigned-always-visible', 'scope-cars-count-follows',
+        'scope-cars-chip-follows', 'scope-tasks-chip-follows', 'scope-reg-queue-follows',
+        'scope-public-link-carries-event', 'scope-counts-update-on-switch']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
       console.log(`event scope checks: ${e.message}`);

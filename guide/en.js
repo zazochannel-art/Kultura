@@ -50,7 +50,7 @@ export default {
         {
           title: 'Open registrations',
           where: 'Settings → Public pages → "Car registration"',
-          body: 'Take the link with "Copy link", or the QR code (printable, for a poster). The form tells people on the spot if the car is already registered, and accepts at most 3 registrations per hour from the same connection as spam protection.',
+          body: 'Take the link with "Copy link", or the QR code (printable, for a poster). You also choose which event the link is for: left on automatic it always follows the active event, pinned to one it stays that event\'s link — which is what a printed poster needs. The form tells people on the spot if the car is already registered, and accepts at most 3 registrations per hour from the same connection as spam protection.',
           role: 'admin',
         },
         {

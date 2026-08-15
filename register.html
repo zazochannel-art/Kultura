@@ -366,6 +366,10 @@
           headers: { 'Content-Type': 'application/json', apikey: SUPA_ANON, Authorization: 'Bearer ' + SUPA_ANON },
           body: JSON.stringify({
             kind: 'register', ...base, photos: uploaded,
+            // A poster printed for one event carries ?event=<id>. The server
+            // validates it against real events and falls back to the active
+            // one, so a tampered value can only pick a different real event.
+            event_id: new URLSearchParams(location.search).get('event') || null,
             company_website: g('company_website'),
           }),
         });

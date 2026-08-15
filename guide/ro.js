@@ -50,7 +50,7 @@ export default {
         {
           title: 'Deschizi înscrierile',
           where: 'Setări → Pagini publice → „Înscriere mașină"',
-          body: 'Iei linkul cu „Copiază linkul", sau codul QR (printabil, pentru afiș). Formularul le spune pe loc dacă mașina e deja înscrisă și acceptă maxim 3 înscrieri pe oră de pe aceeași conexiune, ca protecție anti-spam.',
+          body: 'Iei linkul cu „Copiază linkul", sau codul QR (printabil, pentru afiș). Tot acolo alegi pentru ce eveniment e linkul: lăsat pe automat urmează mereu evenimentul activ, ales anume rămâne al acelui eveniment — asta vrei pe un afiș printat. Formularul le spune pe loc dacă mașina e deja înscrisă și acceptă maxim 3 înscrieri pe oră de pe aceeași conexiune, ca protecție anti-spam.',
           role: 'admin',
         },
         {

@@ -62,6 +62,11 @@ selector din care poți oricând schimba evenimentul în lucru sau alege
 Linkul îl iei din **Setări → Pagini publice** → „Înscriere mașină" →
 *Copiază linkul* sau *Cod QR* (printabil, pentru afiș).
 
+Tot acolo alegi **pentru ce eveniment** e linkul. Lăsat pe „Evenimentul curent
+(automat)", linkul urmează mereu evenimentul activ — bun pentru un QR permanent.
+Ales un eveniment anume, linkul rămâne al lui pentru totdeauna — asta vrei pe un
+afiș printat, ca să nu ajungă înscrierile pe evenimentul de anul viitor.
+
 Formularul le spune pe loc dacă mașina e deja înscrisă și acceptă maxim
 **3 înscrieri pe oră de pe aceeași conexiune** (protecție anti-spam).
 
