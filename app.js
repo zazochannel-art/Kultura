@@ -3292,6 +3292,38 @@
       }).join('');
     }
     el('activityRefreshBtn')?.addEventListener('click', () => { try { renderActivityLog(); } catch (_) {} });
+    // Export the activity log as a CSV file (opens in Excel).
+    function toCsv(rows, cols) {
+      const q = (v) => { const s = String(v == null ? '' : v); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+      const head = cols.map(c => q(c.label)).join(',');
+      const body = rows.map(r => cols.map(c => q(c.get(r))).join(',')).join('\n');
+      return head + '\n' + body;
+    }
+    function downloadFile(name, text, type) {
+      const blob = new Blob(['﻿' + text], { type: (type || 'text/csv') + ';charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name; document.body.appendChild(a); a.click();
+      setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 500);
+    }
+    el('activityCsvBtn')?.addEventListener('click', async () => {
+      const btn = el('activityCsvBtn'); btn.disabled = true;
+      try {
+        const { data, error } = await supa.from('activity_log')
+          .select('created_at, entity, entity_id, action, old_value, new_value, user_email')
+          .order('created_at', { ascending: false }).limit(5000);
+        if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
+        const cols = [
+          { label: 'Data', get: r => r.created_at ? new Date(r.created_at).toLocaleString('ro-RO') : '' },
+          { label: 'Entitate', get: r => r.entity }, { label: 'ID', get: r => r.entity_id },
+          { label: 'Actiune', get: r => r.action }, { label: 'Vechi', get: r => r.old_value },
+          { label: 'Nou', get: r => r.new_value }, { label: 'Utilizator', get: r => r.user_email },
+        ];
+        const stamp = new Date().toISOString().slice(0, 10);
+        downloadFile(`kultura-activity-${stamp}.csv`, toCsv(data || [], cols));
+        showToast(t('activity.exported', { n: (data || []).length }));
+      } finally { btn.disabled = false; }
+    });
 
     // ----- Best Car voting (admin control + leaderboard) -----
     let _votingEventId = '';
