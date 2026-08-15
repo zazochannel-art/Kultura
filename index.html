@@ -768,6 +768,13 @@
                   <option value="vote.html" data-i18n="pub.page_vote">Votare Best Car</option>
                   <option value="feedback.html" data-i18n="pub.page_feedback">Feedback</option>
                 </select>
+                <!-- Which event these public links are for. The link/QR carries
+                     it as ?event=<id>, so a printed poster keeps pointing at
+                     its own event even after the app moves on to the next. -->
+                <label class="pub-ev-label" for="pubEventSel" data-i18n="pub.event_label">Pentru evenimentul</label>
+                <select id="pubEventSel" style="margin-bottom:8px;">
+                  <option value="" data-i18n="pub.event_auto">Evenimentul curent (automat)</option>
+                </select>
                 <input type="text" id="regLink" readonly onclick="this.select()">
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
                   <button type="button" class="btn small" id="regCopyBtn" data-i18n="reg.share_copy">Copiază linkul</button>

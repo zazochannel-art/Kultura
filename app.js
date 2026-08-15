@@ -20,7 +20,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v110';
+    const APP_VERSION = 'v111';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -1909,8 +1909,40 @@
     // instead of four near-identical blocks.
     function publicPageUrl() {
       const sel = el('pubPageSel');
-      return new URL((sel && sel.value) || 'register.html', location.href).href;
+      const u = new URL((sel && sel.value) || 'register.html', location.href);
+      // Pin the link to one event when the operator picked one. Left empty,
+      // the pages resolve the current event themselves — which is what you
+      // want for a permanent QR on a windscreen, while a poster printed for a
+      // single event wants the id baked in.
+      const ev = el('pubEventSel')?.value;
+      if (ev) u.searchParams.set('event', ev);
+      return u.href;
     }
+
+    // Keep the event list in the public-pages picker in step with the events,
+    // defaulting to whatever the app is scoped to right now.
+    function populatePublicEventPicker() {
+      const sel = el('pubEventSel');
+      if (!sel) return;
+      const prev = sel.value;
+      while (sel.options.length > 1) sel.remove(1);
+      [...(state.events || [])]
+        .sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0) || Number(b.id) - Number(a.id))
+        .forEach(ev => {
+          const o = document.createElement('option');
+          o.value = String(ev.id);
+          o.textContent = ev.title || ('#' + ev.id);
+          sel.appendChild(o);
+        });
+      const want = prev || String(state.activeEventId || '');
+      sel.value = [...sel.options].some(o => o.value === want) ? want : '';
+      // The link is built at init, before events have loaded and this picker
+      // has a value — refresh it, or the shown link silently omits ?event=
+      // while the dropdown claims an event is selected.
+      const inp = el('regLink');
+      if (inp) inp.value = publicPageUrl();
+    }
+
     (function initRegShare() {
       const inp = el('regLink');
       const syncLink = () => {
@@ -1920,6 +1952,22 @@
       };
       syncLink();
       el('pubPageSel')?.addEventListener('change', syncLink);
+      el('pubEventSel')?.addEventListener('change', () => {
+        syncLink();
+        // Also pin it for pages opened without ?event= (an old QR, a bare
+        // link), so „the public pages show this event” is true either way.
+        const v = el('pubEventSel').value;
+        supa.from('ui_settings')
+          .upsert({ key: 'public_event_id', value: v, updated_at: new Date().toISOString() },
+                  { onConflict: 'key' })
+          .then(({ error }) => {
+            const msg = el('regMsg');
+            if (!msg) return;
+            msg.style.color = error ? 'var(--red)' : 'var(--green)';
+            msg.textContent = error ? t('common.error') + ': ' + error.message : t('pub.event_saved');
+            setTimeout(() => { msg.textContent = ''; }, 2500);
+          });
+      });
       el('regCopyBtn')?.addEventListener('click', async () => {
         const url = publicPageUrl();
         try { await navigator.clipboard.writeText(url); }
@@ -2513,6 +2561,7 @@
       if (state.activeEventId !== before) {
         try { applyActiveEvent(); } catch (_) {}
       }
+      try { populatePublicEventPicker(); } catch (_) {}
       if (!sel) return;
       // Rebuild options (keep the "all" placeholder = first option).
       while (sel.options.length > 1) sel.remove(1);
@@ -2549,6 +2598,7 @@
       try { renderTeam(); } catch (_) {}
       try { renderVip(); } catch (_) {}
       try { renderAgenda(); } catch (_) {}
+      try { renderRegQueue(); } catch (_) {}
     }
 
     // Live badge flash on successful fetch
@@ -5110,13 +5160,17 @@
     }
 
     function renderCarsChips() {
-      const total = state.cars.length;
+      // Counts must match the list underneath them — activeCars(), not the raw
+      // table, or the chips advertise cars from other events that the list
+      // then refuses to show.
+      const scoped = activeCars();
+      const total = scoped.length;
       const counts = {
         all: total,
-        vip: state.cars.filter(c => c.is_vip).length
+        vip: scoped.filter(c => c.is_vip).length
       };
       CAR_STATUS_OPTIONS.forEach(o => {
-        counts[o.key] = state.cars.filter(c => statusKey(c.status) === o.key).length;
+        counts[o.key] = scoped.filter(c => statusKey(c.status) === o.key).length;
       });
       const chips = [
         { key: 'all', label: t('tasks.filter_all') },
@@ -5209,7 +5263,7 @@
     function renderCars() {
       try { renderArrivalsWall(); } catch (_) {}
       ensureCarPhotos();
-      el('carsCount').textContent = state.cars.length;
+      el('carsCount').textContent = activeCars().length;
       const list = filterCars();
       const c = el('carsList');
       if (_carsIO) { _carsIO.disconnect(); _carsIO = null; }
@@ -7141,7 +7195,11 @@
     function renderRegQueue() {
       const box = el('regQueue'); if (!box) return;
       const staff = roleAtLeast('staff');
-      const all = (state.registrations || []).filter(r => r.status === 'pending' || r.status === 'hold');
+      // Scoped like every other list: a registration for last month's event has
+      // no business sitting in this event's approval queue.
+      const all = (state.registrations || [])
+        .filter(matchesActiveEvent)
+        .filter(r => r.status === 'pending' || r.status === 'hold');
       const split = el('carsSplit');
       if (!staff || !all.length) { box.hidden = true; box.innerHTML = ''; if (split) split.classList.remove('has-reg'); return; }
       box.hidden = false;
@@ -9080,12 +9138,15 @@
     }
 
     function renderTasksChips() {
-      const total = state.tasks.length;
+      // Same rule as the car chips: count what the list below will actually
+      // show, which is the event in focus.
+      const scoped = activeTasks();
+      const total = scoped.length;
       const counts = { all: total };
-      counts.open = state.tasks.filter(tk => taskStatusKey(tk.status) !== 'completed').length;
+      counts.open = scoped.filter(tk => taskStatusKey(tk.status) !== 'completed').length;
 
       TASK_STATUS_OPTIONS.forEach(o => {
-        counts[o.key] = state.tasks.filter(tk => taskStatusKey(tk.status) === o.key).length;
+        counts[o.key] = scoped.filter(tk => taskStatusKey(tk.status) === o.key).length;
       });
 
       const statusLabel = (k) => {
