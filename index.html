@@ -892,6 +892,23 @@
           </div>
         </div>
 
+        <div class="setting-block" id="errorsBlock" style="display:none;">
+          <div class="setting-label" data-i18n="errlog.label">ERORI</div>
+          <div class="setting-row" style="align-items:flex-start;">
+            <div class="icon-box red">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+            </div>
+            <div class="txt" style="flex:1;">
+              <strong data-i18n="errlog.title">Erori raportate</strong>
+              <span data-i18n="errlog.sub">Erori JavaScript apărute pe dispozitivele echipei. Utile ca să afli de ce a picat ceva la poartă.</span>
+              <div class="announce-compose">
+                <button type="button" class="btn small ghost" id="errRefreshBtn" data-i18n="activity.refresh">Reîmprospătează</button>
+                <div id="errList" class="activity-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="setting-block" id="dangerZoneBlock" style="display:none;">
           <div class="setting-label" data-i18n="settings.danger">DATE</div>
           <div class="setting-row">
