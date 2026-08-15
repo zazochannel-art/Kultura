@@ -496,6 +496,13 @@
         e.preventDefault();
         const ov = el('cmdk');
         if (ov && ov.classList.contains('show')) closeCmdk(); else openCmdk();
+        return;
+      }
+      // Escape must work even before the input takes focus, or if focus moved
+      // elsewhere — otherwise the palette can only be dismissed by clicking out.
+      if (e.key === 'Escape' && el('cmdk')?.classList.contains('show')) {
+        e.preventDefault();
+        closeCmdk();
       }
     });
 

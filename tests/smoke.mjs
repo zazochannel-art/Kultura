@@ -81,8 +81,32 @@ try {
     smsSection: !!document.getElementById('section-sms'),
     smsMessage: !!document.getElementById('smsMessage'),
     smsHistory: !!document.getElementById('smsHistoryBody'),
+    // Surfaces added after the original smoke pass was written.
+    cmdk: !!document.getElementById('cmdk'),
+    cmdkInput: !!document.getElementById('cmdkInput'),
+    gateKiosk: !!document.getElementById('gateKioskBtn'),
+    gateLabel: !!document.getElementById('gateLabelBtn'),
+    passSheet: !!document.getElementById('passSheet'),
+    reportBtn: !!document.getElementById('reportBtn'),
+    compareBlock: !!document.getElementById('compareBlock'),
+    blocklistBlock: !!document.getElementById('blocklistBlock'),
+    backupBlock: !!document.getElementById('backupBlock'),
+    gdprBlock: !!document.getElementById('gdprBlock'),
+    activityBlock: !!document.getElementById('activityBlock'),
+    activityCsv: !!document.getElementById('activityCsvBtn'),
+    votingBlock: !!document.getElementById('votingBlock'),
+    feedbackBlock: !!document.getElementById('feedbackBlock'),
+    afluxCounters: !!document.getElementById('afluxCounters'),
   }));
   Object.entries(els).forEach(([k, v]) => check('element:' + k, v));
+
+  // 1b. Command palette opens on Ctrl-K and filters.
+  await page.keyboard.press('Control+KeyK');
+  const cmdkShown = await page.evaluate(() => document.getElementById('cmdk').classList.contains('show'));
+  check('cmdk-opens', cmdkShown);
+  await page.keyboard.press('Escape');
+  const cmdkClosed = await page.evaluate(() => !document.getElementById('cmdk').classList.contains('show'));
+  check('cmdk-closes', cmdkClosed);
 
   // 2. Fonts are self-hosted (no Google CDN request)
   const googleFont = await page.evaluate(() =>
@@ -108,11 +132,18 @@ try {
     localStorage.removeItem('kultura_outbox');
   });
   await page.reload({ waitUntil: 'networkidle' });
-  await page.waitForTimeout(400);
+  // Wait for the button to exist rather than guessing with a fixed delay — on a
+  // cold CI runner the gate list can take longer than any timeout worth hard-coding.
+  await page.waitForSelector('#gateOpenBtn', { state: 'attached' });
   await page.evaluate(() => document.getElementById('gateOpenBtn').click());
+  await page.waitForSelector('[data-gate-arrive="991"]', { state: 'attached' });
   await ctx.setOffline(true);
   await page.evaluate(() => document.querySelector('[data-gate-arrive="991"]').click());
-  await page.waitForTimeout(300);
+  // The check-in is optimistic + queued synchronously, but give the render a tick.
+  await page.waitForFunction(
+    () => JSON.parse(localStorage.getItem('kultura_outbox') || '[]').length > 0,
+    null, { timeout: 5000 }
+  ).catch(() => {}); // fall through to the assertions below for a clear failure
   const gate = await page.evaluate(() => ({
     queued: JSON.parse(localStorage.getItem('kultura_outbox') || '[]').length,
     cached: JSON.parse(localStorage.getItem('kultura_cache_cars') || '[]')[0].status,
@@ -121,7 +152,33 @@ try {
   check('gate-optimistic-status', gate.cached === 'Sosit');
   await ctx.setOffline(false);
 
-  // 5. No uncaught JS errors during the run (ignore network/auth noise)
+  // 5. Public pages (given out by QR at the event) must render standalone.
+  // They talk to Supabase, which is unreachable here, so we only assert the
+  // static shell renders and nothing throws before the network call.
+  for (const [name, sel] of [
+    ['register', '#regForm'],
+    ['vote', '#content'],
+    ['agenda', '#content'],
+    ['feedback', '#stars'],
+  ]) {
+    const p = await ctx.newPage();
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(String(e)));
+    try {
+      await p.goto(`${BASE}/${name}.html`, { waitUntil: 'domcontentloaded' });
+      await p.waitForSelector(sel, { state: 'attached', timeout: 5000 });
+      check(`public:${name}-renders`, true);
+    } catch (e) {
+      check(`public:${name}-renders`, false);
+      console.log(`${name}.html: ${e.message}`);
+    }
+    const real = errs.filter((e) => !/supabase|network|fetch|401|403|Failed to fetch/i.test(e));
+    check(`public:${name}-no-errors`, real.length === 0);
+    if (real.length) console.log(`${name}.html errors:`, real);
+    await p.close();
+  }
+
+  // 6. No uncaught JS errors during the run (ignore network/auth noise)
   const realErrors = jsErrors.filter(e => !/supabase|network|fetch|401|403/i.test(e));
   check('no-js-errors', realErrors.length === 0);
   if (realErrors.length) console.log('JS errors:', realErrors);
