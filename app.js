@@ -19,7 +19,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v98';
+    const APP_VERSION = 'v99';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -1636,11 +1636,11 @@
         };
         const tableRows = (rows) => rows.length ? rows.map(([k, n]) => `<tr><td>${esc(k)}</td><td style="text-align:right;font-weight:700;">${n}</td></tr>`).join('') : '<tr><td colspan="2" style="color:#999;">—</td></tr>';
         // Optional: feedback average + votes for the active event.
-        let extra = '';
+        let extra = '', feedbackSection = '';
         if (ev && navigator.onLine) {
           try {
             const [{ data: fb }, { data: vt }] = await Promise.all([
-              supa.from('event_feedback').select('rating').eq('event_id', ev.id),
+              supa.from('event_feedback').select('rating, comment').eq('event_id', ev.id),
               supa.from('car_votes').select('id').eq('event_id', ev.id),
             ]);
             const fbRows = fb || [];
@@ -1649,6 +1649,27 @@
             if (avg) bits.push(`${t('report.feedback')}: <b>${avg} ★</b> (${fbRows.length})`);
             if (vt && vt.length) bits.push(`${t('report.votes')}: <b>${vt.length}</b>`);
             if (bits.length) extra = `<p style="margin:6px 0 0;color:#333;">${bits.join(' &nbsp;·&nbsp; ')}</p>`;
+            // Star distribution + the comments people actually wrote — the part
+            // an organiser wants to read, not just the average.
+            if (fbRows.length) {
+              const dist = [5, 4, 3, 2, 1].map(star => {
+                const n = fbRows.filter(r => r.rating === star).length;
+                const pct = Math.round(n / fbRows.length * 100);
+                return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:12px;">
+                    <span style="width:36px;">${star} ★</span>
+                    <span style="flex:1;height:8px;background:#eee;border-radius:99px;overflow:hidden;">
+                      <span style="display:block;height:100%;width:${pct}%;background:#f5c542;"></span></span>
+                    <span style="width:52px;text-align:right;">${n} (${pct}%)</span>
+                  </div>`;
+              }).join('');
+              const comments = fbRows.filter(r => (r.comment || '').trim()).slice(0, 20);
+              const list = comments.length
+                ? `<div style="margin-top:10px;">${comments.map(r =>
+                    `<div style="border-left:3px solid #f5c542;padding:3px 0 3px 9px;margin-bottom:7px;font-size:12px;">
+                       <b>${'★'.repeat(r.rating || 0)}</b> ${esc(r.comment)}</div>`).join('')}</div>`
+                : '';
+              feedbackSection = `<h2>${esc(t('report.feedback'))}</h2><div>${dist}</div>${list}`;
+            }
           } catch (_) {}
         }
         const stat = (n, label) => `<div class="stat"><div class="n">${n}</div><div class="l">${esc(label)}</div></div>`;
@@ -1682,6 +1703,7 @@
             <div><h2>${esc(t('aflux.by_brand'))}</h2><table>${tableRows(topBy(c => c.brand))}</table></div>
             <div><h2>${esc(t('aflux.by_city'))}</h2><table>${tableRows(topBy(c => c.city))}</table></div>
           </div>
+          ${feedbackSection}
           <div class="foot">Kultura · ${esc(now)}</div>
           <script>window.onload=function(){setTimeout(function(){window.print();},400);};<\/script>
         </body></html>`;
@@ -3194,11 +3216,15 @@
         (data || []).forEach(r => { const p = Array.isArray(r.photos) ? r.photos : []; if (p.length) _wallPhotos[r.id] = p[0]; });
       } catch (_) {}
       renderArrivalsWall();
+      try { renderWallPodium(); } catch (_) {}
+      clearInterval(_podiumTimer);
+      _podiumTimer = setInterval(() => { try { renderWallPodium(); } catch (_) {} }, 15000);
     }
     function closeArrivalsWall() {
       const ov = el('arrivalsWall'); if (!ov) return;
       ov.classList.remove('show'); ov.setAttribute('aria-hidden', 'true');
       _wallAutoScroll = false; stopWallAutoScroll();
+      clearInterval(_podiumTimer); _podiumTimer = null;
       el('wallPresentBtn')?.classList.remove('active');
       try { if (document.fullscreenElement) document.exitFullscreen(); } catch (_) {}
     }
@@ -3252,6 +3278,41 @@
             </div>
           </div>`;
       }).join('');
+    }
+
+    // Live "Best Car" podium on the projected wall — a natural closing moment
+    // for the event. Only shown while voting is open and votes exist.
+    let _podiumTimer = null;
+    async function renderWallPodium() {
+      const box = el('wallPodium'); if (!box) return;
+      try {
+        const { data: cfg } = await supa.from('ui_settings').select('value').eq('key', 'voting_event_id').maybeSingle();
+        const evId = cfg && cfg.value ? Number(cfg.value) : NaN;
+        if (!Number.isFinite(evId)) { box.hidden = true; return; }
+        const { data: votes } = await supa.from('car_votes').select('car_id').eq('event_id', evId);
+        if (!votes || !votes.length) { box.hidden = true; return; }
+        const tally = {};
+        votes.forEach(v => { tally[v.car_id] = (tally[v.car_id] || 0) + 1; });
+        const top = Object.entries(tally).sort((a, b) => b[1] - a[1]).slice(0, 3);
+        const src = (state.cars && state.cars.length) ? state.cars : loadCachedCars();
+        const medals = ['🥇', '🥈', '🥉'];
+        box.hidden = false;
+        box.innerHTML = `<div class="wall-podium-t">🏆 ${escape(t('wall.podium'))}</div>` +
+          `<div class="wall-podium-row">${top.map(([cid, n], i) => {
+            const c = src.find(x => String(x.id) === String(cid));
+            const name = c ? ([c.brand, c.model].filter(Boolean).join(' ') || c.plate || ('#' + cid)) : ('#' + cid);
+            const photo = c ? _wallPhotos[c.id] : null;
+            const media = photo
+              ? `<div class="wp-photo" style="background-image:url('${escape(photo)}')"></div>`
+              : `<div class="wp-photo wp-ph">${medals[i]}</div>`;
+            return `<div class="wp-item wp-${i + 1}">
+                <div class="wp-medal">${medals[i]}</div>
+                ${media}
+                <div class="wp-name">${escape(name)}</div>
+                <div class="wp-votes">${n} ⭐</div>
+              </div>`;
+          }).join('')}</div>`;
+      } catch (_) { box.hidden = true; }
     }
     el('wallOpenBtn')?.addEventListener('click', openArrivalsWall);
     el('wallCloseBtn')?.addEventListener('click', closeArrivalsWall);
