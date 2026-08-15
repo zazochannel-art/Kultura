@@ -1,9 +1,9 @@
     import { createClient } from './vendor/supabase-js.mjs';
-    import { translations } from './i18n.js';
+    import { translations, ensureLocale } from './i18n.js';
     import {
       escape, reduceMotion as _reduceMotion, normalizePhone, telegramLink,
       nameHue, avatarBg, twoInitials, hexToRgba, downscaleImage,
-      statusKey, normPlateKey, fmtDateTime, fmtRelative
+      statusKey, normPlateKey, fmtDateTime, fmtRelative, mergeById, maxWatermark, overlapFrom
     } from './utils.js';
     import { haptic, confettiBurst, successCheck, auroraPulse } from './effects.js';
 
@@ -19,7 +19,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v103';
+    const APP_VERSION = 'v104';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -101,7 +101,11 @@
       return status;
     }
 
-    function applyLanguage(lang) {
+    // Async because non-Romanian packs are fetched on demand. Callers that
+    // don't await it still get a correct UI: the Romanian fallback renders
+    // first and this repaints every translated node the moment the pack lands.
+    async function applyLanguage(lang) {
+      await ensureLocale(lang);
       currentLang = lang;
       localStorage.setItem('kultura_lang', lang);
 
@@ -361,6 +365,9 @@
     // ----- APP SHELL -----
     function enterApp(user) {
       currentUser = user;
+      // A different account sees a different slice of the data under RLS, so
+      // never carry a previous session's rows (or its watermark) across.
+      resetDeltaSync();
       const email = user.email;
       el('loginView').style.display = 'none';
       el('appView').classList.add('show');
@@ -406,6 +413,7 @@
     }
     function leaveApp() {
       stopPolling();
+      resetDeltaSync();
       el('appView').classList.remove('show');
       el('loginView').style.display = 'grid';
       el('email').value = '';
@@ -1494,7 +1502,7 @@
       btn.classList.add('loading');
       btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;"></span>';
       try {
-        await loadData();
+        await loadDataFull();
       } finally {
         btn.disabled = false;
         btn.classList.remove('loading');
@@ -2577,15 +2585,98 @@
       _loadDebounce = setTimeout(() => { _loadDebounce = null; loadData().catch(() => {}); }, delay);
     }
 
+    // ----- INCREMENTAL SYNC (cars / tasks) -----
+    // These two tables grow with every event and are re-fetched on every poll
+    // (every 25s with realtime up, every 3s while it's down). Pulling every
+    // column of every row that often is the one thing that does not scale —
+    // on a gate tablet it is also the one thing burning mobile data.
+    //
+    // So after the first full fetch we only ask for rows touched since the last
+    // sync (`updated_at > watermark`, stamped server-side by a BEFORE UPDATE
+    // trigger) and merge them in by id. Idle polls come back empty.
+    //
+    // Deletions can't show up in a delta — a deleted row simply isn't returned.
+    // Realtime handles them instantly when it's connected; as a safety net for
+    // when it isn't, we periodically pull the bare id list (cheap: a few bytes
+    // per row) and drop anything that has disappeared server-side.
+    const DELTA_TABLES = {
+      cars:  { cols: CAR_LIST_COLS,  slice: 'cars'  },
+      tasks: { cols: TASK_LIST_COLS, slice: 'tasks' }
+    };
+    const RECONCILE_EVERY_MS = 60000;
+    // `updated_at` is the transaction's start time, but a row only becomes
+    // visible when that transaction commits. A slow write that started before
+    // our last poll can therefore land *after* it, carrying a timestamp the
+    // watermark has already passed — and would never be seen again. Asking for
+    // a few seconds more than we strictly need closes that window; the overlap
+    // costs a handful of rows we already have, and the merge is idempotent.
+    const DELTA_OVERLAP_MS = 15000;
+    let _delta = { cars: null, tasks: null };   // null = next fetch must be full
+    let _lastReconcileAt = 0;
+
+    // Force the next poll to re-fetch everything. Used whenever the local copy
+    // may have drifted: reconnects, sign-in, manual refresh.
+    function resetDeltaSync() {
+      _delta = { cars: null, tasks: null };
+      // The full fetch this forces is authoritative about which rows exist, so
+      // the deletion sweep starts its clock from here rather than firing on the
+      // very next poll.
+      _lastReconcileAt = Date.now();
+    }
+
+    // What an explicit refresh gesture should do. Someone who pulls to refresh
+    // is telling us they don't trust what's on screen — answer with the whole
+    // truth, not a delta.
+    function loadDataFull() {
+      resetDeltaSync();
+      return loadData();
+    }
+
+    // Build the query for one delta-synced table: full list on a cold start,
+    // otherwise only what changed. Ordering only matters for the full fetch —
+    // merged results are re-sorted client-side.
+    function deltaQuery(table) {
+      const { cols } = DELTA_TABLES[table];
+      const since = _delta[table];
+      const q = supa.from(table).select(cols);
+      return since ? q.gt('updated_at', overlapFrom(since, DELTA_OVERLAP_MS)) : q.order('id', { ascending: false });
+    }
+
+    // Advance the watermark to the newest `updated_at` we actually received.
+    // Re-fetching a boundary row once is harmless because the merge is
+    // idempotent. A cold fetch of an empty table leaves us with no timestamp
+    // to anchor on; stay in full-fetch mode rather than invent one.
+    function advanceWatermark(table, rows) {
+      const max = maxWatermark(_delta[table], rows);
+      if (max) _delta[table] = max;
+    }
+
+    // Drop rows deleted server-side while we were only asking for deltas.
+    async function reconcileDeletions() {
+      const out = {};
+      await Promise.all(Object.keys(DELTA_TABLES).map(async (table) => {
+        const { data, error } = await supa.from(table).select('id');
+        if (error || !Array.isArray(data)) return;      // leave the list alone
+        const alive = new Set(data.map(r => String(r.id)));
+        const slice = DELTA_TABLES[table].slice;
+        const before = state[slice] || [];
+        const after = before.filter(r => alive.has(String(r.id)));
+        if (after.length !== before.length) out[slice] = after;
+      }));
+      return out;
+    }
+
     let inFlightLoad = null;
     async function loadData() {
       if (inFlightLoad) return inFlightLoad; // dedupe concurrent calls
       inFlightLoad = (async () => {
         try {
+          const wasFullCars  = !_delta.cars;
+          const wasFullTasks = !_delta.tasks;
           // Fetch all data in parallel
           const results = await Promise.allSettled([
-            supa.from('cars').select(CAR_LIST_COLS).order('id', { ascending: false }),
-            supa.from('tasks').select(TASK_LIST_COLS).order('id', { ascending: false }),
+            deltaQuery('cars'),
+            deltaQuery('tasks'),
             supa.from('events').select('*').order('id', { ascending: false }),
             supa.from('profiles').select('*'),
             supa.from('announcements').select('*').order('id', { ascending: false }).limit(20),
@@ -2597,8 +2688,18 @@
 
           // Only overwrite each slice if the fetch succeeded; otherwise keep
           // the previous data on screen (requirement: no wipe on transient error).
-          const nextCars     = results[0].status === 'fulfilled' && !results[0].value.error ? (results[0].value.data || []) : null;
-          const nextTasks    = results[1].status === 'fulfilled' && !results[1].value.error ? (results[1].value.data || []) : null;
+          // cars/tasks arrive either as a full list (cold start) or as a delta
+          // to merge on top of what we already hold.
+          const carRows      = results[0].status === 'fulfilled' && !results[0].value.error ? (results[0].value.data || []) : null;
+          const taskRows     = results[1].status === 'fulfilled' && !results[1].value.error ? (results[1].value.data || []) : null;
+          if (carRows  !== null) advanceWatermark('cars',  carRows);
+          if (taskRows !== null) advanceWatermark('tasks', taskRows);
+          // An empty delta means "nothing changed" — keep the current list as
+          // is rather than replacing it with nothing.
+          const nextCars  = carRows  === null ? null
+            : (wasFullCars  ? carRows  : (carRows.length  ? mergeById(state.cars,  carRows)  : null));
+          const nextTasks = taskRows === null ? null
+            : (wasFullTasks ? taskRows : (taskRows.length ? mergeById(state.tasks, taskRows) : null));
           const nextEvents   = results[2].status === 'fulfilled' && !results[2].value.error ? (results[2].value.data || []) : null;
           const nextProfiles = results[3].status === 'fulfilled' && !results[3].value.error ? (results[3].value.data || []) : null;
           const nextAnnounce = results[4] && results[4].status === 'fulfilled' && !results[4].value.error ? (results[4].value.data || []) : null;
@@ -2617,9 +2718,23 @@
           if (nextRegs     !== null) state.registrations = nextRegs;
           if (nextBlock    !== null) { state.blocklist = nextBlock; rebuildBlockSet(); try { renderBlocklist(); } catch (_) {} }
 
+          // Deltas can add and change rows but never reveal a deletion, so
+          // sweep for vanished ids on a slow cadence. A full fetch is already
+          // authoritative, so only bother once we're running on deltas.
+          let carsPruned = false, tasksPruned = false;
+          const onDeltas = !wasFullCars || !wasFullTasks;
+          if (onDeltas && Date.now() - _lastReconcileAt > RECONCILE_EVERY_MS) {
+            _lastReconcileAt = Date.now();
+            try {
+              const pruned = await reconcileDeletions();
+              if (pruned.cars)  { state.cars  = pruned.cars;  carsPruned = true; }
+              if (pruned.tasks) { state.tasks = pruned.tasks; tasksPruned = true; }
+            } catch (_) { /* non-critical — next sweep retries */ }
+          }
+
           // Persist the car list so the offline gate check-in can look cars up
           // with no connection (the PWA shell is cached; the data is not).
-          if (nextCars !== null) cacheCarsOffline(nextCars);
+          if (nextCars !== null || carsPruned) cacheCarsOffline(state.cars);
           try { cacheAppData(); } catch (_) {}
           // Opportunistically drain any queued gate check-ins.
           flushOutbox();
@@ -4001,7 +4116,10 @@
     el('gatePlateCapture')?.addEventListener('click', capturePlate);
 
     // Connectivity → drain the queue and refresh the indicator.
-    window.addEventListener('online',  () => { updateGateSyncUI(); flushOutbox(); updateConnBanner(); });
+    // Coming back from an offline stretch, the delta watermark is stale by
+    // however long we were away — and rows may have been deleted meanwhile.
+    // Re-sync from scratch instead of trusting it.
+    window.addEventListener('online',  () => { resetDeltaSync(); updateGateSyncUI(); flushOutbox(); updateConnBanner(); });
     window.addEventListener('offline', () => { updateGateSyncUI(); updateConnBanner(); });
     updateGateSyncUI();
 
@@ -5403,7 +5521,7 @@
           ind.classList.add('spinning');
           ind.style.transform = 'translateX(-50%) translateY(56px)';
           try { haptic(20); } catch (_) {}
-          Promise.resolve(loadData()).catch(() => {}).finally(() => {
+          Promise.resolve(loadDataFull()).catch(() => {}).finally(() => {
             setTimeout(() => { ind.classList.remove('spinning'); ind.style.transform = ''; }, 500);
           });
         } else {

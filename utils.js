@@ -103,6 +103,44 @@ export function fmtRelative(v) {
   return fmtDateTime(v);
 }
 
+// ----- Incremental sync helpers -----
+// Merge a batch of changed rows into a list already held in memory, keyed by
+// id and ordered newest id first (what a `order('id', desc)` fetch returns).
+// Existing rows are patched, not replaced, so columns hydrated on demand by a
+// detail view survive a delta that only carries the list columns.
+export function mergeById(prev, rows) {
+  const byId = new Map((prev || []).map(r => [String(r.id), r]));
+  for (const r of rows || []) {
+    const k = String(r.id);
+    byId.set(k, byId.has(k) ? { ...byId.get(k), ...r } : r);
+  }
+  return [...byId.values()].sort((a, b) => Number(b.id) - Number(a.id));
+}
+
+// Newest `updated_at` across a batch, or the current watermark when the batch
+// carries nothing newer. Timestamps come from the server, so this never
+// depends on the device clock. ISO-8601 UTC strings compare correctly as text.
+export function maxWatermark(current, rows) {
+  let max = current || null;
+  for (const r of rows || []) {
+    const u = r && r.updated_at;
+    if (u && (!max || u > max)) max = u;
+  }
+  return max;
+}
+
+// Rewind a watermark by `overlapMs` so a delta query also re-reads the rows
+// right behind it. `updated_at` is stamped at transaction start but only
+// becomes visible at commit, so a slow write can surface with a timestamp the
+// watermark already passed. Returns the input untouched if it can't be parsed
+// — asking from the raw mark is better than asking from an invalid date.
+export function overlapFrom(watermark, overlapMs) {
+  const raw = String(watermark || '');
+  const t = Date.parse(raw.replace(' ', 'T'));   // tolerate the space-separated form
+  if (!Number.isFinite(t)) return watermark;
+  return new Date(t - overlapMs).toISOString();
+}
+
 // Downscale an image client-side before upload (max side px, JPEG quality).
 // Falls back to the original file for formats canvas can't decode (HEIC).
 export async function downscaleImage(file, maxSide = 1600, quality = 0.82) {

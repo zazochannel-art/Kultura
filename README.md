@@ -58,6 +58,11 @@ lovească producția. Include și o verificare de accesibilitate (WCAG 2 A/AA, p
 axe-core) pe toate paginile livrate; dacă `axe-core` nu e instalat, partea aia
 se sare.
 
+Excepția e coada offline: acolo backendul e **simulat**, nu tăiat. Un check-in
+făcut fără semnal trebuie nu doar să *intre* în coadă, ci și să *iasă* din ea —
+exact o dată — când revine conexiunea, iar asta se poate verifica doar dacă
+cineva răspunde la scriere. Verificările `gate-flush-*` acoperă drumul ăsta.
+
 CI pică și dacă modifici asset-uri livrate **fără să bumpezi versiunea service
 worker-ului** (`CACHE` din `sw.js`) — altfel utilizatorii rămân cu aplicația
 veche în cache.
@@ -68,7 +73,8 @@ veche în cache.
 |---|---|
 | `index.html` | Toată interfața aplicației (o singură pagină, secțiuni comutate) |
 | `app.js` | Logica aplicației. Mare (~9k linii) și cu scope partajat |
-| `i18n.js` | Traduceri ro/en/ru. Toate trei trebuie să aibă exact aceleași chei |
+| `i18n.js` | Registrul de limbi. Importă `ro` static, aduce `en`/`ru` la cerere |
+| `i18n/{ro,en,ru}.js` | Pachetele de traduceri. Toate trei trebuie să aibă exact aceleași chei |
 | `utils.js` | Helperi puri (fără state/DOM/DB) — acoperiți de teste unitare |
 | `effects.js` | Efecte vizuale + haptic, independente de state |
 | `styles.css` | Stiluri |
@@ -210,8 +216,11 @@ client.
    trebuie testată întâi pe un eveniment de test.
 5. **Bumpează `CACHE` în `sw.js`** la orice modificare de asset livrat. CI te
    oprește dacă uiți.
-6. **`i18n.js` trebuie să rămână simetric** pe ro/en/ru, inclusiv
-   `{placeholder}`-ele. Garda din CI verifică.
+6. **Pachetele `i18n/*.js` trebuie să rămână simetrice** pe ro/en/ru, inclusiv
+   `{placeholder}`-ele. Garda din CI verifică. O limbă nouă înseamnă trei
+   lucruri, nu unul: fișierul `i18n/<cod>.js`, intrarea în `SUPPORTED_LANGS` +
+   `LOADERS` din `i18n.js`, și adăugarea în lista de precache din `sw.js`.
+   Garda pică dacă lipsește vreunul.
 7. **Nu pune `user-scalable=no` înapoi în viewport.** Blochează pinch-zoom-ul,
    ceea ce e o problemă reală de accesibilitate. Inputurile sunt la 16px tocmai
    ca iOS să nu mai facă zoom automat la focus — dacă le micșorezi sub 16px,
@@ -219,6 +228,12 @@ client.
 8. **Evită stilurile inline din JS pentru stări vizuale.** Butoanele de limbă au
    avut ani la rând contrast insuficient exact pentru că stilul inline din JS
    bătea foaia de stil și nimeni nu se uita acolo.
+9. **Nu transforma sincronizarea incrementală înapoi în „ia tot".** `loadData()`
+   cere pentru `cars`/`tasks` doar rândurile cu `updated_at > watermark`.
+   Depinde de triggerul `stamp_updated_at` din Postgres — dacă îl scoți,
+   aplicația nu mai vede nicio modificare. Ștergerile nu apar niciodată într-un
+   delta: le prinde realtime, iar ca plasă de siguranță `reconcileDeletions()`
+   compară lista de id-uri o dată pe minut.
 
 ## Rămas de făcut manual
 

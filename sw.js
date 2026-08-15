@@ -3,7 +3,7 @@
 // served from cache immediately (instant startup), while a fresh copy is
 // fetched in the background and used on the next load. Bump the cache version
 // to force a clean refresh after a deploy.
-const CACHE = 'kultura-v103';
+const CACHE = 'kultura-v104';
 const PRECACHE = [
   './',
   './index.html',
@@ -12,6 +12,11 @@ const PRECACHE = [
   './utils.js',
   './effects.js',
   './i18n.js',
+  // Romanian ships with the shell; the other packs are fetched on demand, so
+  // precache them too or switching language offline would fall back to RO.
+  './i18n/ro.js',
+  './i18n/en.js',
+  './i18n/ru.js',
   './vendor/supabase-js.mjs',
   './manifest.json',
   './logo.png',
