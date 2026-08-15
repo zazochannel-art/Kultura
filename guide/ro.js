@@ -72,7 +72,7 @@ export default {
         {
           title: 'Aprobi înscrierile',
           where: 'Mașini → coloana „Înscrise"',
-          body: 'Fiecare card se deschide pentru detalii. Poți Aproba (devine mașină, cu zonă alocată), pune pe Așteptare, sau Respinge. Ai grijă la semnalizări: ⛔ înseamnă că placa e pe lista neagră, ⧉ că placa există deja în sistem.',
+          body: 'Fiecare card se deschide pentru detalii. Poți Aproba (devine mașină, cu zonă alocată), pune pe Așteptare, sau Respinge. Ai grijă la semnalizări: ⛔ înseamnă că placa e pe lista neagră, ⧉ că placa există deja în sistem. Semnalizarea de listă neagră rămâne pe mașină și după aprobare — o vezi pe card, în lista Mașini, și la poartă.',
         },
         {
           title: 'Printezi pass-urile',

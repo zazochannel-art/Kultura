@@ -78,6 +78,10 @@ Ai grijă la semnalizări:
 - ⛔ **Listă neagră** — placa e interzisă
 - ⧉ **Duplicat** — placa există deja
 
+Semnalizarea de listă neagră **rămâne pe mașină și după aprobare**: o vezi pe
+cardul din **Mașini**, în detaliul mașinii (cu motivul) și la poartă. Merge și
+fără internet.
+
 Poți **Aprobi** (devine mașină, cu zonă), pune pe **Așteptare**, sau **Respingi**.
 
 ### 7. Printează pass-urile

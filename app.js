@@ -20,7 +20,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v105';
+    const APP_VERSION = 'v106';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -3093,6 +3093,10 @@
             email: p.email, full_name: p.full_name, avatar_url: p.avatar_url,
             role: p.role, department: p.department, is_admin: p.is_admin
           })),
+          // The gate is both the place that most needs the blocklist and the
+          // place most likely to have no signal. Without this the warning is
+          // online-only, which is backwards.
+          blocklist: state.blocklist || [],
           ts: Date.now()
         }));
       } catch (_) {}
@@ -3105,6 +3109,10 @@
         if (Array.isArray(c.tasks)    && !(state.tasks || []).length)    state.tasks = c.tasks;
         if (Array.isArray(c.events)   && !(state.events || []).length)   state.events = c.events;
         if (Array.isArray(c.profiles) && !(state.profiles || []).length) state.profiles = c.profiles;
+        if (Array.isArray(c.blocklist) && !(state.blocklist || []).length) {
+          state.blocklist = c.blocklist;
+          rebuildBlockSet();
+        }
         return !!((state.cars || []).length || (state.tasks || []).length || (state.events || []).length);
       } catch (_) { return false; }
     }
@@ -5059,8 +5067,12 @@
       const carName = [car.brand, car.model].filter(Boolean).join(' ') || car.model;
       const isNewToday = car.created_at && new Date(car.created_at).toDateString() === new Date().toDateString();
       const photo = _carPhotos && _carPhotos[car.id];
+      // A blocked plate has to be obvious on the car itself, not only in the
+      // registration queue it came through — by the time it is an approved car
+      // nobody re-opens that queue.
+      const blockReason = plateBlocked(car.plate);
       return `
-          <div class="card car-row card-stripe stripe-${active || 'invitat'}${car.is_vip ? ' card-vip' : ''}${photo ? ' has-photo' : ''}" data-row-id="${car.id}" style="cursor:pointer; padding: 16px; margin-bottom: 0;${photo ? `--car-bg:url('${escape(photo)}');` : ''}">
+          <div class="card car-row card-stripe stripe-${active || 'invitat'}${car.is_vip ? ' card-vip' : ''}${photo ? ' has-photo' : ''}${blockReason !== null ? ' is-blocked' : ''}" data-row-id="${car.id}" style="cursor:pointer; padding: 16px; margin-bottom: 0;${photo ? `--car-bg:url('${escape(photo)}');` : ''}">
             <div style="display:flex; align-items:flex-start; gap:12px;">
               <div class="row-icon blue" style="flex-shrink:0;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
@@ -5070,6 +5082,7 @@
                   <span>${escape(carName)}</span>
                   ${car.is_vip ? '<span class="badge purple" style="font-size:8px; padding:2px 6px;">VIP</span>' : ''}
                   ${isNewToday ? `<span class="badge new-today">${escape(t('car.new_today'))}</span>` : ''}
+                  ${blockReason !== null ? `<span class="block-badge" title="${escape(blockReason || '')}">⛔ ${escape(t('block.badge'))}</span>` : ''}
                 </div>
                 <div class="row-sub" style="margin-top:2px;">
                   <span style="color: var(--blue); font-weight: 700;">${escape(car.owner || '—')}</span>
@@ -7058,7 +7071,7 @@
           const name = [r.brand, r.model].filter(Boolean).join(' ') || r.owner || '—';
           const hold = r.status === 'hold' ? `<span class="reg-hold-badge">${escape(t('reg.hold'))}</span>` : '';
           const blockReason = plateBlocked(r.plate);
-          const blockBadge = blockReason !== null ? `<span class="reg-block-badge" title="${escape(blockReason || '')}">⛔ ${escape(t('block.reg_badge'))}</span>` : '';
+          const blockBadge = blockReason !== null ? `<span class="block-badge" title="${escape(blockReason || '')}">⛔ ${escape(t('block.badge'))}</span>` : '';
           const dup = regDuplicate(r);
           const dupBadge = dup ? `<span class="reg-dup-badge" title="${escape(dup)}">⧉ ${escape(t('regdup.badge'))}</span>` : '';
           const pics = Array.isArray(r.photos) ? r.photos : [];
@@ -7099,7 +7112,7 @@
         const reason = plateBlocked(r.plate);
         const dup = regDuplicate(r);
         let html = '';
-        if (reason !== null) html += `<div class="reg-warn-block"><strong>⛔ ${escape(t('block.reg_warn'))}</strong>` + (reason ? `<span>${escape(reason)}</span>` : '') + `</div>`;
+        if (reason !== null) html += `<div class="block-warn"><strong>⛔ ${escape(t('block.warn'))}</strong>` + (reason ? `<span>${escape(reason)}</span>` : '') + `</div>`;
         if (dup) html += `<div class="reg-warn-dup"><strong>⧉ ${escape(t('regdup.warn'))}</strong><span>${escape(dup)}</span></div>`;
         warn.hidden = !html;
         warn.innerHTML = html;
@@ -8200,12 +8213,20 @@
 
       const title = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
       el('carDetailTitle').textContent = title;
+      const carBlockReason = plateBlocked(c.plate);
       const badges = [
         `<div class="badge ${statusToBadge(c.status)}">${escape(c.status ? localizeCarStatus(c.status) : '—')}</div>`,
         c.is_vip ? `<div class="badge purple">VIP</div>` : '',
-        c.category ? `<div class="badge blue">${escape(localizeDept(c.category))}</div>` : ''
+        c.category ? `<div class="badge blue">${escape(localizeDept(c.category))}</div>` : '',
+        carBlockReason !== null ? `<div class="badge red">⛔ ${escape(t('block.badge'))}</div>` : ''
       ].filter(Boolean).join(' ');
       el('carDetailBadges').innerHTML = badges;
+      // Spelled out in full at the top of the body too: the badge says *that*
+      // it is blocked, this says *why*.
+      const blockWarnHtml = carBlockReason !== null
+        ? `<div class="block-warn"><strong>⛔ ${escape(t('block.warn'))}</strong>`
+          + (carBlockReason ? `<span>${escape(carBlockReason)}</span>` : '') + `</div>`
+        : '';
 
       const photos = Array.isArray(c.photos) ? c.photos : [];
       const photosHtml = `
@@ -8224,6 +8245,7 @@
         <div class="detail-photo-status" id="carPhotoStatus"></div>`;
 
       el('carDetailBody').innerHTML = `
+        ${blockWarnHtml}
         <div class="detail-section">
           <div class="detail-section-title">${escape(t('car.detail.section_photos'))}</div>
           ${photosHtml}
