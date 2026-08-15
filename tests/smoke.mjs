@@ -432,6 +432,96 @@ try {
     await mctx.close();
   }
 
+  // 4f. Pending-registration cards. They sit beside the approved-car rows and
+  // are what a reviewer triages from, so they must carry enough to decide on
+  // without opening each one. Served from a mocked backend so the real
+  // renderer runs.
+  {
+    const rctx = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
+    const hr = 3600e3;
+    const pic = 'data:image/svg+xml;base64,' + Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="#334155"/></svg>').toString('base64');
+    const rows = {
+      car_registrations: [
+        { id: 11, brand: 'Volkswagen', model: 'Golf 5', owner: 'Andrei Toma', plate: 'CJ 12 ABC', city: 'Chișinău',
+          status: 'pending', created_at: new Date(Date.now() - 2 * hr).toISOString(), photos: [pic, pic, pic, pic, pic, pic] },
+        { id: 12, brand: 'BMW', model: 'M3', owner: 'Vasile Rusu', plate: 'b-100-xyz', city: 'Bălți',
+          status: 'pending', created_at: new Date(Date.now() - 26 * hr).toISOString(), photos: [] },
+        // Sparse on purpose: missing plate/city must not render as dashes.
+        { id: 13, brand: 'Mazda', model: 'RX-7', owner: 'Ion Iovu', plate: null, city: null,
+          status: 'pending', created_at: new Date(Date.now() - 10 * 60e3).toISOString(), photos: [] },
+      ],
+      plate_blocklist: [{ plate: 'B 100 XYZ', plate_norm: 'B100XYZ', reason: 'QA reason' }],
+      profiles: [{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }],
+      cars: [],
+    };
+    await rctx.route('**://*.supabase.co/**', (r) => {
+      const u = r.request().url();
+      if (r.request().method() !== 'GET' || !u.includes('/rest/v1/')) return r.abort();
+      const table = Object.keys(rows).find((k) => u.includes(`/rest/v1/${k}`));
+      return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows[table] || []) });
+    });
+    const rp = await rctx.newPage();
+    try {
+      await rp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await rp.evaluate(() => localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      })));
+      await rp.reload({ waitUntil: 'domcontentloaded' });
+      await rp.waitForSelector('#regQueue .reg-card', { state: 'attached', timeout: 12000 });
+      const q = await rp.evaluate(() => {
+        const first = document.querySelector('[data-reg-open="11"]');
+        const sparse = document.querySelector('[data-reg-open="13"]');
+        const blocked = document.querySelector('[data-reg-open="12"]');
+        const txt = (el, sel) => el?.querySelector(sel)?.textContent.trim() || '';
+        return {
+          count: document.querySelectorAll('#regQueue .reg-card').length,
+          hasIcon: !!first?.querySelector('.reg-card-icon'),
+          facts: txt(first, '.reg-card-facts'),
+          age: txt(first, '.reg-age'),
+          thumbs: first?.querySelectorAll('.reg-card-thumbs img').length || 0,
+          more: txt(first, '.reg-card-more'),
+          sparseFacts: txt(sparse, '.reg-card-facts'),
+          blockedFlagged: !!blocked?.classList.contains('is-blocked') && !!blocked?.querySelector('.block-badge'),
+          // No leftover decorative empty bar above the queue.
+          accent: document.querySelectorAll('.reg-accent').length,
+        };
+      });
+      check('reg-card-count', q.count === 3);
+      check('reg-card-has-icon', q.hasIcon);
+      check('reg-card-shows-owner-plate-city',
+        /Andrei Toma/.test(q.facts) && /CJ 12 ABC/.test(q.facts) && /Chișinău/.test(q.facts));
+      check('reg-card-shows-wait-time', /acum/.test(q.age));
+      check('reg-card-thumbs-capped', q.thumbs === 4 && q.more === '+2');
+      // A registration with no plate/city shows the owner alone, not placeholders.
+      check('reg-card-skips-missing-fields',
+        /Ion Iovu/.test(q.sparseFacts) && !/—/.test(q.sparseFacts));
+      check('reg-card-blocklist-flagged', q.blockedFlagged);
+      check('reg-no-empty-accent-bar', q.accent === 0);
+
+      // The approved column must not be squeezed two-up inside its half.
+      const cols = await rp.evaluate(() =>
+        getComputedStyle(document.querySelector('.cars-col-approved .page-grid-2') || document.body)
+          .gridTemplateColumns.split(' ').filter(Boolean).length);
+      check('cars-split-approved-single-column-when-narrow', cols === 1);
+    } catch (e) {
+      for (const n of ['reg-card-count', 'reg-card-has-icon', 'reg-card-shows-owner-plate-city',
+        'reg-card-shows-wait-time', 'reg-card-thumbs-capped', 'reg-card-skips-missing-fields',
+        'reg-card-blocklist-flagged', 'reg-no-empty-accent-bar',
+        'cars-split-approved-single-column-when-narrow']) {
+        if (!checks.some((c) => c.name === n)) check(n, false);
+      }
+      console.log(`reg card checks: ${e.message}`);
+    }
+    await rctx.close();
+  }
+
   // 5. Public pages (given out by QR at the event) must render standalone.
   // They talk to Supabase, which is unreachable here, so we only assert the
   // static shell renders and nothing throws before the network call.
