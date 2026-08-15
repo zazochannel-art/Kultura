@@ -19,7 +19,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v99';
+    const APP_VERSION = 'v100';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -2882,14 +2882,16 @@
     // one, so a plate zone edit + arrival collapse to a single sync.
     function enqueueAction(action) {
       const box = getOutbox();
-      if (action.type === 'car-update') {
-        const existing = box.find(a => a.type === 'car-update' && String(a.carId) === String(action.carId));
-        if (existing) {
-          existing.patch = { ...existing.patch, ...action.patch };
-          existing.ts = Date.now();
-        } else {
-          box.push({ id: 'a' + Date.now() + Math.random().toString(36).slice(2, 6), tries: 0, ts: Date.now(), ...action });
-        }
+      // Coalesce repeated edits to the same row so a flaky connection doesn't
+      // build up a queue of superseded patches.
+      const sameRow = (a) =>
+        (a.type === 'car-update' && action.type === 'car-update' && String(a.carId) === String(action.carId)) ||
+        (a.type === 'row-update' && action.type === 'row-update' &&
+         a.table === action.table && String(a.rowId) === String(action.rowId));
+      const existing = box.find(sameRow);
+      if (existing) {
+        existing.patch = { ...existing.patch, ...action.patch };
+        existing.ts = Date.now();
       } else {
         box.push({ id: 'a' + Date.now() + Math.random().toString(36).slice(2, 6), tries: 0, ts: Date.now(), ...action });
       }
@@ -2919,6 +2921,11 @@
         try {
           if (action.type === 'car-update') {
             const { error } = await supa.from('cars').update(action.patch).eq('id', action.carId);
+            if (error) throw error;
+          } else if (action.type === 'row-update') {
+            // Generic queued write for tables other than `cars` (VIP guests,
+            // tasks) so field actions survive a dead connection too.
+            const { error } = await supa.from(action.table).update(action.patch).eq('id', action.rowId);
             if (error) throw error;
           }
           // Success (or the row is gone) — drop it from the queue.
@@ -6343,21 +6350,20 @@
       const dm = document.getElementById('modal-vip-detail');
       if (openVipDetailId != null && dm?.classList.contains('show')) { try { showVipDetail(openVipDetailId); } catch (_) {} }
     }
-    async function toggleVipArrived(id) {
+    function toggleVipArrived(id) {
       const v = (state.vips || []).find(x => String(x.id) === String(id));
       if (!v) return;
       const arrived = !v.arrived;
-      const prev = { arrived: v.arrived, arrived_at: v.arrived_at };
       const patch = { arrived, arrived_at: arrived ? new Date().toISOString() : null };
       applyLocalVipPatch(id, patch); // optimistic
       if (arrived) { haptic(120); flashVipCard(id); try { auroraPulse(); } catch (_) {} }
-      const { error } = await supa.from('vip_guests').update(patch).eq('id', id);
-      if (error) {
-        applyLocalVipPatch(id, prev); // revert
-        showToast(t('common.error') + ': ' + error.message, 'error');
-        return;
-      }
-      showToast(arrived ? t('vip.toast_arrived', { name: vipFullName(v) }) : t('vip.toast_undo', { name: vipFullName(v) }));
+      // Queued like gate check-ins: marking a VIP as arrived is a field action
+      // and must not be lost when the venue's connection drops.
+      enqueueAction({ type: 'row-update', table: 'vip_guests', rowId: id, patch });
+      flushOutbox();
+      updateGateSyncUI();
+      const base = arrived ? t('vip.toast_arrived', { name: vipFullName(v) }) : t('vip.toast_undo', { name: vipFullName(v) });
+      showToast(navigator.onLine ? base : base + ' · ' + t('offline.queued'));
     }
     // Arrive toggle for a participant (car) shown in the VIP list. This is a
     // SEPARATE arrival state (vip_arrived) — it does NOT touch the gate status.
@@ -7331,6 +7337,17 @@
         cancelLabel: opts.cancelLabel || t('common.cancel'),
         danger: opts.danger !== false
       });
+    }
+
+    // Turn a failed write into a message the user can act on. Offline is by far
+    // the most common cause in the field, and "Failed to fetch" tells nobody
+    // that the edit simply needs retrying once there's signal.
+    function writeErrorText(error) {
+      const raw = (error && error.message) || String(error || '');
+      if (!navigator.onLine || /Failed to fetch|NetworkError|Load failed/i.test(raw)) {
+        return t('offline.write_failed');
+      }
+      return t('common.error') + ': ' + raw;
     }
 
     function showToast(msg, kind = 'ok') {
@@ -8880,7 +8897,11 @@
         patch.started_at = new Date().toISOString();
       }
       const { error } = await supa.from('tasks').update(patch).eq('id', taskId);
-      if (error) { uiAlert(t('common.error') + ': ' + error.message); return false; }
+      // Deliberately not queued offline: claiming/completing a task has conflict
+      // semantics (two people can grab the same one), so replaying a stale
+      // change later could silently produce the wrong outcome. Fail loudly and
+      // let the user retry when there is signal.
+      if (error) { uiAlert(writeErrorText(error)); return false; }
       showToast(t('kanban.moved'));
       return true;
     }
