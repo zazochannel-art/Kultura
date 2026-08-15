@@ -9,7 +9,7 @@
   <style>
     :root{
       --bg:#07080d; --surface:#14182b; --border:rgba(255,255,255,0.12);
-      --text:#f8fafc; --text-dim:#94a3b8; --text-mute:#7d8aa0;
+      --brand:#f8589c; --text:#f8fafc; --text-dim:#94a3b8; --text-mute:#7d8aa0;
       --blue:#3b82f6; --cyan:#06b6d4; --purple:#8b5cf6; --green:#10b981; --red:#ef4444;
       --fill:rgba(255,255,255,0.03);
     }
@@ -80,6 +80,21 @@
     .field-note.show{display:block}
     .field-note.warn{color:#f59e0b}
     .field-note.err{color:var(--red)}
+    /* Section headers break the form into three short, obvious steps instead of
+       one intimidating wall of inputs. */
+    .sec{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:800;letter-spacing:.06em;
+      text-transform:uppercase;color:var(--text-dim);margin:26px 0 4px;padding-top:18px;border-top:1px solid var(--border)}
+    .sec:first-of-type{margin-top:8px;padding-top:0;border-top:0}
+    .sec-n{flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+      background:var(--brand);color:#1a0410;font-size:12px;font-weight:900;letter-spacing:0}
+    .sec-hint{font-size:12.5px;color:var(--text-dim);margin:2px 0 10px}
+    .more-toggle{width:100%;margin-top:24px;padding:13px 16px;border-radius:12px;cursor:pointer;
+      background:transparent;border:1px dashed var(--border);color:var(--text-dim);
+      font-family:inherit;font-size:14px;font-weight:700;
+      display:flex;align-items:center;justify-content:center;gap:8px}
+    .more-toggle .chev{width:16px;height:16px;transition:transform .18s ease}
+    .more-toggle[aria-expanded="true"] .chev{transform:rotate(180deg)}
+    .photo-add span{font-size:11px;text-align:center;line-height:1.25}
   </style>
 </head>
 <body>
@@ -94,6 +109,7 @@
           <label>Website</label>
           <input type="text" name="company_website" tabindex="-1" autocomplete="off">
         </div>
+        <div class="sec"><span class="sec-n">1</span> Mașina</div>
         <div class="row">
           <div><label>Marcă <span class="req">*</span></label><input name="brand" required placeholder="BMW"></div>
           <div><label>Model <span class="req">*</span></label><input name="model" required placeholder="M4"></div>
@@ -102,6 +118,8 @@
           <div><label>Număr de înmatriculare</label><input name="plate" placeholder="B 100 XYZ"><div class="field-note" id="plateNote"></div></div>
           <div><label>An fabricație</label><input name="year" inputmode="numeric" maxlength="4" placeholder="2018"></div>
         </div>
+
+        <div class="sec"><span class="sec-n">2</span> Contact</div>
         <div class="row">
           <div><label>Nume proprietar <span class="req">*</span></label><input name="owner" required placeholder="Ion Popescu"></div>
           <div><label>Oraș</label><input name="city" placeholder="București"></div>
@@ -111,26 +129,40 @@
           <select id="dial" aria-label="Cod țară"></select>
           <input name="phone" required type="tel" inputmode="tel" placeholder="6X XXX XXX">
         </div>
-        <div class="row">
-          <div><label>Telegram</label><input name="telegram" placeholder="@username"></div>
-          <div><label>Email</label><input name="email" type="email" placeholder="exemplu@mail.ro"></div>
-        </div>
-        <label>Modificări / detalii tehnice</label>
-        <textarea name="modifications" rows="3" placeholder="Ex: kit body, jante 19&quot;, evacuare sport, remapare..."></textarea>
-        <label>Rețele sociale (Instagram etc.)</label>
-        <input name="social_links" placeholder="instagram.com/... / @cont">
-        <label>Transport</label>
-        <input name="transport_info" placeholder="Pe roți / platformă / remorcă">
-        <label>Observații</label>
-        <textarea name="note" rows="2" placeholder="Cerințe speciale..."></textarea>
-        <label>Poze cu mașina</label>
+
+        <!-- Photos come before the optional details: they are the most valuable
+             thing a participant can give us (catalogue, arrivals wall, voting),
+             so they must not sit at the bottom looking like a footnote. -->
+        <div class="sec"><span class="sec-n">3</span> Poze cu mașina</div>
+        <p class="sec-hint">Cele mai bune înscrieri au poze. Apar în catalog și pe ecranul de la eveniment.</p>
         <div id="photoGrid" class="photo-grid">
           <button type="button" id="photoAdd" class="photo-add" aria-label="Adaugă poze">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span>Adaugă</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.2"/><path d="M8 5l1.5-2h5L16 5"/></svg>
+            <span>Adaugă poze</span>
           </button>
         </div>
         <input id="photoInput" type="file" accept="image/*" multiple style="display:none">
+
+        <!-- Everything below is optional; collapsed so the form reads as short. -->
+        <button type="button" class="more-toggle" id="moreToggle" aria-expanded="false" aria-controls="moreFields">
+          <span>Adaugă detalii (opțional)</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div id="moreFields" hidden>
+          <div class="row">
+            <div><label>Telegram</label><input name="telegram" placeholder="@username"></div>
+            <div><label>Email</label><input name="email" type="email" placeholder="exemplu@mail.ro"></div>
+          </div>
+          <label>Modificări / detalii tehnice</label>
+          <textarea name="modifications" rows="3" placeholder="Ex: kit body, jante 19&quot;, evacuare sport, remapare..."></textarea>
+          <label>Rețele sociale (Instagram etc.)</label>
+          <input name="social_links" placeholder="instagram.com/... / @cont">
+          <label>Transport</label>
+          <input name="transport_info" placeholder="Pe roți / platformă / remorcă">
+          <label>Observații</label>
+          <textarea name="note" rows="2" placeholder="Cerințe speciale..."></textarea>
+        </div>
+
         <button type="submit" class="submit" id="submitBtn">Trimite înscrierea</button>
         <div class="msg" id="msg"></div>
       </form>
@@ -286,6 +318,16 @@
     }
     plateInput.addEventListener('blur', checkPlate);
     plateInput.addEventListener('input', () => { plateNote.className = 'field-note'; });
+
+    // Optional fields stay collapsed so the form reads as short. They're only
+    // hidden, never removed, so their values still submit if filled.
+    const moreToggle = document.getElementById('moreToggle');
+    const moreFields = document.getElementById('moreFields');
+    moreToggle.addEventListener('click', () => {
+      const open = moreToggle.getAttribute('aria-expanded') === 'true';
+      moreToggle.setAttribute('aria-expanded', String(!open));
+      moreFields.hidden = open;
+    });
 
     // Anti-spam: when the form first became interactive (bots submit instantly).
     const _formReadyAt = Date.now();

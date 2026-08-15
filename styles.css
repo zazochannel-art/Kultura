@@ -12,6 +12,9 @@
       --blue: #3b82f6;
       --cyan: #06b6d4;
       --purple: #8b5cf6;
+      /* Brand accent sampled from the logo (#f8589c). The UI used to be all
+         blue/purple/cyan, so the logo read as if it belonged to another app. */
+      --brand: #f8589c;
       --pink: #ec4899;
       --green: #10b981;
       --red: #ef4444;
@@ -328,8 +331,8 @@
     .tab:hover { color: var(--text); }
     .tab.active {
       color: #fff;
-      background: linear-gradient(90deg, var(--blue), var(--purple));
-      box-shadow: 0 6px 18px rgba(139,92,246,0.35);
+      background: linear-gradient(90deg, var(--purple), var(--brand));
+      box-shadow: 0 6px 18px rgba(248,88,156,0.32);
     }
     .tab svg { width: 16px; height: 16px; }
 
@@ -1535,7 +1538,7 @@
 
       .mtab.active {
         color: #fff;
-        background: linear-gradient(120deg, var(--accent, var(--blue)), var(--accent-2, var(--purple)));
+        background: linear-gradient(120deg, var(--accent, var(--purple)), var(--accent-2, var(--brand)));
         box-shadow:
           0 8px 22px var(--accent-glow, rgba(99, 102, 241, 0.45)),
           inset 0 1px 0 rgba(255, 255, 255, 0.25);
@@ -1867,6 +1870,7 @@
 
 /* ============ LIGHT THEME ============ */
 :root[data-theme="light"] {
+  --brand: #db2777;
   --bg: #eef1f7;
   --surface: rgba(255,255,255,0.78);
   --surface-solid: #ffffff;
@@ -4076,3 +4080,12 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
    --blue only managed ~3.7:1, below the 4.5 minimum for text this size. */
 .lang-btn { color: var(--text-dim); background: transparent; }
 .lang-btn.active { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
+
+/* ---- Login: brand mark ----
+   Every public page leads with the logo; the login screen opened on a bare
+   "Bun venit", so the team's first impression had no brand on it. */
+.login-logo { display: flex; justify-content: center; margin-bottom: 18px; }
+.login-logo img {
+  width: clamp(130px, 42%, 180px); height: auto;
+  filter: drop-shadow(0 6px 20px rgba(248, 88, 156, 0.30));
+}

@@ -9,7 +9,7 @@
   <style>
     :root{
       --bg:#07080d; --surface:#14182b; --border:rgba(255,255,255,0.12);
-      --text:#f8fafc; --text-dim:#94a3b8; --text-mute:#7d8aa0;
+      --brand:#f8589c; --text:#f8fafc; --text-dim:#94a3b8; --text-mute:#7d8aa0;
       --blue:#3b82f6; --purple:#8b5cf6; --green:#10b981; --red:#ef4444; --gold:#f5c542;
       --fill:rgba(255,255,255,0.03);
     }
@@ -28,9 +28,19 @@
     .card{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:28px 22px;box-shadow:0 24px 60px rgba(0,0,0,.4)}
     h1{font-size:22px;font-weight:900;text-align:center;letter-spacing:-.02em}
     .sub{text-align:center;color:var(--text-dim);font-size:14px;margin:4px 0 20px}
-    .stars{display:flex;justify-content:center;gap:8px;margin:6px 0 18px}
-    .star{font-size:40px;cursor:pointer;filter:grayscale(1);opacity:.4;transition:transform .1s ease,opacity .1s ease}
-    .star.on{filter:none;opacity:1;transform:scale(1.06)}
+    /* Stars must read as a control, not decoration. Greyed-out at 40% opacity
+       (the previous look) made the page's primary action look disabled. */
+    .stars{display:flex;justify-content:center;gap:10px;margin:6px 0 18px}
+    .star{
+      font-size:40px;line-height:1;cursor:pointer;background:none;border:0;padding:2px;
+      color:transparent;-webkit-text-stroke:2px var(--gold);
+      transition:transform .12s ease,color .12s ease;
+    }
+    .star:hover,.star:focus-visible{transform:scale(1.12);outline:none}
+    .star.on{color:var(--gold);-webkit-text-stroke:2px var(--gold);transform:scale(1.06)}
+    .stars:hover .star{opacity:.55}
+    .stars .star:hover,.stars:hover .star.on{opacity:1}
+    .star-hint{text-align:center;font-size:12.5px;color:var(--text-mute);margin:-8px 0 14px;min-height:18px}
     label{display:block;font-size:13px;font-weight:600;color:var(--text-dim);margin:12px 0 6px}
     textarea,input{width:100%;background:var(--fill);border:1px solid var(--border);border-radius:12px;
       padding:12px 14px;color:var(--text);font-family:inherit;font-size:16px;outline:none}
@@ -54,11 +64,10 @@
       <div id="form">
         <h1>Cum ți s-a părut?</h1>
         <div class="sub" id="evName">Lasă-ne părerea ta despre eveniment</div>
-        <div class="stars" id="stars">
-          <span class="star" data-v="1">★</span><span class="star" data-v="2">★</span>
-          <span class="star" data-v="3">★</span><span class="star" data-v="4">★</span>
-          <span class="star" data-v="5">★</span>
+        <div class="stars" id="stars" role="radiogroup" aria-label="Notă">
+          <button type="button" class="star" data-v="1" aria-label="1 stea">★</button><button type="button" class="star" data-v="2" aria-label="2 stele">★</button><button type="button" class="star" data-v="3" aria-label="3 stele">★</button><button type="button" class="star" data-v="4" aria-label="4 stele">★</button><button type="button" class="star" data-v="5" aria-label="5 stele">★</button>
         </div>
+        <div class="star-hint" id="starHint">Atinge o stea</div>
         <div class="hp" aria-hidden="true"><label>Website</label><input type="text" id="hp" tabindex="-1" autocomplete="off"></div>
         <label>Comentariu (opțional)</label>
         <textarea id="comment" rows="4" placeholder="Ce ți-a plăcut? Ce am putea îmbunătăți?"></textarea>
@@ -85,10 +94,13 @@
     const starsEl = document.getElementById('stars');
     const msg = document.getElementById('msg');
     const showMsg = (t, k) => { msg.textContent = t; msg.className = 'msg ' + k; };
+    const STAR_WORDS = ['', 'Slab', 'Așa și așa', 'Bine', 'Foarte bine', 'Excelent!'];
+    const starHint = document.getElementById('starHint');
     starsEl.addEventListener('click', (e) => {
       const s = e.target.closest('.star'); if (!s) return;
       rating = parseInt(s.dataset.v, 10);
       [...starsEl.children].forEach(x => x.classList.toggle('on', parseInt(x.dataset.v, 10) <= rating));
+      starHint.textContent = STAR_WORDS[rating] || '';
     });
 
     // Pull the current event name/id (reuses the public event-info function).

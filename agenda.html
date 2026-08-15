@@ -9,7 +9,7 @@
   <style>
     :root{
       --bg:#07080d; --surface:#14182b; --border:rgba(255,255,255,0.12);
-      --text:#f8fafc; --text-dim:#94a3b8; --text-mute:#7d8aa0;
+      --brand:#f8589c; --text:#f8fafc; --text-dim:#94a3b8; --text-mute:#7d8aa0;
       --blue:#3b82f6; --cyan:#06b6d4; --purple:#8b5cf6; --green:#10b981;
       --fill:rgba(255,255,255,0.03);
     }
@@ -43,12 +43,22 @@
     .now-badge{font-size:10px;font-weight:800;color:#04120b;background:var(--green);border-radius:999px;padding:1px 7px;margin-left:6px;text-transform:uppercase}
     .msg{text-align:center;color:var(--text-dim);padding:60px 20px;font-size:15px}
     .foot{text-align:center;color:var(--text-mute);font-size:12px;margin-top:26px}
+    /* Empty/error states are centred in the remaining space so they read as
+       intentional rather than as a page that failed to finish loading. */
+    .state{display:flex;flex-direction:column;align-items:center;justify-content:center;
+      text-align:center;gap:12px;min-height:52vh;padding:24px 12px}
+    .state .ic{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;
+      background:var(--fill);border:1px solid var(--border);font-size:26px}
+    .state p{color:var(--text-dim);font-size:15px;margin:0;max-width:32ch}
+    .retry{margin-top:2px;padding:11px 22px;border-radius:999px;cursor:pointer;font-family:inherit;
+      font-size:14px;font-weight:800;color:#1a0410;border:0;background:var(--brand)}
+    .retry:active{transform:scale(.97)}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="brand"><img src="logo.png" alt="Kultura"></div>
-    <div id="content"><div class="msg">Se încarcă programul…</div></div>
+    <div id="content"><div class="state"><div class="ic">⏳</div><p>Se încarcă programul…</p></div></div>
     <p class="foot">© 2026 Kultura</p>
   </div>
 
@@ -60,8 +70,20 @@
     const content = document.getElementById('content');
     const nowHHMM = () => { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 
+    // Centred state with an actual retry button (see vote.html for rationale).
+    function showState(icon, text, retry) {
+      content.innerHTML = `<div class="state">
+          <div class="ic">${icon}</div>
+          <p>${esc(text)}</p>
+          ${retry ? '<button type="button" class="retry" id="retryBtn">Încearcă din nou</button>' : ''}
+        </div>`;
+      if (retry) document.getElementById('retryBtn').addEventListener('click', () => {
+        showState('⏳', 'Se încarcă…', false); load();
+      });
+    }
+
     function render(d) {
-      if (!d.event) { content.innerHTML = `<div class="msg">Programul nu este disponibil momentan.</div>`; return; }
+      if (!d.event) { showState('📅', 'Programul nu este disponibil momentan.', false); return; }
       const ev = d.event, ag = d.agenda || [];
       const cover = ev.cover_url ? `<img class="cover" src="${esc(ev.cover_url)}" alt="">` : '';
       const meta = [ev.date, ev.location].filter(Boolean).map(esc).join(' · ');
@@ -75,7 +97,7 @@
             <div class="ttl">${esc(a.title || '')}</div>
             ${a.notes ? `<div class="notes">${esc(a.notes)}</div>` : ''}
           </div>`;
-      }).join('') : `<div class="msg">Programul va fi anunțat în curând.</div>`;
+      }).join('') : `<div class="state"><div class="ic">📅</div><p>Programul va fi anunțat în curând.</p></div>`;
       content.innerHTML = `${cover}<h1>${esc(ev.title || 'Program')}</h1>
         ${meta ? `<div class="meta">${meta}</div>` : '<div style="height:12px"></div>'}
         ${ag.length ? `<div class="timeline">${items}</div>` : items}`;
@@ -84,7 +106,7 @@
       try {
         const r = await fetch(FN, { headers: HEAD });
         render(await r.json());
-      } catch (_) { content.innerHTML = `<div class="msg">Eroare de conexiune. Încearcă din nou.</div>`; }
+      } catch (_) { showState('📡', 'Nu am putut încărca programul. Verifică conexiunea.', true); }
     }
     load();
     setInterval(load, 60000); // refresh so the "now" marker advances
