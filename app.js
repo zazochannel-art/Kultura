@@ -20,7 +20,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v107';
+    const APP_VERSION = 'v108';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -7061,9 +7061,12 @@
       const regs = all.filter(r => r.status === _regFilter);
       const tab = (key, label, n) =>
         `<button type="button" class="chip${_regFilter === key ? ' active' : ''}" data-reg-filter="${key}">${escape(label)} <span class="count">· ${n}</span></button>`;
-      // Compact card: brand + model + photo thumbnails. Tap to open the full
-      // detail (all fields + zone assignment + approve/hold/reject).
+      // Card built to read like the approved-car rows next to it: same shell,
+      // same icon, same owner · plate · city line. It used to be a bare title
+      // strip, which made the two columns look like different apps and left
+      // the reviewer with nothing to triage on without opening each one.
       const chev = '<svg class="reg-card-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+      const carIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>';
       box.innerHTML =
         `<div class="chips reg-chips">${tab('pending', t('reg.tab_new'), nNew)}${tab('hold', t('reg.tab_hold'), nHold)}</div>` +
         (regs.length ? '' : `<div class="reg-empty">${escape(t('reg.tab_empty'))}</div>`) +
@@ -7075,15 +7078,33 @@
           const dup = regDuplicate(r);
           const dupBadge = dup ? `<span class="reg-dup-badge" title="${escape(dup)}">⧉ ${escape(t('regdup.badge'))}</span>` : '';
           const pics = Array.isArray(r.photos) ? r.photos : [];
-          const shown = pics.slice(0, 3);
+          const shown = pics.slice(0, 4);
           const extra = pics.length - shown.length;
           const thumbs = pics.length
-            ? `<div class="reg-card-thumbs">${shown.map(u => `<img src="${escape(u)}" alt="" loading="lazy">`).join('')}${extra > 0 ? `<div class="reg-card-more">+${extra}</div>` : ''}</div>`
+            ? `<div class="reg-card-thumbs">${shown.map(u => `<img src="${escape(u)}" alt="" loading="lazy" decoding="async">`).join('')}${extra > 0 ? `<div class="reg-card-more">+${extra}</div>` : ''}</div>`
             : '';
-          return `<div class="reg-card${r.status === 'hold' ? ' is-hold' : ''}${blockReason !== null ? ' is-blocked' : ''}" data-reg-open="${r.id}" role="button" tabindex="0">
-              <div class="reg-card-brand">${escape(name)}${hold}${blockBadge}${dupBadge}</div>
+          // owner · plate · city — the three things you actually decide on.
+          // Missing values are dropped rather than shown as dashes, so a sparse
+          // registration doesn't render as a row of placeholders.
+          const facts = [
+            r.owner ? `<span class="reg-owner">${escape(r.owner)}</span>` : '',
+            r.plate ? `<span>${escape(r.plate)}</span>` : '',
+            r.city ? `<span class="reg-city">${escape(r.city)}</span>` : '',
+          ].filter(Boolean).join('<span class="sep"></span>');
+          // How long this one has been waiting — the reviewer's queue order.
+          const waited = r.created_at ? `<span class="reg-age">${escape(fmtRelative(r.created_at))}</span>` : '';
+          const badges = [hold, blockBadge, dupBadge].filter(Boolean).join('');
+          return `<div class="card reg-card card-stripe${r.status === 'hold' ? ' is-hold' : ''}${blockReason !== null ? ' is-blocked' : ''}" data-reg-open="${r.id}" role="button" tabindex="0">
+              <div class="reg-card-main">
+                <div class="row-icon orange reg-card-icon">${carIcon}</div>
+                <div class="reg-card-text">
+                  <div class="reg-card-brand">${escape(name)}${badges}</div>
+                  <div class="reg-card-facts">${facts}</div>
+                  ${waited}
+                </div>
+                ${chev}
+              </div>
               ${thumbs}
-              ${chev}
             </div>`;
         }).join('');
     }

@@ -3815,9 +3815,6 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .reg-note { font-size: 12px; color: var(--text-mute); margin-top: 3px; }
 .reg-thumbs { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
 .reg-thumbs img { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; }
-.reg-card { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); cursor: pointer; }
-.reg-card:first-of-type { border-top: none; }
-.reg-card-brand { font-size: 15px; font-weight: 700; color: var(--text); flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 /* Cars page: split into „Înscrise” | „Aprobate” when there are registrations. */
 .cars-split { display: grid; grid-template-columns: 1fr; gap: 18px; align-items: start; }
 .cars-split.has-reg { grid-template-columns: 1fr 1fr; }
@@ -3827,24 +3824,17 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .cars-split.has-reg .cars-col-title { display: block; }
 @media (max-width: 760px) { .cars-split.has-reg { grid-template-columns: 1fr; } }
 
-.reg-accent { height: 10px; border-radius: 999px; margin: 0 0 12px; background: rgba(245,158,11,.14); border: 1px solid rgba(245,158,11,.32); }
 .reg-chips { margin: 6px 0 10px; }
 .reg-empty { text-align: center; color: var(--text-mute); font-size: 13px; padding: 16px 0; }
-.reg-card.is-hold { opacity: .82; }
 .reg-hold-badge { font-size: 11px; font-weight: 800; letter-spacing: .02em; color: var(--orange); background: rgba(245,158,11,.16); border-radius: 999px; padding: 2px 8px; text-transform: uppercase; }
 .block-badge { font-size: 11px; font-weight: 800; letter-spacing: .02em; color: #ef4444; background: rgba(239,68,68,.16); border-radius: 999px; padding: 2px 8px; text-transform: uppercase; white-space: nowrap; }
 .reg-dup-badge { font-size: 11px; font-weight: 800; letter-spacing: .02em; color: #f59e0b; background: rgba(245,158,11,.16); border-radius: 999px; padding: 2px 8px; text-transform: uppercase; }
 .reg-warn-dup { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 10px; padding: 10px 12px; border-radius: 12px; background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.35); color: #f59e0b; font-size: 13px; }
 .reg-warn-dup strong { font-size: 14px; }
 .reg-warn-dup span { color: var(--text); opacity: .85; }
-.reg-card.is-blocked { background: rgba(239,68,68,.05); }
 .block-warn { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 10px; padding: 10px 12px; border-radius: 12px; background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.35); color: #ef4444; font-size: 13px; }
 .block-warn strong { font-size: 14px; }
 .block-warn span { color: var(--text); opacity: .85; }
-.reg-card-thumbs { display: flex; gap: 6px; margin-left: auto; }
-.reg-card-thumbs img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
-.reg-card-more { width: 44px; height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--fill); display: grid; place-items: center; font-size: 12px; color: var(--text-dim); }
-.reg-card-chev { flex: 0 0 auto; color: var(--text-mute); }
 .reg-detail-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 4px 0 14px; }
 .reg-detail-photos img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); cursor: pointer; }
 .reg-detail-info { display: flex; flex-direction: column; gap: 8px; }
@@ -4305,4 +4295,73 @@ html {
   textarea {
     font-size: 16px !important;
   }
+}
+
+/* ===== Pending registration cards ("Înscrise") =====
+   These sit directly beside the approved-car rows, so they use the same card
+   shell, the same icon size and the same owner · plate · city line. They used
+   to be a bare title strip with a chevron, which read as a different app and
+   forced the reviewer to open every one to learn anything about it. */
+.reg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: transform .16s ease, border-color .16s ease;
+}
+/* Amber down the edge = waiting on a decision, echoing the column heading. */
+.reg-card::before { background: linear-gradient(180deg, #f59e0b, #f97316); }
+.reg-card.is-blocked::before { background: linear-gradient(180deg, #ef4444, #dc2626); }
+.reg-card:hover { transform: translateY(-2px); border-color: var(--border-strong); }
+.reg-card:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+.reg-card-main { display: flex; align-items: flex-start; gap: 12px; }
+.reg-card-text { flex: 1; min-width: 0; }
+.reg-card-brand {
+  font-size: 15px; font-weight: 700; color: var(--text);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.reg-card-facts {
+  color: var(--text-dim); font-size: 13px; margin-top: 4px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.reg-card-facts .sep { width: 3px; height: 3px; border-radius: 50%; background: var(--text-mute); flex: 0 0 auto; }
+.reg-card-facts .reg-owner { color: var(--blue); font-weight: 700; }
+.reg-card-facts .reg-city { color: var(--purple); opacity: .9; }
+/* How long it has been waiting — the queue order, at a glance. */
+.reg-age { display: block; margin-top: 4px; font-size: 12px; color: var(--text-mute); }
+.reg-card-chev { flex: 0 0 auto; color: var(--text-mute); align-self: center; }
+
+/* Photos are how you actually judge a car, so give them a full row rather
+   than squeezing them against the title. */
+.reg-card-thumbs { display: flex; gap: 6px; flex-wrap: wrap; }
+.reg-card-thumbs img {
+  width: 56px; height: 56px; object-fit: cover;
+  border-radius: 10px; border: 1px solid var(--border);
+}
+.reg-card-more {
+  width: 56px; height: 56px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--fill-2); display: grid; place-items: center;
+  font-size: 12px; font-weight: 700; color: var(--text-dim);
+}
+
+/* On hold: dimmed, but not so far that the badge stops being legible. */
+.reg-card.is-hold { opacity: .88; }
+.reg-card.is-hold::before { background: linear-gradient(180deg, #71717a, #52525b); }
+.reg-card.is-blocked { background: rgba(239,68,68,.05); border-color: rgba(239,68,68,.35); }
+
+@media (max-width: 480px) {
+  .reg-card-thumbs img, .reg-card-more { width: 48px; height: 48px; }
+}
+
+/* When the Cars page splits into „Înscrise” | „Aprobate”, each column is only
+   half the page — but the 700px breakpoint on .page-grid-2 measures the
+   viewport, not the column. Between roughly 1000px and 1460px that laid the
+   approved cards out two-up inside a ~470px column: titles wrapped onto three
+   lines and the action buttons overflowed the card. Stay stacked until each
+   half is genuinely past that 700px. */
+@media (max-width: 1459px) {
+  .cars-split.has-reg .cars-col-approved .page-grid-2 { grid-template-columns: 1fr; }
 }

@@ -91,8 +91,12 @@ test('fmtRelative bucketises recent timestamps', () => {
   assert.match(fmtRelative(new Date(now - 5 * 60 * 1000).toISOString()), /^acum 5 min$/);
   assert.match(fmtRelative(new Date(now - 3 * 3600 * 1000).toISOString()), /^acum 3 h$/);
   assert.equal(fmtRelative(''), '');
-  // Anything older than a day falls through to an absolute date.
-  const old = new Date(now - 5 * 86400 * 1000).toISOString();
+  // Days stay relative for a week — "acum 3 zile" reads better than a full
+  // timestamp, and it is what makes a queue sortable by eye.
+  assert.equal(fmtRelative(new Date(now - 26 * 3600 * 1000).toISOString()), 'acum o zi');
+  assert.equal(fmtRelative(new Date(now - 3 * 86400 * 1000).toISOString()), 'acum 3 zile');
+  // Past a week it falls through to an absolute date.
+  const old = new Date(now - 9 * 86400 * 1000).toISOString();
   assert.equal(fmtRelative(old), fmtDateTime(old));
 });
 

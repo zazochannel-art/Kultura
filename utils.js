@@ -100,6 +100,14 @@ export function fmtRelative(v) {
   if (diff < 60) return 'acum câteva secunde';
   if (diff < 3600) return `acum ${Math.floor(diff / 60)} min`;
   if (diff < 86400) return `acum ${Math.floor(diff / 3600)} h`;
+  // Days, up to a week. Without this the line jumped straight from "acum 23 h"
+  // to a full "14 august 2026 la 17:45", which is far too heavy for a meta
+  // line — and useless for judging queue order at a glance.
+  // Capped at 7 so the count never reaches 20, where Romanian would need "de".
+  if (diff < 7 * 86400) {
+    const d = Math.floor(diff / 86400);
+    return d === 1 ? 'acum o zi' : `acum ${d} zile`;
+  }
   return fmtDateTime(v);
 }
 
