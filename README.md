@@ -49,8 +49,14 @@ for f in $(git ls-files '*.js' '*.mjs' | grep -v '^vendor/'); do node --check "$
 
 node scripts/check-i18n.mjs      # simetrie ro/en/ru
 node --test tests/unit.mjs       # teste unitare (fără dependențe)
-node tests/smoke.mjs             # necesită playwright + chromium
+node tests/smoke.mjs             # necesită playwright (+ axe-core pentru accesibilitate)
 ```
+
+Smoke-testul rulează **ermetic**: taie toate cererile către `*.supabase.co`, ca
+rezultatul să nu depindă de accesibilitatea backend-ului și ca testele să nu
+lovească producția. Include și o verificare de accesibilitate (WCAG 2 A/AA, prin
+axe-core) pe toate paginile livrate; dacă `axe-core` nu e instalat, partea aia
+se sare.
 
 CI pică și dacă modifici asset-uri livrate **fără să bumpezi versiunea service
 worker-ului** (`CACHE` din `sw.js`) — altfel utilizatorii rămân cu aplicația
@@ -206,6 +212,13 @@ client.
    oprește dacă uiți.
 6. **`i18n.js` trebuie să rămână simetric** pe ro/en/ru, inclusiv
    `{placeholder}`-ele. Garda din CI verifică.
+7. **Nu pune `user-scalable=no` înapoi în viewport.** Blochează pinch-zoom-ul,
+   ceea ce e o problemă reală de accesibilitate. Inputurile sunt la 16px tocmai
+   ca iOS să nu mai facă zoom automat la focus — dacă le micșorezi sub 16px,
+   reapare motivul pentru care fusese pus.
+8. **Evită stilurile inline din JS pentru stări vizuale.** Butoanele de limbă au
+   avut ani la rând contrast insuficient exact pentru că stilul inline din JS
+   bătea foaia de stil și nimeni nu se uita acolo.
 
 ## Rămas de făcut manual
 

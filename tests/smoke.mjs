@@ -11,7 +11,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -181,6 +181,32 @@ try {
     check(`public:${name}-no-errors`, real.length === 0);
     if (real.length) console.log(`${name}.html errors:`, real);
     await p.close();
+  }
+
+  // 5b. Accessibility (WCAG 2 A/AA) on every page we ship. Skipped when
+  // axe-core isn't installed, so the suite still runs without it.
+  const axePath = resolve(ROOT, 'node_modules/axe-core/axe.min.js');
+  if (existsSync(axePath)) {
+    const axeSrc = readFileSync(axePath, 'utf8');
+    for (const name of ['index', 'register', 'vote', 'agenda', 'feedback']) {
+      const p = await ctx.newPage();
+      try {
+        await p.goto(`${BASE}/${name}.html`, { waitUntil: 'domcontentloaded' });
+        await p.waitForTimeout(700);
+        await p.addScriptTag({ content: axeSrc });
+        const res = await p.evaluate(async () =>
+          await window.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] } }));
+        const v = res.violations.filter((x) => x.nodes.length);
+        check(`a11y:${name}`, v.length === 0);
+        for (const x of v) console.log(`  a11y ${name}: [${x.impact}] ${x.id} — ${x.help} (${x.nodes[0].target.join(' ')})`);
+      } catch (e) {
+        check(`a11y:${name}`, false);
+        console.log(`  a11y ${name}: ${e.message}`);
+      }
+      await p.close();
+    }
+  } else {
+    console.log('axe-core not installed — skipping accessibility checks');
   }
 
   // 6. No uncaught JS errors during the run (ignore network/auth noise)

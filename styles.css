@@ -4013,7 +4013,6 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .backup-item-txt span, .gdpr-item-txt span { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gdpr-item-txt strong { font-size: 14px; font-family: monospace; }
 .gdpr-item-txt .gdpr-src { font-size: 11px; color: var(--text-mute); }
-.btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text-dim); }
 .activity-list { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; max-height: 340px; overflow-y: auto; }
 .activity-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--fill); }
 .activity-ic { flex: 0 0 auto; font-size: 15px; line-height: 1.4; }
@@ -4062,3 +4061,18 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .wp-name { font-size: clamp(12px, 1.5vw, 16px); font-weight: 800; text-align: center;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .wp-votes { font-size: clamp(12px, 1.4vw, 15px); font-weight: 900; color: #f5c542; }
+
+/* ---- Rate-limit health (admin) ---- */
+.rl-stats { margin-top: 10px; }
+.rl-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--text-dim); margin-bottom: 6px; }
+.rl-row { display: flex; justify-content: space-between; gap: 10px; padding: 5px 9px; border-radius: 8px; background: var(--fill); font-size: 12px; margin-bottom: 4px; }
+.rl-row.warn { background: rgba(245,158,11,.14); color: var(--orange, #f59e0b); }
+.rl-b { font-weight: 700; }
+.rl-n { font-variant-numeric: tabular-nums; }
+.rl-hint { font-size: 11px; color: var(--text-mute); margin-top: 4px; }
+
+/* ---- Language switcher ----
+   Contrast-safe pair: #fff on a darker blue reaches ~6.7:1. The lighter
+   --blue only managed ~3.7:1, below the 4.5 minimum for text this size. */
+.lang-btn { color: var(--text-dim); background: transparent; }
+.lang-btn.active { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }

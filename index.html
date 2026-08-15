@@ -2,7 +2,7 @@
 <html lang="ro">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#07080d">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
@@ -735,9 +735,15 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
             </div>
             <div class="txt" style="flex:1;">
-              <strong data-i18n="reg.share_title">Pagină publică de înscriere</strong>
-              <span data-i18n="reg.share_sub">Distribuie linkul (sau codul QR). Participanții își înscriu mașina singuri, iar înscrierile apar mai jos, pe Acasă, pentru aprobare.</span>
+              <strong data-i18n="pub.share_title">Pagini publice</strong>
+              <span data-i18n="pub.share_sub">Distribuie linkul sau codul QR. Alege ce pagină vrei să dai participanților.</span>
               <div class="announce-compose">
+                <select id="pubPageSel" style="margin-bottom:8px;">
+                  <option value="register.html" data-i18n="pub.page_register">Înscriere mașină</option>
+                  <option value="agenda.html" data-i18n="pub.page_agenda">Program eveniment</option>
+                  <option value="vote.html" data-i18n="pub.page_vote">Votare Best Car</option>
+                  <option value="feedback.html" data-i18n="pub.page_feedback">Feedback</option>
+                </select>
                 <input type="text" id="regLink" readonly onclick="this.select()">
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
                   <button type="button" class="btn small" id="regCopyBtn" data-i18n="reg.share_copy">Copiază linkul</button>
@@ -906,6 +912,7 @@
               <span data-i18n="errlog.sub">Erori JavaScript apărute pe dispozitivele echipei. Utile ca să afli de ce a picat ceva la poartă.</span>
               <div class="announce-compose">
                 <button type="button" class="btn small ghost" id="errRefreshBtn" data-i18n="activity.refresh">Reîmprospătează</button>
+                <div id="rateLimitStats" class="rl-stats"></div>
                 <div id="errList" class="activity-list"></div>
               </div>
             </div>
