@@ -2990,10 +2990,28 @@
       renderGate();
       renderGateZones();
       renderGateLabel();
+      renderKioskBtn();
       updateGateSyncUI();
       flushOutbox();
+      pushGateHistory();
       setTimeout(() => inp && inp.focus(), 60);
     }
+
+    // Hardware/browser Back closes the gate instead of leaving the app. Tablets
+    // and phones have no Escape key, so this is the primary way back out.
+    let _gatePushed = false;
+    function pushGateHistory() {
+      if (_gatePushed) return;
+      try { history.pushState({ kulturaGate: 1 }, ''); _gatePushed = true; } catch (_) {}
+    }
+    window.addEventListener('popstate', () => {
+      const shown = el('gateOverlay')?.classList.contains('show');
+      _gatePushed = false;
+      if (!shown) return;
+      // Locked terminals stay put: re-arm the trap instead of exiting.
+      if (isGateRole() || kioskOn()) { pushGateHistory(); return; }
+      closeGate();
+    });
     function closeGate() {
       const ov = el('gateOverlay');
       if (!ov) return;
@@ -3001,6 +3019,11 @@
       stopGateScanner();
       ov.classList.remove('show');
       ov.setAttribute('aria-hidden', 'true');
+      // Drop the history entry added on open so Back doesn't need two presses.
+      if (_gatePushed) {
+        _gatePushed = false;
+        try { if (history.state && history.state.kulturaGate) history.back(); } catch (_) {}
+      }
     }
 
     // ----- Kiosk mode: turn this device into a locked gate terminal -----
@@ -3013,14 +3036,27 @@
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && kioskOn()) requestWakeLock();
     });
+    // Reflect kiosk state on the toggle so the way out is always visible.
+    function renderKioskBtn() {
+      const b = el('gateKioskBtn');
+      if (!b) return;
+      const on = kioskOn();
+      b.classList.toggle('is-on', on);
+      b.title = t(on ? 'kiosk.exit' : 'kiosk.enable');
+      b.setAttribute('aria-label', b.title);
+    }
     function setKiosk(on) {
       try { on ? localStorage.setItem('kultura_kiosk', '1') : localStorage.removeItem('kultura_kiosk'); } catch (_) {}
       document.body.classList.toggle('kiosk', on);
       try { applyGateLock(); } catch (_) {}
+      renderKioskBtn();
       if (on) { openGate(); requestWakeLock(); showToast(t('kiosk.on')); }
       else { releaseWakeLock(); closeGate(); showToast(t('kiosk.off')); }
     }
-    el('gateKioskBtn')?.addEventListener('click', () => { if (!kioskOn()) setKiosk(true); });
+    el('gateKioskBtn')?.addEventListener('click', async () => {
+      if (!kioskOn()) { setKiosk(true); return; }
+      if (await uiConfirm(t('kiosk.exit_confirm'))) setKiosk(false);
+    });
     // Exit kiosk via a long-press on the gate title (hidden from ordinary taps).
     (function () {
       const title = document.querySelector('#gateOverlay .gate-title h2');
@@ -6763,6 +6799,7 @@
       if (locked && !el('gateOverlay')?.classList.contains('show')) {
         try { openGate(); } catch (_) {}
       }
+      try { renderKioskBtn(); } catch (_) {}
       if (kioskOn()) requestWakeLock();
     }
 
