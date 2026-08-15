@@ -19,7 +19,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v97';
+    const APP_VERSION = 'v98';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -3556,6 +3556,32 @@
         _backupBusy = false;
       }, 2500);
     });
+    // Orphaned-photo sweep: dry run first, then delete on explicit confirmation.
+    el('photoSweepBtn')?.addEventListener('click', async () => {
+      const btn = el('photoSweepBtn'), msg = el('backupMsg');
+      const say = (txt, color) => { if (msg) { msg.style.color = color || 'var(--text-dim)'; msg.textContent = txt; } };
+      btn.disabled = true;
+      try {
+        say(t('sweep.checking'));
+        const { data: pre, error: preErr } = await supa.functions.invoke('photo-sweep', { body: { dry_run: true } });
+        if (preErr || !pre || pre.error) { say(t('common.error') + ': ' + (preErr?.message || pre?.error || ''), 'var(--red)'); return; }
+        const rows = Object.entries(pre.report || {});
+        const orphans = rows.reduce((s, [, v]) => s + v.orphans, 0);
+        const kb = rows.reduce((s, [, v]) => s + v.freed_kb, 0);
+        if (!orphans) { say(t('sweep.none'), 'var(--green)'); return; }
+        const detail = rows.filter(([, v]) => v.orphans)
+          .map(([b, v]) => `• ${b}: ${v.orphans} / ${v.total}`).join('\n');
+        say('');
+        if (!(await uiConfirm(t('sweep.confirm', { n: orphans, kb }) + '\n\n' + detail, { danger: true }))) return;
+        say(t('sweep.running'));
+        const { data, error } = await supa.functions.invoke('photo-sweep', { body: { dry_run: false } });
+        if (error || !data || data.error) { say(t('common.error') + ': ' + (error?.message || data?.error || ''), 'var(--red)'); return; }
+        const del = Object.values(data.report || {}).reduce((s, v) => s + v.deleted, 0);
+        const freed = Object.values(data.report || {}).reduce((s, v) => s + v.freed_kb, 0);
+        say(t('sweep.done', { n: del, kb: freed }), 'var(--green)');
+      } finally { btn.disabled = false; }
+    });
+
     el('backupList')?.addEventListener('click', async (e) => {
       const b = e.target.closest('[data-backup-dl]');
       if (b) {

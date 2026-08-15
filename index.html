@@ -802,7 +802,10 @@
               <strong data-i18n="backup.title">Backup automat al datelor</strong>
               <span data-i18n="backup.sub">Un backup complet (JSON) se face automat în fiecare zi. Poți face unul și manual sau descărca oricare.</span>
               <div class="announce-compose">
-                <button type="button" class="btn small" id="backupRunBtn" data-i18n="backup.run">Fă backup acum</button>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button type="button" class="btn small" id="backupRunBtn" data-i18n="backup.run">Fă backup acum</button>
+                  <button type="button" class="btn small ghost" id="photoSweepBtn" data-i18n="sweep.btn">Curăță poze orfane</button>
+                </div>
                 <div class="modal-msg" id="backupMsg" style="margin-top:6px;"></div>
                 <div id="backupList" class="backup-list"></div>
               </div>
