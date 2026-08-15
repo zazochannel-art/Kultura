@@ -45,6 +45,11 @@ try {
   await waitForServer();
   browser = await chromium.launch(chromiumOpts());
   const ctx = await browser.newContext();
+  // Keep the run hermetic: cut every call to the live backend. Without this the
+  // result depends on whether the runner can reach Supabase — locally it can't
+  // (so cached fixtures survive), in CI it can (so a real empty fetch wipes
+  // them). Same behaviour everywhere, and no test traffic against production.
+  await ctx.route('**://*.supabase.co/**', (r) => r.abort());
   const page = await ctx.newPage();
   const jsErrors = [];
   page.on('pageerror', e => jsErrors.push(e.message));

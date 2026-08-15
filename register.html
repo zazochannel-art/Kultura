@@ -141,10 +141,11 @@
 
   <script type="module">
     import { createClient } from './vendor/supabase-js.mjs';
-    const supa = createClient(
-      'https://knphmxxokowwkruimdus.supabase.co',
-      'sb_publishable_9b7WSJF4UlfF1JIdCDjWqQ_dxOTpqSW'
-    );
+    const SUPA_URL = 'https://knphmxxokowwkruimdus.supabase.co';
+    const SUPA_ANON = 'sb_publishable_9b7WSJF4UlfF1JIdCDjWqQ_dxOTpqSW';
+    // Still used for the photo upload (public bucket); the registration row
+    // itself goes through the rate-limited `submit` edge function.
+    const supa = createClient(SUPA_URL, SUPA_ANON);
     // Country dial codes (ISO2 + dial). Flags are derived from the ISO code so
     // we don't hand-type 200 emoji. Moldova is preselected (event is in MD).
     const COUNTRIES = [
@@ -256,18 +257,10 @@
       e.preventDefault();
       const fd = new FormData(form);
       const g = (k) => (fd.get(k) || '').toString().trim();
-      // 1) Honeypot filled → almost certainly a bot. Pretend success, don't insert.
-      if (g('company_website')) { document.getElementById('done').style.display = 'block'; form.style.display = 'none'; return; }
-      // 2) Submitted implausibly fast → treat as bot, same silent no-op.
+      // Submitted implausibly fast → treat as a bot and no-op silently. The
+      // honeypot and the real per-IP rate limit are enforced server-side by the
+      // `submit` function; these client checks just save a round trip.
       if (Date.now() - _formReadyAt < 4000) { document.getElementById('done').style.display = 'block'; form.style.display = 'none'; return; }
-      // 3) Rate-limit repeated submits from the same browser.
-      try {
-        const last = parseInt(localStorage.getItem('kultura_reg_last') || '0', 10);
-        if (last && Date.now() - last < RATE_MS) {
-          showMsg('Ai trimis deja o înscriere. Așteaptă un minut înainte de a trimite alta.', 'err');
-          return;
-        }
-      } catch (_) {}
       const localPhone = g('phone');
       const fullPhone = localPhone ? (dial.value + ' ' + localPhone).trim() : null;
       const base = {
@@ -287,10 +280,26 @@
       try {
         if (photos.length) { showMsg('Se încarcă pozele…', 'ok'); uploaded = await uploadPhotos(); }
       } catch (err) { btn.disabled = false; showMsg('Nu s-au putut încărca pozele: ' + (err.message || err), 'err'); return; }
-      const { error } = await supa.from('car_registrations').insert({ ...base, photos: uploaded });
+      let res, data;
+      try {
+        res = await fetch(SUPA_URL + '/functions/v1/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: SUPA_ANON, Authorization: 'Bearer ' + SUPA_ANON },
+          body: JSON.stringify({
+            kind: 'register', ...base, photos: uploaded,
+            company_website: g('company_website'),
+          }),
+        });
+        data = await res.json().catch(() => ({}));
+      } catch (err) {
+        btn.disabled = false; showMsg('Eroare de conexiune. Încearcă din nou.', 'err'); return;
+      }
       btn.disabled = false;
-      if (error) { showMsg('Eroare: ' + error.message, 'err'); return; }
-      try { localStorage.setItem('kultura_reg_last', String(Date.now())); } catch (_) {}
+      if (res.status === 429) {
+        showMsg('Ai trimis deja o înscriere recent. Încearcă mai târziu sau contactează organizatorii.', 'err');
+        return;
+      }
+      if (!res.ok || data.error) { showMsg('Eroare: ' + (data.error || res.status), 'err'); return; }
       document.getElementById('done').style.display = 'block';
       form.style.display = 'none';
     });
