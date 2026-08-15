@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    name: Syntax, i18n, unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Parse every first-party JS file. Vendored bundles are skipped: they are
+      # third-party builds we don't edit, and some ship non-standard syntax.
+      - name: Syntax check
+        run: |
+          set -e
+          files=$(git ls-files '*.js' '*.mjs' | grep -v '^vendor/')
+          echo "$files"
+          for f in $files; do node --check "$f"; done
+
+      # Locale packs must stay in lockstep (same keys, same {placeholders}).
+      - name: i18n guard
+        run: node scripts/check-i18n.mjs
+
+      - name: Unit tests
+        run: node --test tests/unit.mjs
+
+      # The service worker cache must be bumped whenever shipped assets change,
+      # otherwise returning users keep the stale app shell.
+      - name: Service worker version bumped
+        if: github.event_name == 'pull_request'
+        run: |
+          set -e
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+          base="origin/${{ github.base_ref }}"
+          changed=$(git diff --name-only "$base"...HEAD -- '*.js' '*.mjs' '*.css' '*.html' | grep -v '^tests/' | grep -v '^scripts/' || true)
+          if [ -z "$changed" ]; then
+            echo "No shipped assets changed — nothing to bump."; exit 0
+          fi
+          old=$(git show "$base":sw.js | sed -n "s/^const CACHE = '\(.*\)';/\1/p")
+          new=$(sed -n "s/^const CACHE = '\(.*\)';/\1/p" sw.js)
+          echo "cache: $old -> $new"
+          if [ "$old" = "$new" ]; then
+            echo "::error::Assets changed but sw.js CACHE is still '$new'. Bump it so clients get the update."
+            exit 1
+          fi
+
+  smoke:
+    name: Smoke (Playwright)
+    runs-on: ubuntu-latest
+    # Browser-driven and slower than the checks above; it must not block a PR
+    # on a flaky browser download, but its result is still reported.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright + Chromium
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm i -D playwright >/dev/null
+          npx playwright install --with-deps chromium
+      - name: Run smoke tests
+        run: node tests/smoke.mjs
