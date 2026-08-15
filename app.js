@@ -4,7 +4,7 @@
     import {
       escape, reduceMotion as _reduceMotion, normalizePhone, telegramLink,
       nameHue, avatarBg, twoInitials, hexToRgba, downscaleImage,
-      statusKey, normPlateKey, fmtDateTime, fmtRelative, mergeById, maxWatermark, overlapFrom
+      statusKey, normPlateKey, fmtDateTime, fmtRelative, mergeById, maxWatermark, overlapFrom, backupAgeHours
     } from './utils.js';
     import { haptic, confettiBurst, successCheck, auroraPulse } from './effects.js';
 
@@ -20,7 +20,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v108';
+    const APP_VERSION = 'v109';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -3866,6 +3866,23 @@
     el('votingCloseBtn')?.addEventListener('click', () => setVotingEvent(''));
     el('votingEventSel')?.addEventListener('change', renderVotingBoard);
 
+    // Say out loud whether the automatic backup is actually still happening.
+    // run_backup() posts to the edge function and never reads the reply, so a
+    // failing backup still leaves cron reporting "succeeded" — a recent file is
+    // the only real evidence, and silence used to look identical to success.
+    function renderBackupHealth(files) {
+      const box = el('backupHealth');
+      if (!box) return;
+      const age = backupAgeHours(files);
+      let cls, txt;
+      if (age === null) { cls = 'is-bad'; txt = t('backup.health_none'); }
+      else if (age > 26)  { cls = 'is-bad';  txt = t('backup.health_stale', { n: Math.floor(age / 24) || 1 }); }
+      else                { cls = 'is-ok';   txt = t('backup.health_ok'); }
+      box.hidden = false;
+      box.className = 'backup-health ' + cls;
+      box.textContent = txt;
+    }
+
     async function renderBackupList() {
       const box = el('backupList'); if (!box) return;
       const { data, error } = await supa.storage.from('backups').list('', {
@@ -3873,6 +3890,7 @@
       });
       if (error) { box.innerHTML = `<div class="block-empty">${escape(error.message)}</div>`; return; }
       const files = (data || []).filter(f => f.name && f.name.endsWith('.json'));
+      renderBackupHealth(files);
       if (!files.length) { box.innerHTML = `<div class="block-empty">${escape(t('backup.empty'))}</div>`; return; }
       box.innerHTML = files.map(f => {
         const bytes = f.metadata && f.metadata.size ? Math.max(1, Math.round(f.metadata.size / 1024)) + ' KB' : '';

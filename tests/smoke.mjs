@@ -522,6 +522,60 @@ try {
     await rctx.close();
   }
 
+  // 4g. Backup freshness banner. run_backup() posts to the edge function and
+  // never reads the reply, so cron reports "succeeded" even when the backup
+  // failed — a recent file is the only honest evidence. Drive all three states.
+  {
+    const stamp = (ms) => new Date(ms).toISOString().replace(/[:.]/g, '-');
+    for (const [label, files, wantBad] of [
+      ['fresh', [{ name: `kultura-backup-${stamp(Date.now() - 3 * 3600e3)}.json`, metadata: { size: 49000 } }], false],
+      ['stale', [{ name: `kultura-backup-${stamp(Date.now() - 5 * 86400e3)}.json`, metadata: { size: 49000 } }], true],
+      ['none', [], true],
+    ]) {
+      const hctx = await browser.newContext({ viewport: { width: 900, height: 900 } });
+      await hctx.route('**://*.supabase.co/**', (r) => {
+        const u = r.request().url();
+        if (u.includes('/storage/v1/object/list/backups')) {
+          return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(files) });
+        }
+        if (u.includes('/rest/v1/profiles')) {
+          return r.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]) });
+        }
+        if (u.includes('/rest/v1/')) return r.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+        return r.abort();
+      });
+      const hp = await hctx.newPage();
+      try {
+        await hp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+        await hp.evaluate(() => localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+          access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+          expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+          user: {
+            id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+            aud: 'authenticated', role: 'authenticated',
+            app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+          },
+        })));
+        await hp.reload({ waitUntil: 'domcontentloaded' });
+        await hp.waitForFunction(
+          () => { const h = document.getElementById('backupHealth'); return h && !h.hidden; },
+          null, { timeout: 10000 });
+        const h = await hp.evaluate(() => {
+          const x = document.getElementById('backupHealth');
+          return { bad: x.classList.contains('is-bad'), ok: x.classList.contains('is-ok'), txt: x.textContent.trim() };
+        });
+        check(`backup-health-${label}`, wantBad ? (h.bad && !h.ok) : (h.ok && !h.bad));
+        check(`backup-health-${label}-has-text`, h.txt.length > 10);
+      } catch (e) {
+        if (!checks.some((c) => c.name === `backup-health-${label}`)) check(`backup-health-${label}`, false);
+        if (!checks.some((c) => c.name === `backup-health-${label}-has-text`)) check(`backup-health-${label}-has-text`, false);
+        console.log(`backup health (${label}): ${e.message}`);
+      }
+      await hctx.close();
+    }
+  }
+
   // 5. Public pages (given out by QR at the event) must render standalone.
   // They talk to Supabase, which is unreachable here, so we only assert the
   // static shell renders and nothing throws before the network call.
