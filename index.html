@@ -136,6 +136,16 @@
     </div>
 
     <header class="app-header">
+      <!-- Which event the whole app is scoped to. Defaults to the one marked
+           „Activ”; mark an event „Finalizat” and its data drops out of the
+           default view without ever becoming unreachable — pick it here, or
+           „Toate evenimentele”, to get it back. -->
+      <div class="event-picker">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <select id="activeEventSelect" data-i18n-aria="event.selector.aria" aria-label="Eveniment activ">
+          <option value="" data-i18n="event.selector.all">Toate evenimentele</option>
+        </select>
+      </div>
       <div style="display:flex;align-items:center;gap:12px;margin-left:auto;">
         <div class="live-badge" id="liveBadge" title="Sincronizare live la fiecare secundă">
           <span class="live-dot"></span>

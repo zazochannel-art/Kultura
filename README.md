@@ -253,6 +253,17 @@ client.
     raportează „succeeded" și când backupul a eșuat. Singura dovadă reală e un
     fișier recent — de aia există banda de stare din **Setări → Copii de
     siguranță**. Nu o scoate fără să pui altceva în loc.
+12. **Toată aplicația e scopată pe un eveniment.** `matchesActiveEvent()`
+    filtrează listele, iar formularele preselectează evenimentul în lucru, deci
+    ce se creează se leagă singur de el. Implicit: evenimentul „Activ", altfel
+    cel mai recent neterminat, altfel toate. Două reguli nu se ating:
+    rândurile cu `event_id` **null rămân vizibile sub orice eveniment** (sunt
+    de dinaintea scopării — ascunderea lor ar arăta ca pierdere de date), iar
+    un eveniment finalizat **rămâne accesibil** din selector. Nu transforma
+    filtrarea în ștergere.
+13. **Înscrierile publice primesc `event_id` în funcția `submit`**, nu din
+    client: endpointul e public, deci un `event_id` trimis de apelant nu e de
+    încredere. Se rezolvă server-side din evenimentul marcat „Activ".
 
 ## Rămas de făcut manual
 

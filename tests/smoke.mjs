@@ -576,6 +576,93 @@ try {
     }
   }
 
+  // 4h. Event scoping. The whole app follows one event; finishing it moves the
+  // focus on, which is how "the data disappears when the event is over" is
+  // meant to work — visually, never destructively. The finished event must
+  // still be one pick away.
+  {
+    const CARS = [
+      { id: 1, brand: 'A', model: 'Unu', owner: 'o', plate: 'P1', status: 'Invitat', event_id: 6 },
+      { id: 2, brand: 'B', model: 'Doi', owner: 'o', plate: 'P2', status: 'Invitat', event_id: 6 },
+      { id: 3, brand: 'C', model: 'Trei', owner: 'o', plate: 'P3', status: 'Invitat', event_id: 3 },
+      // No event: predates scoping, so it must stay visible under every event
+      // rather than vanish (that would read as data loss).
+      { id: 4, brand: 'D', model: 'Patru', owner: 'o', plate: 'P4', status: 'Invitat', event_id: null },
+    ];
+    const ACTIVE = { id: 6, title: 'Weekend Festival', status: 'Activ', archived: false };
+    const DONE = { id: 6, title: 'Weekend Festival', status: 'Finalizat', archived: false };
+    const PLANNED = { id: 3, title: 'Retro Expo', status: 'Planificat', archived: false };
+
+    const scope = async (events, pick) => {
+      const ectx = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+      await ectx.route('**://*.supabase.co/**', (r) => {
+        const u = r.request().url();
+        const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+        if (u.includes('/rest/v1/cars')) return J(CARS);
+        if (u.includes('/rest/v1/events')) return J(events);
+        if (u.includes('/rest/v1/profiles')) {
+          return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+        }
+        if (u.includes('/rest/v1/')) return J([]);
+        return r.abort();
+      });
+      const ep = await ectx.newPage();
+      await ep.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await ep.evaluate((p) => {
+        localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+          access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+          expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+          user: {
+            id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+            aud: 'authenticated', role: 'authenticated',
+            app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+          },
+        }));
+        if (p === null) localStorage.removeItem('kultura_active_event');
+        else localStorage.setItem('kultura_active_event', p);
+      }, pick);
+      await ep.reload({ waitUntil: 'domcontentloaded' });
+      await ep.waitForSelector('#carsList .car-row', { state: 'attached', timeout: 10000 }).catch(() => {});
+      await ep.waitForTimeout(700);
+      const out = await ep.evaluate(() => ({
+        picked: document.getElementById('activeEventSelect')?.value,
+        plates: [...document.querySelectorAll('#carsList .car-row')]
+          .map((x) => (x.querySelector('.row-sub')?.textContent.match(/P\d/) || [])[0])
+          .filter(Boolean).sort(),
+      }));
+      await ectx.close();
+      return out;
+    };
+
+    try {
+      const a = await scope([ACTIVE, PLANNED], null);
+      check('event-scope-defaults-to-active', a.picked === '6');
+      check('event-scope-shows-only-that-event', a.plates.join() === 'P1,P2,P4');
+
+      const b2 = await scope([DONE, PLANNED], null);
+      check('event-scope-moves-on-when-finished', b2.picked === '3');
+      check('event-scope-finished-data-hidden', !b2.plates.includes('P1') && !b2.plates.includes('P2'));
+
+      const c = await scope([DONE, PLANNED], '6');
+      check('event-scope-finished-still-reachable', c.plates.join() === 'P1,P2,P4');
+
+      const d = await scope([ACTIVE, PLANNED], '');
+      check('event-scope-all-shows-everything', d.plates.join() === 'P1,P2,P3,P4');
+
+      // The unassigned row appears under every scope — never swallowed.
+      check('event-scope-unassigned-always-visible',
+        [a, b2, c, d].every((x) => x.plates.includes('P4')));
+    } catch (e) {
+      for (const n of ['event-scope-defaults-to-active', 'event-scope-shows-only-that-event',
+        'event-scope-moves-on-when-finished', 'event-scope-finished-data-hidden',
+        'event-scope-finished-still-reachable', 'event-scope-all-shows-everything',
+        'event-scope-unassigned-always-visible']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`event scope checks: ${e.message}`);
+    }
+  }
+
   // 5. Public pages (given out by QR at the event) must render standalone.
   // They talk to Supabase, which is unreachable here, so we only assert the
   // static shell renders and nothing throws before the network call.

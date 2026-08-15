@@ -39,7 +39,8 @@ export default {
         {
           title: 'Creezi evenimentul',
           where: 'Evenimente → Adaugă',
-          body: 'Pui data și locația. Apar automat pe pagina publică de program și pe ecranul de Acasă, cu numărătoare inversă.',
+          body: 'Pui data și locația. Apar automat pe pagina publică de program și pe ecranul de Acasă, cu numărătoare inversă. Pune-i apoi statusul Activ: tot ce adaugi de acum (mașini, taskuri, invitați) se leagă automat de el, iar listele arată doar ce ține de el.',
+          tip: 'Când termini evenimentul, pune-i statusul Finalizat. Datele nu se șterg — ies din vedere, iar aplicația trece la următorul eveniment. Ca să te uiți înapoi, alege evenimentul din selectorul din antet, sau „Toate evenimentele".',
         },
         {
           title: 'Pui programul',

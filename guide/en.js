@@ -39,7 +39,8 @@ export default {
         {
           title: 'Create the event',
           where: 'Events → Add',
-          body: 'Set the date and location. They appear automatically on the public schedule page and on Home, with a countdown.',
+          body: 'Set the date and location. They appear automatically on the public schedule page and on Home, with a countdown. Then set its status to Active: everything you add from now on (cars, tasks, guests) attaches to it automatically, and the lists show only what belongs to it.',
+          tip: 'When the event is over, set its status to Finished. Nothing is deleted — it just leaves the view, and the app moves on to your next event. To look back, pick the event from the header selector, or "All events".',
         },
         {
           title: 'Fill in the schedule',
