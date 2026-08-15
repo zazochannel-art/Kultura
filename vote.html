@@ -9,7 +9,7 @@
   <style>
     :root{
       --bg:#07080d; --surface:#14182b; --border:rgba(255,255,255,0.12);
-      --text:#f8fafc; --text-dim:#94a3b8; --text-mute:#7d8aa0;
+      --brand:#f8589c; --text:#f8fafc; --text-dim:#94a3b8; --text-mute:#7d8aa0;
       --blue:#3b82f6; --cyan:#06b6d4; --purple:#8b5cf6; --green:#10b981; --gold:#f5c542;
       --fill:rgba(255,255,255,0.03);
     }
@@ -50,6 +50,16 @@
       background:var(--green);color:#04120b;font-weight:800;font-size:14px;padding:10px 18px;border-radius:999px;
       transition:all .25s ease;z-index:10;pointer-events:none}
     .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    /* Empty/error states are centred in the remaining space so they read as
+       intentional rather than as a page that failed to finish loading. */
+    .state{display:flex;flex-direction:column;align-items:center;justify-content:center;
+      text-align:center;gap:12px;min-height:52vh;padding:24px 12px}
+    .state .ic{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;
+      background:var(--fill);border:1px solid var(--border);font-size:26px}
+    .state p{color:var(--text-dim);font-size:15px;margin:0;max-width:32ch}
+    .retry{margin-top:2px;padding:11px 22px;border-radius:999px;cursor:pointer;font-family:inherit;
+      font-size:14px;font-weight:800;color:#1a0410;border:0;background:var(--brand)}
+    .retry:active{transform:scale(.97)}
   </style>
 </head>
 <body>
@@ -58,7 +68,7 @@
     <h1>🏆 Votează mașina preferată</h1>
     <div class="sub" id="evName"></div>
     <div class="total" id="total"></div>
-    <div id="content"><div class="msg">Se încarcă…</div></div>
+    <div id="content"><div class="state"><div class="ic">⏳</div><p>Se încarcă…</p></div></div>
     <p class="foot">© 2026 Kultura · Un vot per dispozitiv</p>
   </div>
   <div class="toast" id="toast"></div>
@@ -80,10 +90,23 @@
     let _t = null;
     function toast(m) { toastEl.textContent = m; toastEl.classList.add('show'); clearTimeout(_t); _t = setTimeout(() => toastEl.classList.remove('show'), 1800); }
 
+    // Centred state with an actual retry button — at an event on patchy signal
+    // a bare error message leaves people with nothing to press.
+    function showState(icon, text, retry) {
+      content.innerHTML = `<div class="state">
+          <div class="ic">${icon}</div>
+          <p>${esc(text)}</p>
+          ${retry ? '<button type="button" class="retry" id="retryBtn">Încearcă din nou</button>' : ''}
+        </div>`;
+      if (retry) document.getElementById('retryBtn').addEventListener('click', () => {
+        showState('⏳', 'Se încarcă…', false); load();
+      });
+    }
+
     function render(data) {
       document.getElementById('evName').textContent = data.event || '';
       document.getElementById('total').textContent = data.total ? (data.total + ' voturi') : '';
-      if (!data.cars || !data.cars.length) { content.innerHTML = `<div class="msg">Încă nu sunt mașini de votat.</div>`; return; }
+      if (!data.cars || !data.cars.length) { showState('🚗', 'Încă nu sunt mașini de votat.', false); return; }
       content.innerHTML = `<div class="grid">${data.cars.map((c, i) => {
         const mine = data.my_choice === c.id;
         const rank = i < 3 && c.votes > 0 ? `<span class="rank">#${i + 1}</span>` : '';
@@ -106,9 +129,9 @@
       try {
         const r = await fetch(FN + '?voter=' + encodeURIComponent(voter), { headers: HEAD });
         const data = await r.json();
-        if (!data.open) { content.innerHTML = `<div class="msg">Votarea nu este deschisă momentan.<br>Revino în timpul evenimentului. 🏁</div>`; document.getElementById('total').textContent=''; return; }
+        if (!data.open) { showState('🏁', 'Votarea nu este deschisă momentan. Revino în timpul evenimentului.', false); document.getElementById('total').textContent=''; return; }
         render(data);
-      } catch (_) { content.innerHTML = `<div class="msg">Eroare de conexiune. Încearcă din nou.</div>`; }
+      } catch (_) { showState('📡', 'Nu am putut încărca votarea. Verifică conexiunea.', true); }
     }
 
     async function vote(carId) {
