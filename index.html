@@ -841,7 +841,10 @@
               <strong data-i18n="activity.title">Cine ce a făcut</strong>
               <span data-i18n="activity.sub">Ultimele acțiuni: sosiri, ștergeri, aprobări și modificări.</span>
               <div class="announce-compose">
-                <button type="button" class="btn small ghost" id="activityRefreshBtn" data-i18n="activity.refresh">Reîmprospătează</button>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button type="button" class="btn small ghost" id="activityRefreshBtn" data-i18n="activity.refresh">Reîmprospătează</button>
+                  <button type="button" class="btn small ghost" id="activityCsvBtn" data-i18n="activity.export_csv">Export CSV</button>
+                </div>
                 <div id="activityList" class="activity-list"></div>
               </div>
             </div>
