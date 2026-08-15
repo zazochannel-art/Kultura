@@ -75,6 +75,7 @@ veche în cache.
 | `app.js` | Logica aplicației. Mare (~9k linii) și cu scope partajat |
 | `i18n.js` | Registrul de limbi. Importă `ro` static, aduce `en`/`ru` la cerere |
 | `i18n/{ro,en,ru}.js` | Pachetele de traduceri. Toate trei trebuie să aibă exact aceleași chei |
+| `guide.js` + `guide/{ro,en,ru}.js` | Ghidul „cum funcționează aplicația" din Setări. Text, nu chei — încărcat abia când se deschide |
 | `utils.js` | Helperi puri (fără state/DOM/DB) — acoperiți de teste unitare |
 | `effects.js` | Efecte vizuale + haptic, independente de state |
 | `styles.css` | Stiluri |
@@ -217,10 +218,14 @@ client.
 5. **Bumpează `CACHE` în `sw.js`** la orice modificare de asset livrat. CI te
    oprește dacă uiți.
 6. **Pachetele `i18n/*.js` trebuie să rămână simetrice** pe ro/en/ru, inclusiv
-   `{placeholder}`-ele. Garda din CI verifică. O limbă nouă înseamnă trei
-   lucruri, nu unul: fișierul `i18n/<cod>.js`, intrarea în `SUPPORTED_LANGS` +
-   `LOADERS` din `i18n.js`, și adăugarea în lista de precache din `sw.js`.
-   Garda pică dacă lipsește vreunul.
+   `{placeholder}`-ele. Garda din CI verifică. O limbă nouă înseamnă patru
+   lucruri, nu unul: fișierul `i18n/<cod>.js`, pachetul `guide/<cod>.js`,
+   intrarea în `SUPPORTED_LANGS` + `LOADERS` din `i18n.js` și în `LOADERS` din
+   `guide.js`, plus adăugarea ambelor în lista de precache din `sw.js`. Garda
+   pică dacă lipsește vreunul.
+   Ghidul nu are chei, ci proză, deci garda îi verifică **forma**: același
+   număr de faze, de pași per fază, de roluri și de intrări în depanare, în
+   toate limbile — și că niciun pas nu rămâne fără titlu sau text.
 7. **Nu pune `user-scalable=no` înapoi în viewport.** Blochează pinch-zoom-ul,
    ceea ce e o problemă reală de accesibilitate. Inputurile sunt la 16px tocmai
    ca iOS să nu mai facă zoom automat la focus — dacă le micșorezi sub 16px,

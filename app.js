@@ -1,5 +1,6 @@
     import { createClient } from './vendor/supabase-js.mjs';
     import { translations, ensureLocale } from './i18n.js';
+    import { loadGuide } from './guide.js';
     import {
       escape, reduceMotion as _reduceMotion, normalizePhone, telegramLink,
       nameHue, avatarBg, twoInitials, hexToRgba, downscaleImage,
@@ -19,7 +20,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v104';
+    const APP_VERSION = 'v105';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -1248,6 +1249,96 @@
     }
     el('whatsNewBtn')?.addEventListener('click', openWhatsNew);
     updateWhatsNewDot();
+
+    // ----- HOW-IT-WORKS GUIDE -----
+    // The walkthrough a new operator reads once. Its text is bulky and almost
+    // nobody opens it twice, so the pack is fetched the first time the modal is
+    // opened rather than shipped with the app shell.
+    function guideStepHtml(step, n) {
+      const role = step.role
+        ? `<span class="guide-role">${escape(t('guide.role_only', { role: step.role }))}</span>` : '';
+      const where = step.where
+        ? `<div class="guide-where"><span>${escape(t('guide.step_where'))}</span><code>${escape(step.where)}</code></div>` : '';
+      const tip = step.tip ? `<p class="guide-tip">${escape(step.tip)}</p>` : '';
+      return `<li class="guide-step">
+        <div class="guide-num" aria-hidden="true">${n}</div>
+        <div class="guide-step-body">
+          <h4>${escape(step.title)}${role}</h4>
+          ${where}
+          <p>${escape(step.body)}</p>
+          ${tip}
+        </div>
+      </li>`;
+    }
+
+    function guideHtml(g) {
+      let n = 0;
+      const phases = g.phases.map(ph => `
+        <section class="guide-phase">
+          <div class="guide-phase-head">
+            <h3>${escape(ph.title)}</h3>
+            <p>${escape(ph.sub)}</p>
+          </div>
+          <ol class="guide-steps">${ph.steps.map(s => guideStepHtml(s, ++n)).join('')}</ol>
+        </section>`).join('');
+
+      return `
+        <p class="guide-intro">${escape(g.intro)}</p>
+
+        <section class="guide-phase">
+          <div class="guide-phase-head"><h3>${escape(g.navTitle)}</h3></div>
+          <ul class="guide-defs">
+            ${g.nav.map(x => `<li><strong>${escape(x.name)}</strong><span>${escape(x.what)}</span></li>`).join('')}
+          </ul>
+          <p class="guide-tip">${escape(g.navTip)}</p>
+        </section>
+
+        <section class="guide-phase">
+          <div class="guide-phase-head">
+            <h3>${escape(g.rolesTitle)}</h3>
+            <p>${escape(g.rolesNote)}</p>
+          </div>
+          <ul class="guide-defs">
+            ${g.roles.map(r => `<li><strong>${escape(r.name)}</strong><span>${escape(r.can)}</span></li>`).join('')}
+          </ul>
+        </section>
+
+        ${phases}
+
+        <section class="guide-phase">
+          <div class="guide-phase-head">
+            <h3>${escape(g.autoTitle)}</h3>
+            <p>${escape(g.autoNote)}</p>
+          </div>
+          <ul class="guide-auto">${g.auto.map(x => `<li>${escape(x)}</li>`).join('')}</ul>
+        </section>
+
+        <section class="guide-phase">
+          <div class="guide-phase-head"><h3>${escape(g.troubleTitle)}</h3></div>
+          <ul class="guide-defs guide-trouble">
+            ${g.trouble.map(x => `<li><strong>${escape(x.p)}</strong><span>${escape(x.f)}</span></li>`).join('')}
+          </ul>
+        </section>`;
+    }
+
+    async function openGuide() {
+      const body = el('guideBody');
+      if (!body) return;
+      openModal('guide');
+      body.innerHTML = `<p class="guide-intro">${escape(t('guide.loading'))}</p>`;
+      const g = await loadGuide(currentLang);
+      // The pack can only be missing if we're offline before the service worker
+      // has cached it — say so instead of leaving an empty sheet.
+      if (!g) { body.innerHTML = `<p class="guide-intro">${escape(t('guide.error'))}</p>`; return; }
+      body.innerHTML = guideHtml(g);
+      body.scrollTop = 0;
+    }
+    el('guideBtn')?.addEventListener('click', openGuide);
+    // Print just the guide, not the app behind it (see the print rules in CSS).
+    el('guidePrintBtn')?.addEventListener('click', () => {
+      document.body.classList.add('printing-guide');
+      try { window.print(); } finally { document.body.classList.remove('printing-guide'); }
+    });
 
     // Open a task from the "My tasks" home card.
     el('myTasksList').addEventListener('click', (e) => {

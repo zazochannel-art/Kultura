@@ -662,6 +662,20 @@
       <!-- SETTINGS -->
       <section class="section" id="section-settings">
         <div class="page-grid-2">
+        <div class="setting-block" id="guideBlock">
+          <div class="setting-label" data-i18n="guide.label">GHID</div>
+          <div class="setting-row">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            </div>
+            <div class="txt">
+              <strong data-i18n="guide.title">Cum funcționează aplicația</strong>
+              <span data-i18n="guide.sub">Tot parcursul, de la primul pas până la ultimul. Pentru cine e la început.</span>
+            </div>
+            <button type="button" class="btn small" id="guideBtn" data-i18n="guide.open">Deschide ghidul</button>
+          </div>
+        </div>
+
         <div class="setting-block">
           <div class="setting-label" data-i18n="settings.account">CONT</div>
           <div class="setting-row">
@@ -1082,6 +1096,26 @@
         </div>
         <div class="whatsnew-body" id="whatsNewBody"></div>
         <div class="modal-actions">
+          <button type="button" class="btn" data-close data-i18n="common.close">Închide</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: How the app works (onboarding guide) -->
+    <div class="modal-backdrop" id="modal-guide" data-modal-name="guide">
+      <div class="modal guide-modal">
+        <div class="detail-head">
+          <div style="flex:1;min-width:0;">
+            <h2 data-i18n="guide.modal_title">Cum funcționează Kultura</h2>
+            <p class="sub-help" data-i18n="guide.modal_sub" style="margin:0;">De la crearea evenimentului până la raportul final.</p>
+          </div>
+          <button class="detail-close" data-close aria-label="Închide">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="guide-body" id="guideBody"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn ghost" id="guidePrintBtn" data-i18n="guide.print">Printează</button>
           <button type="button" class="btn" data-close data-i18n="common.close">Închide</button>
         </div>
       </div>
