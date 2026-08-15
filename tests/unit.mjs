@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import {
   escape, normalizePhone, telegramLink, twoInitials, hexToRgba,
   statusKey, normPlateKey, fmtRelative, fmtDateTime,
+  mergeById, maxWatermark, overlapFrom,
 } from '../utils.js';
 
 test('escape neutralises HTML metacharacters', () => {
@@ -99,4 +100,76 @@ test('fmtDateTime tolerates junk input', () => {
   assert.equal(fmtDateTime(''), '—');
   assert.equal(fmtDateTime(null), '—');
   assert.equal(fmtDateTime('not-a-date'), 'not-a-date');
+});
+
+// ----- Incremental sync -----
+// These two decide what the operator sees after a poll. A bug here shows up as
+// a car that silently stops updating, so the edge cases are worth pinning.
+
+test('mergeById patches existing rows and appends new ones, newest id first', () => {
+  const prev = [
+    { id: 3, plate: 'C', status: 'Invitat' },
+    { id: 1, plate: 'A', status: 'Invitat' },
+  ];
+  const merged = mergeById(prev, [
+    { id: 1, plate: 'A', status: 'Sosit' },   // changed
+    { id: 2, plate: 'B', status: 'Invitat' }, // new
+  ]);
+  assert.deepEqual(merged.map(r => r.id), [3, 2, 1]);
+  assert.equal(merged.find(r => r.id === 1).status, 'Sosit');
+  assert.equal(merged.find(r => r.id === 3).status, 'Invitat');
+});
+
+test('mergeById keeps columns the delta does not carry', () => {
+  // The list fetch omits heavy columns that the detail view hydrated earlier;
+  // a delta must not wipe them.
+  const prev = [{ id: 1, plate: 'A', status: 'Invitat', notes: 'hydrated' }];
+  const merged = mergeById(prev, [{ id: 1, plate: 'A', status: 'Sosit' }]);
+  assert.equal(merged[0].notes, 'hydrated');
+  assert.equal(merged[0].status, 'Sosit');
+});
+
+test('mergeById is idempotent and handles empty input', () => {
+  const prev = [{ id: 1, status: 'Sosit' }];
+  const once = mergeById(prev, [{ id: 1, status: 'Sosit' }]);
+  const twice = mergeById(once, [{ id: 1, status: 'Sosit' }]);
+  assert.deepEqual(once, twice);
+  assert.deepEqual(mergeById(prev, []), prev);
+  assert.deepEqual(mergeById(null, []), []);
+  // Ids arriving as strings must not create a duplicate row.
+  assert.equal(mergeById([{ id: 1 }], [{ id: '1', status: 'Sosit' }]).length, 1);
+});
+
+test('maxWatermark advances only forwards', () => {
+  const rows = [
+    { id: 1, updated_at: '2026-08-15T10:00:00.000Z' },
+    { id: 2, updated_at: '2026-08-15T12:00:00.000Z' },
+    { id: 3, updated_at: '2026-08-15T11:00:00.000Z' },
+  ];
+  assert.equal(maxWatermark(null, rows), '2026-08-15T12:00:00.000Z');
+  // An older batch must never rewind the watermark, or rows would be re-sent
+  // forever.
+  assert.equal(maxWatermark('2026-08-15T13:00:00.000Z', rows), '2026-08-15T13:00:00.000Z');
+  // An empty delta (the common idle case) leaves it untouched.
+  assert.equal(maxWatermark('2026-08-15T13:00:00.000Z', []), '2026-08-15T13:00:00.000Z');
+  // Nothing to anchor on yet — stays null so the caller keeps doing full fetches.
+  assert.equal(maxWatermark(null, []), null);
+  assert.equal(maxWatermark(null, [{ id: 1 }]), null);
+});
+
+test('overlapFrom rewinds the watermark by the safety margin', () => {
+  assert.equal(
+    overlapFrom('2026-08-15T12:00:30.000Z', 15000),
+    '2026-08-15T12:00:15.000Z');
+  // Postgres' space-separated rendering must not silently disable the overlap.
+  assert.equal(
+    overlapFrom('2026-08-15 12:00:30.000+00:00', 15000),
+    '2026-08-15T12:00:15.000Z');
+  // The rewind must always go backwards — a forward skew would skip rows.
+  const wm = '2026-08-15T12:00:30.000Z';
+  assert.ok(Date.parse(overlapFrom(wm, 15000)) < Date.parse(wm));
+  // Unparseable input falls back to querying from the mark itself rather than
+  // from "Invalid Date", which the server would reject outright.
+  assert.equal(overlapFrom('junk', 15000), 'junk');
+  assert.equal(overlapFrom(null, 15000), null);
 });

@@ -53,6 +53,8 @@ try {
   const page = await ctx.newPage();
   const jsErrors = [];
   page.on('pageerror', e => jsErrors.push(e.message));
+  const requestedUrls = [];
+  page.on('request', r => requestedUrls.push(r.url()));
 
   await page.goto(BASE + '/index.html', { waitUntil: 'networkidle', timeout: 20000 });
   await page.waitForTimeout(800);
@@ -129,6 +131,29 @@ try {
   check('whatsnew-opens', wn.shown);
   check('whatsnew-has-items', wn.items >= 1);
 
+  // 3b. Language switching. The ro/en/ru packs are separate modules now and
+  // only the active one is fetched, so a broken dynamic import would show up
+  // as the UI silently staying Romanian rather than as an error.
+  const ro = await page.evaluate(() => document.getElementById('title').textContent);
+  await page.evaluate(() => document.querySelector('.lang-btn[data-lang="ru"]').click());
+  const ru = await page.waitForFunction(
+    () => document.getElementById('title').textContent.trim() === 'Добро пожаловать',
+    null, { timeout: 5000 }
+  ).then(() => true).catch(() => false);
+  check('i18n-lazy-loads-ru', ru);
+  // …and back, which must not need a second fetch.
+  await page.evaluate(() => document.querySelector('.lang-btn[data-lang="ro"]').click());
+  const backToRo = await page.waitForFunction(
+    (want) => document.getElementById('title').textContent === want,
+    ro, { timeout: 5000 }
+  ).then(() => true).catch(() => false);
+  check('i18n-switches-back-to-ro', backToRo);
+  // Only the packs actually used should be on the wire — that is the whole
+  // point of the split. Assert both halves so neither can pass vacuously.
+  const packsFetched = requestedUrls.filter(u => /\/i18n\/(ro|en|ru)\.js/.test(u));
+  check('i18n-ru-pack-fetched-on-demand', packsFetched.some(u => u.includes('/i18n/ru.js')));
+  check('i18n-en-pack-never-fetched', !packsFetched.some(u => u.includes('/i18n/en.js')));
+
   // 4. Offline gate queue: seed a cached car, open the gate, check it in offline.
   await page.evaluate(() => {
     localStorage.setItem('kultura_cache_cars', JSON.stringify([
@@ -155,7 +180,39 @@ try {
   }));
   check('gate-queued-offline', gate.queued === 1);
   check('gate-optimistic-status', gate.cached === 'Sosit');
+
+  // 4b. …and it must come back OUT of the queue when the signal returns.
+  // This is the half that actually decides whether a check-in survives, and
+  // the global abort route above means it is never otherwise exercised. Stand
+  // in for the backend just for the cars endpoint: count the writes, answer
+  // them, and let the app drain.
+  const patches = [];
+  await ctx.route('**://*.supabase.co/rest/v1/cars**', async (route) => {
+    const req = route.request();
+    if (req.method() !== 'PATCH') return route.abort();  // reads stay cut off
+    patches.push({ url: req.url(), body: req.postData() });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+  });
   await ctx.setOffline(false);
+  // Going back online is the real trigger the app listens for.
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  const drained = await page.waitForFunction(
+    () => JSON.parse(localStorage.getItem('kultura_outbox') || '[]').length === 0,
+    null, { timeout: 10000 }
+  ).then(() => true).catch(() => false);
+
+  check('gate-outbox-drains-online', drained);
+  check('gate-flush-sent-one-write', patches.length === 1);
+  check('gate-flush-targets-the-car', patches.length === 1 && /id=eq\.991/.test(patches[0].url));
+  check('gate-flush-carries-status', patches.length === 1 && /"status"\s*:\s*"Sosit"/.test(patches[0].body || ''));
+
+  // A second trigger must be a no-op — a check-in re-sent on every reconnect
+  // would overwrite later edits with stale values.
+  const before = patches.length;
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await page.waitForTimeout(600);
+  check('gate-flush-not-resent', patches.length === before);
+  await ctx.unroute('**://*.supabase.co/rest/v1/cars**');
 
   // 5. Public pages (given out by QR at the event) must render standalone.
   // They talk to Supabase, which is unreachable here, so we only assert the
