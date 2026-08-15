@@ -191,9 +191,12 @@ Supabase.
 
 Nu trebuie să faci nimic pentru:
 
-- **Backup zilnic** la 03:17 (se păstrează ultimele 30)
+- **Backup zilnic** la 03:17 (se păstrează ultimele 30). În **Setări → Copii de
+  siguranță** apare o linie verde cât timp totul e în regulă; dacă devine roșie,
+  backupul automat s-a oprit și trebuie să te uiți
 - **Remindere** de eveniment (24h și 2h înainte) și de taskuri
 - **Sincronizare Google Sheets** la 5 minute
 - **SMS de bun venit** la sosire și **SMS la aprobare** (dacă sunt bifate)
 - **Notificare push** la o înscriere nouă
-- **Curățare** automată a jurnalelor vechi
+- **Curățare** automată, în fiecare noapte: contoarele anti-spam, erorile
+  raportate (peste 14 zile) și jurnalul de activitate (peste un an)

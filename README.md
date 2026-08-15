@@ -146,7 +146,7 @@ fel, dar **își verifică singure apelantul** înăuntru (`is_admin_user()` /
 | `vote` | nu | Votare publică + clasament. Max 12 voturi noi/oră/IP |
 | `event-info` | nu | Evenimentul curent + agenda, pentru paginile publice |
 | `ticket` | nu | Bilet/pass |
-| `backup` | nu¹ | Export JSON al tabelelor în bucket-ul `backups` |
+| `backup` | nu¹ | Export JSON a 15 tabele în bucket-ul `backups`. Lista `TABLES` **trebuie să rămână în pas cu `PK` din `restore`** — un tabel salvat dar absent acolo se sare în tăcere la restaurare |
 | `restore` | da | Restaurare **aditivă** din backup (admin) |
 | `gdpr-delete` | da | Ștergerea datelor unei persoane (admin) |
 | `photo-sweep` | da | Șterge pozele fără referință în DB (admin) |
@@ -173,6 +173,7 @@ trigger-e din baza de date.
 | `kultura-daily-backup` | 03:17 UTC | Backup complet |
 | `kultura-prune-rate-limits` | 04:23 UTC | Curăță contoarele mai vechi de o zi |
 | `kultura-prune-client-errors` | 04:41 UTC | Curăță erorile mai vechi de 14 zile |
+| `kultura-prune-activity-log` | 04:52 UTC | Curăță jurnalul de activitate mai vechi de un an |
 
 ## Storage
 
@@ -242,6 +243,16 @@ client.
    aplicația nu mai vede nicio modificare. Ștergerile nu apar niciodată într-un
    delta: le prinde realtime, iar ca plasă de siguranță `reconcileDeletions()`
    compară lista de id-uri o dată pe minut.
+10. **Backupul acoperă și `event_feedback` și `car_votes`.** Lipseau până la
+    v108 — sunt singurele două lucruri pe care le *produce* un eveniment
+    încheiat, deci pierderea lor înseamnă pierderea rezultatului fără
+    întoarcere. Când adaugi un tabel în `TABLES` din funcția `backup`, adaugă-l
+    și în `PK` din `restore`, altfel se salvează dar nu se mai restaurează.
+    `app_config` rămâne exclus intenționat: conține secrete.
+11. **`run_backup()` nu citește răspunsul** funcției edge, deci cron-ul
+    raportează „succeeded" și când backupul a eșuat. Singura dovadă reală e un
+    fișier recent — de aia există banda de stare din **Setări → Copii de
+    siguranță**. Nu o scoate fără să pui altceva în loc.
 
 ## Rămas de făcut manual
 

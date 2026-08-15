@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import {
   escape, normalizePhone, telegramLink, twoInitials, hexToRgba,
   statusKey, normPlateKey, fmtRelative, fmtDateTime,
-  mergeById, maxWatermark, overlapFrom,
+  mergeById, maxWatermark, overlapFrom, backupAgeHours,
 } from '../utils.js';
 
 test('escape neutralises HTML metacharacters', () => {
@@ -159,6 +159,25 @@ test('maxWatermark advances only forwards', () => {
   // Nothing to anchor on yet — stays null so the caller keeps doing full fetches.
   assert.equal(maxWatermark(null, []), null);
   assert.equal(maxWatermark(null, [{ id: 1 }]), null);
+});
+
+test('backupAgeHours reads the newest stamp out of the filenames', () => {
+  const now = Date.parse('2026-08-15T20:00:00Z');
+  const f = (n) => ({ name: n });
+  // Newest wins regardless of list order.
+  assert.equal(backupAgeHours([
+    f('kultura-backup-2026-08-13T03-17-02-603Z.json'),
+    f('kultura-backup-2026-08-15T18-00-00-000Z.json'),
+    f('kultura-backup-2026-08-14T03-17-03-650Z.json'),
+  ], now), 2);
+  // Nothing to go on → null, which the caller renders as "no backups at all"
+  // rather than as a fresh one.
+  assert.equal(backupAgeHours([], now), null);
+  assert.equal(backupAgeHours(null, now), null);
+  assert.equal(backupAgeHours([f('not-a-backup.json')], now), null);
+  // A stale set must read as stale, not be rescued by an unparseable sibling.
+  const stale = backupAgeHours([f('kultura-backup-2026-08-10T03-17-00-000Z.json'), f('junk')], now);
+  assert.ok(stale > 26, `expected a stale age, got ${stale}`);
 });
 
 test('overlapFrom rewinds the watermark by the safety margin', () => {

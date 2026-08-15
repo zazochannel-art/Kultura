@@ -137,6 +137,20 @@ export function maxWatermark(current, rows) {
   return max;
 }
 
+// Age of the newest backup file, in hours — null when there is none.
+// Read from the ISO stamp in the filename rather than storage metadata, so a
+// file re-uploaded in place can't make a stale backup look fresh.
+export function backupAgeHours(files, now = Date.now()) {
+  let newest = 0;
+  for (const f of files || []) {
+    const m = String(f && f.name || '').match(/(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})/);
+    if (!m) continue;
+    const ts = Date.parse(`${m[1]}T${m[2]}:${m[3]}:${m[4]}Z`);
+    if (Number.isFinite(ts) && ts > newest) newest = ts;
+  }
+  return newest ? (now - newest) / 3600000 : null;
+}
+
 // Rewind a watermark by `overlapMs` so a delta query also re-reads the rows
 // right behind it. `updated_at` is stamped at transaction start but only
 // becomes visible at commit, so a slow write can surface with a timestamp the

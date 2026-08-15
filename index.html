@@ -827,6 +827,11 @@
                   <button type="button" class="btn small ghost" id="photoSweepBtn" data-i18n="sweep.btn">Curăță poze orfane</button>
                 </div>
                 <div class="modal-msg" id="backupMsg" style="margin-top:6px;"></div>
+                <!-- Freshness of the newest backup. run_backup() fires the edge
+                     function without reading its reply, so cron reports success
+                     even when the backup failed — the only real evidence is a
+                     recent file, and until now nobody looked. -->
+                <div id="backupHealth" class="backup-health" hidden></div>
                 <div id="backupList" class="backup-list"></div>
               </div>
             </div>
