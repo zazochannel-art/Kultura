@@ -3,7 +3,7 @@
 // served from cache immediately (instant startup), while a fresh copy is
 // fetched in the background and used on the next load. Bump the cache version
 // to force a clean refresh after a deploy.
-const CACHE = 'kultura-v104';
+const CACHE = 'kultura-v105';
 const PRECACHE = [
   './',
   './index.html',
@@ -17,6 +17,13 @@ const PRECACHE = [
   './i18n/ro.js',
   './i18n/en.js',
   './i18n/ru.js',
+  // The how-it-works guide is fetched only when opened, so precache it — the
+  // moment you most need "how do I get out of kiosk mode" is at a gate with no
+  // signal.
+  './guide.js',
+  './guide/ro.js',
+  './guide/en.js',
+  './guide/ru.js',
   './vendor/supabase-js.mjs',
   './manifest.json',
   './logo.png',

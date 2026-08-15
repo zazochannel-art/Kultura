@@ -2,6 +2,11 @@
 
 Ghid practic: ce apeși și în ce ordine. Nu e nevoie să știi programare.
 
+> **Același ghid e și în aplicație:** **Setări → Cum funcționează aplicația**.
+> Acolo e în trei limbi, funcționează offline și se poate printa — dă-l noilor
+> voluntari în loc să le explici de la zero. Documentul de față e versiunea
+> lungă, pentru cine organizează.
+
 Pentru partea tehnică (cod, funcții, baze de date) vezi
 [`../README.md`](../README.md).
 

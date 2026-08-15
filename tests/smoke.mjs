@@ -154,6 +154,38 @@ try {
   check('i18n-ru-pack-fetched-on-demand', packsFetched.some(u => u.includes('/i18n/ru.js')));
   check('i18n-en-pack-never-fetched', !packsFetched.some(u => u.includes('/i18n/en.js')));
 
+  // 3c. The how-it-works guide. Its text is lazy-loaded, so a broken import
+  // would show as an empty sheet rather than as an error anywhere.
+  const guideBefore = requestedUrls.some(u => /\/guide\/ro\.js/.test(u));
+  check('guide-not-fetched-until-opened', !guideBefore);
+  await page.evaluate(() => document.getElementById('guideBtn').click());
+  const guideFilled = await page.waitForFunction(
+    () => document.querySelectorAll('#guideBody .guide-step').length > 0,
+    null, { timeout: 5000 }
+  ).then(() => true).catch(() => false);
+  check('guide-opens-and-renders', guideFilled);
+  const guide = await page.evaluate(() => ({
+    shown: document.getElementById('modal-guide').classList.contains('show'),
+    steps: document.querySelectorAll('#guideBody .guide-step').length,
+    phases: document.querySelectorAll('#guideBody .guide-phase').length,
+    numbered: [...document.querySelectorAll('#guideBody .guide-num')].map(n => n.textContent),
+    wheres: document.querySelectorAll('#guideBody .guide-where code').length,
+    trouble: document.querySelectorAll('#guideBody .guide-trouble li').length,
+    print: !!document.getElementById('guidePrintBtn'),
+  }));
+  check('guide-modal-shown', guide.shown);
+  // 17 steps across 5 phases, plus nav / roles / automatic / troubleshooting.
+  check('guide-has-all-steps', guide.steps === 17);
+  check('guide-has-all-phases', guide.phases === 9);
+  // Numbering runs continuously across phases — "step 9" has to mean one thing.
+  check('guide-numbering-continuous',
+    guide.numbered.join(',') === Array.from({ length: 17 }, (_, i) => i + 1).join(','));
+  check('guide-steps-say-where', guide.wheres === 17);
+  check('guide-has-troubleshooting', guide.trouble >= 5);
+  check('guide-has-print-button', guide.print);
+  await page.evaluate(() => document.querySelector('#modal-guide [data-close]').click());
+  await page.waitForTimeout(300);
+
   // 4. Offline gate queue: seed a cached car, open the gate, check it in offline.
   await page.evaluate(() => {
     localStorage.setItem('kultura_cache_cars', JSON.stringify([
@@ -262,6 +294,29 @@ try {
       }
       await p.close();
     }
+
+    // The guide's markup only exists once the modal is open, so the page sweep
+    // above never sees it. Its numbered chips are brand magenta, and magenta
+    // has failed contrast here before — measure it rather than assume.
+    const gp = await ctx.newPage();
+    try {
+      await gp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await gp.waitForSelector('#guideBtn', { state: 'attached' });
+      await gp.evaluate(() => document.getElementById('guideBtn').click());
+      await gp.waitForFunction(
+        () => document.querySelectorAll('#guideBody .guide-step').length > 0,
+        null, { timeout: 5000 });
+      await gp.addScriptTag({ content: axeSrc });
+      const res = await gp.evaluate(async () =>
+        await window.axe.run('#modal-guide', { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] } }));
+      const v = res.violations.filter((x) => x.nodes.length);
+      check('a11y:guide-modal', v.length === 0);
+      for (const x of v) console.log(`  a11y guide: [${x.impact}] ${x.id} — ${x.help} (${x.nodes[0].target.join(' ')})`);
+    } catch (e) {
+      check('a11y:guide-modal', false);
+      console.log(`  a11y guide: ${e.message}`);
+    }
+    await gp.close();
   } else {
     console.log('axe-core not installed — skipping accessibility checks');
   }

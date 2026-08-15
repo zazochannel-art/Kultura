@@ -4089,3 +4089,177 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
   width: clamp(130px, 42%, 180px); height: auto;
   filter: drop-shadow(0 6px 20px rgba(248, 88, 156, 0.30));
 }
+
+/* ===== "How the app works" guide =====
+   A walkthrough somebody reads once, top to bottom, so it is laid out as a
+   long document rather than as app chrome: wider sheet, generous line height,
+   and a numbering that runs across all phases so "step 9" means one thing. */
+.guide-modal { max-width: 720px; }
+.guide-body { margin: 6px 0 18px; }
+.guide-intro {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  margin-bottom: 22px;
+}
+.guide-phase { margin-bottom: 26px; }
+.guide-phase-head { margin-bottom: 12px; }
+.guide-phase-head h3 {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--brand);
+  margin-bottom: 4px;
+}
+.guide-phase-head p {
+  font-size: 13px;
+  color: var(--text-mute);
+  line-height: 1.5;
+}
+
+/* Numbered steps */
+.guide-steps { list-style: none; display: flex; flex-direction: column; gap: 16px; }
+.guide-step { display: flex; gap: 12px; align-items: flex-start; }
+.guide-num {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  /* Dark ink on the magenta chip: white here measures ~3:1 and fails AA. */
+  background: var(--brand);
+  color: #1a0410;
+}
+.guide-step-body { min-width: 0; flex: 1; }
+.guide-step-body h4 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.guide-step-body p {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+.guide-role {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-mute);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 2px 7px;
+}
+/* The breadcrumb telling you which screen the step happens on — the single
+   most looked-up thing in the guide, so it gets its own line. */
+.guide-where {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.guide-where span {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-mute);
+}
+.guide-where code {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--fill-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 3px 8px;
+}
+.guide-tip {
+  font-size: 12.5px !important;
+  line-height: 1.55;
+  color: var(--text-dim) !important;
+  background: var(--fill-1);
+  border-left: 2px solid var(--brand);
+  border-radius: 0 8px 8px 0;
+  padding: 8px 11px;
+  margin-top: 8px;
+}
+
+/* Term → explanation lists (navigation, roles, troubleshooting) */
+.guide-defs { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+.guide-defs li { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.guide-defs strong {
+  flex-shrink: 0;
+  min-width: 92px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.guide-defs span {
+  flex: 1;
+  min-width: 200px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+/* Problems read better stacked — the fix is a sentence, not a label. */
+.guide-trouble li { flex-direction: column; gap: 2px; }
+.guide-trouble strong { min-width: 0; color: var(--brand); }
+.guide-auto {
+  list-style: disc;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.guide-auto li { font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+
+@media (max-width: 640px) {
+  .guide-defs strong { min-width: 0; }
+  .guide-defs li { flex-direction: column; gap: 2px; }
+  .guide-defs span { min-width: 0; }
+}
+
+/* Printing the guide: hand a volunteer paper instead of a tablet. Force ink
+   colours — the app palette is near-black and would waste a cartridge. */
+@media print {
+  body.printing-guide * { visibility: hidden !important; }
+  body.printing-guide #modal-guide,
+  body.printing-guide #modal-guide * { visibility: visible !important; }
+  body.printing-guide #modal-guide {
+    position: absolute; inset: 0 auto auto 0; width: 100%;
+    display: block !important; background: #fff; padding: 0;
+  }
+  body.printing-guide #modal-guide .modal {
+    max-width: 100%; max-height: none; overflow: visible;
+    border: none; box-shadow: none; background: #fff; padding: 0;
+  }
+  body.printing-guide #modal-guide .detail-close,
+  body.printing-guide #modal-guide .modal-actions { display: none !important; }
+  body.printing-guide #modal-guide,
+  body.printing-guide #modal-guide h2,
+  body.printing-guide #modal-guide h4,
+  body.printing-guide #modal-guide .guide-where code { color: #0f172a !important; }
+  body.printing-guide #modal-guide h3,
+  body.printing-guide #modal-guide .guide-trouble strong { color: #be185d !important; }
+  body.printing-guide #modal-guide p,
+  body.printing-guide #modal-guide span,
+  body.printing-guide #modal-guide li { color: #334155 !important; }
+  body.printing-guide #modal-guide .guide-num { background: #be185d !important; color: #fff !important; }
+  body.printing-guide #modal-guide .guide-where code,
+  body.printing-guide #modal-guide .guide-tip { background: #f1f5f9 !important; border-color: #cbd5e1 !important; }
+  body.printing-guide .guide-step, body.printing-guide .guide-phase { break-inside: avoid; }
+}
