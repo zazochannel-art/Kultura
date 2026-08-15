@@ -19,7 +19,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v100';
+    const APP_VERSION = 'v101';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -134,16 +134,11 @@
         el.setAttribute('aria-label', t(el.dataset.i18nAria));
       });
 
-      // Update active state on language buttons
+      // Update active state on language buttons. Styling lives in CSS (see
+      // .lang-btn) — inline styles here used to fight the stylesheet and made
+      // the active state fail contrast without anyone noticing.
       document.querySelectorAll('.lang-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.lang === lang);
-        if (btn.dataset.lang === lang) {
-          btn.style.background = 'var(--blue)';
-          btn.style.color = '#fff';
-        } else {
-          btn.style.background = 'transparent';
-          btn.style.color = 'var(--text-dim)';
-        }
       });
 
       // Toggle login/signup text via isSignUp flag if applicable
@@ -1813,16 +1808,28 @@
     function registrationUrl() {
       return new URL('register.html', location.href).href;
     }
+    // Link + QR for any of the public pages handed out at the event. One picker
+    // instead of four near-identical blocks.
+    function publicPageUrl() {
+      const sel = el('pubPageSel');
+      return new URL((sel && sel.value) || 'register.html', location.href).href;
+    }
     (function initRegShare() {
       const inp = el('regLink');
-      if (inp) inp.value = registrationUrl();
+      const syncLink = () => {
+        if (inp) inp.value = publicPageUrl();
+        const box = el('regQrBox');
+        if (box) { box.style.display = 'none'; box.innerHTML = ''; } // stale QR
+      };
+      syncLink();
+      el('pubPageSel')?.addEventListener('change', syncLink);
       el('regCopyBtn')?.addEventListener('click', async () => {
-        const url = registrationUrl();
+        const url = publicPageUrl();
         try { await navigator.clipboard.writeText(url); }
         catch (_) { if (inp) { inp.select(); document.execCommand && document.execCommand('copy'); } }
         const msg = el('regMsg'); if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('reg.share_copied'); setTimeout(() => { msg.textContent = ''; }, 2500); }
       });
-      el('regOpenBtn')?.addEventListener('click', () => { window.open(registrationUrl(), '_blank'); });
+      el('regOpenBtn')?.addEventListener('click', () => { window.open(publicPageUrl(), '_blank'); });
       el('regQrBtn')?.addEventListener('click', async () => {
         const box = el('regQrBox'); if (!box) return;
         if (box.style.display !== 'none' && box.innerHTML) { box.style.display = 'none'; return; }
@@ -1830,8 +1837,29 @@
         box.innerHTML = `<div class="qr-loading"></div>`;
         try {
           const qrlib = await ensureQrLib();
-          const qr = qrlib(0, 'M'); qr.addData(registrationUrl()); qr.make();
-          box.innerHTML = qr.createSvgTag({ scalable: true, margin: 1 });
+          const qr = qrlib(0, 'M'); qr.addData(publicPageUrl()); qr.make();
+          // Printable: the QR is what actually goes on a poster or a flyer.
+          box.innerHTML = qr.createSvgTag({ scalable: true, margin: 1 }) +
+            `<div style="text-align:center;margin-top:8px;">
+               <button type="button" class="btn small ghost" id="pubQrPrintBtn">${escape(t('car.qr.print'))}</button>
+             </div>`;
+          el('pubQrPrintBtn')?.addEventListener('click', () => {
+            const w = window.open('', '_blank');
+            if (!w) return;
+            const label = el('pubPageSel')?.selectedOptions[0]?.textContent || '';
+            w.document.open();
+            w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>QR</title><style>
+              body{margin:0;padding:40px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;text-align:center;background:#fff;color:#111;}
+              .q{width:12cm;height:12cm;margin:0 auto;} .q svg{width:100%;height:100%;}
+              h1{font-size:22px;margin:0 0 6px;} p{color:#666;font-size:13px;word-break:break-all;}
+            </style></head><body>
+              <h1>${escape(label)}</h1>
+              <div class="q">${qr.createSvgTag({ scalable: true, margin: 1 })}</div>
+              <p>${escape(publicPageUrl())}</p>
+              <script>window.onload=function(){setTimeout(function(){window.print();},300);};<\/script>
+            </body></html>`);
+            w.document.close();
+          });
         } catch (e) {
           box.innerHTML = `<div class="qr-err">${escape(t('common.error'))}</div>`;
         }
@@ -2415,7 +2443,10 @@
       const fbBlk = el('feedbackBlock');
       if (fbBlk) { fbBlk.style.display = staff ? 'block' : 'none'; if (staff) { try { renderFeedback(); } catch (_) {} } }
       const errBlk = el('errorsBlock');
-      if (errBlk) { errBlk.style.display = staff ? 'block' : 'none'; if (staff) { try { renderErrorLog(); } catch (_) {} } }
+      if (errBlk) {
+        errBlk.style.display = staff ? 'block' : 'none';
+        if (staff) { try { renderErrorLog(); } catch (_) {} try { renderRateLimitStats(); } catch (_) {} }
+      }
       // SMS Center is admin-only (both desktop and mobile nav entries).
       document.querySelectorAll('.admin-only-tab').forEach(b => { b.style.display = admin ? '' : 'none'; });
       const annBlock = el('announceBlock');
@@ -2468,7 +2499,7 @@
     const AGENDA_FP_FIELDS = ['id','event_id','title','at_time','notes','updated_at'];
     const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','telegram','email','city','category','year','social_links','transport_info','modifications','photos','status','created_at'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
-    const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','cover_url','starts_at','days_left'];
+    const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','cover_url','starts_at','days_left','archived'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
 
     function makeFp(list, fields) {
@@ -3582,7 +3613,31 @@
           </div>`;
       }).join('');
     }
-    el('errRefreshBtn')?.addEventListener('click', () => { try { renderErrorLog(); } catch (_) {} });
+    // Rate-limit health: are the public limits stopping abuse, or turning away
+    // real people? A whole car club behind one venue NAT shares an IP, so a
+    // high rejection rate is a signal the thresholds need raising, not a win.
+    async function renderRateLimitStats() {
+      const box = el('rateLimitStats'); if (!box) return;
+      if (!isAdmin()) { box.innerHTML = ''; return; }
+      const { data, error } = await supa.rpc('rate_limit_stats', { p_hours: 24 });
+      if (error || !data || !data.length) { box.innerHTML = ''; return; }
+      const label = { register: t('pub.page_register'), feedback: t('pub.page_feedback'), vote: t('pub.page_vote') };
+      box.innerHTML = `<div class="rl-title">${escape(t('rl.title'))}</div>` + data.map(r => {
+        const total = (r.accepted || 0) + (r.rejected || 0);
+        const pct = total ? Math.round(r.rejected / total * 100) : 0;
+        const warn = pct >= 20; // a fifth turned away is worth a second look
+        return `<div class="rl-row${warn ? ' warn' : ''}">
+            <span class="rl-b">${escape(label[r.bucket] || r.bucket)}</span>
+            <span class="rl-n">${r.accepted} ✓${r.rejected ? ` · ${r.rejected} ⛔ (${pct}%)` : ''}</span>
+          </div>`;
+      }).join('') +
+      (data.some(r => ((r.accepted || 0) + (r.rejected || 0)) && r.rejected / ((r.accepted || 0) + (r.rejected || 0)) >= 0.2)
+        ? `<div class="rl-hint">${escape(t('rl.hint'))}</div>` : '');
+    }
+    el('errRefreshBtn')?.addEventListener('click', () => {
+      try { renderErrorLog(); } catch (_) {}
+      try { renderRateLimitStats(); } catch (_) {}
+    });
 
     el('votingOpenBtn')?.addEventListener('click', () => { const s = el('votingEventSel'); if (s && s.value) setVotingEvent(s.value); });
     el('votingCloseBtn')?.addEventListener('click', () => setVotingEvent(''));
@@ -4621,7 +4676,11 @@
       const q = state.eventsSearch.toLowerCase();
       return state.events.filter(e => {
         const status = eventStatusKey(e.status);
-        if (state.eventsFilter !== 'all' && state.eventsFilter !== status) return false;
+        // Archived events stay out of every list unless explicitly asked for —
+        // that is the whole point of archiving.
+        if (state.eventsFilter === 'archived') { if (!e.archived) return false; }
+        else if (e.archived) return false;
+        if (state.eventsFilter !== 'all' && state.eventsFilter !== 'archived' && state.eventsFilter !== status) return false;
         if (!q) return true;
         return (e.title || '').toLowerCase().includes(q) ||
                (e.subtitle || '').toLowerCase().includes(q) ||
@@ -4631,12 +4690,18 @@
 
     function renderEventsChips() {
       const c = el('eventsChips');
-      const total = state.events.length;
-      const counts = { all: total };
+      const live = state.events.filter(e => !e.archived);
+      const nArchived = state.events.length - live.length;
+      const counts = { all: live.length, archived: nArchived };
       EVENT_STATUS_OPTIONS.forEach(o => {
-        counts[o.key] = state.events.filter(e => eventStatusKey(e.status) === o.key).length;
+        counts[o.key] = live.filter(e => eventStatusKey(e.status) === o.key).length;
       });
-      const chips = [{ key: 'all', label: t('tasks.filter_all') }, ...EVENT_STATUS_OPTIONS.map(o => ({ key: o.key, label: translateStatus(o.label, 'event') }))];
+      const chips = [
+        { key: 'all', label: t('tasks.filter_all') },
+        ...EVENT_STATUS_OPTIONS.map(o => ({ key: o.key, label: translateStatus(o.label, 'event') })),
+        // Only offer the archive tab once something is actually in it.
+        ...(nArchived ? [{ key: 'archived', label: t('event.archived') }] : []),
+      ];
       c.innerHTML = chips.map(chip => `
         <button class="chip ${state.eventsFilter === chip.key ? 'active' : ''}"
                 data-events-filter="${chip.key}">
@@ -4682,6 +4747,11 @@
               <button class="action-btn" data-action="event-edit" data-event-id="${e.id}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 ${t("common.edit")}
+              </button>` : ''}
+              ${isAdmin() ? `
+              <button class="action-btn" data-action="event-archive" data-event-id="${e.id}" data-archived="${e.archived ? '1' : ''}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><line x1="10" y1="13" x2="14" y2="13"/></svg>
+                ${escape(t(e.archived ? 'event.unarchive' : 'event.archive'))}
               </button>` : ''}
               ${isAdmin() ? `
               <button class="action-btn delete" data-action="event-delete" data-event-id="${e.id}" data-event-label="${escape(e.title)}">
@@ -5166,6 +5236,15 @@
         const { error } = await withSpinner(() => supa.from('events').update({ status: label, status_color: color }).eq('id', id));
         if (error) return uiAlert('Eroare: ' + error.message);
         await loadData();
+      } else if (action === 'event-archive') {
+        // Archiving is reversible and touches nothing else — the event's cars,
+        // stats and reports stay exactly as they are, just out of the way.
+        const id = btn.dataset.eventId;
+        const nowArchived = !btn.dataset.archived;
+        const { error } = await withSpinner(() => supa.from('events').update({ archived: nowArchived }).eq('id', id));
+        if (error) return uiAlert(writeErrorText(error));
+        await loadData();
+        showToast(t(nowArchived ? 'event.archived_toast' : 'event.unarchived_toast'));
       } else if (action === 'event-delete') {
         const id = btn.dataset.eventId, label = btn.dataset.eventLabel || 'evenimentul';
         if (!await uiConfirm(`Șterge "${label}"?\nAcțiune ireversibilă.`)) return;
