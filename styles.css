@@ -3870,9 +3870,11 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
   background: rgba(239,68,68,0.15); color: var(--red);
 }
 .gate-logout svg { width: 20px; height: 20px; }
-/* Kiosk mode: fully locked terminal — no close, no logout, no kiosk toggle. */
-.kiosk .gate-close, .kiosk .gate-logout, .kiosk #gateKioskBtn { display: none !important; }
-#gateKioskBtn.is-on { background: rgba(16,185,129,0.16); color: var(--green); }
+/* Kiosk mode: locked terminal. Close/logout are hidden so visitors can't wander
+   into the app, but the kiosk button itself stays visible (styled as an exit)
+   so staff always have a discoverable way out — it asks for confirmation. */
+.kiosk .gate-close, .kiosk .gate-logout { display: none !important; }
+#gateKioskBtn.is-on { background: rgba(239,68,68,0.16); color: var(--red); }
 
 /* ===== SMS CENTER ===== */
 .sms-stats { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-bottom: 16px; }
