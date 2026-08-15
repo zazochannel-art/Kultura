@@ -2997,11 +2997,41 @@
     function closeGate() {
       const ov = el('gateOverlay');
       if (!ov) return;
-      if (isGateRole()) { stopGateScanner(); return; } // gate accounts stay locked here
+      if (isGateRole() || kioskOn()) { stopGateScanner(); return; } // stays locked in kiosk / gate accounts
       stopGateScanner();
       ov.classList.remove('show');
       ov.setAttribute('aria-hidden', 'true');
     }
+
+    // ----- Kiosk mode: turn this device into a locked gate terminal -----
+    function kioskOn() { try { return localStorage.getItem('kultura_kiosk') === '1'; } catch (_) { return false; } }
+    let _wakeLock = null;
+    async function requestWakeLock() {
+      try { if ('wakeLock' in navigator) _wakeLock = await navigator.wakeLock.request('screen'); } catch (_) {}
+    }
+    function releaseWakeLock() { try { _wakeLock && _wakeLock.release && _wakeLock.release(); } catch (_) {} _wakeLock = null; }
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && kioskOn()) requestWakeLock();
+    });
+    function setKiosk(on) {
+      try { on ? localStorage.setItem('kultura_kiosk', '1') : localStorage.removeItem('kultura_kiosk'); } catch (_) {}
+      document.body.classList.toggle('kiosk', on);
+      try { applyGateLock(); } catch (_) {}
+      if (on) { openGate(); requestWakeLock(); showToast(t('kiosk.on')); }
+      else { releaseWakeLock(); closeGate(); showToast(t('kiosk.off')); }
+    }
+    el('gateKioskBtn')?.addEventListener('click', () => { if (!kioskOn()) setKiosk(true); });
+    // Exit kiosk via a long-press on the gate title (hidden from ordinary taps).
+    (function () {
+      const title = document.querySelector('#gateOverlay .gate-title h2');
+      if (!title) return;
+      let timer = null;
+      const start = () => { timer = setTimeout(async () => { if (kioskOn() && await uiConfirm(t('kiosk.exit_confirm'))) setKiosk(false); }, 1500); };
+      const cancel = () => { clearTimeout(timer); };
+      title.addEventListener('pointerdown', start);
+      title.addEventListener('pointerup', cancel);
+      title.addEventListener('pointerleave', cancel);
+    })();
     function renderGate() {
       const box = el('gateResults');
       if (!box) return;
@@ -6655,11 +6685,13 @@
     // A 'gate' account is locked to the door check-in screen (a volunteer scanner).
     function isGateRole() { return currentRole() === 'gate'; }
     function applyGateLock() {
-      const locked = isGateRole();
+      const locked = isGateRole() || kioskOn();
       document.body.classList.toggle('gate-locked', locked);
+      document.body.classList.toggle('kiosk', kioskOn());
       if (locked && !el('gateOverlay')?.classList.contains('show')) {
         try { openGate(); } catch (_) {}
       }
+      if (kioskOn()) requestWakeLock();
     }
 
     // Realtime — reload when anyone changes the tables
