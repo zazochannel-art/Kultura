@@ -36,6 +36,11 @@
       --accent-glow: rgba(6,182,212,0.30);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    /* The browser hides [hidden] with a UA rule so weak that any author
+       `display` beats it — so `.dup-banner { display: flex }` kept an empty
+       amber box on screen permanently, and three other elements stayed visible
+       while marked hidden. Restate it once, with the weight to win. */
+    [hidden] { display: none !important; }
     html, body { min-height: 100%; overflow-x: hidden; max-width: 100%; }
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -4272,3 +4277,32 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 }
 /* The warning banner sits at the very top of the car detail, above the photos. */
 .block-warn { margin-top: 0; margin-bottom: 14px; }
+
+/* ===== Stop the phone from zooming the app by itself =====
+   Two separate causes, neither of which is the user pinching:
+
+   1. iOS Safari zooms the whole page in whenever you focus a form control
+      whose font is under 16px — and it never zooms back out. With ~100 inputs
+      at 12–15px, tapping almost any field left the app stuck enlarged.
+   2. Android Chrome's font boosting and iOS landscape text inflation resize
+      text on their own, independently of any zoom level.
+
+   Deliberately NOT solved with `user-scalable=no`: that would also take away
+   pinch-zoom, which people genuinely need and which is a WCAG failure. Sizing
+   the controls correctly removes the cause instead of suppressing the symptom.
+
+   !important is load-bearing here: the 16px floor has to beat ~100 scattered
+   declarations, several of them class-scoped (e.g. `.event-picker select`)
+   and therefore more specific than any bare element selector. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@media (max-width: 768px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

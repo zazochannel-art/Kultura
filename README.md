@@ -227,9 +227,12 @@ client.
    număr de faze, de pași per fază, de roluri și de intrări în depanare, în
    toate limbile — și că niciun pas nu rămâne fără titlu sau text.
 7. **Nu pune `user-scalable=no` înapoi în viewport.** Blochează pinch-zoom-ul,
-   ceea ce e o problemă reală de accesibilitate. Inputurile sunt la 16px tocmai
-   ca iOS să nu mai facă zoom automat la focus — dacă le micșorezi sub 16px,
-   reapare motivul pentru care fusese pus.
+   ceea ce e o problemă reală de accesibilitate. Pe telefon există un prag de
+   **16px pe toate câmpurile** (`@media (max-width: 768px)`, cu `!important` ca
+   să bată declarațiile mai specifice) — tocmai ca iOS să nu mai mărească
+   pagina la focus. Ăla e motivul pentru care `user-scalable=no` nu e necesar;
+   dacă scazi câmpurile sub 16px, reapare. Verificat de `mobile-no-input-below-16px`.
+   Excepția știută: `ticket.html` încă are viewportul vechi.
 8. **Evită stilurile inline din JS pentru stări vizuale.** Butoanele de limbă au
    avut ani la rând contrast insuficient exact pentru că stilul inline din JS
    bătea foaia de stil și nimeni nu se uita acolo.
