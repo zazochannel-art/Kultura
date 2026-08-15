@@ -43,7 +43,8 @@ program.
 `agenda.html`, cu marcaj pe etapa curentă.
 
 ### 3. Deschide înscrierile
-Dă participanților link-ul către **`register.html`** (QR pe afiș, story, grup).
+Linkul îl iei din **Setări → Pagini publice** → „Înscriere mașină" →
+*Copiază linkul* sau *Cod QR* (printabil, pentru afiș).
 
 Formularul le spune pe loc dacă mașina e deja înscrisă și acceptă maxim
 **3 înscrieri pe oră de pe aceeași conexiune** (protecție anti-spam).
@@ -128,8 +129,9 @@ eveniment sau task.
 ### 10. Deschide votarea „Best Car"
 **Setări → Votare Best Car** → alegi evenimentul → **Deschide**.
 
-Dai participanților link-ul **`vote.html`**. Un vot per dispozitiv, se poate
-schimba. Clasamentul e live.
+Linkul îl iei din **Setări → Pagini publice** (alegi „Votare Best Car" →
+*Copiază linkul* sau *Cod QR*). Un vot per dispozitiv, se poate schimba.
+Clasamentul e live.
 
 Podiumul (top 3) apare automat și pe **peretele de sosiri** — bun pentru
 proiector la premiere.
@@ -137,8 +139,9 @@ proiector la premiere.
 > Nu uita să apeși **Închide** când s-a terminat votarea.
 
 ### 11. Cere feedback
-Dă link-ul **`feedback.html`** (stele + comentariu). Răspunsurile apar în
-**Setări → Feedback**.
+Linkul îl iei direct din **Setări → Feedback → Copiază linkul** (sau din
+**Setări → Pagini publice**, unde ai și cod QR printabil). Răspunsurile apar
+tot acolo, în **Setări → Feedback**.
 
 ---
 
