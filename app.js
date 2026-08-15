@@ -14,6 +14,47 @@
       auth: { persistSession: true, autoRefreshToken: true }
     });
 
+    // ---------- Crash reporting ----------
+    // A JS error on an operator's phone at the gate is otherwise invisible to
+    // everyone. Report uncaught errors so failures are diagnosable after the
+    // fact. Best-effort and heavily throttled: reporting must never itself
+    // break the app or spam the table from a render loop.
+    const APP_VERSION = 'v97';
+    let _errCount = 0, _lastErrAt = 0;
+    const _errSeen = new Set();
+    async function reportClientError(message, stack) {
+      try {
+        const msg = String(message || '').slice(0, 500);
+        if (!msg) return;
+        // Ignore noise we can't act on: offline blips and extension errors.
+        if (/Failed to fetch|NetworkError|Load failed|ResizeObserver loop/i.test(msg)) return;
+        const now = Date.now();
+        if (_errCount >= 10) return;                 // cap per page load
+        if (now - _lastErrAt < 2000) return;         // throttle bursts
+        const key = msg.slice(0, 120);
+        if (_errSeen.has(key)) return;               // one report per distinct error
+        _errSeen.add(key); _lastErrAt = now; _errCount++;
+        // Only signed-in users can insert (RLS); skip quietly otherwise.
+        const { data: { user } = { user: null } } = await supa.auth.getUser().catch(() => ({ data: { user: null } }));
+        if (!user) return;
+        await supa.from('client_errors').insert({
+          message: msg,
+          stack: String(stack || '').slice(0, 4000) || null,
+          url: String(location.pathname + location.search).slice(0, 300),
+          user_agent: String(navigator.userAgent || '').slice(0, 300),
+          user_email: user.email || null,
+          app_version: APP_VERSION,
+        });
+      } catch (_) { /* never let reporting throw */ }
+    }
+    window.addEventListener('error', (e) => {
+      reportClientError(e.message || (e.error && e.error.message), e.error && e.error.stack);
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      const r = e.reason;
+      reportClientError((r && r.message) || String(r), r && r.stack);
+    });
+
     // ==============================================================
     // I18N SYSTEM
     // ==============================================================
@@ -2351,6 +2392,8 @@
       if (votingBlk) { votingBlk.style.display = admin ? 'block' : 'none'; if (admin) { try { renderVotingAdmin(); } catch (_) {} } }
       const fbBlk = el('feedbackBlock');
       if (fbBlk) { fbBlk.style.display = staff ? 'block' : 'none'; if (staff) { try { renderFeedback(); } catch (_) {} } }
+      const errBlk = el('errorsBlock');
+      if (errBlk) { errBlk.style.display = staff ? 'block' : 'none'; if (staff) { try { renderErrorLog(); } catch (_) {} } }
       // SMS Center is admin-only (both desktop and mobile nav entries).
       document.querySelectorAll('.admin-only-tab').forEach(b => { b.style.display = admin ? '' : 'none'; });
       const annBlock = el('announceBlock');
@@ -3440,6 +3483,38 @@
       }).join('');
     }
     el('fbRefreshBtn')?.addEventListener('click', () => { try { renderFeedback(); } catch (_) {} });
+
+    // ----- Reported client errors (staff view) -----
+    async function renderErrorLog() {
+      const box = el('errList'); if (!box) return;
+      const { data, error } = await supa.from('client_errors')
+        .select('message, url, user_email, app_version, created_at, user_agent')
+        .order('created_at', { ascending: false }).limit(50);
+      if (error) { box.innerHTML = `<div class="block-empty">${escape(error.message)}</div>`; return; }
+      if (!data || !data.length) { box.innerHTML = `<div class="block-empty">${escape(t('errlog.empty'))}</div>`; return; }
+      // Collapse repeats of the same message into one row with a count.
+      const groups = new Map();
+      for (const r of data) {
+        const k = r.message;
+        const g = groups.get(k) || { ...r, n: 0 };
+        g.n++; groups.set(k, g);
+      }
+      box.innerHTML = [...groups.values()].map(r => {
+        const who = (r.user_email || '').split('@')[0];
+        const dev = /android/i.test(r.user_agent || '') ? 'Android'
+          : /iphone|ipad/i.test(r.user_agent || '') ? 'iOS' : 'Desktop';
+        const meta = [who, dev, r.url, r.app_version, r.created_at ? fmtRelative(r.created_at) : '']
+          .filter(Boolean).map(escape).join(' · ');
+        return `<div class="activity-item">
+            <span class="activity-ic">⚠️</span>
+            <div class="activity-txt">
+              <div class="activity-top">${escape(r.message)}${r.n > 1 ? ` <b>×${r.n}</b>` : ''}</div>
+              <div class="activity-meta">${meta}</div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+    el('errRefreshBtn')?.addEventListener('click', () => { try { renderErrorLog(); } catch (_) {} });
 
     el('votingOpenBtn')?.addEventListener('click', () => { const s = el('votingEventSel'); if (s && s.value) setVotingEvent(s.value); });
     el('votingCloseBtn')?.addEventListener('click', () => setVotingEvent(''));
