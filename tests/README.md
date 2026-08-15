@@ -1,8 +1,34 @@
 # Tests
 
-Smoke tests for the Kultura web app (Playwright + headless Chromium).
+Two layers: fast dependency-free unit tests, and a browser smoke test.
 
-## Run
+Both run in CI (`.github/workflows/ci.yml`) alongside a syntax check and the
+i18n guard.
+
+## Unit tests — `unit.mjs`
+
+Cover the pure helpers in `utils.js`: plate normalization (drives the blocklist
+and duplicate detection), `statusKey` (drives every gate/stat surface), phone
+normalization (decides where SMS actually go), escaping, and formatting.
+
+No dependencies — uses the built-in `node:test` runner:
+
+```bash
+node --test tests/unit.mjs
+```
+
+## i18n guard — `../scripts/check-i18n.mjs`
+
+Fails if the ro/en/ru packs drift: missing/extra keys, mismatched
+`{placeholders}`, duplicate keys, or empty values.
+
+```bash
+node scripts/check-i18n.mjs
+```
+
+## Smoke tests — `smoke.mjs`
+
+Playwright + headless Chromium.
 
 ```bash
 npm i -D playwright            # once, if not already available
