@@ -802,7 +802,10 @@
               <strong data-i18n="backup.title">Backup automat al datelor</strong>
               <span data-i18n="backup.sub">Un backup complet (JSON) se face automat în fiecare zi. Poți face unul și manual sau descărca oricare.</span>
               <div class="announce-compose">
-                <button type="button" class="btn small" id="backupRunBtn" data-i18n="backup.run">Fă backup acum</button>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button type="button" class="btn small" id="backupRunBtn" data-i18n="backup.run">Fă backup acum</button>
+                  <button type="button" class="btn small ghost" id="photoSweepBtn" data-i18n="sweep.btn">Curăță poze orfane</button>
+                </div>
                 <div class="modal-msg" id="backupMsg" style="margin-top:6px;"></div>
                 <div id="backupList" class="backup-list"></div>
               </div>
@@ -1754,6 +1757,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
+      <div class="wall-podium" id="wallPodium" hidden></div>
       <div class="wall-grid" id="wallGrid"></div>
       <div class="wall-empty" id="wallEmpty" hidden data-i18n="wall.empty">Nicio sosire încă</div>
     </div>

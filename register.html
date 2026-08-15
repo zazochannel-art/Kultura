@@ -76,6 +76,10 @@
       background:rgba(0,0,0,.6);color:#fff;font-size:16px;line-height:1;cursor:pointer;display:grid;place-items:center}
     /* Honeypot — kept in the layout but invisible/unfocusable for humans. */
     .hp-field{position:absolute!important;left:-9999px!important;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none}
+    .field-note{font-size:12px;margin-top:5px;display:none}
+    .field-note.show{display:block}
+    .field-note.warn{color:#f59e0b}
+    .field-note.err{color:var(--red)}
   </style>
 </head>
 <body>
@@ -95,7 +99,7 @@
           <div><label>Model <span class="req">*</span></label><input name="model" required placeholder="M4"></div>
         </div>
         <div class="row">
-          <div><label>Număr de înmatriculare</label><input name="plate" placeholder="B 100 XYZ"></div>
+          <div><label>Număr de înmatriculare</label><input name="plate" placeholder="B 100 XYZ"><div class="field-note" id="plateNote"></div></div>
           <div><label>An fabricație</label><input name="year" inputmode="numeric" maxlength="4" placeholder="2018"></div>
         </div>
         <div class="row">
@@ -250,6 +254,39 @@
     const btn = document.getElementById('submitBtn');
     const msg = document.getElementById('msg');
     const showMsg = (txt, kind) => { msg.textContent = txt; msg.className = 'msg show ' + kind; };
+    // Tell the person straight away if their plate is already registered, so a
+    // duplicate is caught here rather than by the team in the approval queue.
+    const plateInput = form.elements['plate'];
+    const plateNote = document.getElementById('plateNote');
+    let _plateSeq = 0;
+    async function checkPlate() {
+      const v = (plateInput.value || '').trim();
+      const seq = ++_plateSeq;
+      if (v.replace(/[^A-Za-z0-9]/g, '').length < 3) { plateNote.className = 'field-note'; return; }
+      try {
+        const r = await fetch(SUPA_URL + '/functions/v1/plate-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: SUPA_ANON, Authorization: 'Bearer ' + SUPA_ANON },
+          body: JSON.stringify({ plate: v }),
+        });
+        const d = await r.json();
+        if (seq !== _plateSeq) return; // a newer check already ran
+        if (d.blocked) {
+          plateNote.className = 'field-note show err';
+          plateNote.textContent = '⛔ Această placă nu poate fi înscrisă. Contactează organizatorii.';
+        } else if (d.known) {
+          plateNote.className = 'field-note show warn';
+          plateNote.textContent = d.pending
+            ? '⧉ Există deja o înscriere în așteptare pentru această placă.'
+            : '⧉ Această mașină pare deja înscrisă. Poți continua, dar organizatorii vor verifica.';
+        } else {
+          plateNote.className = 'field-note';
+        }
+      } catch (_) { /* offline or blocked — stay silent, the queue still catches it */ }
+    }
+    plateInput.addEventListener('blur', checkPlate);
+    plateInput.addEventListener('input', () => { plateNote.className = 'field-note'; });
+
     // Anti-spam: when the form first became interactive (bots submit instantly).
     const _formReadyAt = Date.now();
     const RATE_MS = 60000; // one submit per minute per browser

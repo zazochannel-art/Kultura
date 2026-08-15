@@ -19,7 +19,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v97';
+    const APP_VERSION = 'v100';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -1636,11 +1636,11 @@
         };
         const tableRows = (rows) => rows.length ? rows.map(([k, n]) => `<tr><td>${esc(k)}</td><td style="text-align:right;font-weight:700;">${n}</td></tr>`).join('') : '<tr><td colspan="2" style="color:#999;">—</td></tr>';
         // Optional: feedback average + votes for the active event.
-        let extra = '';
+        let extra = '', feedbackSection = '';
         if (ev && navigator.onLine) {
           try {
             const [{ data: fb }, { data: vt }] = await Promise.all([
-              supa.from('event_feedback').select('rating').eq('event_id', ev.id),
+              supa.from('event_feedback').select('rating, comment').eq('event_id', ev.id),
               supa.from('car_votes').select('id').eq('event_id', ev.id),
             ]);
             const fbRows = fb || [];
@@ -1649,6 +1649,27 @@
             if (avg) bits.push(`${t('report.feedback')}: <b>${avg} ★</b> (${fbRows.length})`);
             if (vt && vt.length) bits.push(`${t('report.votes')}: <b>${vt.length}</b>`);
             if (bits.length) extra = `<p style="margin:6px 0 0;color:#333;">${bits.join(' &nbsp;·&nbsp; ')}</p>`;
+            // Star distribution + the comments people actually wrote — the part
+            // an organiser wants to read, not just the average.
+            if (fbRows.length) {
+              const dist = [5, 4, 3, 2, 1].map(star => {
+                const n = fbRows.filter(r => r.rating === star).length;
+                const pct = Math.round(n / fbRows.length * 100);
+                return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:12px;">
+                    <span style="width:36px;">${star} ★</span>
+                    <span style="flex:1;height:8px;background:#eee;border-radius:99px;overflow:hidden;">
+                      <span style="display:block;height:100%;width:${pct}%;background:#f5c542;"></span></span>
+                    <span style="width:52px;text-align:right;">${n} (${pct}%)</span>
+                  </div>`;
+              }).join('');
+              const comments = fbRows.filter(r => (r.comment || '').trim()).slice(0, 20);
+              const list = comments.length
+                ? `<div style="margin-top:10px;">${comments.map(r =>
+                    `<div style="border-left:3px solid #f5c542;padding:3px 0 3px 9px;margin-bottom:7px;font-size:12px;">
+                       <b>${'★'.repeat(r.rating || 0)}</b> ${esc(r.comment)}</div>`).join('')}</div>`
+                : '';
+              feedbackSection = `<h2>${esc(t('report.feedback'))}</h2><div>${dist}</div>${list}`;
+            }
           } catch (_) {}
         }
         const stat = (n, label) => `<div class="stat"><div class="n">${n}</div><div class="l">${esc(label)}</div></div>`;
@@ -1682,6 +1703,7 @@
             <div><h2>${esc(t('aflux.by_brand'))}</h2><table>${tableRows(topBy(c => c.brand))}</table></div>
             <div><h2>${esc(t('aflux.by_city'))}</h2><table>${tableRows(topBy(c => c.city))}</table></div>
           </div>
+          ${feedbackSection}
           <div class="foot">Kultura · ${esc(now)}</div>
           <script>window.onload=function(){setTimeout(function(){window.print();},400);};<\/script>
         </body></html>`;
@@ -2860,14 +2882,16 @@
     // one, so a plate zone edit + arrival collapse to a single sync.
     function enqueueAction(action) {
       const box = getOutbox();
-      if (action.type === 'car-update') {
-        const existing = box.find(a => a.type === 'car-update' && String(a.carId) === String(action.carId));
-        if (existing) {
-          existing.patch = { ...existing.patch, ...action.patch };
-          existing.ts = Date.now();
-        } else {
-          box.push({ id: 'a' + Date.now() + Math.random().toString(36).slice(2, 6), tries: 0, ts: Date.now(), ...action });
-        }
+      // Coalesce repeated edits to the same row so a flaky connection doesn't
+      // build up a queue of superseded patches.
+      const sameRow = (a) =>
+        (a.type === 'car-update' && action.type === 'car-update' && String(a.carId) === String(action.carId)) ||
+        (a.type === 'row-update' && action.type === 'row-update' &&
+         a.table === action.table && String(a.rowId) === String(action.rowId));
+      const existing = box.find(sameRow);
+      if (existing) {
+        existing.patch = { ...existing.patch, ...action.patch };
+        existing.ts = Date.now();
       } else {
         box.push({ id: 'a' + Date.now() + Math.random().toString(36).slice(2, 6), tries: 0, ts: Date.now(), ...action });
       }
@@ -2897,6 +2921,11 @@
         try {
           if (action.type === 'car-update') {
             const { error } = await supa.from('cars').update(action.patch).eq('id', action.carId);
+            if (error) throw error;
+          } else if (action.type === 'row-update') {
+            // Generic queued write for tables other than `cars` (VIP guests,
+            // tasks) so field actions survive a dead connection too.
+            const { error } = await supa.from(action.table).update(action.patch).eq('id', action.rowId);
             if (error) throw error;
           }
           // Success (or the row is gone) — drop it from the queue.
@@ -3194,11 +3223,15 @@
         (data || []).forEach(r => { const p = Array.isArray(r.photos) ? r.photos : []; if (p.length) _wallPhotos[r.id] = p[0]; });
       } catch (_) {}
       renderArrivalsWall();
+      try { renderWallPodium(); } catch (_) {}
+      clearInterval(_podiumTimer);
+      _podiumTimer = setInterval(() => { try { renderWallPodium(); } catch (_) {} }, 15000);
     }
     function closeArrivalsWall() {
       const ov = el('arrivalsWall'); if (!ov) return;
       ov.classList.remove('show'); ov.setAttribute('aria-hidden', 'true');
       _wallAutoScroll = false; stopWallAutoScroll();
+      clearInterval(_podiumTimer); _podiumTimer = null;
       el('wallPresentBtn')?.classList.remove('active');
       try { if (document.fullscreenElement) document.exitFullscreen(); } catch (_) {}
     }
@@ -3252,6 +3285,41 @@
             </div>
           </div>`;
       }).join('');
+    }
+
+    // Live "Best Car" podium on the projected wall — a natural closing moment
+    // for the event. Only shown while voting is open and votes exist.
+    let _podiumTimer = null;
+    async function renderWallPodium() {
+      const box = el('wallPodium'); if (!box) return;
+      try {
+        const { data: cfg } = await supa.from('ui_settings').select('value').eq('key', 'voting_event_id').maybeSingle();
+        const evId = cfg && cfg.value ? Number(cfg.value) : NaN;
+        if (!Number.isFinite(evId)) { box.hidden = true; return; }
+        const { data: votes } = await supa.from('car_votes').select('car_id').eq('event_id', evId);
+        if (!votes || !votes.length) { box.hidden = true; return; }
+        const tally = {};
+        votes.forEach(v => { tally[v.car_id] = (tally[v.car_id] || 0) + 1; });
+        const top = Object.entries(tally).sort((a, b) => b[1] - a[1]).slice(0, 3);
+        const src = (state.cars && state.cars.length) ? state.cars : loadCachedCars();
+        const medals = ['🥇', '🥈', '🥉'];
+        box.hidden = false;
+        box.innerHTML = `<div class="wall-podium-t">🏆 ${escape(t('wall.podium'))}</div>` +
+          `<div class="wall-podium-row">${top.map(([cid, n], i) => {
+            const c = src.find(x => String(x.id) === String(cid));
+            const name = c ? ([c.brand, c.model].filter(Boolean).join(' ') || c.plate || ('#' + cid)) : ('#' + cid);
+            const photo = c ? _wallPhotos[c.id] : null;
+            const media = photo
+              ? `<div class="wp-photo" style="background-image:url('${escape(photo)}')"></div>`
+              : `<div class="wp-photo wp-ph">${medals[i]}</div>`;
+            return `<div class="wp-item wp-${i + 1}">
+                <div class="wp-medal">${medals[i]}</div>
+                ${media}
+                <div class="wp-name">${escape(name)}</div>
+                <div class="wp-votes">${n} ⭐</div>
+              </div>`;
+          }).join('')}</div>`;
+      } catch (_) { box.hidden = true; }
     }
     el('wallOpenBtn')?.addEventListener('click', openArrivalsWall);
     el('wallCloseBtn')?.addEventListener('click', closeArrivalsWall);
@@ -3556,6 +3624,32 @@
         _backupBusy = false;
       }, 2500);
     });
+    // Orphaned-photo sweep: dry run first, then delete on explicit confirmation.
+    el('photoSweepBtn')?.addEventListener('click', async () => {
+      const btn = el('photoSweepBtn'), msg = el('backupMsg');
+      const say = (txt, color) => { if (msg) { msg.style.color = color || 'var(--text-dim)'; msg.textContent = txt; } };
+      btn.disabled = true;
+      try {
+        say(t('sweep.checking'));
+        const { data: pre, error: preErr } = await supa.functions.invoke('photo-sweep', { body: { dry_run: true } });
+        if (preErr || !pre || pre.error) { say(t('common.error') + ': ' + (preErr?.message || pre?.error || ''), 'var(--red)'); return; }
+        const rows = Object.entries(pre.report || {});
+        const orphans = rows.reduce((s, [, v]) => s + v.orphans, 0);
+        const kb = rows.reduce((s, [, v]) => s + v.freed_kb, 0);
+        if (!orphans) { say(t('sweep.none'), 'var(--green)'); return; }
+        const detail = rows.filter(([, v]) => v.orphans)
+          .map(([b, v]) => `• ${b}: ${v.orphans} / ${v.total}`).join('\n');
+        say('');
+        if (!(await uiConfirm(t('sweep.confirm', { n: orphans, kb }) + '\n\n' + detail, { danger: true }))) return;
+        say(t('sweep.running'));
+        const { data, error } = await supa.functions.invoke('photo-sweep', { body: { dry_run: false } });
+        if (error || !data || data.error) { say(t('common.error') + ': ' + (error?.message || data?.error || ''), 'var(--red)'); return; }
+        const del = Object.values(data.report || {}).reduce((s, v) => s + v.deleted, 0);
+        const freed = Object.values(data.report || {}).reduce((s, v) => s + v.freed_kb, 0);
+        say(t('sweep.done', { n: del, kb: freed }), 'var(--green)');
+      } finally { btn.disabled = false; }
+    });
+
     el('backupList')?.addEventListener('click', async (e) => {
       const b = e.target.closest('[data-backup-dl]');
       if (b) {
@@ -6256,21 +6350,20 @@
       const dm = document.getElementById('modal-vip-detail');
       if (openVipDetailId != null && dm?.classList.contains('show')) { try { showVipDetail(openVipDetailId); } catch (_) {} }
     }
-    async function toggleVipArrived(id) {
+    function toggleVipArrived(id) {
       const v = (state.vips || []).find(x => String(x.id) === String(id));
       if (!v) return;
       const arrived = !v.arrived;
-      const prev = { arrived: v.arrived, arrived_at: v.arrived_at };
       const patch = { arrived, arrived_at: arrived ? new Date().toISOString() : null };
       applyLocalVipPatch(id, patch); // optimistic
       if (arrived) { haptic(120); flashVipCard(id); try { auroraPulse(); } catch (_) {} }
-      const { error } = await supa.from('vip_guests').update(patch).eq('id', id);
-      if (error) {
-        applyLocalVipPatch(id, prev); // revert
-        showToast(t('common.error') + ': ' + error.message, 'error');
-        return;
-      }
-      showToast(arrived ? t('vip.toast_arrived', { name: vipFullName(v) }) : t('vip.toast_undo', { name: vipFullName(v) }));
+      // Queued like gate check-ins: marking a VIP as arrived is a field action
+      // and must not be lost when the venue's connection drops.
+      enqueueAction({ type: 'row-update', table: 'vip_guests', rowId: id, patch });
+      flushOutbox();
+      updateGateSyncUI();
+      const base = arrived ? t('vip.toast_arrived', { name: vipFullName(v) }) : t('vip.toast_undo', { name: vipFullName(v) });
+      showToast(navigator.onLine ? base : base + ' · ' + t('offline.queued'));
     }
     // Arrive toggle for a participant (car) shown in the VIP list. This is a
     // SEPARATE arrival state (vip_arrived) — it does NOT touch the gate status.
@@ -7244,6 +7337,17 @@
         cancelLabel: opts.cancelLabel || t('common.cancel'),
         danger: opts.danger !== false
       });
+    }
+
+    // Turn a failed write into a message the user can act on. Offline is by far
+    // the most common cause in the field, and "Failed to fetch" tells nobody
+    // that the edit simply needs retrying once there's signal.
+    function writeErrorText(error) {
+      const raw = (error && error.message) || String(error || '');
+      if (!navigator.onLine || /Failed to fetch|NetworkError|Load failed/i.test(raw)) {
+        return t('offline.write_failed');
+      }
+      return t('common.error') + ': ' + raw;
     }
 
     function showToast(msg, kind = 'ok') {
@@ -8793,7 +8897,11 @@
         patch.started_at = new Date().toISOString();
       }
       const { error } = await supa.from('tasks').update(patch).eq('id', taskId);
-      if (error) { uiAlert(t('common.error') + ': ' + error.message); return false; }
+      // Deliberately not queued offline: claiming/completing a task has conflict
+      // semantics (two people can grab the same one), so replaying a stale
+      // change later could silently produce the wrong outcome. Fail loudly and
+      // let the user retry when there is signal.
+      if (error) { uiAlert(writeErrorText(error)); return false; }
       showToast(t('kanban.moved'));
       return true;
     }
