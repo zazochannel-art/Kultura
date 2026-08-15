@@ -77,10 +77,9 @@
   </div>
 
   <script type="module">
-    import { createClient } from './vendor/supabase-js.mjs';
     const URL = 'https://knphmxxokowwkruimdus.supabase.co';
     const ANON = 'sb_publishable_9b7WSJF4UlfF1JIdCDjWqQ_dxOTpqSW';
-    const supa = createClient(URL, ANON);
+    const HEAD = { 'Content-Type': 'application/json', apikey: ANON, Authorization: 'Bearer ' + ANON };
 
     let rating = 0, eventId = null;
     const starsEl = document.getElementById('stars');
@@ -103,27 +102,38 @@
 
     const readyAt = Date.now();
     const btn = document.getElementById('submitBtn');
-    btn.addEventListener('click', async () => {
-      if (document.getElementById('hp').value) { document.getElementById('form').style.display = 'none'; document.getElementById('done').style.display = 'block'; return; }
-      if (Date.now() - readyAt < 2500) { document.getElementById('form').style.display = 'none'; document.getElementById('done').style.display = 'block'; return; }
-      if (!rating) { showMsg('Alege un număr de stele.', 'err'); return; }
-      try {
-        const last = parseInt(localStorage.getItem('kultura_fb_last') || '0', 10);
-        if (last && Date.now() - last < 60000) { showMsg('Ai trimis deja feedback. Mulțumim!', 'err'); return; }
-      } catch (_) {}
-      btn.disabled = true;
-      const row = {
-        event_id: eventId,
-        rating,
-        comment: (document.getElementById('comment').value || '').trim() || null,
-        contact: (document.getElementById('contact').value || '').trim() || null,
-      };
-      const { error } = await supa.from('event_feedback').insert(row);
-      btn.disabled = false;
-      if (error) { showMsg('Eroare: ' + error.message, 'err'); return; }
-      try { localStorage.setItem('kultura_fb_last', String(Date.now())); } catch (_) {}
+    const finish = () => {
       document.getElementById('form').style.display = 'none';
       document.getElementById('done').style.display = 'block';
+    };
+    btn.addEventListener('click', async () => {
+      if (Date.now() - readyAt < 2500) { finish(); return; } // too fast to be human
+      if (!rating) { showMsg('Alege un număr de stele.', 'err'); return; }
+      btn.disabled = true;
+      // Submitting goes through the `submit` edge function, which enforces the
+      // honeypot and a per-IP rate limit server-side. The client checks above
+      // are only a courtesy — they are not what actually protects the table.
+      let res, data;
+      try {
+        res = await fetch(URL + '/functions/v1/submit', {
+          method: 'POST', headers: HEAD,
+          body: JSON.stringify({
+            kind: 'feedback',
+            event_id: eventId,
+            rating,
+            comment: (document.getElementById('comment').value || '').trim() || null,
+            contact: (document.getElementById('contact').value || '').trim() || null,
+            company_website: document.getElementById('hp').value || '',
+          }),
+        });
+        data = await res.json().catch(() => ({}));
+      } catch (_) {
+        btn.disabled = false; showMsg('Eroare de conexiune. Încearcă din nou.', 'err'); return;
+      }
+      btn.disabled = false;
+      if (res.status === 429) { showMsg('Ai trimis deja feedback recent. Mulțumim!', 'err'); return; }
+      if (!res.ok || data.error) { showMsg('Eroare: ' + (data.error || res.status), 'err'); return; }
+      finish();
     });
   </script>
 </body>
