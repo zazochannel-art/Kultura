@@ -43,6 +43,17 @@ Rolurile se schimbă din **Echipa**.
 **Evenimente → Adaugă.** Pune data și locația — apar pe pagina publică de
 program.
 
+Apoi pune-i statusul **Activ**. Toată aplicația se leagă de evenimentul activ:
+mașinile, taskurile și invitații pe care îi adaugi de acum înainte se atașează
+automat de el, iar listele arată doar ce ține de el. Sus, în antet, e un
+selector din care poți oricând schimba evenimentul în lucru sau alege
+**Toate evenimentele**.
+
+> **Când termini evenimentul**, pune-i statusul **Finalizat**. Datele lui nu se
+> șterg — ies doar din vedere, iar aplicația trece la următorul eveniment, gol
+> și gata de pregătit. Ca să te uiți înapoi, alege evenimentul din selectorul
+> de sus.
+
 ### 2. Pune programul
 **Acasă → Program → +.** Fiecare etapă are oră și titlu. Se vede public pe
 `agenda.html`, cu marcaj pe etapa curentă.

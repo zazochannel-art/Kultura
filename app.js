@@ -20,7 +20,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v109';
+    const APP_VERSION = 'v110';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -1125,11 +1125,9 @@
     el('avatarBadge').addEventListener('click', openAccount);
     el('openAccountBtn')?.addEventListener('click', openAccount);
 
-    // Event filtering removed — the active-event picker no longer exists in the
-    // UI. Guarded in case an old cached shell still has the element.
+    // Scope the whole app to one event. The pick is remembered per device.
     el('activeEventSelect')?.addEventListener('change', (e) => {
-      state.activeEventId = e.target.value || '';
-      applyActiveEvent();
+      setActiveEvent(e.target.value || '');
     });
 
     // Tasks assignee filter.
@@ -2427,21 +2425,79 @@
       tasksPreset: localStorage.getItem('kultura_tasks_preset') || 'all',
       eventsFilter: 'all', eventsSearch: '',
       teamSearch: '',
-      // Event filtering removed — always empty so nothing is scoped to an event.
+      // Which event the app is scoped to. '' = all events. Resolved properly
+      // once events have loaded — see resolveActiveEvent().
       activeEventId: ''
     };
-    try { localStorage.removeItem('kultura_active_event'); } catch (_) {}
 
     // ----- ACTIVE EVENT FILTER -----
-    // When an event is selected in the header, cars/tasks/stats are scoped to
-    // it. Empty string = all events. Rows with no event_id are "unassigned" and
-    // stay visible under any active event, so imported data that predates events
-    // never silently disappears from the lists.
-    // Event filtering was removed — every list shows all records regardless of
-    // which event they belong to. Kept as a pass-through so existing callers
-    // (activeCars/activeTasks/activeVips/agenda) keep working unchanged.
-    function matchesActiveEvent(_row) {
-      return true;
+    // Everything the app shows is scoped to one event: the lists, the stats,
+    // the gate, the map. New records are stamped with it on creation, so an
+    // operator never has to think about it.
+    //
+    // The default is whichever event is marked „Activ”. Mark it „Finalizat”
+    // and its data leaves the default view — which is the point — but it is
+    // never unreachable: pick that event in the header, or „Toate
+    // evenimentele”, and it is all still there. Nothing is ever hidden
+    // permanently and nothing is deleted.
+    const EVENT_PICK_KEY = 'kultura_active_event';
+
+    // What the app scopes to when the operator hasn't picked anything, in
+    // order of preference:
+    //   1. the event marked „Activ”                      — the one being run
+    //   2. the newest event that isn't finished/archived  — the one being prepared
+    //   3. everything                                     — nothing else to show
+    //
+    // Step 2 is what makes „mark it Finalizat and its data goes away” true:
+    // focus moves to the next event, which starts empty. Nothing is lost —
+    // the finished event is still in the picker with all its data.
+    function defaultEventId() {
+      const live = (state.events || []).filter(e => !e.archived);
+      const byNewest = (a, b) => Number(b.id) - Number(a.id);
+      const active = live.filter(e => eventStatusKey(e.status) === 'activ').sort(byNewest);
+      if (active.length) return String(active[0].id);
+      const upcoming = live.filter(e => eventStatusKey(e.status) !== 'finalizat').sort(byNewest);
+      if (upcoming.length) return String(upcoming[0].id);
+      return '';
+    }
+
+    // Decide what to scope to, in order: an explicit pick the operator made
+    // that still exists → the „Activ” event → everything.
+    // An explicit pick of "all" ('') is honoured and must not be overridden.
+    function resolveActiveEvent() {
+      let stored = null;
+      try { stored = localStorage.getItem(EVENT_PICK_KEY); } catch (_) {}
+      if (stored !== null) {
+        if (stored === '') { state.activeEventId = ''; return; }
+        if ((state.events || []).some(e => String(e.id) === stored)) { state.activeEventId = stored; return; }
+        // The picked event was deleted — fall through to the default.
+        try { localStorage.removeItem(EVENT_PICK_KEY); } catch (_) {}
+      }
+      state.activeEventId = defaultEventId();
+    }
+
+    // The event to stamp on anything created right now, as a number for the DB.
+    // null when scoped to "all events" — better an unassigned row (which stays
+    // visible everywhere) than one silently attached to the wrong event.
+    function activeEventIdOrNull() {
+      return state.activeEventId ? Number(state.activeEventId) : null;
+    }
+
+    function setActiveEvent(id) {
+      state.activeEventId = id || '';
+      try { localStorage.setItem(EVENT_PICK_KEY, state.activeEventId); } catch (_) {}
+      applyActiveEvent();
+    }
+
+    // True when a row belongs to the event in focus. '' (all events) matches
+    // everything. Rows with no event_id stay visible under any event: they
+    // predate this scoping, and silently swallowing them would look exactly
+    // like data loss.
+    function matchesActiveEvent(row) {
+      if (!state.activeEventId) return true;
+      const id = row && row.event_id;
+      if (id === null || id === undefined || id === '') return true;
+      return String(id) === String(state.activeEventId);
     }
     function activeCars()  { return (state.cars  || []).filter(matchesActiveEvent); }
     function activeTasks() { return (state.tasks || []).filter(matchesActiveEvent); }
@@ -2449,21 +2505,32 @@
 
     function populateEventPicker() {
       const sel = el('activeEventSelect');
+      const before = state.activeEventId;
+      resolveActiveEvent();
+      // Marking an event finished (or deleting the one in focus) moves the
+      // scope on its own — repaint so the lists follow instead of showing the
+      // previous event's data until the next interaction.
+      if (state.activeEventId !== before) {
+        try { applyActiveEvent(); } catch (_) {}
+      }
       if (!sel) return;
-      const prev = state.activeEventId;
       // Rebuild options (keep the "all" placeholder = first option).
       while (sel.options.length > 1) sel.remove(1);
-      (state.events || []).forEach(ev => {
+      // Archived events stay selectable — that is how you look back at one —
+      // but they sort last so the current work is at the top.
+      const evs = [...(state.events || [])].sort((a, b) =>
+        (a.archived ? 1 : 0) - (b.archived ? 1 : 0) || Number(b.id) - Number(a.id));
+      evs.forEach(ev => {
         const opt = document.createElement('option');
         opt.value = String(ev.id);
-        opt.textContent = ev.title || ('#' + ev.id);
+        // Spell out the state in the option so it is obvious why a finished
+        // event shows less than you expected.
+        const st = eventStatusKey(ev.status);
+        const tag = ev.archived ? t('event.archived')
+          : (st && st !== 'activ' ? translateStatus(ev.status, 'event') : '');
+        opt.textContent = (ev.title || ('#' + ev.id)) + (tag ? ` · ${tag}` : '');
         sel.appendChild(opt);
       });
-      // If the previously selected event vanished, fall back to "all".
-      if (prev && !(state.events || []).some(e => String(e.id) === String(prev))) {
-        state.activeEventId = '';
-        localStorage.removeItem('kultura_active_event');
-      }
       sel.value = state.activeEventId;
     }
 
@@ -5702,7 +5769,15 @@
           opt.textContent = ev.title || ('#' + ev.id);
           sel.appendChild(opt);
         });
+        // Preselect the event in focus so anything created here lands on it
+        // without the operator having to remember. Still a visible dropdown,
+        // so it can be changed — the default is a convenience, not a lock.
+        // An existing value (editing) always wins.
         if (currentVal) sel.value = currentVal;
+        else if (state.activeEventId
+                 && [...sel.options].some(o => o.value === String(state.activeEventId))) {
+          sel.value = String(state.activeEventId);
+        }
       });
       // Populate [data-populate="members"] selects with the team (by email).
       m.querySelectorAll('select[data-populate="members"]').forEach(sel => {

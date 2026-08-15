@@ -293,6 +293,7 @@ export default {
   "home.progress": "Task progress",
   "home.progress_sub": "Completed of total",
   "event.selector.all": "All events",
+  "event.selector.aria": "Event in focus",
   "event.selector.label": "Active event",
   "settings.profile.role": "Role",
   "role.admin": "Administrator",

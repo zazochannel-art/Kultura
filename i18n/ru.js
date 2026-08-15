@@ -293,6 +293,7 @@ export default {
   "home.progress": "Прогресс задач",
   "home.progress_sub": "Выполнено из всего",
   "event.selector.all": "Все события",
+  "event.selector.aria": "Текущее мероприятие",
   "event.selector.label": "Активное событие",
   "settings.profile.role": "Роль",
   "role.admin": "Администратор",

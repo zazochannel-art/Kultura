@@ -296,6 +296,7 @@ export default {
   "home.progress": "Progres taskuri",
   "home.progress_sub": "Finalizate din total",
   "event.selector.all": "Toate evenimentele",
+  "event.selector.aria": "Evenimentul în lucru",
   "event.selector.label": "Eveniment activ",
   "settings.profile.role": "Rol",
   "role.admin": "Administrator",
