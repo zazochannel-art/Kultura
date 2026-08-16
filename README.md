@@ -91,6 +91,7 @@ veche în cache.
 | `agenda.html` | Programul evenimentului |
 | `feedback.html` | Feedback post-eveniment (stele + comentariu) |
 | `confirm.html` | „Vii la eveniment?" — link personal semnat, trimis în memento |
+| `ticket.html` | Biletul participantului (QR de check-in) **și** butonul de conectare la Telegram |
 
 ## Roluri și permisiuni
 
@@ -244,7 +245,8 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
    să bată declarațiile mai specifice) — tocmai ca iOS să nu mai mărească
    pagina la focus. Ăla e motivul pentru care `user-scalable=no` nu e necesar;
    dacă scazi câmpurile sub 16px, reapare. Verificat de `mobile-no-input-below-16px`.
-   Excepția știută: `ticket.html` încă are viewportul vechi.
+   (Excepția de la `ticket.html` a fost eliminată; verificată de
+   `ticket-allows-pinch-zoom`.)
 8. **Evită stilurile inline din JS pentru stări vizuale.** Butoanele de limbă au
    avut ani la rând contrast insuficient exact pentru că stilul inline din JS
    bătea foaia de stil și nimeni nu se uita acolo.
@@ -348,7 +350,17 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     ascunde defectul. Verificarea `telegram-state-comes-from-function` întoarce
     listă goală de acolo, tocmai ca panoul să fie obligat să afle totul din
     funcție.
-24. **`send-sms` trimite pe două canale.** Numele a rămas pentru că îl apelează
+24. **Un bot de Telegram nu poate scrie primul.** Poate răspunde doar într-un
+    chat pe care persoana l-a deschis ea. Deci canalul nu există până când
+    participanții **își deschid linkul personal** — iar prima versiune livrată
+    n-avea nicio cale de a împărți acele linkuri: botul era conectat, zero
+    chaturi legate, niciun mesaj nu ajungea nicăieri. Linkul se obține din
+    `ticket.html` (unde duce deja QR-ul de pe pass, deci nu cere distribuție
+    separată) sau din `telegram` cu `action:'invite'`. Nu-l construi în client:
+    e semnat cu `link_secret`, care stă în `app_config`.
+    Când adaugi funcții de mesagerie, întreabă-te întâi *cum ajunge omul în
+    canal*, nu doar *cum trimitem*.
+25. **`send-sms` trimite pe două canale.** Numele a rămas pentru că îl apelează
     clientul, două joburi cron și două funcții din bază. Nu-l face să pice cu
     `no_provider` când există bot de Telegram: aici **nu a existat niciodată** un
     furnizor SMS configurat, deci Telegram e adesea singurul canal care chiar
