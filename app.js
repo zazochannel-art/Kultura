@@ -20,7 +20,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v115';
+    const APP_VERSION = 'v116';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -1901,6 +1901,135 @@
     const frozenEvent = () =>
       (state.events || []).find(e => String(e.id) === String(state.activeEventId) && e.entries_frozen) || null;
 
+    // ----- Channel health, event readiness, sandbox (G19–G21) -----
+    //
+    // These three answer the same question from different angles: what is
+    // quietly not set up? Every gap below has actually happened here — SMS with
+    // no provider for months, a bot with zero linked chats, an event with no
+    // agenda and 49 of 51 cars unassigned to a zone.
+
+    let _health = null;
+
+    async function loadChannelHealth() {
+      const box = el('channelHealth');
+      if (!box) return;
+      try {
+        const { data, error } = await supa.functions.invoke('health', { body: {} });
+        if (error || data?.error) throw new Error(data?.error || error.message);
+        _health = data;
+      } catch (_) {
+        _health = null; box.hidden = true; return;
+      }
+      const tg = _health.telegram || {};
+      const sms = _health.sms || {};
+      const pill = (state, label) =>
+        `<span class="chan-pill is-${state}"><span class="chan-dot"></span>${escape(label)}</span>`;
+
+      const tgState = !tg.configured ? 'bad' : (!tg.webhook_live ? 'bad' : (tg.linked ? 'ok' : 'warn'));
+      const tgLabel = !tg.configured ? t('chan.tg_off')
+        : !tg.webhook_live ? t('chan.tg_no_hook')
+          : t('chan.tg_linked', { n: tg.linked, total: tg.total });
+
+      box.innerHTML =
+        pill(tgState, tgLabel) +
+        pill(sms.configured ? 'ok' : 'warn', sms.configured ? t('chan.sms_on') : t('chan.sms_off')) +
+        pill(_health.public_base_url ? 'ok' : 'bad',
+          _health.public_base_url ? t('chan.base_ok') : t('chan.base_missing'));
+      box.hidden = false;
+    }
+
+    // What is still missing for the event in hand. Only shows rows that are
+    // actually unfinished, so it disappears entirely once you are ready.
+    function renderReadyList() {
+      const box = el('readyList');
+      if (!box) return;
+      const ev = (state.events || []).find(e => String(e.id) === String(state.activeEventId));
+      if (!ev || !roleAtLeast('staff') || String(ev.status || '').toLowerCase().includes('finalizat')) {
+        box.hidden = true; return;
+      }
+      const cars = activeCars();
+      const agenda = (state.agenda || []).filter(a => String(a.event_id) === String(ev.id));
+      const noZone = cars.filter(c => !String(c.zone || '').trim()).length;
+
+      const items = [];
+      if (!agenda.length) items.push({ k: 'agenda', txt: t('ready.agenda'), go: 'home' });
+      if (cars.length && noZone) items.push({ k: 'zones', txt: t('ready.zones', { n: noZone, total: cars.length }), go: 'cars' });
+      if (!ev.reg_capacity) items.push({ k: 'cap', txt: t('ready.capacity'), go: 'events' });
+      if (!ev.entries_frozen && cars.some(c => c.entry_no)) items.push({ k: 'freeze', txt: t('ready.freeze'), go: 'events' });
+      if (_health) {
+        const tg = _health.telegram || {};
+        if (tg.configured && !tg.linked) items.push({ k: 'tg', txt: t('ready.telegram', { total: tg.total }), go: 'settings' });
+        if (!_health.public_base_url) items.push({ k: 'base', txt: t('ready.base_url'), go: 'settings' });
+      }
+      // Only once the backup banner has actually looked. Undefined means
+      // nobody has opened Settings yet, and guessing would be worse than
+      // staying quiet.
+      if (_backupAgeHours === null || (typeof _backupAgeHours === 'number' && _backupAgeHours > 26)) {
+        items.push({ k: 'backup', txt: t('ready.backup'), go: 'settings' });
+      }
+
+      if (!items.length) { box.hidden = true; return; }
+      box.innerHTML =
+        `<div class="ready-head">${escape(t('ready.title', { n: items.length }))}</div>` +
+        items.map(i => `<button type="button" class="ready-row" data-ready-go="${escape(i.go)}">
+            <span class="ready-dot"></span><span>${escape(i.txt)}</span>
+            <span class="ready-arrow">›</span>
+          </button>`).join('');
+      box.hidden = false;
+    }
+
+    el('readyList')?.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-ready-go]');
+      if (!b) return;
+      document.querySelector(`.mtab[data-section="${b.dataset.readyGo}"], .tab[data-section="${b.dataset.readyGo}"]`)?.click();
+    });
+
+    // A sandbox event is a place to try things. Public pages skip it entirely
+    // (see `submit` and `event-info`), so nothing real can land in it.
+    function activeEventIsSandbox() {
+      const ev = (state.events || []).find(e => String(e.id) === String(state.activeEventId));
+      return !!(ev && ev.is_sandbox);
+    }
+
+    el('sandboxWipeBtn')?.addEventListener('click', async () => {
+      const ev = (state.events || []).find(e => String(e.id) === String(state.activeEventId));
+      if (!ev || !ev.is_sandbox) { showToast(t('sandbox.not_sandbox'), 'error'); return; }
+      if (!await uiConfirm(t('sandbox.confirm_wipe', { name: ev.title || ('#' + ev.id) }), { okLabel: t('common.delete') })) return;
+      const { data, error } = await supa.rpc('wipe_sandbox_event', { p_event_id: Number(ev.id) });
+      if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
+      showToast(t('sandbox.wiped', { n: data ?? 0 }));
+      await loadDataFull();
+    });
+
+    // ----- Offline beyond the gate (G22) -----
+    //
+    // The queue itself already existed for check-ins; what was missing was
+    // telling anyone about it outside the gate screen, and routing the other
+    // day-of writes through it. Some actions deliberately stay online-only —
+    // see `requireOnline` — because replaying them later would be wrong, not
+    // just late.
+    function renderOfflineBar() {
+      const bar = el('offlineBar');
+      if (!bar) return;
+      const pending = pendingCount();
+      const online = navigator.onLine;
+      if (online && !pending) { bar.hidden = true; return; }
+      bar.className = 'offline-bar' + (online ? ' is-syncing' : ' is-offline');
+      bar.textContent = online
+        ? t('offline.pending', { n: pending })
+        : (pending ? t('offline.bar_pending', { n: pending }) : t('offline.bar'));
+      bar.hidden = false;
+    }
+
+    // Actions that cannot honestly be queued. Approving a registration makes a
+    // car, and the entry number is assigned by the database — replaying that
+    // later would hand out a number that is already on someone's windscreen.
+    function requireOnline(what) {
+      if (navigator.onLine) return true;
+      showToast(t('offline.needs_connection', { what }), 'error');
+      return false;
+    }
+
     // ----- Trash -----
     async function fetchTrash() {
       const { data, error } = await supa.from('cars')
@@ -2864,6 +2993,7 @@
     // Bringing one back. The database decides the number: it returns the old
     // one, or the next free one if somebody claimed it while the car was gone.
     async function untrashCar(id) {
+      if (!requireOnline(t('offline.what_restore'))) return { error: new Error(t('offline.bar')) };
       const { data, error } = await supa.rpc('restore_car', { p_id: Number(id) });
       if (error) return { error };
       const row = Array.isArray(data) ? data[0] : data;
@@ -3118,8 +3248,10 @@
       const tgBlk = el('telegramBlock');
       if (tgBlk) {
         tgBlk.style.display = admin ? 'block' : 'none';
-        if (admin) { try { loadTelegramSettings(); } catch (_) {} }
+        if (admin) { try { loadTelegramSettings(); loadChannelHealth().then(renderReadyList); } catch (_) {} }
       }
+      const wipeRow = el('sandboxWipeRow');
+      if (wipeRow) wipeRow.style.display = (admin && activeEventIsSandbox()) ? 'flex' : 'none';
       const actBlk = el('activityBlock');
       if (actBlk) { actBlk.style.display = admin ? 'block' : 'none'; if (admin) { try { renderActivityLog(); } catch (_) {} } }
       const votingBlk = el('votingBlock');
@@ -3398,6 +3530,7 @@
           const nextBlock    = results[8] && results[8].status === 'fulfilled' && !results[8].value.error ? (results[8].value.data || []) : null;
 
           if (nextCars     !== null) state.cars     = nextCars;
+          try { renderReadyList(); } catch (_) {}
           if (nextTasks    !== null) state.tasks    = nextTasks;
           if (nextEvents   !== null) state.events   = nextEvents;
           if (nextProfiles !== null) state.profiles = nextProfiles;
@@ -3790,6 +3923,7 @@
     function pendingCount() { return getOutbox().length; }
 
     function updateGateSyncUI() {
+      try { renderOfflineBar(); } catch (_) {}
       const pill = el('gateSync');
       const online = navigator.onLine;
       const pending = pendingCount();
@@ -4470,10 +4604,14 @@
     // run_backup() posts to the edge function and never reads the reply, so a
     // failing backup still leaves cron reporting "succeeded" — a recent file is
     // the only real evidence, and silence used to look identical to success.
+    let _backupAgeHours;   // undefined = not looked up yet, null = no backup at all
     function renderBackupHealth(files) {
       const box = el('backupHealth');
       if (!box) return;
       const age = backupAgeHours(files);
+      // The readiness list echoes this rather than fetching the bucket again;
+      // the banner stays the authority on backup freshness.
+      _backupAgeHours = age;
       let cls, txt;
       if (age === null) { cls = 'is-bad'; txt = t('backup.health_none'); }
       else if (age > 26)  { cls = 'is-bad';  txt = t('backup.health_stale', { n: Math.floor(age / 24) || 1 }); }
@@ -6054,7 +6192,17 @@
       // --- CARS ---
       if (action === 'status') {
         const id = btn.dataset.carId, label = btn.dataset.label, color = btn.dataset.color;
-        const { error } = await withSpinner(() => supa.from('cars').update({ status: label, status_color: color }).eq('id', id));
+        const patch = { status: label, status_color: color };
+        if (!navigator.onLine) {
+          // Same treatment the gate has had for a while: show it now, send it
+          // when there is signal.
+          enqueueAction({ type: 'car-update', carId: id, patch });
+          applyLocalCarPatch(id, patch);
+          renderOfflineBar();
+          showToast(t('offline.queued'));
+          return;
+        }
+        const { error } = await withSpinner(() => supa.from('cars').update(patch).eq('id', id));
         if (error) return uiAlert('Eroare: ' + error.message);
         await loadData();
       } else if (action === 'delete') {
@@ -6126,6 +6274,7 @@
         if (f.reg_capacity) f.reg_capacity.value = ev.reg_capacity || '';
         if (f.waiver_text) f.waiver_text.value = ev.waiver_text || '';
         if (f.entries_frozen) f.entries_frozen.checked = !!ev.entries_frozen;
+        if (f.is_sandbox) f.is_sandbox.checked = !!ev.is_sandbox;
         if (ev.starts_at) {
           const d = new Date(ev.starts_at);
           f.starts_at.value = isNaN(d) ? '' : new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -6965,6 +7114,7 @@
         // Freezing is what makes a printed pass trustworthy: from here on the
         // database refuses to change any entry number for this event.
         entries_frozen: frozen,
+        is_sandbox: !!fd.get('is_sandbox'),
         ...(frozen && !wasFrozen ? { entries_frozen_at: new Date().toISOString() } : {}),
         ...(frozen ? {} : { entries_frozen_at: null }),
         days_left: null   // computed live from starts_at
@@ -7930,6 +8080,10 @@
     // Move a registration between queue states. Approving is a different path
     // (it creates a car); this only ever changes where it sits in the queue.
     async function setRegStatus(id, status, toast) {
+      // Approving turns a registration into a car, and the database assigns its
+      // entry number. Replaying that from a queue would hand out a number that
+      // is already printed on somebody's pass.
+      if (!requireOnline(t('offline.what_registration'))) return;
       const { error } = await supa.from('car_registrations').update({ status }).eq('id', id);
       if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
       const r = (state.registrations || []).find(x => String(x.id) === String(id));

@@ -50,7 +50,25 @@ for f in $(git ls-files '*.js' '*.mjs' | grep -v '^vendor/'); do node --check "$
 node scripts/check-i18n.mjs      # simetrie ro/en/ru
 node --test tests/unit.mjs       # teste unitare (fără dependențe)
 node tests/smoke.mjs             # necesită playwright (+ axe-core pentru accesibilitate)
+node tests/contract.mjs          # lovește backendul real (vezi mai jos)
 ```
+
+**Cele două niveluri de test, și de ce sunt două.** Smoke-testul e *ermetic*:
+taie tot ce merge spre Supabase și răspunde cu date inventate. E rapid, stabil
+și nu atinge producția — dar validează o lume pe care noi am scris-o. Patru
+defecte au ajuns la utilizator exact așa: codul salva un secret într-un tabel
+inaccesibil, îl citea de acolo, lăsa o funcție SQL deschisă pentru `anon`, și
+livra o funcție fără nicio cale de acces — iar mock-ul spunea că totul e bine.
+
+`tests/contract.mjs` verifică fix ce un mock nu poate ști: granturi pe funcții,
+ce poate citi și scrie rolul `anon`, ce întorc de fapt funcțiile edge. Rulează
+pe **producție**, deci fiecare aserțiune e ori o citire publică prin design, ori
+o operație care **trebuie refuzată**. Nu adăuga acolo un test care scrie.
+
+Fișierul refuză să raporteze ceva dacă nu a ajuns la Supabase: prima lui rulare
+a dat 27 de verificări verzi printr-un proxy care răspundea 403 la tot. În CI
+merge cu `CONTRACT_REQUIRE=1`, deci „n-am ajuns la backend" pică în loc să
+treacă în tăcere.
 
 Smoke-testul rulează **ermetic**: taie toate cererile către `*.supabase.co`, ca
 rezultatul să nu depindă de accesibilitatea backend-ului și ca testele să nu
@@ -149,7 +167,8 @@ fel, dar **își verifică singure apelantul** înăuntru (`is_admin_user()` /
 | `event-info` | nu | Evenimentul curent + agenda, pentru paginile publice. Întoarce și `waiver_text` și `spots_left` |
 | `ticket` | nu | Bilet/pass |
 | `rsvp` | nu | „Vii la eveniment?" pentru `confirm.html`. Token HMAC pe id-ul mașinii; un „nu" eliberează locul și promovează prima înscriere de pe lista de așteptare |
-| `telegram` | nu² | Webhook-ul botului (`/start <id>-<token>` leagă chat-ul de mașină) + configurarea webhook-ului de către admin |
+| `telegram` | nu² | Webhook-ul botului (`/start <id>-<token>` leagă chat-ul de mașină), configurarea de către admin și **linkurile de invitație** (`action:'invite'`, staff) |
+| `health` | da | Starea canalelor pentru admin: Telegram (conectat? webhook viu? câți legați?), SMS (configurat?), adresa publică. Booleeni și numere, niciodată secretele |
 | `backup` | nu¹ | Export JSON a 15 tabele în bucket-ul `backups`. Lista `TABLES` **trebuie să rămână în pas cu `PK` din `restore`** — un tabel salvat dar absent acolo se sare în tăcere la restaurare |
 | `restore` | da | Restaurare **aditivă** din backup (admin) |
 | `gdpr-delete` | da | Ștergerea datelor unei persoane (admin) |
@@ -360,7 +379,21 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     e semnat cu `link_secret`, care stă în `app_config`.
     Când adaugi funcții de mesagerie, întreabă-te întâi *cum ajunge omul în
     canal*, nu doar *cum trimitem*.
-25. **O funcție SQL nouă e publică până o închizi tu.** Postgres acordă implicit
+25. **Un eveniment de probă nu are voie să ajungă în paginile publice.**
+    `events.is_sandbox` e exclus în `submit` și `event-info` *înainte* de orice
+    rezolvare — inclusiv înaintea unui `?event=<id>` din URL. Altfel un QR de pe
+    un afiș, cu id-ul schimbat, ar depune înscrieri reale în evenimentul pe care
+    cineva îl folosește ca să încerce lucruri. `wipe_sandbox_event()` refuză să
+    atingă un eveniment care nu e marcat sandbox.
+26. **Ce nu se poate pune în coada offline.** Coada rejoacă un `update` mai
+    târziu, deci merge doar pentru scrieri care rămân corecte peste timp:
+    starea unei mașini, zona, câmpuri de pe un rând existent. **Nu** merge
+    pentru aprobarea unei înscrieri (baza atribuie numărul de concurs — rejucat
+    mai târziu ar da un număr deja tipărit pe un pass), nici pentru
+    restaurarea din coș (e un RPC), nici pentru revendicarea unui task (doi
+    oameni pot lua același task; decizia asta e mai veche și rămâne). Astea
+    spun clar „ai nevoie de conexiune" prin `requireOnline()`.
+27. **O funcție SQL nouă e publică până o închizi tu.** Postgres acordă implicit
     EXECUTE lui `public`, iar în Supabase asta înseamnă că oricine are cheia din
     pagină o poate apela prin `/rest/v1/rpc/<nume>`. `prune_deleted_cars()` a
     fost livrată așa: **un vizitator nelogat putea goli definitiv coșul de
@@ -370,7 +403,7 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     `revoke all ... from public, anon, authenticated`. Excepțiile sunt tot cele
     din regula 1 (helperii de RLS) plus ce apelezi explicit prin `rpc()`.
     Verifică după fiecare migrare cu advisor-ul Supabase — el a prins-o, nu eu.
-26. **`send-sms` trimite pe două canale.** Numele a rămas pentru că îl apelează
+28. **`send-sms` trimite pe două canale.** Numele a rămas pentru că îl apelează
     clientul, două joburi cron și două funcții din bază. Nu-l face să pice cu
     `no_provider` când există bot de Telegram: aici **nu a existat niciodată** un
     furnizor SMS configurat, deci Telegram e adesea singurul canal care chiar
