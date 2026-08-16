@@ -52,6 +52,26 @@ jobs:
             exit 1
           fi
 
+  # What the hermetic smoke suite structurally cannot check: grants, RLS, and
+  # what the edge functions really answer. Read-only plus refusals — see the
+  # header of tests/contract.mjs for the safety rules.
+  contract:
+    name: Contract (real backend)
+    runs-on: ubuntu-latest
+    # A backend outage is not a reason to block a pull request, but the result
+    # is still reported. CONTRACT_REQUIRE turns "could not reach Supabase" into
+    # a failure rather than a silent skip.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run contract tests
+        env:
+          CONTRACT_REQUIRE: '1'
+        run: node tests/contract.mjs
+
   smoke:
     name: Smoke (Playwright)
     runs-on: ubuntu-latest

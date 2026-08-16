@@ -1127,6 +1127,126 @@ try {
     check('ticket-allows-pinch-zoom', !/user-scalable\s*=\s*no/i.test(vp) && !/maximum-scale/i.test(vp));
   }
 
+  // 4n. Readiness list, channel health and the offline bar. All three exist
+  // because silence looked identical to success: an empty agenda, a bot with
+  // nobody linked, and no sign at all that you were working offline outside
+  // the gate screen.
+  {
+    const mk = async (health, cars, event, agenda = []) => {
+      const c = await browser.newContext({ viewport: { width: 430, height: 930 }, isMobile: true, hasTouch: true });
+      await c.route('**://*.supabase.co/**', (r) => {
+        const u = r.request().url();
+        const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+        if (u.includes('/functions/v1/health')) return J(health);
+        if (u.includes('/functions/v1/telegram')) return J({ ok: true, has_token: true, username: 'Bot', webhook: 'x', linked: 0 });
+        if (u.includes('/rest/v1/cars')) return J(/deleted_at=not\.is\.null/.test(u) ? [] : cars);
+        if (u.includes('/rest/v1/event_agenda')) return J(agenda);
+        if (u.includes('/rest/v1/events')) return J([event]);
+        if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+        if (u.includes('/rest/v1/')) return J([]);
+        return r.abort();
+      });
+      const p = await c.newPage();
+      await p.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await p.evaluate(() => localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      })));
+      await p.reload({ waitUntil: 'domcontentloaded' });
+      await p.waitForTimeout(2400);
+      await p.evaluate(() => document.getElementById('splashScreen')?.remove());
+      return { c, p };
+    };
+
+    const HEALTHY = {
+      ok: true,
+      telegram: { configured: true, username: 'Bot', webhook_live: true, linked: 3, total: 3, preferred: true },
+      sms: { configured: true, provider: 'x' }, public_base_url: 'https://k.example',
+    };
+    const SILENT = {
+      ok: true,
+      telegram: { configured: true, username: 'Bot', webhook_live: true, linked: 0, total: 2, preferred: true },
+      sms: { configured: false, provider: '' }, public_base_url: '',
+    };
+    const READY_EVENT = { id: 6, title: 'F', status: 'Activ', archived: false, entries_frozen: true, is_sandbox: false, reg_capacity: 40 };
+    const RAW_EVENT = { id: 6, title: 'F', status: 'Activ', archived: false, entries_frozen: false, is_sandbox: false, reg_capacity: null };
+    const CARS = [
+      { id: 1, entry_no: 1, brand: 'VW', model: 'Golf', owner: 'A', plate: 'P1', status: 'Sosit', event_id: 6, zone: '', deleted_at: null },
+      { id: 2, entry_no: 2, brand: 'Mazda', model: 'RX7', owner: 'B', plate: 'P2', status: 'Sosit', event_id: 6, zone: 'A1', deleted_at: null },
+    ];
+
+    try {
+      // Everything unfinished: the list names each gap.
+      const a = await mk(SILENT, CARS, RAW_EVENT);
+      await a.p.waitForTimeout(700);
+      const rows = await a.p.evaluate(() =>
+        [...document.querySelectorAll('#readyList .ready-row')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
+      check('ready-list-shows-gaps', rows.length >= 5, `${rows.length} rows`);
+      check('ready-list-names-empty-agenda', rows.some(r => /[Pp]rogram/.test(r)));
+      check('ready-list-counts-missing-zones', rows.some(r => /1 din 2/.test(r)));
+      check('ready-list-flags-unfrozen-list', rows.some(r => /îngheț/i.test(r)));
+
+      await a.p.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
+      await a.p.waitForTimeout(1000);
+      const pills = await a.p.evaluate(() =>
+        [...document.querySelectorAll('#channelHealth .chan-pill')].map(x => ({
+          state: x.className.replace('chan-pill ', ''), text: x.textContent.trim(),
+        })));
+      check('channel-health-has-three-pills', pills.length === 3, `${pills.length}`);
+      // Configured but nobody listening is amber, not green — that exact state
+      // shipped once and looked fine.
+      check('channel-health-warns-on-zero-linked',
+        pills.some(p => /Telegram/.test(p.text) && p.state === 'is-warn'), JSON.stringify(pills[0] || {}));
+      check('channel-health-flags-missing-base-url',
+        pills.some(p => /public|Adres/i.test(p.text) && p.state === 'is-bad'));
+
+      // Offline: the bar has to appear away from the gate screen.
+      await a.p.evaluate(() => {
+        Object.defineProperty(navigator, 'onLine', { get: () => false, configurable: true });
+        window.dispatchEvent(new Event('offline'));
+      });
+      await a.p.waitForTimeout(500);
+      const bar = await a.p.evaluate(() => {
+        const b = document.getElementById('offlineBar');
+        return { hidden: b.hidden, cls: b.className, txt: b.textContent.trim() };
+      });
+      check('offline-bar-shows-when-offline', !bar.hidden && /is-offline/.test(bar.cls), bar.cls);
+      check('offline-bar-says-saved-locally', bar.txt.length > 0);
+      await a.c.close();
+
+      // Nothing missing: the list must vanish rather than sit there empty.
+      const b = await mk(HEALTHY, CARS.map(c => ({ ...c, zone: 'A1' })), READY_EVENT,
+        [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }]);
+      await b.p.waitForTimeout(900);
+      const hidden = await b.p.evaluate(() => document.getElementById('readyList').hidden);
+      check('ready-list-hides-when-nothing-missing', hidden === true);
+      const okPills = await b.p.evaluate(() => {
+        document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click();
+        return null;
+      });
+      await b.p.waitForTimeout(900);
+      const green = await b.p.evaluate(() =>
+        [...document.querySelectorAll('#channelHealth .chan-pill')].every(x => x.classList.contains('is-ok')));
+      check('channel-health-all-green-when-configured', green === true, String(okPills));
+      await b.c.close();
+    } catch (e) {
+      for (const n of ['ready-list-shows-gaps', 'ready-list-names-empty-agenda',
+        'ready-list-counts-missing-zones', 'ready-list-flags-unfrozen-list',
+        'channel-health-has-three-pills', 'channel-health-warns-on-zero-linked',
+        'channel-health-flags-missing-base-url', 'offline-bar-shows-when-offline',
+        'offline-bar-says-saved-locally', 'ready-list-hides-when-nothing-missing',
+        'channel-health-all-green-when-configured']) {
+        if (!checks.some((c) => c.name === n)) check(n, false);
+      }
+      console.log(`readiness/health checks: ${e.message}`);
+    }
+  }
+
   // 5. Public pages (given out by QR at the event) must render standalone.
   // They talk to Supabase, which is unreachable here, so we only assert the
   // static shell renders and nothing throws before the network call.

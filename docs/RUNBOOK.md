@@ -77,6 +77,17 @@ gol.
 Participanții se conectează deschizând linkul personal pe care li-l trimiți.
 Cine nu are Telegram primește SMS ca până acum.
 
+### 1c. Uită-te pe Acasă ce mai lipsește
+De acum, pe **Acasă** apare o listă scurtă cu ce nu e pus la punct pentru
+evenimentul în lucru: programul gol, mașinile fără zonă, capacitatea nesetată,
+lista de start neînghețată, participanții neconectați pe Telegram, backupul
+vechi. Fiecare rând te duce direct unde se rezolvă, iar lista **dispare** când
+nu mai lipsește nimic — nu e un panou permanent de ignorat.
+
+În **Setări → Telegram** ai și trei pastile cu starea canalelor: Telegram, SMS
+și adresa publică. Galben înseamnă „configurat, dar nu ajunge la nimeni" —
+starea în care botul a stat conectat cu zero participanți legați.
+
 ### 2. Pune programul
 **Acasă → Program → +.** Fiecare etapă are oră și titlu. Se vede public pe
 `agenda.html`, cu marcaj pe etapa curentă.
@@ -279,6 +290,8 @@ Supabase.
 | **Nu pleacă SMS-urile** | **SMS Center** → verifică furnizorul și că automatizarea e bifată |
 | **Ceva a crăpat pe telefonul cuiva** | **Setări → Erori raportate** arată ce s-a întâmplat, pe ce dispozitiv și când |
 | **Ai șters o mașină din greșeală** | Imediat: butonul **Anulează** din notificare. Mai târziu: **Setări → Șterse recent** → *Adu înapoi*. Mașina revine cu numărul ei de concurs (sau cu unul nou, dacă între timp l-a luat altcineva). Coșul ține 30 de zile |
+| **Vrei să încerci ceva fără să strici date reale** | **Evenimente → Adaugă** (sau editează unul) → bifează **Eveniment de probă**. Paginile publice îl ignoră complet, deci nicio înscriere reală nu poate ajunge acolo. Când termini: **Setări → Golește evenimentul de probă** |
+| **Lucrezi fără internet în afara porții** | Sus apare o bandă roșie cu câte modificări așteaptă. Schimbarea stării unei mașini și zona se salvează local și pleacă singure când revine semnalul. Aprobarea unei înscrieri și aducerea din coș **cer conexiune** — aplicația îți spune, nu tace |
 | **Ai importat un fișier greșit** | **Setări → Șterse recent → Importuri recente** → *Anulează importul*. Mută în coș tot lotul dintr-o apăsare. Dacă reimporți același fișier, mașinile se întorc, nu se dublează |
 | **Cineva a șters din greșeală date** | **Setări → Copii de siguranță → Restaurează.** Aduce înapoi ce s-a șters, **fără** să atingă ce s-a creat între timp. Vezi întâi lista de verificare, apoi confirmi |
 | **Cineva cere ștergerea datelor (GDPR)** | **Setări → GDPR** → caută după placă/telefon/email/nume → verifici rezultatele → ștergi definitiv (inclusiv pozele) |

@@ -135,6 +135,9 @@
       <img src="logo.png" alt="Kultura" class="logo-img">
     </div>
 
+    <!-- Offline / queued-writes bar. The gate has had its own pill for a long
+         time, but someone working in Cars with no signal saw nothing at all. -->
+    <div id="offlineBar" class="offline-bar" hidden></div>
     <header class="app-header">
       <!-- Which event the whole app is scoped to. Defaults to the one marked
            „Activ”; mark an event „Finalizat” and its data drops out of the
@@ -250,6 +253,10 @@
       <!-- HOME -->
       <section class="section active" id="section-home">
         <div id="homeAnnounce"></div>
+        <!-- What is still missing for the event in hand. The data said this was
+             needed: 0 agenda entries, 49 of 51 cars with no zone — not because
+             they did not matter, but because nothing ever asked. -->
+        <div id="readyList" class="ready-list" hidden></div>
         <div class="greeting-row">
           <div class="greeting">
             <p data-i18n="home.welcome">Bun venit înapoi 👋</p>
@@ -1003,6 +1010,9 @@
              the first channel that can actually deliver anything. -->
         <div class="setting-block" id="telegramBlock" style="display:none;">
           <div class="setting-label" data-i18n="tg.label">TELEGRAM</div>
+          <!-- Every one of these has failed silently here: SMS with no provider,
+               a bot with no linked chats, an empty public address. -->
+          <div id="channelHealth" class="chan-health" hidden></div>
           <div class="setting-row" style="align-items:flex-start;">
             <div class="icon-box">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
@@ -1058,6 +1068,16 @@
               <span data-i18n="settings.delete_all_cars_help">Mută în coș toate mașinile evenimentului în lucru. Se pot aduce înapoi 30 de zile.</span>
             </div>
             <button class="btn danger small" id="deleteAllCarsBtn" data-i18n="settings.delete_btn">Șterge</button>
+          </div>
+          <div class="setting-row" id="sandboxWipeRow" style="display:none;">
+            <div class="icon-box red">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+            </div>
+            <div class="txt">
+              <strong data-i18n="sandbox.wipe">Golește evenimentul de probă</strong>
+              <span data-i18n="sandbox.wipe_help">Șterge definitiv tot ce ține de evenimentul de probă selectat. Nu trece prin coș — asta e ideea.</span>
+            </div>
+            <button class="btn danger small" id="sandboxWipeBtn" data-i18n="settings.delete_btn">Șterge</button>
           </div>
           <div class="setting-row">
             <div class="icon-box red">
@@ -1719,6 +1739,13 @@
             <label data-i18n="event.waiver">Acord de participare</label>
             <textarea name="waiver_text" rows="3" data-i18n-placeholder="event.waiver_ph" placeholder="Lasă gol dacă nu ceri niciun acord."></textarea>
             <span class="field-hint" data-i18n="event.waiver_hint">Textul apare la înscriere. Participantul bifează și își scrie numele — se salvează cu dată și oră.</span>
+          </div>
+          <div class="form-field">
+            <label class="switch-row">
+              <input type="checkbox" name="is_sandbox" id="eventSandbox">
+              <span data-i18n="event.sandbox">Eveniment de probă</span>
+            </label>
+            <span class="field-hint" data-i18n="event.sandbox_hint">Pentru încercări. Paginile publice îl ignoră complet, deci un QR de pe afiș nu poate ajunge niciodată aici.</span>
           </div>
           <div class="form-field">
             <label class="switch-row">
