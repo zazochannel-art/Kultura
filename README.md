@@ -360,7 +360,17 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     e semnat cu `link_secret`, care stă în `app_config`.
     Când adaugi funcții de mesagerie, întreabă-te întâi *cum ajunge omul în
     canal*, nu doar *cum trimitem*.
-25. **`send-sms` trimite pe două canale.** Numele a rămas pentru că îl apelează
+25. **O funcție SQL nouă e publică până o închizi tu.** Postgres acordă implicit
+    EXECUTE lui `public`, iar în Supabase asta înseamnă că oricine are cheia din
+    pagină o poate apela prin `/rest/v1/rpc/<nume>`. `prune_deleted_cars()` a
+    fost livrată așa: **un vizitator nelogat putea goli definitiv coșul de
+    gunoi**, adică exact plasa de siguranță pentru care există. Celelalte trei
+    joburi `prune_*` erau deja închise — al meu era excepția.
+    Regula: la orice funcție nouă care nu e chemată din client,
+    `revoke all ... from public, anon, authenticated`. Excepțiile sunt tot cele
+    din regula 1 (helperii de RLS) plus ce apelezi explicit prin `rpc()`.
+    Verifică după fiecare migrare cu advisor-ul Supabase — el a prins-o, nu eu.
+26. **`send-sms` trimite pe două canale.** Numele a rămas pentru că îl apelează
     clientul, două joburi cron și două funcții din bază. Nu-l face să pice cu
     `no_provider` când există bot de Telegram: aici **nu a existat niciodată** un
     furnizor SMS configurat, deci Telegram e adesea singurul canal care chiar
