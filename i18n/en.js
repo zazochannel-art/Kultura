@@ -878,4 +878,5 @@ export default {
   "common.loading": "Loading…",
   "common.saved": "Saved",
   "settings.confirm_delete_all_cars": "Move all {n} cars of the current event to the trash? You can bring them back for 30 days.",
+  "tg.no_token_yet": "No bot connected yet. Paste the token from @BotFather and press “Connect the bot”.",
 };

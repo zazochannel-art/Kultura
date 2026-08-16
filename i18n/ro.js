@@ -891,4 +891,5 @@ export default {
   "common.loading": "Se încarcă…",
   "common.saved": "Salvat",
   "settings.confirm_delete_all_cars": "Muți în coș toate cele {n} mașini ale evenimentului în lucru? Le poți aduce înapoi 30 de zile.",
+  "tg.no_token_yet": "Niciun bot conectat încă. Lipește tokenul de la @BotFather și apasă „Conectează botul”.",
 };

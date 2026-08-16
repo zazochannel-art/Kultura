@@ -20,7 +20,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v113';
+    const APP_VERSION = 'v114';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -1995,25 +1995,50 @@
     });
 
     // ----- Telegram -----
+    // `app_config` has RLS on with no policies — deliberately, because it holds
+    // secrets. So the bot token is never read or written from here: Settings
+    // posts it to the `telegram` function, which stores it with the service
+    // role and reports back only whether one exists. Everything non-secret
+    // (the toggle, the public address) lives in `ui_settings`, which staff can
+    // write.
+    let _tgUsername = '';
+
+    async function tgCall(action, extra) {
+      const { data, error } = await supa.functions.invoke('telegram', { body: { action, ...(extra || {}) } });
+      if (error) {
+        let b = null; try { b = await error.context.json(); } catch (_) {}
+        throw new Error(b?.detail || b?.error || error.message);
+      }
+      if (data?.error) throw new Error(data.detail || data.error);
+      return data || {};
+    }
+
     async function loadTelegramSettings() {
-      const [{ data: cfg }, { data: ui }] = await Promise.all([
-        supa.from('app_config').select('key,value').in('key', ['telegram_bot_token', 'telegram_bot_username']),
-        supa.from('ui_settings').select('key,value').in('key', ['notify_prefer_telegram', 'public_base_url']),
-      ]);
-      const c = {}; for (const r of cfg || []) c[r.key] = r.value || '';
+      const { data: ui } = await supa.from('ui_settings')
+        .select('key,value').in('key', ['notify_prefer_telegram', 'public_base_url']);
       const u = {}; for (const r of ui || []) u[r.key] = r.value || '';
-      _tgUsername = c.telegram_bot_username || '';
-      const tok = el('tgToken');
-      // Never echo the token back — show that one is stored, not what it is.
-      if (tok) { tok.value = ''; tok.placeholder = c.telegram_bot_token ? '••••••••  (salvat)' : '123456:ABC-DEF...'; }
       const pref = el('tgPrefer');
       if (pref) pref.checked = String(u.notify_prefer_telegram ?? '1') === '1';
       const base = el('publicBaseUrl');
       if (base) { base.value = u.public_base_url || ''; base.placeholder = location.origin; }
+
+      const tok = el('tgToken');
+      if (tok) tok.value = '';
       const msg = el('tgMsg');
-      if (msg && _tgUsername) msg.textContent = t('tg.connected_as', { name: '@' + _tgUsername });
+      try {
+        const st = await tgCall('status');
+        _tgUsername = st.username || '';
+        // Never echo the token back — say that one is stored, not what it is.
+        if (tok) tok.placeholder = st.has_token ? '••••••••  (salvat)' : '123456:ABC-DEF...';
+        if (msg) {
+          if (!st.has_token) { msg.style.color = ''; msg.textContent = t('tg.no_token_yet'); }
+          else if (st.webhook) { msg.style.color = 'var(--green)'; msg.textContent = t('tg.status_ok', { name: '@' + _tgUsername, n: st.linked ?? 0 }); }
+          else { msg.style.color = 'var(--red)'; msg.textContent = t('tg.status_no_hook'); }
+        }
+      } catch (e) {
+        if (msg) { msg.style.color = 'var(--red)'; msg.textContent = t('common.error') + ': ' + (e.message || e); }
+      }
     }
-    let _tgUsername = '';
 
     // The deep link a participant opens to bind their chat to their car. The
     // token is an HMAC the bot re-computes, so a guessed id gets nowhere.
@@ -2025,40 +2050,26 @@
     el('tgConnectBtn')?.addEventListener('click', async () => {
       const msg = el('tgMsg'); const tok = el('tgToken');
       const value = (tok?.value || '').trim();
+      const btn = el('tgConnectBtn');
       if (msg) { msg.style.color = ''; msg.textContent = t('common.loading'); }
+      if (btn) btn.disabled = true;
       try {
-        if (value) {
-          const { error } = await supa.from('app_config').upsert({ key: 'telegram_bot_token', value });
-          if (error) throw error;
-        }
-        const { data, error } = await supa.functions.invoke('telegram', { body: { action: 'setup' } });
-        if (error) { let b = null; try { b = await error.context.json(); } catch (_) {} throw new Error(b?.detail || b?.error || error.message); }
-        if (data?.error) throw new Error(data.detail || data.error);
-        if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('tg.connected_as', { name: '@' + (data.username || '') }); }
+        const data = await tgCall('setup', value ? { token: value } : {});
+        if (!data.has_token) throw new Error(t('tg.no_token_yet'));
+        _tgUsername = data.username || '';
         if (tok) tok.value = '';
-        await loadTelegramSettings();
+        if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('tg.connected_as', { name: '@' + _tgUsername }); }
       } catch (e) {
         if (msg) { msg.style.color = 'var(--red)'; msg.textContent = t('common.error') + ': ' + (e.message || e); }
+      } finally {
+        if (btn) btn.disabled = false;
       }
     });
 
     el('tgStatusBtn')?.addEventListener('click', async () => {
       const msg = el('tgMsg');
       if (msg) { msg.style.color = ''; msg.textContent = t('common.loading'); }
-      try {
-        const { data, error } = await supa.functions.invoke('telegram', { body: { action: 'status' } });
-        if (error) { let b = null; try { b = await error.context.json(); } catch (_) {} throw new Error(b?.error || error.message); }
-        if (data?.error) throw new Error(data.error);
-        const linked = (state.cars || []).filter(c => c.telegram_chat_id).length;
-        if (msg) {
-          msg.style.color = data.webhook ? 'var(--green)' : 'var(--red)';
-          msg.textContent = data.webhook
-            ? t('tg.status_ok', { name: '@' + (data.username || ''), n: linked })
-            : t('tg.status_no_hook');
-        }
-      } catch (e) {
-        if (msg) { msg.style.color = 'var(--red)'; msg.textContent = t('common.error') + ': ' + (e.message || e); }
-      }
+      await loadTelegramSettings();
     });
 
     el('tgPrefer')?.addEventListener('change', async (e) => {
