@@ -90,6 +90,7 @@ veche în cache.
 | `vote.html` | Votare „Best Car" + clasament live |
 | `agenda.html` | Programul evenimentului |
 | `feedback.html` | Feedback post-eveniment (stele + comentariu) |
+| `confirm.html` | „Vii la eveniment?" — link personal semnat, trimis în memento |
 
 ## Roluri și permisiuni
 
@@ -146,13 +147,15 @@ fel, dar **își verifică singure apelantul** înăuntru (`is_admin_user()` /
 | `vote` | nu | Votare publică + clasament. Max 12 voturi noi/oră/IP. Întoarce și `entry_no` + clasa |
 | `event-info` | nu | Evenimentul curent + agenda, pentru paginile publice. Întoarce și `waiver_text` și `spots_left` |
 | `ticket` | nu | Bilet/pass |
+| `rsvp` | nu | „Vii la eveniment?" pentru `confirm.html`. Token HMAC pe id-ul mașinii; un „nu" eliberează locul și promovează prima înscriere de pe lista de așteptare |
+| `telegram` | nu² | Webhook-ul botului (`/start <id>-<token>` leagă chat-ul de mașină) + configurarea webhook-ului de către admin |
 | `backup` | nu¹ | Export JSON a 15 tabele în bucket-ul `backups`. Lista `TABLES` **trebuie să rămână în pas cu `PK` din `restore`** — un tabel salvat dar absent acolo se sare în tăcere la restaurare |
 | `restore` | da | Restaurare **aditivă** din backup (admin) |
 | `gdpr-delete` | da | Ștergerea datelor unei persoane (admin) |
 | `photo-sweep` | da | Șterge pozele fără referință în DB (admin) |
 | `send-push` | nu¹ | Notificări push |
-| `send-sms` | nu¹ | Trimitere SMS |
-| `import-participants` | nu¹ | Import din Google Sheets |
+| `send-sms` | nu¹ | Trimitere mesaje. **Două canale**, în ciuda numelui: Telegram unde participantul e conectat, SMS în rest |
+| `import-participants` | nu¹ | Import din Google Sheets. Fiecare rulare are un `batch` și fiecare rând creat îl poartă, ca importul să poată fi anulat în bloc |
 | `ai-import` | da | Import asistat |
 | `read-plate` | da | OCR plăcuță |
 | `admin-list-users`, `admin-delete-user` | da | Administrare conturi |
@@ -161,6 +164,10 @@ fel, dar **își verifică singure apelantul** înăuntru (`is_admin_user()` /
 ¹ Fără JWT, dar protejate printr-un secret partajat în antet
 (`x-trigger-secret` / `x-import-secret`), pentru că sunt apelate de cron sau de
 trigger-e din baza de date.
+
+² Telegram nu trimite JWT. Funcția verifică singură cine sună: antetul
+`x-telegram-bot-api-secret-token` pentru Telegram, sau tokenul unui admin
+verificat în `profiles` pentru configurare.
 
 ## Joburi programate (cron)
 
@@ -174,6 +181,7 @@ trigger-e din baza de date.
 | `kultura-prune-rate-limits` | 04:23 UTC | Curăță contoarele mai vechi de o zi |
 | `kultura-prune-client-errors` | 04:41 UTC | Curăță erorile mai vechi de 14 zile |
 | `kultura-prune-activity-log` | 04:52 UTC | Curăță jurnalul de activitate mai vechi de un an |
+| `kultura-prune-deleted-cars` | 04:35 UTC | Șterge definitiv mașinile din coș mai vechi de 30 de zile |
 
 ## Storage
 
@@ -200,9 +208,12 @@ Pozele rămase fără referință în DB se curăță cu **Setări → Curăță
 | `sms_approved_enabled` / `_template` | SMS automat la aprobarea înscrierii |
 | `sms_reminder_enabled` / `_template` | Remindere înainte de eveniment |
 | `zone_map_url` | Harta zonelor |
+| `public_base_url` | Adresa publică a aplicației. Fără ea, `{{confirmare}}` din mesaje rămâne gol |
+| `notify_prefer_telegram` | `1` = încearcă întâi Telegram, apoi SMS |
 
 `app_config` conține URL-uri de funcții și **secrete** — nu se citește din
-client.
+client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegram),
+`telegram_bot_token` și `telegram_webhook_secret`.
 
 ## Ce e periculos să atingi
 
@@ -290,6 +301,46 @@ client.
     stochează pe înscriere — e singura urmă că omul a citit textul. Nu muta
     validarea exclusiv în client: câmpul se scrie în `submit`, iar textul vine
     din eveniment prin `event-info`.
+18. **Ștergerea unei mașini e „soft".** Se pune `deleted_at`; rândul rămâne 30
+    de zile și abia apoi îl șterge `prune_deleted_cars()`. Motivul e în date:
+    jurnalul de activitate arată **1.670 de mașini șterse manual** de o singură
+    persoană în două zile, în cicluri import → nu-mi place → șterg tot →
+    reimport. Consecințele de care trebuie să ții cont oriunde citești `cars`:
+    - orice interogare publică filtrează `deleted_at is null` (`ticket`, `vote`,
+      `plate-check`, numărătoarea de capacitate din `submit`);
+    - sincronizarea incrementală **nu** filtrează rândurile șterse, pentru că
+      acel UPDATE *este* modul în care clientul află de ștergere — filtrarea se
+      face după merge (`isTrashed`). Dacă o muți în interogarea delta, mașina
+      ștearsă rămâne pe ecran până la următoarea măturare;
+    - indexul unic pe `(event_id, entry_no)` e parțial (`deleted_at is null`).
+      Un rând din coș își **păstrează** numărul scris pe el, dar nu blochează un
+      alt rând viu să-l aibă.
+    Singura ștergere definitivă rămasă e „Golește definitiv" din coș.
+19. **Reimportul readuce mașina, nu o duplică.** `import-participants` compară
+    și cu rândurile din coș; o potrivire aflată acolo e restaurată prin
+    `restore_car_unchecked()`. Asta e ceea ce face ca un ciclu ștergere →
+    reimport să nu renumeroteze lista de start. `restore_car()` e același lucru
+    cu verificarea de permisiune deasupra — nu duplica logica în client.
+20. **Lista de start înghețată e o garanție, nu o etichetă.** Cu
+    `events.entries_frozen`, triggerul `guard_frozen_entry_no` **refuză** orice
+    schimbare de `entry_no` pentru o mașină vie din acel eveniment. Mașinile noi
+    primesc numere în continuare (cineva ajunge mereu târziu), iar o mașină
+    scoasă din coș poate fi renumerotată — nu era pe lista printată oricum.
+21. **Tokenurile din linkuri sunt HMAC, nu plăci.** `confirm.html` și invitația
+    de Telegram folosesc `HMAC(link_secret, '<scop>:<car_id>')`, trunchiat la 24
+    de caractere hex, comparat în timp constant. Placa e scrisă pe mașină: cu ea
+    ca „cheie" (cum face `ticket`), un trecător ar putea anula participarea
+    cuiva. **Construcția trebuie să rămână identică** în `rsvp`, `telegram` și
+    `send-sms` — dacă diverge, toate linkurile aflate în circulație mor.
+22. **Un „nu vin" mișcă lista de așteptare o singură dată.** Promovarea se face
+    doar la trecerea în `no`, nu la fiecare apăsare, altfel un participant
+    indecis ar plimba toată coada înainte. Promovarea duce în `pending`, nu în
+    aprobat: echipa tot decide, doar că nu mai trebuie să observe locul liber.
+23. **`send-sms` trimite pe două canale.** Numele a rămas pentru că îl apelează
+    clientul, două joburi cron și două funcții din bază. Nu-l face să pice cu
+    `no_provider` când există bot de Telegram: aici **nu a existat niciodată** un
+    furnizor SMS configurat, deci Telegram e adesea singurul canal care chiar
+    livrează.
 
 ## Rămas de făcut manual
 

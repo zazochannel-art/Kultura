@@ -174,13 +174,13 @@ try {
     print: !!document.getElementById('guidePrintBtn'),
   }));
   check('guide-modal-shown', guide.shown);
-  // 18 steps across 5 phases, plus nav / roles / automatic / troubleshooting.
-  check('guide-has-all-steps', guide.steps === 18);
+  // 19 steps across 5 phases, plus nav / roles / automatic / troubleshooting.
+  check('guide-has-all-steps', guide.steps === 19);
   check('guide-has-all-phases', guide.phases === 9);
   // Numbering runs continuously across phases — "step 9" has to mean one thing.
   check('guide-numbering-continuous',
-    guide.numbered.join(',') === Array.from({ length: 18 }, (_, i) => i + 1).join(','));
-  check('guide-steps-say-where', guide.wheres === 18);
+    guide.numbered.join(',') === Array.from({ length: 19 }, (_, i) => i + 1).join(','));
+  check('guide-steps-say-where', guide.wheres === 19);
   check('guide-has-troubleshooting', guide.trouble >= 5);
   check('guide-has-print-button', guide.print);
   await page.evaluate(() => document.querySelector('#modal-guide [data-close]').click());
@@ -885,6 +885,166 @@ try {
         check(`register-${label}-capacity-notice`, false);
       }
       await wctx.close();
+    }
+  }
+
+  // 4k. Trash, undoable imports, and RSVP badges. The activity log showed 1.670
+  // cars deleted by hand in two days — importing, disliking it, wiping, redoing.
+  // Deleting is reversible now, and an import is one batch you can take back.
+  {
+    const CARS = [
+      { id: 1, entry_no: 1, brand: 'VW', model: 'Golf', owner: 'A', plate: 'P1', status: 'Sosit', category: 'Performance', event_id: 6, rsvp: null, deleted_at: null },
+      { id: 2, entry_no: 2, brand: 'Mazda', model: 'RX-7', owner: 'B', plate: 'P2', status: 'Sosit', category: 'JDM', event_id: 6, rsvp: 'no', deleted_at: null },
+      { id: 3, entry_no: 3, brand: 'BMW', model: 'E30', owner: 'C', plate: 'P3', status: 'Invitat', category: 'Retro', event_id: 6, rsvp: 'yes', deleted_at: null },
+    ];
+    const TRASH = [{
+      id: 9, entry_no: 7, brand: 'Audi', model: 'S4', owner: 'Z', plate: 'P9', event_id: 6,
+      deleted_at: new Date(Date.now() - 3600e3).toISOString(), deleted_by: 'qa@example.com',
+    }];
+    const IMPORTS = [
+      { id: 5, source: 'google-sheet', inserted: 12, skipped: 1, total: 13, note: null, batch: 'b-1', undone_at: null, created_at: new Date(Date.now() - 7200e3).toISOString() },
+      { id: 4, source: 'google-sheet', inserted: 3, skipped: 0, total: 3, note: null, batch: 'b-0', undone_at: new Date().toISOString(), created_at: new Date(Date.now() - 86400e3).toISOString() },
+    ];
+    const tctx = await browser.newContext({ viewport: { width: 430, height: 930 }, isMobile: true, hasTouch: true });
+    await tctx.route('**://*.supabase.co/**', (r) => {
+      const u = r.request().url();
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      if (u.includes('/rest/v1/cars')) return J(/deleted_at=not\.is\.null/.test(u) ? TRASH : CARS);
+      if (u.includes('/rest/v1/import_log')) return J(IMPORTS);
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Festival', status: 'Activ', archived: false, entries_frozen: false }]);
+      if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+      if (u.includes('/rest/v1/app_config')) return J([{ key: 'telegram_bot_username', value: 'kultura_test_bot' }, { key: 'telegram_bot_token', value: 'secret-token-value' }]);
+      if (u.includes('/rest/v1/ui_settings')) return J([{ key: 'notify_prefer_telegram', value: '1' }, { key: 'public_base_url', value: 'https://kultura.example' }]);
+      if (u.includes('/rest/v1/')) return J([]);
+      return r.abort();
+    });
+    const tp = await tctx.newPage();
+    try {
+      await tp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await tp.evaluate(() => localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      })));
+      await tp.reload({ waitUntil: 'domcontentloaded' });
+      await tp.waitForTimeout(2200);
+      await tp.evaluate(() => {
+        document.getElementById('splashScreen')?.remove();
+        document.querySelector('.mtab[data-section="cars"], .tab[data-section="cars"]')?.click();
+      });
+      await tp.waitForTimeout(600);
+      const badges = await tp.evaluate(() =>
+        [...document.querySelectorAll('#carsList .rsvp-badge')]
+          .map((x) => (x.classList.contains('is-no') ? 'no' : 'yes')));
+      check('rsvp-badges-on-cards', badges.join() === 'no,yes');
+
+      await tp.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
+      await tp.waitForTimeout(1200);
+      const s = await tp.evaluate(() => ({
+        trashShown: getComputedStyle(document.getElementById('trashBlock')).display,
+        rows: [...document.querySelectorAll('#trashList .backup-row strong')].map((x) => x.textContent.replace(/\s+/g, ' ').trim()),
+        restores: document.querySelectorAll('#trashList [data-trash-restore]').length,
+        // The badge must hug its text; a stray `display:block` from the settings
+        // pane once stretched it into a bar across the whole row.
+        badgeW: document.querySelector('#trashList .entry-no')?.getBoundingClientRect().width ?? 0,
+        rowW: document.querySelector('#trashList .backup-row')?.getBoundingClientRect().width ?? 1,
+        imports: [...document.querySelectorAll('#importList [data-import-undo]')].map((x) => x.dataset.importUndo),
+        importRows: document.querySelectorAll('#importList .backup-row').length,
+        tgShown: getComputedStyle(document.getElementById('telegramBlock')).display,
+        tokenValue: document.getElementById('tgToken').value,
+        baseUrl: document.getElementById('publicBaseUrl').value,
+      }));
+      check('trash-panel-visible-to-admin', s.trashShown === 'block');
+      check('trash-lists-deleted-car', s.rows.length === 1 && /#7/.test(s.rows[0]) && /Audi S4/.test(s.rows[0]));
+      check('trash-offers-restore', s.restores === 1);
+      check('trash-entry-badge-not-stretched', s.badgeW > 0 && s.badgeW < s.rowW / 3);
+      check('imports-listed', s.importRows === 2);
+      // Only the batch that has not been undone may be undone again.
+      check('import-undo-only-for-live-batch', s.imports.join() === 'b-1');
+      check('telegram-panel-visible-to-admin', s.tgShown === 'block');
+      // The stored bot token must never be echoed back into the page.
+      check('telegram-token-never-echoed', s.tokenValue === '');
+      check('public-base-url-loaded', s.baseUrl === 'https://kultura.example');
+    } catch (e) {
+      for (const n of ['rsvp-badges-on-cards', 'trash-panel-visible-to-admin', 'trash-lists-deleted-car',
+        'trash-offers-restore', 'trash-entry-badge-not-stretched', 'imports-listed',
+        'import-undo-only-for-live-batch', 'telegram-panel-visible-to-admin',
+        'telegram-token-never-echoed', 'public-base-url-loaded']) {
+        if (!checks.some((c) => c.name === n)) check(n, false);
+      }
+      console.log(`trash/telegram checks: ${e.message}`);
+    }
+    await tctx.close();
+  }
+
+  // 4l. The "are you coming?" page. A "no" frees a spot, so the page has to be
+  // right about which answer it is sending and has to keep working for someone
+  // who changes their mind.
+  {
+    const car = { entry_no: 12, brand: 'Nissan', model: 'Silvia', plate: 'XYZ 123', owner: 'Ion', zone: 'A2' };
+    const event = { title: 'Kultura Fest', starts_at: null, location: 'Chisinau' };
+    for (const [label, initial, mode] of [
+      ['fresh', null, 'ok'],
+      ['answered', 'yes', 'ok'],
+      ['forbidden', null, 'fail'],
+    ]) {
+      const cctx = await browser.newContext({ viewport: { width: 430, height: 930 } });
+      let posted = null;
+      await cctx.route('**://*.supabase.co/**', (r) => {
+        const req = r.request();
+        if (!req.url().includes('/functions/v1/rsvp')) return r.abort();
+        if (mode === 'fail') return r.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: 'forbidden' }) });
+        if (req.method() === 'POST') {
+          posted = JSON.parse(req.postData() || '{}');
+          return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, car, event, rsvp: posted.answer, rsvp_at: new Date().toISOString() }) });
+        }
+        return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, car, event, rsvp: initial, rsvp_at: initial ? new Date().toISOString() : null }) });
+      });
+      const cp = await cctx.newPage();
+      try {
+        await cp.goto(`${BASE}/confirm.html?c=42&t=${'a'.repeat(24)}`, { waitUntil: 'domcontentloaded' });
+        await cp.waitForTimeout(800);
+        const v = await cp.evaluate(() => ({
+          no: document.getElementById('carNo').textContent.trim(),
+          name: document.getElementById('carName').textContent.trim(),
+          ask: document.getElementById('askBox').style.display,
+          state: document.getElementById('state').className,
+          title: document.getElementById('title').textContent.trim(),
+        }));
+        if (mode === 'fail') {
+          check('confirm-bad-token-refuses', /invalid/i.test(v.title) && v.ask === 'none');
+        } else {
+          check(`confirm-${label}-shows-car`, v.no === '#12' && /Nissan Silvia/.test(v.name));
+          check(`confirm-${label}-asks`, v.ask === 'block');
+          if (label === 'answered') {
+            // Already answered: show it, but leave the buttons — changing your
+            // mind is the normal case, not an error.
+            check('confirm-shows-previous-answer', /is-yes/.test(v.state));
+          } else {
+            check('confirm-fresh-has-no-state', !/show/.test(v.state));
+            await cp.click('#btnNo');
+            await cp.waitForTimeout(400);
+            check('confirm-sends-the-answer', posted && posted.answer === 'no' && posted.c === '42');
+            check('confirm-reflects-no', /is-no/.test(await cp.evaluate(() => document.getElementById('state').className)));
+          }
+        }
+      } catch (e) {
+        // Register every check this scenario owns, or a thrown error quietly
+        // shrinks the suite instead of failing it.
+        const owned = mode === 'fail'
+          ? ['confirm-bad-token-refuses']
+          : label === 'answered'
+            ? ['confirm-answered-shows-car', 'confirm-answered-asks', 'confirm-shows-previous-answer']
+            : ['confirm-fresh-shows-car', 'confirm-fresh-asks', 'confirm-fresh-has-no-state',
+              'confirm-sends-the-answer', 'confirm-reflects-no'];
+        for (const n of owned) if (!checks.some((c) => c.name === n)) check(n, false);
+        console.log(`confirm ${label}: ${e.message}`);
+      }
+      await cctx.close();
     }
   }
 

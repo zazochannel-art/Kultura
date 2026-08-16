@@ -20,7 +20,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v112';
+    const APP_VERSION = 'v113';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -902,6 +902,11 @@
       const sheet = el('passSheet'); if (!sheet) return;
       const cars = (typeof filterCars === 'function' ? filterCars() : activeCars());
       if (!cars.length) { showToast(t('pass.none'), 'error'); return; }
+      if (!frozenEvent() && cars.some(c => c.entry_no)) {
+        // Once these are on windscreens, a delete-and-reimport that renumbers
+        // the list makes every printed card wrong.
+        if (!await uiConfirm(t('pass.freeze_prompt'), { okLabel: t('pass.print_anyway') })) return;
+      }
       _passBusy = true;
       showToast(t('pass.building', { n: cars.length }));
       try {
@@ -1884,6 +1889,201 @@
       el('judgeResults').innerHTML = `<div class="judge-results-wrap">${judgeResultsHtml()}</div>`;
     });
 
+    // ---------------------------------------------------------------
+    // Trash, frozen start lists, RSVP and Telegram.
+    //
+    // These four hang together. Deleting is reversible so a bad import is one
+    // undo; the trash also holds a car's entry number, which is what lets a
+    // frozen start list survive a delete-and-reimport. RSVP frees a spot when
+    // someone drops out, and Telegram is what actually carries the question.
+    // ---------------------------------------------------------------
+
+    const frozenEvent = () =>
+      (state.events || []).find(e => String(e.id) === String(state.activeEventId) && e.entries_frozen) || null;
+
+    // ----- Trash -----
+    async function fetchTrash() {
+      const { data, error } = await supa.from('cars')
+        .select('id, entry_no, brand, model, plate, owner, deleted_at, deleted_by, event_id')
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', { ascending: false }).limit(200);
+      return error ? { error, rows: [] } : { error: null, rows: data || [] };
+    }
+
+    async function renderTrash() {
+      const box = el('trashList');
+      if (!box) return;
+      box.innerHTML = `<div class="block-empty">${escape(t('common.loading'))}</div>`;
+      const { error, rows } = await fetchTrash();
+      if (error) { box.innerHTML = `<div class="block-empty">${escape(error.message)}</div>`; return; }
+      if (!rows.length) { box.innerHTML = `<div class="block-empty">${escape(t('trash.empty_state'))}</div>`; return; }
+      box.innerHTML = rows.map(c => {
+        const name = [c.brand, c.model].filter(Boolean).join(' ') || c.plate || '—';
+        return `<div class="backup-row">
+          <div class="backup-meta">
+            <strong>${c.entry_no ? `<span class="entry-no">#${escape(String(c.entry_no))}</span> ` : ''}${escape(name)}</strong>
+            <span>${escape(c.plate || '')}${c.owner ? ' · ' + escape(c.owner) : ''} · ${escape(fmtRelative(c.deleted_at))}</span>
+          </div>
+          <button type="button" class="btn small ghost" data-trash-restore="${c.id}">${escape(t('trash.restore'))}</button>
+        </div>`;
+      }).join('');
+    }
+
+    el('trashRefreshBtn')?.addEventListener('click', () => renderTrash());
+
+    el('trashList')?.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-trash-restore]');
+      if (!btn) return;
+      btn.disabled = true;
+      const res = await untrashCar(btn.dataset.trashRestore);
+      if (res.error) { showToast(t('common.error') + ': ' + res.error.message, 'error'); btn.disabled = false; return; }
+      showToast(res.renumbered ? t('trash.restored_renumbered', { n: res.entry_no }) : t('undo.restored'));
+      await loadDataFull();
+      renderTrash();
+    });
+
+    el('trashEmptyBtn')?.addEventListener('click', async () => {
+      const { rows } = await fetchTrash();
+      if (!rows.length) { showToast(t('trash.empty_state')); return; }
+      if (!await uiConfirm(t('trash.confirm_empty', { n: rows.length }), { okLabel: t('common.delete') })) return;
+      // This one really is final — it is the only hard delete left for cars.
+      const { error } = await supa.from('cars').delete().not('deleted_at', 'is', null);
+      if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
+      showToast(t('trash.emptied', { n: rows.length }));
+      renderTrash();
+    });
+
+    // ----- Recent imports, and undoing one -----
+    async function renderImports() {
+      const box = el('importList');
+      if (!box) return;
+      const { data, error } = await supa.from('import_log')
+        .select('id, source, inserted, skipped, total, note, batch, undone_at, created_at')
+        .order('id', { ascending: false }).limit(10);
+      if (error) { box.innerHTML = `<div class="block-empty">${escape(error.message)}</div>`; return; }
+      if (!data || !data.length) { box.innerHTML = `<div class="block-empty">${escape(t('trash.no_imports'))}</div>`; return; }
+      box.innerHTML = data.map(r => {
+        const canUndo = r.batch && !r.undone_at && r.inserted > 0;
+        return `<div class="backup-row">
+          <div class="backup-meta">
+            <strong>${escape(t('trash.import_line', { n: r.inserted ?? 0, total: r.total ?? 0 }))}</strong>
+            <span>${escape(fmtRelative(r.created_at))}${r.note ? ' · ' + escape(r.note) : ''}${r.undone_at ? ' · ' + escape(t('trash.import_undone')) : ''}</span>
+          </div>
+          ${canUndo ? `<button type="button" class="btn small ghost" data-import-undo="${escape(r.batch)}">${escape(t('trash.undo_import'))}</button>` : ''}
+        </div>`;
+      }).join('');
+    }
+
+    el('importList')?.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-import-undo]');
+      if (!btn) return;
+      const batch = btn.dataset.importUndo;
+      const { count } = await supa.from('cars')
+        .select('id', { count: 'exact', head: true }).eq('import_batch', batch).is('deleted_at', null);
+      if (!count) { showToast(t('trash.import_nothing')); renderImports(); return; }
+      if (!await uiConfirm(t('trash.confirm_undo_import', { n: count }))) return;
+      btn.disabled = true;
+      // Trashed, not destroyed — undoing an undo is a restore away.
+      const { error } = await supa.from('cars')
+        .update({ deleted_at: new Date().toISOString(), deleted_by: currentUserEmail() || null })
+        .eq('import_batch', batch).is('deleted_at', null);
+      if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); btn.disabled = false; return; }
+      await supa.from('import_log').update({ undone_at: new Date().toISOString() }).eq('batch', batch);
+      showToast(t('trash.import_undone_n', { n: count }));
+      await loadDataFull();
+      renderImports(); renderTrash();
+    });
+
+    // ----- Telegram -----
+    async function loadTelegramSettings() {
+      const [{ data: cfg }, { data: ui }] = await Promise.all([
+        supa.from('app_config').select('key,value').in('key', ['telegram_bot_token', 'telegram_bot_username']),
+        supa.from('ui_settings').select('key,value').in('key', ['notify_prefer_telegram', 'public_base_url']),
+      ]);
+      const c = {}; for (const r of cfg || []) c[r.key] = r.value || '';
+      const u = {}; for (const r of ui || []) u[r.key] = r.value || '';
+      _tgUsername = c.telegram_bot_username || '';
+      const tok = el('tgToken');
+      // Never echo the token back — show that one is stored, not what it is.
+      if (tok) { tok.value = ''; tok.placeholder = c.telegram_bot_token ? '••••••••  (salvat)' : '123456:ABC-DEF...'; }
+      const pref = el('tgPrefer');
+      if (pref) pref.checked = String(u.notify_prefer_telegram ?? '1') === '1';
+      const base = el('publicBaseUrl');
+      if (base) { base.value = u.public_base_url || ''; base.placeholder = location.origin; }
+      const msg = el('tgMsg');
+      if (msg && _tgUsername) msg.textContent = t('tg.connected_as', { name: '@' + _tgUsername });
+    }
+    let _tgUsername = '';
+
+    // The deep link a participant opens to bind their chat to their car. The
+    // token is an HMAC the bot re-computes, so a guessed id gets nowhere.
+    function tgInviteUrl(car, token) {
+      if (!_tgUsername || !token) return '';
+      return `https://t.me/${_tgUsername}?start=${car.id}-${token}`;
+    }
+
+    el('tgConnectBtn')?.addEventListener('click', async () => {
+      const msg = el('tgMsg'); const tok = el('tgToken');
+      const value = (tok?.value || '').trim();
+      if (msg) { msg.style.color = ''; msg.textContent = t('common.loading'); }
+      try {
+        if (value) {
+          const { error } = await supa.from('app_config').upsert({ key: 'telegram_bot_token', value });
+          if (error) throw error;
+        }
+        const { data, error } = await supa.functions.invoke('telegram', { body: { action: 'setup' } });
+        if (error) { let b = null; try { b = await error.context.json(); } catch (_) {} throw new Error(b?.detail || b?.error || error.message); }
+        if (data?.error) throw new Error(data.detail || data.error);
+        if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('tg.connected_as', { name: '@' + (data.username || '') }); }
+        if (tok) tok.value = '';
+        await loadTelegramSettings();
+      } catch (e) {
+        if (msg) { msg.style.color = 'var(--red)'; msg.textContent = t('common.error') + ': ' + (e.message || e); }
+      }
+    });
+
+    el('tgStatusBtn')?.addEventListener('click', async () => {
+      const msg = el('tgMsg');
+      if (msg) { msg.style.color = ''; msg.textContent = t('common.loading'); }
+      try {
+        const { data, error } = await supa.functions.invoke('telegram', { body: { action: 'status' } });
+        if (error) { let b = null; try { b = await error.context.json(); } catch (_) {} throw new Error(b?.error || error.message); }
+        if (data?.error) throw new Error(data.error);
+        const linked = (state.cars || []).filter(c => c.telegram_chat_id).length;
+        if (msg) {
+          msg.style.color = data.webhook ? 'var(--green)' : 'var(--red)';
+          msg.textContent = data.webhook
+            ? t('tg.status_ok', { name: '@' + (data.username || ''), n: linked })
+            : t('tg.status_no_hook');
+        }
+      } catch (e) {
+        if (msg) { msg.style.color = 'var(--red)'; msg.textContent = t('common.error') + ': ' + (e.message || e); }
+      }
+    });
+
+    el('tgPrefer')?.addEventListener('change', async (e) => {
+      await supa.from('ui_settings').upsert({ key: 'notify_prefer_telegram', value: e.target.checked ? '1' : '0' });
+      showToast(t('common.saved'));
+    });
+
+    el('publicBaseHereBtn')?.addEventListener('click', () => {
+      const inp = el('publicBaseUrl'); if (inp) inp.value = location.origin;
+    });
+
+    el('publicBaseSaveBtn')?.addEventListener('click', async () => {
+      const inp = el('publicBaseUrl'); const msg = el('publicBaseMsg');
+      const value = (inp?.value || '').trim().replace(/\/+$/, '');
+      if (value && !/^https?:\/\//i.test(value)) {
+        if (msg) { msg.style.color = 'var(--red)'; msg.textContent = t('tg.base_bad'); }
+        return;
+      }
+      const { error } = await supa.from('ui_settings').upsert({ key: 'public_base_url', value });
+      if (msg) {
+        msg.style.color = error ? 'var(--red)' : 'var(--green)';
+        msg.textContent = error ? (t('common.error') + ': ' + error.message) : t('common.saved');
+      }
+    });
+
     el('reportBtn')?.addEventListener('click', async () => {
       const btn = el('reportBtn');
       btn.disabled = true;
@@ -1992,18 +2192,22 @@
     });
 
     el('deleteAllCarsBtn').addEventListener('click', async () => {
-      if (!await uiConfirm('Ești sigur că vrei să ștergi TOATE mașinile din baza de date?\n\nAceastă acțiune este ireversibilă!')) return;
-
+      // Scoped to what is on screen: wiping cars belonging to another event
+      // from here would be a surprise. Reversible for 30 days.
+      const victims = activeCars().map(c => c.id);
+      if (!victims.length) { uiAlert(t('trash.nothing_to_delete')); return; }
+      if (!await uiConfirm(t('settings.confirm_delete_all_cars', { n: victims.length }))) return;
       try {
-        const { error } = await supa.from('cars').delete().neq('id', 0);
-        if (error) {
-          uiAlert('Eroare la ștergere: ' + error.message);
-        } else {
-          uiAlert('Toate mașinile au fost șterse cu succes!');
-          await loadData();
-        }
+        const { error } = await trashCars(victims);
+        if (error) { uiAlert(t('common.error') + ': ' + error.message); return; }
+        await loadData();
+        showUndoToast(t('trash.moved_n', { n: victims.length }), async () => {
+          for (const id of victims) await untrashCar(id);
+          await loadDataFull();
+          showToast(t('undo.restored'));
+        });
       } catch (err) {
-        uiAlert('Eroare: ' + err.message);
+        uiAlert(t('common.error') + ': ' + err.message);
       }
     });
 
@@ -2452,7 +2656,7 @@
         .insert({ message: String(msg), recipient_count: 1, status: 'sending', filters: { single: c.id }, created_by: currentUserName() })
         .select().single();
       try {
-        const { data, error } = await supa.functions.invoke('send-sms', { body: { history_id: hist?.id, message: String(msg), recipients: [{ phone: c.phone || c.contact, vars }] } });
+        const { data, error } = await supa.functions.invoke('send-sms', { body: { history_id: hist?.id, message: String(msg), recipients: [{ phone: c.phone || c.contact, car_id: c.id, vars }] } });
         if (error) { let b = null; try { b = await error.context.json(); } catch (_) {} throw new Error(b?.note || b?.error || error.message); }
         if (data?.error) throw new Error(data.note || data.error);
         showToast(t('sms.single_sent'));
@@ -2609,6 +2813,41 @@
       if (error) { uiAlert(t('common.error') + ': ' + error.message); return; }
       showToast(t('undo.restored'));
       await loadData();
+    }
+
+    // Deleting a car moves it to the trash instead of destroying it. The rows
+    // stay for 30 days (a nightly job clears older ones), which is what makes
+    // "I imported the wrong sheet" a mistake you undo rather than one you
+    // repair from a backup. It also keeps the entry number reserved, so a car
+    // that comes back keeps the number printed on its pass.
+    async function trashCars(ids) {
+      const list = [].concat(ids).filter(Boolean).map(String);
+      if (!list.length) return { error: null, n: 0 };
+      const { error } = await supa.from('cars')
+        .update({ deleted_at: new Date().toISOString(), deleted_by: currentUserEmail() || null })
+        .in('id', list);
+      if (!error) state.cars = (state.cars || []).filter(c => !list.includes(String(c.id)));
+      return { error, n: list.length };
+    }
+
+    // Bringing one back. The database decides the number: it returns the old
+    // one, or the next free one if somebody claimed it while the car was gone.
+    async function untrashCar(id) {
+      const { data, error } = await supa.rpc('restore_car', { p_id: Number(id) });
+      if (error) return { error };
+      const row = Array.isArray(data) ? data[0] : data;
+      return { error: null, renumbered: !!row?.renumbered, entry_no: row?.entry_no ?? null };
+    }
+
+    // Offered right after a car is trashed: one tap takes it back, before the
+    // toast fades. After that it is still in Settings → Trash for 30 days.
+    function offerUndoRestore(id, label) {
+      showUndoToast(label ? `${t('undo.car_deleted')} — ${label}` : t('undo.car_deleted'), async () => {
+        const res = await untrashCar(id);
+        if (res.error) { uiAlert(t('common.error') + ': ' + res.error.message); return; }
+        showToast(res.renumbered ? t('trash.restored_renumbered', { n: res.entry_no }) : t('undo.restored'));
+        await loadDataFull();
+      });
     }
 
     // A toast with an "Undo" action. Auto-dismisses after ~7s.
@@ -2840,6 +3079,16 @@
       if (backupBlk) { backupBlk.style.display = admin ? 'block' : 'none'; if (admin) { try { renderBackupList(); } catch (_) {} } }
       const gdprBlk = el('gdprBlock');
       if (gdprBlk) gdprBlk.style.display = admin ? 'block' : 'none';
+      const trashBlk = el('trashBlock');
+      if (trashBlk) {
+        trashBlk.style.display = admin ? 'block' : 'none';
+        if (admin) { try { renderTrash(); renderImports(); } catch (_) {} }
+      }
+      const tgBlk = el('telegramBlock');
+      if (tgBlk) {
+        tgBlk.style.display = admin ? 'block' : 'none';
+        if (admin) { try { loadTelegramSettings(); } catch (_) {} }
+      }
       const actBlk = el('activityBlock');
       if (actBlk) { actBlk.style.display = admin ? 'block' : 'none'; if (admin) { try { renderActivityLog(); } catch (_) {} } }
       const votingBlk = el('votingBlock');
@@ -2880,7 +3129,7 @@
     // (notes, modifications, photos, checklist, detailed_description, …) are only
     // needed in the detail view, which hydrates them on demand. `updated_at` is
     // included so any edit still bumps the fingerprint.
-    const CAR_LIST_COLS  = 'id,entry_no,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,vip_arrived,vip_arrived_at,arrived_at,checked_in_by,checked_in_gate,left_at,checked_out_by';
+    const CAR_LIST_COLS  = 'id,entry_no,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,vip_arrived,vip_arrived_at,arrived_at,checked_in_by,checked_in_gate,left_at,checked_out_by,deleted_at,deleted_by,rsvp,rsvp_at,telegram_chat_id,import_batch';
     const TASK_LIST_COLS = 'id,title,event,date,status,status_color,is_completed,event_id,due_at,created_at,assigned_user_id,assigned_user_name,started_at,completed_at,completed_by_user_id,completed_by_user_name,priority,category,due_date,created_by,assigned_to,assigned_at,completed_by,team,updated_at,reminder_sent';
 
     // Canonical parking zones (car categories). Single source of truth for the
@@ -2898,7 +3147,7 @@
       return html;
     }
 
-    const CAR_FP_FIELDS   = ['id','entry_no','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at','vip_arrived'];
+    const CAR_FP_FIELDS   = ['id','entry_no','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at','vip_arrived','rsvp','telegram_chat_id'];
     const VIP_FP_FIELDS   = ['id','first_name','last_name','company','role','category','guests_count','phone','arrived','arrived_at','event_id','companions','updated_at'];
     const AGENDA_FP_FIELDS = ['id','event_id','title','at_time','notes','updated_at'];
     const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','telegram','email','city','category','year','social_links','transport_info','modifications','photos','status','created_at'];
@@ -2995,10 +3244,14 @@
     // Realtime handles them instantly when it's connected; as a safety net for
     // when it isn't, we periodically pull the bare id list (cheap: a few bytes
     // per row) and drop anything that has disappeared server-side.
+    // `soft` marks a table where deleting only sets `deleted_at`. Such a row
+    // must still arrive in the delta — that update *is* how the client learns
+    // it was thrown away — and gets filtered out after the merge instead.
     const DELTA_TABLES = {
-      cars:  { cols: CAR_LIST_COLS,  slice: 'cars'  },
-      tasks: { cols: TASK_LIST_COLS, slice: 'tasks' }
+      cars:  { cols: CAR_LIST_COLS,  slice: 'cars',  soft: true  },
+      tasks: { cols: TASK_LIST_COLS, slice: 'tasks', soft: false }
     };
+    const isTrashed = (r) => !!(r && r.deleted_at);
     const RECONCILE_EVERY_MS = 60000;
     // `updated_at` is the transaction's start time, but a row only becomes
     // visible when that transaction commits. A slow write that started before
@@ -3032,10 +3285,14 @@
     // otherwise only what changed. Ordering only matters for the full fetch —
     // merged results are re-sorted client-side.
     function deltaQuery(table) {
-      const { cols } = DELTA_TABLES[table];
+      const { cols, soft } = DELTA_TABLES[table];
       const since = _delta[table];
       const q = supa.from(table).select(cols);
-      return since ? q.gt('updated_at', overlapFrom(since, DELTA_OVERLAP_MS)) : q.order('id', { ascending: false });
+      // A cold fetch skips the trash outright — there is no reason to pull rows
+      // the operator threw away. A delta must not skip them, or the row that
+      // just moved to the trash would never reach the client.
+      if (!since) return (soft ? q.is('deleted_at', null) : q).order('id', { ascending: false });
+      return q.gt('updated_at', overlapFrom(since, DELTA_OVERLAP_MS));
     }
 
     // Advance the watermark to the newest `updated_at` we actually received.
@@ -3051,7 +3308,8 @@
     async function reconcileDeletions() {
       const out = {};
       await Promise.all(Object.keys(DELTA_TABLES).map(async (table) => {
-        const { data, error } = await supa.from(table).select('id');
+        const base = supa.from(table).select('id');
+        const { data, error } = await (DELTA_TABLES[table].soft ? base.is('deleted_at', null) : base);
         if (error || !Array.isArray(data)) return;      // leave the list alone
         const alive = new Set(data.map(r => String(r.id)));
         const slice = DELTA_TABLES[table].slice;
@@ -3092,8 +3350,12 @@
           if (taskRows !== null) advanceWatermark('tasks', taskRows);
           // An empty delta means "nothing changed" — keep the current list as
           // is rather than replacing it with nothing.
+          // The merge keeps whatever the delta carried, including a car whose
+          // only change was landing in the trash — so strip those right after,
+          // or a deleted car stays on screen until the next reconcile sweep.
           const nextCars  = carRows  === null ? null
-            : (wasFullCars  ? carRows  : (carRows.length  ? mergeById(state.cars,  carRows)  : null));
+            : (wasFullCars  ? carRows
+              : (carRows.length ? mergeById(state.cars, carRows).filter(c => !isTrashed(c)) : null));
           const nextTasks = taskRows === null ? null
             : (wasFullTasks ? taskRows : (taskRows.length ? mergeById(state.tasks, taskRows) : null));
           const nextEvents   = results[2].status === 'fulfilled' && !results[2].value.error ? (results[2].value.data || []) : null;
@@ -5416,6 +5678,8 @@
                   ${car.is_vip ? '<span class="badge purple" style="font-size:8px; padding:2px 6px;">VIP</span>' : ''}
                   ${isNewToday ? `<span class="badge new-today">${escape(t('car.new_today'))}</span>` : ''}
                   ${blockReason !== null ? `<span class="block-badge" title="${escape(blockReason || '')}">⛔ ${escape(t('block.badge'))}</span>` : ''}
+                  ${car.rsvp === 'no' ? `<span class="rsvp-badge is-no" title="${escape(t('car.rsvp_no'))}">${escape(t('car.rsvp_no_short'))}</span>` : ''}
+                  ${car.rsvp === 'yes' ? `<span class="rsvp-badge is-yes" title="${escape(t('car.rsvp_yes'))}">✓</span>` : ''}
                 </div>
                 <div class="row-sub" style="margin-top:2px;">
                   <span style="color: var(--blue); font-weight: 700;">${escape(car.owner || '—')}</span>
@@ -5577,7 +5841,7 @@
           const { error: ue } = await supa.from('cars').update(patch).eq('id', keepId);
           if (ue) throw ue;
         }
-        const { error: de } = await supa.from('cars').delete().eq('id', dupId);
+        const { error: de } = await trashCars(dupId);
         if (de) throw de;
         await loadData();
         showDuplicates();
@@ -5590,13 +5854,16 @@
       if (!btn) return;
       const id = btn.dataset.dupDel;
       if (!await uiConfirm(t('dup.confirm_del'))) return;
-      const snapshot = (state.cars || []).find(c => String(c.id) === String(id)) || null;
-      const { error } = await supa.from('cars').delete().eq('id', id);
+      const { error } = await trashCars(id);
       if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
-      state.cars = (state.cars || []).filter(c => String(c.id) !== String(id));
       showDuplicates();
       try { renderCars(); } catch (_) {}
-      if (snapshot) showUndoToast(t('undo.car_deleted'), () => restoreRow('cars', snapshot));
+      showUndoToast(t('undo.car_deleted'), async () => {
+        const res = await untrashCar(id);
+        if (res.error) { showToast(t('common.error') + ': ' + res.error.message, 'error'); return; }
+        await loadDataFull();
+        showToast(t('undo.restored'));
+      });
     });
 
     function renderTeam() {
@@ -5762,11 +6029,10 @@
       } else if (action === 'delete') {
         const id = btn.dataset.carId, label = btn.dataset.carLabel || 'mașina';
         if (!await uiConfirm(`Șterge "${label}"?`, { okLabel: t('common.delete') })) return;
-        const snapshot = (state.cars || []).find(c => String(c.id) === String(id)) || null;
-        const { error } = await withSpinner(() => supa.from('cars').delete().eq('id', id));
-        if (error) return uiAlert('Eroare: ' + error.message);
+        const { error } = await withSpinner(() => trashCars(id).then(r => ({ error: r.error })));
+        if (error) return uiAlert(t('common.error') + ': ' + error.message);
         await loadData();
-        if (snapshot) showUndoToast(t('undo.car_deleted'), () => restoreRow('cars', snapshot));
+        offerUndoRestore(id, label);
 
       // --- TASKS ---
       } else if (action === 'task-take') {
@@ -5828,6 +6094,7 @@
         f.status.value = ev.status || 'Planificat';
         if (f.reg_capacity) f.reg_capacity.value = ev.reg_capacity || '';
         if (f.waiver_text) f.waiver_text.value = ev.waiver_text || '';
+        if (f.entries_frozen) f.entries_frozen.checked = !!ev.entries_frozen;
         if (ev.starts_at) {
           const d = new Date(ev.starts_at);
           f.starts_at.value = isNaN(d) ? '' : new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -6643,6 +6910,11 @@
         try { displayDate = new Date(startsVal + 'T00:00:00').toLocaleDateString('ro-RO', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (_) { displayDate = startsVal; }
       }
 
+      // Stamp the freeze time only on the transition, so re-saving an already
+      // frozen event doesn't keep moving the date it was locked.
+      const frozen = !!fd.get('entries_frozen');
+      const wasFrozen = !!(state.events || []).find(e => String(e.id) === String(editingEventId))?.entries_frozen;
+
       const payload = {
         title: fd.get('title').trim(),
         subtitle: (fd.get('subtitle') || '').trim() || null,
@@ -6653,11 +6925,17 @@
         status, status_color: statusColor,
         // Empty means unlimited, not zero — a 0 here would refuse every
         // registration, which is never what leaving a field blank means.
+        // (frozen/wasFrozen are computed just above the payload.)
         reg_capacity: (() => {
           const n = parseInt(String(fd.get('reg_capacity') || '').trim(), 10);
           return Number.isFinite(n) && n > 0 ? n : null;
         })(),
         waiver_text: (fd.get('waiver_text') || '').trim() || null,
+        // Freezing is what makes a printed pass trustworthy: from here on the
+        // database refuses to change any entry number for this event.
+        entries_frozen: frozen,
+        ...(frozen && !wasFrozen ? { entries_frozen_at: new Date().toISOString() } : {}),
+        ...(frozen ? {} : { entries_frozen_at: null }),
         days_left: null   // computed live from starts_at
       };
       try {
@@ -8674,6 +8952,11 @@
           <div class="detail-section-title">${escape(t('car.detail.section_car'))}</div>
           <div class="detail-grid">
             ${fieldRow(t('car.entry_no'), c.entry_no ? '#' + c.entry_no : null)}
+            ${fieldRow(t('car.rsvp'), c.rsvp
+              ? (c.rsvp === 'yes' ? t('car.rsvp_yes') : t('car.rsvp_no'))
+                + (c.rsvp_at ? ' · ' + fmtDateTime(c.rsvp_at) : '')
+              : null)}
+            ${fieldRow('Telegram', c.telegram_chat_id ? t('tg.linked') : null)}
             ${fieldRow(t('car.detail.brand'), c.brand)}
             ${fieldRow(t('car.detail.model'), c.model)}
             ${fieldRow(t('car.detail.year'), c.year)}
@@ -9093,13 +9376,11 @@
           const id = btn.dataset.carId;
           const label = btn.dataset.carLabel || 'mașina';
           if (!await uiConfirm(t('car.detail.confirm_delete', { label }))) { btn.disabled = false; return; }
-          const snapshot = (state.cars || []).find(c => String(c.id) === String(id)) || null;
-          const { error } = await supa.from('cars').delete().eq('id', id);
+          const { error } = await trashCars(id);
           if (error) throw error;
           closeModal(document.getElementById('modal-car-detail'));
           await loadData();
-          if (snapshot) showUndoToast(t('undo.car_deleted'), () => restoreRow('cars', snapshot));
-          else showToast(t('car.detail.toast_deleted'));
+          offerUndoRestore(id, label);
         }
       } catch (e) {
         showToast('Eroare: ' + (e.message || e), 'error');

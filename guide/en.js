@@ -43,6 +43,13 @@ export default {
           tip: 'When the event is over, set its status to Finished. Nothing is deleted — it just leaves the view, and the app moves on to your next event. To look back, pick the event from the header selector, or "All events".',
         },
         {
+          title: 'Connect Telegram',
+          where: 'Settings → Telegram',
+          body: 'Message @BotFather on Telegram with /newbot, get a token, paste it here. Why it is worth it: SMS costs money per message and no provider was ever configured here, so no automatic message has ever gone out. Telegram is free and carries more than text: the entry number, the zone, the schedule, the confirmation link. Anyone without Telegram keeps getting SMS.',
+          tip: 'Set the public address of the app in the same place, or the confirmation link in messages comes out empty.',
+          role: 'admin',
+        },
+        {
           title: 'Fill in the schedule',
           where: 'Home → Schedule → +',
           body: 'Each slot has a time and a title. It shows publicly on the agenda page with the current slot highlighted, so participants can see what is next themselves.',
@@ -79,6 +86,7 @@ export default {
           title: 'Print the passes',
           where: 'Cars → Passes',
           body: 'Generates an A6 card for every car in the filtered list, carrying its check-in QR code. Filter the list first if you only want some of them. The pass also carries the entry number in large print — it is given automatically, in registration order, and restarts from 1 at every event.',
+          tip: 'Right after printing, freeze the start list under Events → edit the event. From then on the numbers cannot move, whatever you do with imports; late entries still get numbers.',
         },
         {
           title: 'Prepare the gate tablets',
@@ -176,6 +184,7 @@ export default {
     'A notification when a new registration comes in',
     'Automatic cleanup of old logs',
     'An entry number for every new car, counted separately for each event',
+    'Emptying the trash after 30 days, and promoting from the waiting list when someone says they cannot come',
   ],
 
   troubleTitle: 'When something goes wrong',
@@ -198,6 +207,10 @@ export default {
       f: 'SMS Center → check the provider and that the automation is ticked.' },
     { p: 'Something crashed on someone\'s phone',
       f: 'Settings → Reported errors shows what happened, on which device and when.' },
+    { p: 'You deleted a car by mistake',
+      f: 'Straight away: the Undo button in the notification. Later: Settings → Recently deleted → Bring back. The trash keeps them 30 days and the car returns with its entry number.' },
+    { p: 'You imported the wrong file',
+      f: 'Settings → Recently deleted → Recent imports → Undo import. Moves the whole batch to the trash in one tap. Re-importing the same file brings the cars back rather than duplicating them.' },
     { p: 'Someone deleted data by mistake',
       f: 'Settings → Backups → Restore. It brings back what was deleted without touching anything created in the meantime.' },
     { p: 'Someone asks for their data to be deleted',

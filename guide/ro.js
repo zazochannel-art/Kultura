@@ -43,6 +43,13 @@ export default {
           tip: 'Când termini evenimentul, pune-i statusul Finalizat. Datele nu se șterg — ies din vedere, iar aplicația trece la următorul eveniment. Ca să te uiți înapoi, alege evenimentul din selectorul din antet, sau „Toate evenimentele".',
         },
         {
+          title: 'Conectezi Telegram',
+          where: 'Setări → Telegram',
+          body: 'Scrie-i lui @BotFather pe Telegram comanda /newbot, primești un token și îl lipești aici. De ce merită: SMS-ul costă bani per mesaj și aici nu a fost niciodată configurat un furnizor, deci niciun mesaj automat n-a plecat vreodată. Telegram e gratuit și duce mai mult decât text: numărul de concurs, zona, programul, linkul de confirmare. Cine nu are Telegram primește SMS ca până acum.',
+          tip: 'Pune tot acolo și adresa publică a aplicației, altfel linkul de confirmare din mesaje rămâne gol.',
+          role: 'admin',
+        },
+        {
           title: 'Pui programul',
           where: 'Acasă → Program → +',
           body: 'Fiecare etapă are oră și titlu. Se vede public pe pagina de agendă, cu etapa curentă marcată — participanții văd singuri ce urmează.',
@@ -79,6 +86,7 @@ export default {
           title: 'Printezi pass-urile',
           where: 'Mașini → Pass-uri',
           body: 'Generează un card A6 pentru fiecare mașină din lista filtrată, cu codul QR de check-in. Dacă vrei doar o parte, filtrează întâi lista. Pe pass e tipărit mare și numărul de concurs — se dă automat, în ordinea înscrierii, și reîncepe de la 1 la fiecare eveniment.',
+          tip: 'Imediat după ce printezi, îngheață lista de start din Evenimente → editează evenimentul. De atunci numerele nu se mai schimbă, orice ai face cu importurile; mașinile târzii primesc numere în continuare.',
         },
         {
           title: 'Pregătești tabletele de la poartă',
@@ -176,6 +184,7 @@ export default {
     'Notificare când intră o înscriere nouă',
     'Curățarea automată a jurnalelor vechi',
     'Numărul de concurs la fiecare mașină nouă, separat pentru fiecare eveniment',
+    'Golirea coșului după 30 de zile și promovarea de pe lista de așteptare când cineva anunță că nu vine',
   ],
 
   troubleTitle: 'Când ceva nu merge',
@@ -198,6 +207,10 @@ export default {
       f: 'SMS Center → verifică furnizorul și că automatizarea e bifată.' },
     { p: 'Ceva a crăpat pe telefonul cuiva',
       f: 'Setări → Erori raportate arată ce s-a întâmplat, pe ce dispozitiv și când.' },
+    { p: 'Ai șters o mașină din greșeală',
+      f: 'Imediat: butonul Anulează din notificare. Mai târziu: Setări → Șterse recent → Adu înapoi. Coșul ține 30 de zile, iar mașina revine cu numărul ei de concurs.' },
+    { p: 'Ai importat un fișier greșit',
+      f: 'Setări → Șterse recent → Importuri recente → Anulează importul. Mută tot lotul în coș dintr-o apăsare. Reimportul aceluiași fișier readuce mașinile, nu le dublează.' },
     { p: 'Cineva a șters din greșeală date',
       f: 'Setări → Copii de siguranță → Restaurează. Aduce înapoi ce s-a șters, fără să atingă ce s-a creat între timp.' },
     { p: 'Cineva cere ștergerea datelor sale',

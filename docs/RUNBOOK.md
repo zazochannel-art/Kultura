@@ -60,6 +60,23 @@ selector din care poți oricând schimba evenimentul în lucru sau alege
 > și gata de pregătit. Ca să te uiți înapoi, alege evenimentul din selectorul
 > de sus.
 
+### 1b. Conectează Telegram (o dată, cinci minute)
+**Setări → Telegram.** Deschide Telegram, scrie-i lui **@BotFather** comanda
+`/newbot`, dă-i un nume, și primești un token. Lipești tokenul în Setări și
+apeși **Conectează botul**.
+
+De ce merită: SMS-ul costă bani per mesaj și, în acest sistem, **nu a fost
+niciodată configurat un furnizor** — adică niciun mesaj automat n-a plecat
+vreodată. Telegram e gratuit și duce mai mult decât text: numărul de concurs,
+zona, programul, linkul de confirmare.
+
+Tot acolo pune și **adresa publică a aplicației** (butonul „Folosește adresa
+curentă" o completează singur). Fără ea, linkul de confirmare din mesaje rămâne
+gol.
+
+Participanții se conectează deschizând linkul personal pe care li-l trimiți.
+Cine nu are Telegram primește SMS ca până acum.
+
 ### 2. Pune programul
 **Acasă → Program → +.** Fiecare etapă are oră și titlu. Se vede public pe
 `agenda.html`, cu marcaj pe etapa curentă.
@@ -130,6 +147,23 @@ Pe pass e tipărit mare și **numărul de concurs** — numărul pe care mașina
 poartă pe parbriz. Se dă automat, în ordinea înscrierii, și reîncepe de la 1 la
 fiecare eveniment. Îl vezi și pe cardul mașinii, iar la poartă și în jurizare
 poți căuta direct după el (scrii doar cifra).
+
+> **Imediat după ce printezi: îngheață lista.** Evenimente → editează
+> evenimentul → **Îngheață lista de start**. De atunci numerele existente nu se
+> mai pot schimba, orice ai face cu importurile. Mașinile care se înscriu târziu
+> primesc numere în continuare. Dacă printezi fără să îngheți, aplicația te
+> întreabă o dată — nu e o interdicție, e o reamintire.
+
+### 7b. Cere confirmarea participării
+Mementoul de cu 24 de ore înainte conține un link personal: participantul apasă
+**Da, vin** sau **Nu pot veni**. Îl vezi apoi pe cardul mașinii.
+
+Un „nu pot veni" nu e doar o informație: **eliberează locul** și urcă automat
+prima înscriere de pe lista de așteptare în coada normală, ca s-o aprobi. Nu
+trebuie să stai cu ochii pe listă.
+
+Textul mementoului se schimbă din **SMS Center → Automatizări**. Variabilele
+noi: `{{numar_concurs}}`, `{{zona}}` și `{{confirmare}}` (linkul).
 
 ### 8. Pregătește tabletele de la poartă
 Pe fiecare dispozitiv de la intrare:
@@ -244,6 +278,8 @@ Supabase.
 | **`vote.html` zice „votarea nu e deschisă"** | Normal — trebuie deschisă din **Setări → Votare Best Car** |
 | **Nu pleacă SMS-urile** | **SMS Center** → verifică furnizorul și că automatizarea e bifată |
 | **Ceva a crăpat pe telefonul cuiva** | **Setări → Erori raportate** arată ce s-a întâmplat, pe ce dispozitiv și când |
+| **Ai șters o mașină din greșeală** | Imediat: butonul **Anulează** din notificare. Mai târziu: **Setări → Șterse recent** → *Adu înapoi*. Mașina revine cu numărul ei de concurs (sau cu unul nou, dacă între timp l-a luat altcineva). Coșul ține 30 de zile |
+| **Ai importat un fișier greșit** | **Setări → Șterse recent → Importuri recente** → *Anulează importul*. Mută în coș tot lotul dintr-o apăsare. Dacă reimporți același fișier, mașinile se întorc, nu se dublează |
 | **Cineva a șters din greșeală date** | **Setări → Copii de siguranță → Restaurează.** Aduce înapoi ce s-a șters, **fără** să atingă ce s-a creat între timp. Vezi întâi lista de verificare, apoi confirmi |
 | **Cineva cere ștergerea datelor (GDPR)** | **Setări → GDPR** → caută după placă/telefon/email/nume → verifici rezultatele → ștergi definitiv (inclusiv pozele) |
 
@@ -261,6 +297,9 @@ Nu trebuie să faci nimic pentru:
 - **SMS de bun venit** la sosire și **SMS la aprobare** (dacă sunt bifate)
 - **Numărul de concurs** la fiecare mașină nouă, în ordinea înscrierii, separat
   pentru fiecare eveniment
+- **Golirea coșului** după 30 de zile (mașinile șterse dispar definitiv abia
+  atunci)
+- **Promovarea de pe lista de așteptare** când cineva anunță că nu mai vine
 - **Notificare push** la o înscriere nouă
 - **Curățare** automată, în fiecare noapte: contoarele anti-spam, erorile
   raportate (peste 14 zile) și jurnalul de activitate (peste un an)
