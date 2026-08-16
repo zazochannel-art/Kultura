@@ -20,7 +20,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v114';
+    const APP_VERSION = 'v115';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -2040,11 +2040,11 @@
       }
     }
 
-    // The deep link a participant opens to bind their chat to their car. The
-    // token is an HMAC the bot re-computes, so a guessed id gets nowhere.
-    function tgInviteUrl(car, token) {
-      if (!_tgUsername || !token) return '';
-      return `https://t.me/${_tgUsername}?start=${car.id}-${token}`;
+    // Invite links are minted server-side: they are signed with `link_secret`,
+    // which lives in app_config and is unreachable from the browser.
+    async function tgInviteFor(carIds) {
+      const data = await tgCall('invite', { car_ids: [].concat(carIds).map(Number) });
+      return data.cars || [];
     }
 
     el('tgConnectBtn')?.addEventListener('click', async () => {
@@ -2070,6 +2070,26 @@
       const msg = el('tgMsg');
       if (msg) { msg.style.color = ''; msg.textContent = t('common.loading'); }
       await loadTelegramSettings();
+    });
+
+    // Nobody is reachable until they open their own link, so getting the links
+    // out is the whole job. This copies one per car for the event in hand.
+    el('tgInviteAllBtn')?.addEventListener('click', async () => {
+      const msg = el('tgMsg');
+      const cars = activeCars();
+      if (!cars.length) { showToast(t('tg.invite_none')); return; }
+      if (msg) { msg.style.color = ''; msg.textContent = t('common.loading'); }
+      try {
+        const rows = await tgInviteFor(cars.map(c => c.id));
+        const text = rows.map(r =>
+          [r.entry_no ? '#' + r.entry_no : '', r.name, r.owner, r.link].filter(Boolean).join(' — ')
+        ).join('\n');
+        await navigator.clipboard.writeText(text);
+        const left = rows.filter(r => !r.linked).length;
+        if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('tg.invite_copied', { n: rows.length, left }); }
+      } catch (e) {
+        if (msg) { msg.style.color = 'var(--red)'; msg.textContent = t('common.error') + ': ' + (e.message || e); }
+      }
     });
 
     el('tgPrefer')?.addEventListener('change', async (e) => {
@@ -8967,7 +8987,7 @@
               ? (c.rsvp === 'yes' ? t('car.rsvp_yes') : t('car.rsvp_no'))
                 + (c.rsvp_at ? ' · ' + fmtDateTime(c.rsvp_at) : '')
               : null)}
-            ${fieldRow('Telegram', c.telegram_chat_id ? t('tg.linked') : null)}
+            ${fieldRow('Telegram', c.telegram_chat_id ? t('tg.linked') : t('tg.not_linked'))}
             ${fieldRow(t('car.detail.brand'), c.brand)}
             ${fieldRow(t('car.detail.model'), c.model)}
             ${fieldRow(t('car.detail.year'), c.year)}
@@ -9043,6 +9063,7 @@
         <button class="btn ghost" data-detail-action="car-qr" data-car-id="${c.id}">${escape(t('car.detail.qr'))}</button>
         <button class="btn ghost" data-detail-action="car-ticket" data-car-id="${c.id}">${escape(t('car.detail.ticket'))}</button>
         ${roleAtLeast('staff') && (c.phone || c.contact) ? `<button class="btn ghost" data-detail-action="car-sms" data-car-id="${c.id}">${escape(t('car.detail.sms'))}</button>` : ''}
+        ${roleAtLeast('staff') && !c.telegram_chat_id ? `<button class="btn ghost" data-detail-action="car-invite-tg" data-car-id="${c.id}">${escape(t('tg.invite_one'))}</button>` : ''}
         ${canDelete ? `<button class="btn danger" data-detail-action="car-delete" data-car-id="${c.id}" data-car-label="${escape(title)}">${escape(t('car.action.delete'))}</button>` : ''}
       `;
 
@@ -9381,6 +9402,20 @@
           const id = btn.dataset.carId;
           btn.disabled = false;
           await sendSingleSms(id);
+          return;
+
+        } else if (action === 'car-invite-tg') {
+          const id = btn.dataset.carId;
+          try {
+            const rows = await tgInviteFor([id]);
+            const link = rows[0]?.link;
+            if (!link) throw new Error(t('tg.no_token_yet'));
+            await navigator.clipboard.writeText(link);
+            showToast(t('tg.invite_one_copied'));
+          } catch (e) {
+            showToast(t('common.error') + ': ' + (e.message || e), 'error');
+          }
+          btn.disabled = false;
           return;
 
         } else if (action === 'car-delete') {

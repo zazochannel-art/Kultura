@@ -892,4 +892,12 @@ export default {
   "common.saved": "Salvat",
   "settings.confirm_delete_all_cars": "Muți în coș toate cele {n} mașini ale evenimentului în lucru? Le poți aduce înapoi 30 de zile.",
   "tg.no_token_yet": "Niciun bot conectat încă. Lipește tokenul de la @BotFather și apasă „Conectează botul”.",
+  "tg.not_linked": "Neconectat",
+  "tg.invite_one": "Link Telegram",
+  "tg.invite_one_copied": "Link de invitație copiat",
+  "tg.invite_all": "Copiază linkurile de invitație",
+  "tg.invite_hint": "Nimeni nu primește mesaje până nu își deschide linkul personal — un bot nu poate scrie primul. Linkul apare oricum pe biletul fiecărui participant, sub codul QR de pe pass.",
+  "tg.invite_copied": "{n} linkuri copiate. {left} încă neconectați.",
+  "tg.invite_none": "Nicio mașină în evenimentul curent.",
+  "tg.base_missing": "Pune adresa publică mai jos, altfel linkul de confirmare din mesaje rămâne gol.",
 };

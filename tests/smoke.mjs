@@ -1062,6 +1062,71 @@ try {
     }
   }
 
+  // 4m. The ticket page is the only route by which a participant ever links
+  // their Telegram chat — a bot cannot message someone who has not opened it
+  // first. The feature shipped once with no way to hand the link out at all,
+  // so this guards the path rather than the plumbing.
+  {
+    for (const [label, extra, wantLink, wantOk] of [
+      ['fresh', { tg_link: 'https://t.me/KulturaEventBot?start=42-abc', tg_linked: false }, true, false],
+      ['linked', { tg_link: 'https://t.me/KulturaEventBot?start=42-abc', tg_linked: true }, false, true],
+      ['nobot', { tg_link: '', tg_linked: false }, false, false],
+    ]) {
+      const tkctx = await browser.newContext({ viewport: { width: 430, height: 930 } });
+      await tkctx.route('**://*.supabase.co/**', (r) => {
+        if (!r.request().url().includes('/functions/v1/ticket')) return r.abort();
+        return r.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify({
+            id: 42, entry_no: 7, name: 'Ion', brand: 'Nissan', model: 'Silvia',
+            plate: 'XYZ 123', zone: 'A2', category: 'JDM', arrived: false,
+            event: 'Kultura Fest', qr: 'KULTURA:42:XYZ 123', ...extra,
+          }),
+        });
+      });
+      const tkp = await tkctx.newPage();
+      try {
+        await tkp.goto(`${BASE}/ticket.html?c=42&k=XYZ%20123`, { waitUntil: 'domcontentloaded' });
+        await tkp.waitForTimeout(700);
+        const v = await tkp.evaluate(() => {
+          const a = document.querySelector('.t-tg');
+          return {
+            // Presence, not just the href: a rendered button with a dead href
+            // would still look like an invitation to the participant.
+            exists: !!a,
+            href: a ? a.getAttribute('href') : '',
+            target: a ? a.getAttribute('target') : '',
+            h: a ? a.getBoundingClientRect().height : 0,
+            ok: !!document.querySelector('.t-tg-ok'),
+          };
+        });
+        check(`ticket-${label}-telegram-button`, v.exists === wantLink && (v.href.length > 0) === wantLink);
+        check(`ticket-${label}-already-linked`, v.ok === wantOk);
+        if (wantLink) {
+          check('ticket-telegram-link-is-deep-link', /^https:\/\/t\.me\/\w+\?start=42-/.test(v.href));
+          // A finger target, not a text link — this is the whole conversion step.
+          check('ticket-telegram-button-tappable', v.h >= 44 && v.target === '_blank');
+        }
+      } catch (e) {
+        console.log(`ticket ${label}: ${e.message}`);
+        for (const n of [`ticket-${label}-telegram-button`, `ticket-${label}-already-linked`]) {
+          if (!checks.some((c) => c.name === n)) check(n, false);
+        }
+      }
+      await tkctx.close();
+    }
+    // The known accessibility exception is gone: no page may block pinch-zoom.
+    const vp = await browser.newContext().then(async (c) => {
+      const p = await c.newPage();
+      await p.goto(`${BASE}/ticket.html`, { waitUntil: 'domcontentloaded' });
+      const content = await p.evaluate(() =>
+        document.querySelector('meta[name="viewport"]')?.getAttribute('content') || '');
+      await c.close();
+      return content;
+    });
+    check('ticket-allows-pinch-zoom', !/user-scalable\s*=\s*no/i.test(vp) && !/maximum-scale/i.test(vp));
+  }
+
   // 5. Public pages (given out by QR at the event) must render standalone.
   // They talk to Supabase, which is unreachable here, so we only assert the
   // static shell renders and nothing throws before the network call.

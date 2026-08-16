@@ -879,4 +879,12 @@ export default {
   "common.saved": "Saved",
   "settings.confirm_delete_all_cars": "Move all {n} cars of the current event to the trash? You can bring them back for 30 days.",
   "tg.no_token_yet": "No bot connected yet. Paste the token from @BotFather and press “Connect the bot”.",
+  "tg.not_linked": "Not linked",
+  "tg.invite_one": "Telegram link",
+  "tg.invite_one_copied": "Invite link copied",
+  "tg.invite_all": "Copy the invite links",
+  "tg.invite_hint": "Nobody receives messages until they open their own link — a bot cannot write first. The link also appears on every participant's ticket, under the QR code from their pass.",
+  "tg.invite_copied": "{n} links copied. {left} still not linked.",
+  "tg.invite_none": "No cars in the current event.",
+  "tg.base_missing": "Set the public address below, or the confirmation link in messages comes out empty.",
 };
