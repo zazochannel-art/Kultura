@@ -20,7 +20,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v111';
+    const APP_VERSION = 'v112';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -914,11 +914,16 @@
           qr.make();
           const svg = qr.createSvgTag({ scalable: true, margin: 1 });
           const name = [car.brand, car.model].filter(Boolean).join(' ') || car.model || '';
+          // The entry number is the biggest thing on the card on purpose: it
+          // goes on the windscreen and is what spectators and judges read the
+          // car by. Class sits next to it, the way a dash card is laid out.
           return `<div class="pass-card">
+              ${car.entry_no ? `<div class="pass-no">${escape(String(car.entry_no))}</div>` : ''}
               <div class="pass-qr">${svg}</div>
               <div class="pass-plate">${escape(car.plate || '—')}</div>
               <div class="pass-name">${escape(name)}</div>
               ${car.owner ? `<div class="pass-owner">${escape(car.owner)}</div>` : ''}
+              ${car.category ? `<div class="pass-class">${escape(localizeDept(car.category))}</div>` : ''}
               ${evName ? `<div class="pass-event">${escape(evName)}</div>` : ''}
             </div>`;
         }).join('');
@@ -1698,6 +1703,187 @@
     });
 
     // ----- Event summary report (printable / save-as-PDF) -----
+    // ============================================================
+    //  JUDGING — the panel score, separate from the public Best Car vote.
+    //  One score 1–10 per judge per car; several judges average out. Results
+    //  group by the car's `category`, which is already how the field is
+    //  organised (Performance, JDM, Drift, …) — no parallel "class" concept.
+    // ============================================================
+    let _judgeScores = [];        // this judge's own scores, for the buttons
+    let _judgeAll = [];           // every judge's scores, for the results view
+    let _judgeFilter = 'all';     // 'all' | 'todo' | a category
+
+    async function loadJudgeScores() {
+      const ev = activeEventIdOrNull();
+      let q = supa.from('judge_scores').select('car_id, judge_email, score');
+      if (ev) q = q.eq('event_id', ev);
+      const { data, error } = await q;
+      if (error) { _judgeAll = []; _judgeScores = []; return; }
+      _judgeAll = data || [];
+      const me = (currentUserEmail() || '').toLowerCase();
+      _judgeScores = _judgeAll.filter(s => (s.judge_email || '').toLowerCase() === me);
+    }
+
+    const myScoreFor = (carId) =>
+      _judgeScores.find(s => String(s.car_id) === String(carId))?.score ?? null;
+
+    async function setJudgeScore(carId, score) {
+      const email = currentUserEmail();
+      if (!email) return;
+      // Optimistic: the judge is standing in front of the car and wants the
+      // button to light up now, not after a round trip.
+      const prev = _judgeScores.find(s => String(s.car_id) === String(carId));
+      if (prev) prev.score = score;
+      else _judgeScores.push({ car_id: carId, judge_email: email, score });
+      renderJudge();
+      const { error } = await supa.from('judge_scores').upsert({
+        event_id: activeEventIdOrNull(), car_id: carId, judge_email: email, score,
+      }, { onConflict: 'car_id,judge_email' });
+      if (error) {
+        showToast(t('common.error') + ': ' + error.message, 'error');
+        await loadJudgeScores();
+        renderJudge();
+        return;
+      }
+      haptic(30);
+      await loadJudgeScores();
+      renderJudge();
+    }
+
+    function judgeCars() {
+      const q = (state.judgeSearch || '').trim().toLowerCase();
+      const asNo = /^#?\d+$/.test(q) ? q.replace('#', '') : null;
+      return activeCars().filter(c => {
+        if (_judgeFilter === 'todo' && myScoreFor(c.id) !== null) return false;
+        if (_judgeFilter !== 'all' && _judgeFilter !== 'todo'
+            && (c.category || '') !== _judgeFilter) return false;
+        if (!q) return true;
+        if (asNo) return String(c.entry_no || '') === asNo;
+        return (c.model || '').toLowerCase().includes(q)
+            || (c.brand || '').toLowerCase().includes(q)
+            || (c.owner || '').toLowerCase().includes(q);
+      }).sort((a, b) => Number(a.entry_no || 1e9) - Number(b.entry_no || 1e9));
+    }
+
+    function renderJudge() {
+      const box = el('judgeResults');
+      if (!box) return;
+      const all = activeCars();
+      const done = all.filter(c => myScoreFor(c.id) !== null).length;
+      const prog = el('judgeProgress');
+      if (prog) prog.textContent = t('judge.progress', { done, total: all.length });
+
+      const cats = [...new Set(all.map(c => (c.category || '').trim()).filter(Boolean))].sort();
+      const chip = (key, label, n) =>
+        `<button type="button" class="chip${_judgeFilter === key ? ' active' : ''}" data-judge-filter="${escape(key)}">${escape(label)}<span class="count"> · ${n}</span></button>`;
+      const chips = el('judgeChips');
+      if (chips) {
+        chips.innerHTML =
+          chip('all', t('tasks.filter_all'), all.length) +
+          chip('todo', t('judge.todo'), all.length - done) +
+          cats.map(c => chip(c, localizeDept(c), all.filter(x => (x.category || '') === c).length)).join('');
+      }
+
+      const list = judgeCars();
+      if (!list.length) { box.innerHTML = `<div class="gate-empty">${escape(t('common.nothing_found'))}</div>`; return; }
+      box.innerHTML = list.slice(0, 80).map(c => {
+        const mine = myScoreFor(c.id);
+        const name = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
+        const buttons = Array.from({ length: 10 }, (_, i) => i + 1).map(n =>
+          `<button type="button" class="judge-score${mine === n ? ' is-set' : ''}" data-judge-car="${c.id}" data-judge-score="${n}">${n}</button>`).join('');
+        return `<div class="judge-car${mine !== null ? ' is-scored' : ''}">
+            <div class="judge-car-head">
+              ${c.entry_no ? `<span class="entry-no">#${escape(String(c.entry_no))}</span>` : ''}
+              <div class="judge-car-txt">
+                <strong>${escape(name)}</strong>
+                <span>${escape(c.owner || '')}${c.category ? ' · ' + escape(localizeDept(c.category)) : ''}</span>
+              </div>
+            </div>
+            <div class="judge-scale">${buttons}</div>
+          </div>`;
+      }).join('') + (list.length > 80 ? `<div class="gate-more">${escape(t('gate.more', { n: list.length - 80 }))}</div>` : '');
+    }
+
+    // Averages per car, then the winner of each class. Ties are shown as ties
+    // rather than silently resolved — the panel decides, not the sort order.
+    function judgeResultsHtml() {
+      const byCar = new Map();
+      for (const s of _judgeAll) {
+        const k = String(s.car_id);
+        if (!byCar.has(k)) byCar.set(k, []);
+        byCar.get(k).push(Number(s.score));
+      }
+      const rows = activeCars().map(c => {
+        const arr = byCar.get(String(c.id)) || [];
+        const avg = arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+        return { c, avg, n: arr.length };
+      }).filter(r => r.avg !== null);
+      if (!rows.length) return `<div class="block-empty">${escape(t('judge.no_scores'))}</div>`;
+
+      const classes = [...new Set(rows.map(r => (r.c.category || '').trim() || '—'))].sort();
+      return classes.map(cl => {
+        const inCl = rows.filter(r => ((r.c.category || '').trim() || '—') === cl)
+          .sort((a, b) => b.avg - a.avg);
+        const best = inCl[0].avg;
+        return `<div class="judge-class">
+          <div class="judge-class-t">${escape(localizeDept(cl))}</div>
+          ${inCl.map((r, i) => `
+            <div class="judge-res${r.avg === best ? ' is-win' : ''}">
+              <span class="judge-res-pos">${r.avg === best ? '🏆' : (i + 1) + '.'}</span>
+              ${r.c.entry_no ? `<span class="entry-no">#${escape(String(r.c.entry_no))}</span>` : ''}
+              <span class="judge-res-name">${escape([r.c.brand, r.c.model].filter(Boolean).join(' ') || '—')}</span>
+              <span class="judge-res-avg">${r.avg.toFixed(1)}<small> (${r.n})</small></span>
+            </div>`).join('')}
+        </div>`;
+      }).join('');
+    }
+
+    async function openJudge() {
+      if (!roleAtLeast('staff')) return;
+      const ov = el('judgeOverlay');
+      if (!ov) return;
+      ov.classList.add('show');
+      ov.setAttribute('aria-hidden', 'false');
+      el('judgeResults').innerHTML = `<div class="gate-empty">${escape(t('common.loading'))}</div>`;
+      await loadJudgeScores();
+      renderJudge();
+    }
+    function closeJudge() {
+      const ov = el('judgeOverlay');
+      if (!ov) return;
+      ov.classList.remove('show');
+      ov.setAttribute('aria-hidden', 'true');
+    }
+    el('judgeBtn')?.addEventListener('click', openJudge);
+    el('judgeCloseBtn')?.addEventListener('click', closeJudge);
+    el('judgeSearch')?.addEventListener('input', (e) => {
+      state.judgeSearch = e.target.value; renderJudge();
+    });
+    el('judgeChips')?.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-judge-filter]');
+      if (!b) return;
+      _judgeFilter = b.dataset.judgeFilter;
+      renderJudge();
+    });
+    el('judgeResults')?.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-judge-score]');
+      if (!b) return;
+      setJudgeScore(b.dataset.judgeCar, Number(b.dataset.judgeScore));
+    });
+    // Results live in the same surface, toggled — a modal on top of a
+    // full-screen overlay is a trap on a phone.
+    let _judgeShowResults = false;
+    el('judgeResultsBtn')?.addEventListener('click', async () => {
+      _judgeShowResults = !_judgeShowResults;
+      const btn = el('judgeResultsBtn');
+      if (btn) btn.textContent = t(_judgeShowResults ? 'judge.back' : 'judge.results');
+      el('judgeChips').style.display = _judgeShowResults ? 'none' : '';
+      document.querySelector('#judgeOverlay .gate-search').style.display = _judgeShowResults ? 'none' : '';
+      if (!_judgeShowResults) { renderJudge(); return; }
+      await loadJudgeScores();
+      el('judgeResults').innerHTML = `<div class="judge-results-wrap">${judgeResultsHtml()}</div>`;
+    });
+
     el('reportBtn')?.addEventListener('click', async () => {
       const btn = el('reportBtn');
       btn.disabled = true;
@@ -2472,7 +2658,7 @@
       tasksView: localStorage.getItem('kultura_tasks_view') || 'list',
       tasksPreset: localStorage.getItem('kultura_tasks_preset') || 'all',
       eventsFilter: 'all', eventsSearch: '',
-      teamSearch: '',
+      teamSearch: '', judgeSearch: '',
       // Which event the app is scoped to. '' = all events. Resolved properly
       // once events have loaded — see resolveActiveEvent().
       activeEventId: ''
@@ -2648,6 +2834,8 @@
       if (regBlock) regBlock.style.display = admin ? 'block' : 'none';
       const blockBlk = el('blocklistBlock');
       if (blockBlk) blockBlk.style.display = staff ? 'block' : 'none';
+      const judgeB = el('judgeBtn');
+      if (judgeB) judgeB.style.display = staff ? 'inline-flex' : 'none';
       const backupBlk = el('backupBlock');
       if (backupBlk) { backupBlk.style.display = admin ? 'block' : 'none'; if (admin) { try { renderBackupList(); } catch (_) {} } }
       const gdprBlk = el('gdprBlock');
@@ -2692,7 +2880,7 @@
     // (notes, modifications, photos, checklist, detailed_description, …) are only
     // needed in the detail view, which hydrates them on demand. `updated_at` is
     // included so any edit still bumps the fingerprint.
-    const CAR_LIST_COLS  = 'id,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,vip_arrived,vip_arrived_at,arrived_at,checked_in_by,checked_in_gate,left_at,checked_out_by';
+    const CAR_LIST_COLS  = 'id,entry_no,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,vip_arrived,vip_arrived_at,arrived_at,checked_in_by,checked_in_gate,left_at,checked_out_by';
     const TASK_LIST_COLS = 'id,title,event,date,status,status_color,is_completed,event_id,due_at,created_at,assigned_user_id,assigned_user_name,started_at,completed_at,completed_by_user_id,completed_by_user_name,priority,category,due_date,created_by,assigned_to,assigned_at,completed_by,team,updated_at,reminder_sent';
 
     // Canonical parking zones (car categories). Single source of truth for the
@@ -2710,7 +2898,7 @@
       return html;
     }
 
-    const CAR_FP_FIELDS   = ['id','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at','vip_arrived'];
+    const CAR_FP_FIELDS   = ['id','entry_no','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at','vip_arrived'];
     const VIP_FP_FIELDS   = ['id','first_name','last_name','company','role','category','guests_count','phone','arrived','arrived_at','event_id','companions','updated_at'];
     const AGENDA_FP_FIELDS = ['id','event_id','title','at_time','notes','updated_at'];
     const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','telegram','email','city','category','year','social_links','transport_info','modifications','photos','status','created_at'];
@@ -3516,7 +3704,9 @@
       const src = ((state.cars && state.cars.length) ? state.cars : loadCachedCars()).filter(matchesActiveEvent);
       let list = src;
       if (q) {
+        const asNo = /^#?\d+$/.test(q) ? q.replace('#', '') : null;
         list = src.filter(c =>
+          (asNo && String(c.entry_no || '') === asNo) ||
           (c.plate || '').toLowerCase().includes(q) ||
           (c.model || '').toLowerCase().includes(q) ||
           (c.brand || '').toLowerCase().includes(q) ||
@@ -3549,7 +3739,7 @@
         return `
           <div class="gate-car ${arrived ? 'arrived' : ''}${left ? ' left' : ''}${blocked ? ' blocked' : ''}" data-car-id="${c.id}">
             <div class="gate-car-info">
-              <div class="gate-plate">${escape(c.plate || '—')}${c.is_vip ? ' <span class="gate-vip">VIP</span>' : ''}${blocked ? ' <span class="gate-blocked">⛔</span>' : ''}</div>
+              <div class="gate-plate">${c.entry_no ? `<span class="entry-no">#${escape(String(c.entry_no))}</span> ` : ''}${escape(c.plate || '—')}${c.is_vip ? ' <span class="gate-vip">VIP</span>' : ''}${blocked ? ' <span class="gate-blocked">⛔</span>' : ''}</div>
               <div class="gate-car-sub">${escape(name)}${c.owner ? ' · ' + escape(c.owner) : ''}${arrived && c.checked_in_gate ? ' <span class="gate-car-at">📍 ' + escape(c.checked_in_gate) + '</span>' : ''}</div>
             </div>
             <select class="gate-zone" data-gate-zone="${c.id}" title="${escape(t('gate.zone_ph'))}">${zoneOptionsHTML(c.zone)}</select>
@@ -5152,6 +5342,9 @@
           if (statusKey(car.status) !== state.carsFilter) return false;
         }
         if (!q) return true;
+        // A bare number matches the entry number exactly — typing "47" should
+        // find car #47, not every car with a 47 anywhere in its plate.
+        if (/^#?\d+$/.test(q) && String(car.entry_no || '') === q.replace('#', '')) return true;
         return (car.model || '').toLowerCase().includes(q) ||
                (car.owner || '').toLowerCase().includes(q) ||
                (car.plate || '').toLowerCase().includes(q) ||
@@ -5218,6 +5411,7 @@
               </div>
               <div style="flex:1; min-width:0;">
                 <div class="row-title" style="display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
+                  ${car.entry_no ? `<span class="entry-no" title="${escape(t('car.entry_no'))}">#${escape(String(car.entry_no))}</span>` : ''}
                   <span>${escape(carName)}</span>
                   ${car.is_vip ? '<span class="badge purple" style="font-size:8px; padding:2px 6px;">VIP</span>' : ''}
                   ${isNewToday ? `<span class="badge new-today">${escape(t('car.new_today'))}</span>` : ''}
@@ -5632,6 +5826,8 @@
         f.location.value = ev.location || '';
         f.date.value = ev.date || '';
         f.status.value = ev.status || 'Planificat';
+        if (f.reg_capacity) f.reg_capacity.value = ev.reg_capacity || '';
+        if (f.waiver_text) f.waiver_text.value = ev.waiver_text || '';
         if (ev.starts_at) {
           const d = new Date(ev.starts_at);
           f.starts_at.value = isNaN(d) ? '' : new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -6455,6 +6651,13 @@
         location: (fd.get('location') || '').trim() || null,
         cover_url: (fd.get('cover_url') || '').trim() || null,
         status, status_color: statusColor,
+        // Empty means unlimited, not zero — a 0 here would refuse every
+        // registration, which is never what leaving a field blank means.
+        reg_capacity: (() => {
+          const n = parseInt(String(fd.get('reg_capacity') || '').trim(), 10);
+          return Number.isFinite(n) && n > 0 ? n : null;
+        })(),
+        waiver_text: (fd.get('waiver_text') || '').trim() || null,
         days_left: null   // computed live from starts_at
       };
       try {
@@ -7199,16 +7402,19 @@
       // no business sitting in this event's approval queue.
       const all = (state.registrations || [])
         .filter(matchesActiveEvent)
-        .filter(r => r.status === 'pending' || r.status === 'hold');
+        .filter(r => r.status === 'pending' || r.status === 'hold' || r.status === 'waitlist');
       const split = el('carsSplit');
       if (!staff || !all.length) { box.hidden = true; box.innerHTML = ''; if (split) split.classList.remove('has-reg'); return; }
       box.hidden = false;
       if (split) split.classList.add('has-reg');
       const nNew = all.filter(r => r.status === 'pending').length;
       const nHold = all.filter(r => r.status === 'hold').length;
+      const nWait = all.filter(r => r.status === 'waitlist').length;
       // Fall back to a tab that actually has items so the list is never blank.
-      if (_regFilter === 'pending' && !nNew && nHold) _regFilter = 'hold';
-      if (_regFilter === 'hold' && !nHold && nNew) _regFilter = 'pending';
+      const counts = { pending: nNew, hold: nHold, waitlist: nWait };
+      if (!counts[_regFilter]) {
+        _regFilter = ['pending', 'hold', 'waitlist'].find(k => counts[k]) || 'pending';
+      }
       const regs = all.filter(r => r.status === _regFilter);
       const tab = (key, label, n) =>
         `<button type="button" class="chip${_regFilter === key ? ' active' : ''}" data-reg-filter="${key}">${escape(label)} <span class="count">· ${n}</span></button>`;
@@ -7219,16 +7425,27 @@
       const chev = '<svg class="reg-card-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
       const carIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>';
       box.innerHTML =
-        `<div class="chips reg-chips">${tab('pending', t('reg.tab_new'), nNew)}${tab('hold', t('reg.tab_hold'), nHold)}</div>` +
+        `<div class="chips reg-chips">${tab('pending', t('reg.tab_new'), nNew)}${tab('hold', t('reg.tab_hold'), nHold)}${nWait ? tab('waitlist', t('reg.tab_waitlist'), nWait) : ''}</div>` +
         (regs.length ? '' : `<div class="reg-empty">${escape(t('reg.tab_empty'))}</div>`) +
         regs.map(r => {
           const name = [r.brand, r.model].filter(Boolean).join(' ') || r.owner || '—';
           const hold = r.status === 'hold' ? `<span class="reg-hold-badge">${escape(t('reg.hold'))}</span>` : '';
+          const wait = r.status === 'waitlist' ? `<span class="reg-wait-badge">${escape(t('reg.waitlist'))}</span>` : '';
           const blockReason = plateBlocked(r.plate);
           const blockBadge = blockReason !== null ? `<span class="block-badge" title="${escape(blockReason || '')}">⛔ ${escape(t('block.badge'))}</span>` : '';
           const dup = regDuplicate(r);
           const dupBadge = dup ? `<span class="reg-dup-badge" title="${escape(dup)}">⧉ ${escape(t('regdup.badge'))}</span>` : '';
-          const pics = Array.isArray(r.photos) ? r.photos : [];
+          const wv = el('regDetailWaiver');
+      if (wv) {
+        // Proof that this person accepted the terms, with the name they typed
+        // and when. Absent for registrations made before a waiver was set.
+        if (r.waiver_name && r.waiver_at) {
+          wv.hidden = false;
+          wv.innerHTML = `<strong>✓ ${escape(t('reg.waiver_signed'))}</strong>`
+            + `<span>${escape(r.waiver_name)} · ${escape(fmtDateTime(r.waiver_at))}</span>`;
+        } else { wv.hidden = true; wv.innerHTML = ''; }
+      }
+      const pics = Array.isArray(r.photos) ? r.photos : [];
           const shown = pics.slice(0, 4);
           const extra = pics.length - shown.length;
           const thumbs = pics.length
@@ -7244,8 +7461,8 @@
           ].filter(Boolean).join('<span class="sep"></span>');
           // How long this one has been waiting — the reviewer's queue order.
           const waited = r.created_at ? `<span class="reg-age">${escape(fmtRelative(r.created_at))}</span>` : '';
-          const badges = [hold, blockBadge, dupBadge].filter(Boolean).join('');
-          return `<div class="card reg-card card-stripe${r.status === 'hold' ? ' is-hold' : ''}${blockReason !== null ? ' is-blocked' : ''}" data-reg-open="${r.id}" role="button" tabindex="0">
+          const badges = [hold, wait, blockBadge, dupBadge].filter(Boolean).join('');
+          return `<div class="card reg-card card-stripe${r.status === 'hold' ? ' is-hold' : ''}${r.status === 'waitlist' ? ' is-waitlist' : ''}${blockReason !== null ? ' is-blocked' : ''}" data-reg-open="${r.id}" role="button" tabindex="0">
               <div class="reg-card-main">
                 <div class="row-icon orange reg-card-icon">${carIcon}</div>
                 <div class="reg-card-text">
@@ -7334,6 +7551,11 @@
       closeModal(document.getElementById('modal-reg-detail'));
       holdRegistration(id);
     });
+    el('regDetailWaitlist')?.addEventListener('click', () => {
+      const id = _regDetailId; if (!id) return;
+      closeModal(document.getElementById('modal-reg-detail'));
+      setRegStatus(id, 'waitlist', t('reg.waitlisted'));
+    });
     el('regDetailReject')?.addEventListener('click', async () => {
       const id = _regDetailId; if (!id) return;
       if (!(await uiConfirm(t('reg.reject_confirm')))) return;
@@ -7396,14 +7618,19 @@
         try { sendRegConfirmation(channel, Object.assign({}, m, { event_id: car.event_id }), ins); } catch (_) {}
       }
     }
-    async function holdRegistration(id) {
-      const { error } = await supa.from('car_registrations').update({ status: 'hold' }).eq('id', id);
+    // Move a registration between queue states. Approving is a different path
+    // (it creates a car); this only ever changes where it sits in the queue.
+    async function setRegStatus(id, status, toast) {
+      const { error } = await supa.from('car_registrations').update({ status }).eq('id', id);
       if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
       const r = (state.registrations || []).find(x => String(x.id) === String(id));
-      if (r) r.status = 'hold';
+      if (r) r.status = status;
       _fp.regs = makeFp(state.registrations, REG_FP_FIELDS);
       renderRegQueue();
-      showToast(t('reg.held'));
+      showToast(toast);
+    }
+    async function holdRegistration(id) {
+      return setRegStatus(id, 'hold', t('reg.held'));
     }
     async function rejectRegistration(id, skipConfirm) {
       if (!skipConfirm && !(await uiConfirm(t('reg.reject_confirm')))) return;
@@ -8446,6 +8673,7 @@
         <div class="detail-section">
           <div class="detail-section-title">${escape(t('car.detail.section_car'))}</div>
           <div class="detail-grid">
+            ${fieldRow(t('car.entry_no'), c.entry_no ? '#' + c.entry_no : null)}
             ${fieldRow(t('car.detail.brand'), c.brand)}
             ${fieldRow(t('car.detail.model'), c.model)}
             ${fieldRow(t('car.detail.year'), c.year)}

@@ -4390,3 +4390,99 @@ html {
   color: var(--text-mute);
   margin-bottom: 4px;
 }
+
+/* ===== Entry numbers =====
+   The number on the windscreen. Spectators vote by it, judges score by it —
+   it identifies the car to everyone who is not looking at its paperwork. */
+.entry-no {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .02em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  /* Dark ink on brand magenta: white measures ~3:1 here and fails AA. */
+  background: var(--brand);
+  color: #1a0410;
+  white-space: nowrap;
+}
+/* On the printed dash card it is the largest thing, by design. */
+.pass-card .pass-no {
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+.pass-card .pass-class {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #475569;
+}
+
+/* ===== Judging ===== */
+.judge-progress { font-size: 12px; color: var(--text-dim); font-weight: 600; }
+.judge-car {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.judge-car.is-scored { background: rgba(16,185,129,.05); }
+.judge-car-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.judge-car-txt { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.judge-car-txt strong { font-size: 15px; font-weight: 700; color: var(--text); }
+.judge-car-txt span { font-size: 12.5px; color: var(--text-dim); }
+/* Ten targets on a phone. A fixed 5x2 grid keeps every button the same size —
+   letting them wrap made the second row stretch to half the width each. */
+.judge-scale { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+@media (min-width: 560px) { .judge-scale { grid-template-columns: repeat(10, 1fr); } }
+.judge-score {
+  min-height: 44px;
+  border-radius: 11px;
+  border: 1px solid var(--border-strong);
+  background: var(--fill-2);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.judge-score.is-set {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #1a0410;
+}
+.judge-results-wrap { padding: 16px; }
+.judge-class { margin-bottom: 22px; }
+.judge-class-t {
+  font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--brand); margin-bottom: 8px;
+}
+.judge-res {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 11px; border-radius: 11px; margin-bottom: 5px;
+  background: var(--fill-1); border: 1px solid var(--border);
+}
+.judge-res.is-win { background: rgba(245,197,66,.10); border-color: rgba(245,197,66,.32); }
+.judge-res-pos { width: 24px; flex: 0 0 auto; font-size: 13px; font-weight: 800; color: var(--text-mute); }
+.judge-res-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.judge-res-avg { font-size: 15px; font-weight: 800; color: var(--text); }
+.judge-res-avg small { font-size: 11px; font-weight: 600; color: var(--text-mute); }
+
+/* ===== Waitlist + waiver ===== */
+.reg-wait-badge {
+  font-size: 11px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase;
+  color: var(--cyan); background: rgba(6,182,212,.16); border-radius: 999px; padding: 2px 8px;
+  white-space: nowrap;
+}
+.reg-card.is-waitlist::before { background: linear-gradient(180deg, #06b6d4, #0891b2); }
+.reg-waiver {
+  display: flex; flex-direction: column; gap: 2px;
+  margin: 4px 0 10px; padding: 10px 12px; border-radius: 12px;
+  background: rgba(16,185,129,.10); border: 1px solid rgba(16,185,129,.30);
+  color: var(--green); font-size: 13px;
+}
+.reg-waiver span { color: var(--text); opacity: .85; }
+.field-hint { display: block; margin-top: 4px; font-size: 12px; line-height: 1.45; color: var(--text-mute); }

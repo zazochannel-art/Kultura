@@ -29,6 +29,14 @@
     .sub{text-align:center;color:var(--text-dim);font-size:14px;margin:4px 0 18px}
     .total{text-align:center;color:var(--text-mute);font-size:12px;margin-bottom:14px}
     .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+    .vsearch{margin:0 0 14px}
+    .vsearch input{width:100%;padding:14px 16px;border-radius:14px;font-size:16px;font-family:inherit;
+      background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#e8edf5;outline:none}
+    .vsearch input:focus{border-color:#f8589c}
+    .vsearch input::placeholder{color:#7d8aa0}
+    .vempty{text-align:center;color:#7d8aa0;font-size:14px;padding:28px 12px}
+    .eno{position:absolute;top:8px;left:8px;z-index:2;font-size:13px;font-weight:900;letter-spacing:.02em;
+      padding:3px 9px;border-radius:999px;background:#f8589c;color:#1a0410}
     .vcard{
       background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden;
       cursor:pointer;transition:transform .12s ease,border-color .15s ease;position:relative;
@@ -103,19 +111,49 @@
       });
     }
 
+    let allCars = [];
+    let lastData = null;
+
     function render(data) {
+      lastData = data;
+      allCars = data.cars || [];
       document.getElementById('evName').textContent = data.event || '';
       document.getElementById('total').textContent = data.total ? (data.total + ' voturi') : '';
       if (!data.cars || !data.cars.length) { showState('🚗', 'Încă nu sunt mașini de votat.', false); return; }
-      content.innerHTML = `<div class="grid">${data.cars.map((c, i) => {
+      paint();
+    }
+
+    // Voting by the number on the windscreen is how a car show actually works —
+    // typing "47" beats scrolling a grid of 200 tiles looking for a plate.
+    function paint() {
+      const q = (document.getElementById('vSearch')?.value || '').trim().toLowerCase();
+      const asNo = /^#?\d+$/.test(q) ? q.replace('#', '') : null;
+      const data = lastData;
+      const cars = allCars.filter(c => {
+        if (!q) return true;
+        if (asNo) return String(c.entry_no || '') === asNo;
+        return (c.name || '').toLowerCase().includes(q)
+            || (c.plate || '').toLowerCase().includes(q)
+            || (c.owner || '').toLowerCase().includes(q);
+      });
+      const search = `<div class="vsearch">
+          <input id="vSearch" inputmode="search" placeholder="Caută după numărul de pe parbriz…" value="${esc(q)}">
+        </div>`;
+      if (!cars.length) {
+        content.innerHTML = search + `<div class="vempty">Nicio mașină cu „${esc(q)}".</div>`;
+        wireSearch();
+        return;
+      }
+      content.innerHTML = search + `<div class="grid">${cars.map((c, i) => {
         const mine = data.my_choice === c.id;
         const rank = i < 3 && c.votes > 0 ? `<span class="rank">#${i + 1}</span>` : '';
         const ph = c.photo ? `<span class="ph" style="background-image:url('${esc(c.photo)}')"></span>` : `<span class="noph">🚗</span>`;
+        const no = c.entry_no ? `<span class="eno">#${esc(String(c.entry_no))}</span>` : '';
         return `<div class="vcard${mine ? ' mine' : ''}" data-id="${c.id}">
-            ${ph}${rank}
+            ${ph}${rank}${no}
             <div class="body">
               <div class="nm">${esc(c.name || '—')}</div>
-              <div class="pl">${esc(c.plate || '')}</div>
+              <div class="pl">${esc(c.plate || '')}${c.klass ? ' · ' + esc(c.klass) : ''}</div>
               <div class="row">
                 <span class="votes">${c.votes} ⭐</span>
                 ${mine ? `<span class="pick">Votul tău</span>` : ''}
@@ -123,6 +161,19 @@
             </div>
           </div>`;
       }).join('')}</div>`;
+      wireSearch();
+    }
+
+    // Re-created with the markup on every paint, so re-attach and keep focus.
+    function wireSearch() {
+      const el = document.getElementById('vSearch');
+      if (!el) return;
+      el.addEventListener('input', () => {
+        const pos = el.selectionStart;
+        paint();
+        const again = document.getElementById('vSearch');
+        if (again) { again.focus(); try { again.setSelectionRange(pos, pos); } catch (_) {} }
+      });
     }
 
     async function load() {

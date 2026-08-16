@@ -141,10 +141,10 @@ fel, dar **își verifică singure apelantul** înăuntru (`is_admin_user()` /
 
 | Funcție | JWT | Cine o folosește |
 |---|---|---|
-| `submit` | nu | **Singura** cale publică de scriere (înscrieri + feedback). Rate-limit pe IP |
+| `submit` | nu | **Singura** cale publică de scriere (înscrieri + feedback). Rate-limit pe IP. Decide tot aici dacă înscrierea intră `pending` sau `waitlist`, comparând `reg_capacity` cu numărul de locuri deja ocupate |
 | `plate-check` | nu | Formularul public: spune doar dacă placa e cunoscută/blocată |
-| `vote` | nu | Votare publică + clasament. Max 12 voturi noi/oră/IP |
-| `event-info` | nu | Evenimentul curent + agenda, pentru paginile publice |
+| `vote` | nu | Votare publică + clasament. Max 12 voturi noi/oră/IP. Întoarce și `entry_no` + clasa |
+| `event-info` | nu | Evenimentul curent + agenda, pentru paginile publice. Întoarce și `waiver_text` și `spots_left` |
 | `ticket` | nu | Bilet/pass |
 | `backup` | nu¹ | Export JSON a 15 tabele în bucket-ul `backups`. Lista `TABLES` **trebuie să rămână în pas cu `PK` din `restore`** — un tabel salvat dar absent acolo se sare în tăcere la restaurare |
 | `restore` | da | Restaurare **aditivă** din backup (admin) |
@@ -264,6 +264,32 @@ client.
 13. **Înscrierile publice primesc `event_id` în funcția `submit`**, nu din
     client: endpointul e public, deci un `event_id` trimis de apelant nu e de
     încredere. Se rezolvă server-side din evenimentul marcat „Activ".
+14. **Numărul de concurs (`cars.entry_no`) se atribuie de trigger**, nu din
+    client. `assign_entry_no()` rulează BEFORE INSERT și ia un
+    `pg_advisory_xact_lock` pe eveniment, exact ca rate-limit-ul: două mașini
+    înscrise în aceeași secundă ar primi altfel același număr. Unicitatea e
+    per eveniment (index unic pe `event_id, entry_no`), deci numerele reîncep
+    de la 1 la fiecare eveniment. Nu calcula `max(entry_no)+1` în JS și nu
+    scrie câmpul la INSERT — triggerul respectă o valoare dată explicit, deci
+    o valoare greșită din client rămâne greșită.
+15. **Jurnalul de jurizare e per jurat, nu per mașină.** `judge_scores` are
+    cheie unică pe `(car_id, judge_email)` și se scrie prin upsert, deci un
+    jurat care se răzgândește își corectează nota în loc să adauge una nouă.
+    Media afișată e media juraților, iar egalitățile se arată **ca egalități**
+    (toți cu media maximă primesc 🏆) — nu le rezolva din ordinea sortării,
+    decizia e a panelului. Tabelul e vizibil doar pentru `is_staff_or_admin()`.
+16. **Capacitatea nu închide înscrierile.** Când `events.reg_capacity` e atinsă,
+    `submit` marchează înscrierea `waitlist`, nu o respinge — formularul rămâne
+    deschis, iar echipa promovează manual din coadă. Numărătoarea se face
+    **server-side** (mașini + înscrieri neprocesate), pentru că `spots_left`
+    din `event-info` e doar informativ și poate fi vechi în client. `0` sau gol
+    în formular înseamnă *fără limită*, nu *zero locuri* — de aia se salvează
+    ca `null`.
+17. **Acordul de participare se afișează doar dacă `events.waiver_text` există.**
+    Când există, semnătura (`waiver_name` + `waiver_at`) e obligatorie și se
+    stochează pe înscriere — e singura urmă că omul a citit textul. Nu muta
+    validarea exclusiv în client: câmpul se scrie în `submit`, iar textul vine
+    din eveniment prin `event-info`.
 
 ## Rămas de făcut manual
 
