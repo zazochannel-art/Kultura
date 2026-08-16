@@ -4486,3 +4486,42 @@ html {
 }
 .reg-waiver span { color: var(--text); opacity: .85; }
 .field-hint { display: block; margin-top: 4px; font-size: 12px; line-height: 1.45; color: var(--text-mute); }
+
+/* ---- Recently deleted / RSVP / Telegram (F10–F13) ---------------------- */
+
+/* "Not coming" has to read at a glance in a list of arrivals, so it gets the
+   warm colour; a confirmation is quieter because it is the expected answer. */
+.rsvp-badge{
+  display:inline-flex; align-items:center; gap:3px;
+  font-size:9px; font-weight:800; letter-spacing:.3px; text-transform:uppercase;
+  padding:2px 6px; border-radius:6px; line-height:1.4; white-space:nowrap;
+}
+.rsvp-badge.is-no{ background:rgba(239,68,68,.16); color:#fca5a5; border:1px solid rgba(239,68,68,.34); }
+.rsvp-badge.is-yes{ background:rgba(16,185,129,.14); color:#6ee7b7; border:1px solid rgba(16,185,129,.32); }
+
+/* The trash and the import log reuse the backup list rows, but their entries
+   carry an action button, so the row needs to lay out as two columns. */
+#trashList .backup-row,
+#importList .backup-row{ display:flex; align-items:center; gap:10px; }
+#trashList .backup-meta,
+#importList .backup-meta{ flex:1; min-width:0; }
+/* Direct children only: the entry-number badge lives inside <strong> and must
+   stay inline, or it stretches into a bar across the whole row. */
+#trashList .backup-meta > span,
+#importList .backup-meta > span{
+  display:block; color:var(--text-mute); font-size:12px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+/* The settings pane sets `.setting-row .txt span { display:block }` for its
+   help text, which would turn this badge into a full-width bar. */
+#trashList .entry-no{ display:inline-block; font-size:10px; padding:1px 5px; }
+
+/* A checkbox and its label on one line, aligned on the box rather than the
+   text baseline so a two-line label still lines up. */
+.switch-row{
+  display:flex; align-items:flex-start; gap:9px; cursor:pointer;
+  font-size:14px; color:var(--text); line-height:1.45;
+}
+.switch-row input[type="checkbox"]{
+  flex:0 0 auto; width:18px; height:18px; margin-top:1px; accent-color:var(--brand); cursor:pointer;
+}

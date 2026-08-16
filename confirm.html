@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07080d">
+  <title>Kultura — Confirmă participarea</title>
+  <link rel="stylesheet" href="vendor/fonts/fonts.css">
+  <style>
+    :root{
+      --bg:#07080d; --surface:#14182b; --border:rgba(255,255,255,0.12);
+      --brand:#f8589c; --text:#f8fafc; --text-dim:#94a3b8; --text-mute:#7d8aa0;
+      --blue:#3b82f6; --cyan:#06b6d4; --purple:#8b5cf6; --green:#10b981; --red:#ef4444;
+      --fill:rgba(255,255,255,0.03);
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+      background:var(--bg); color:var(--text); min-height:100vh; line-height:1.5;
+      -webkit-font-smoothing:antialiased; padding:32px 18px 64px; overflow-x:hidden;
+    }
+    body::before,body::after{content:"";position:fixed;border-radius:50%;filter:blur(130px);pointer-events:none;z-index:0}
+    body::before{width:460px;height:460px;background:var(--purple);opacity:.26;top:-150px;left:-150px}
+    body::after{width:400px;height:400px;background:var(--blue);opacity:.20;bottom:-150px;right:-150px}
+    .wrap{max-width:480px;margin:0 auto;position:relative;z-index:1}
+    .brand{display:flex;align-items:center;justify-content:center;margin-bottom:20px}
+    .brand img{width:clamp(120px,34vw,170px);height:auto;filter:drop-shadow(0 5px 16px rgba(139,92,246,.28))}
+    .card{
+      background:var(--surface);border:1px solid var(--border);border-radius:24px;
+      padding:28px 22px;backdrop-filter:blur(20px);box-shadow:0 24px 60px rgba(0,0,0,.4);
+    }
+    h1{font-size:23px;font-weight:900;letter-spacing:-.5px;margin-bottom:6px;text-align:center}
+    .sub{color:var(--text-dim);font-size:14px;text-align:center;margin-bottom:20px}
+    .car{
+      display:flex;align-items:center;gap:14px;padding:16px;margin-bottom:20px;
+      background:var(--fill);border:1px solid var(--border);border-radius:16px;
+    }
+    /* Dark ink on the brand pink: white text on it fails AA. */
+    .eno{
+      flex:0 0 auto;min-width:46px;height:46px;display:flex;align-items:center;justify-content:center;
+      padding:0 8px;border-radius:12px;background:var(--brand);color:#1a0410;
+      font-weight:900;font-size:19px;letter-spacing:-.5px;
+    }
+    .car-txt{min-width:0}
+    .car-txt strong{display:block;font-size:16px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .car-txt span{display:block;color:var(--text-dim);font-size:13px}
+    .ask{text-align:center;font-size:15px;font-weight:700;margin-bottom:14px}
+    .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    button{
+      font-family:inherit;font-size:16px;font-weight:800;padding:16px 12px;border-radius:14px;
+      border:1px solid var(--border);cursor:pointer;transition:transform .12s,filter .12s;
+      min-height:56px;
+    }
+    button:active{transform:scale(.98)}
+    button:disabled{opacity:.5;cursor:default}
+    .yes{background:var(--green);color:#04231a;border-color:transparent}
+    .no{background:var(--fill);color:var(--text)}
+    .state{
+      display:none;margin-top:18px;padding:16px;border-radius:14px;font-size:15px;
+      text-align:center;font-weight:700;
+    }
+    .state.show{display:block}
+    .state.is-yes{background:rgba(16,185,129,.14);border:1px solid rgba(16,185,129,.4);color:#6ee7b7}
+    .state.is-no{background:rgba(248,88,156,.12);border:1px solid rgba(248,88,156,.35);color:#f9a8c9}
+    .state small{display:block;font-weight:500;color:var(--text-dim);margin-top:6px;font-size:13px}
+    .msg{margin-top:14px;text-align:center;font-size:14px;color:var(--text-dim);min-height:20px}
+    .msg.err{color:var(--red)}
+    .foot{text-align:center;color:var(--text-mute);font-size:12px;margin-top:18px}
+    @media (max-width:768px){
+      /* 16px minimum on anything tappable, so iOS never zooms the page. */
+      button{font-size:16px !important}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand"><img src="logo.png" alt="Kultura"></div>
+    <div class="card">
+      <h1 id="title">Confirmă participarea</h1>
+      <div class="sub" id="evName"></div>
+
+      <div class="car" id="carBox" style="display:none;">
+        <div class="eno" id="carNo" style="display:none;"></div>
+        <div class="car-txt">
+          <strong id="carName">—</strong>
+          <span id="carMeta"></span>
+        </div>
+      </div>
+
+      <div id="askBox" style="display:none;">
+        <div class="ask">Vii la eveniment?</div>
+        <div class="actions">
+          <button type="button" class="yes" id="btnYes">Da, vin</button>
+          <button type="button" class="no" id="btnNo">Nu pot veni</button>
+        </div>
+      </div>
+
+      <div class="state" id="state"></div>
+      <div class="msg" id="msg"></div>
+    </div>
+    <div class="foot">Kultura</div>
+  </div>
+
+  <script>
+    const SUPA_URL = 'https://knphmxxokowwkruimdus.supabase.co';
+    const SUPA_ANON = 'sb_publishable_9b7WSJF4UlfF1JIdCDjWqQ_dxOTpqSW';
+
+    const qs = new URLSearchParams(location.search);
+    const carId = qs.get('c') || '';
+    const token = qs.get('t') || '';
+
+    const el = (id) => document.getElementById(id);
+    const setMsg = (text, isErr) => {
+      const m = el('msg');
+      m.textContent = text || '';
+      m.className = 'msg' + (isErr ? ' err' : '');
+    };
+
+    function showState(answer, at) {
+      const box = el('state');
+      box.className = 'state show ' + (answer === 'yes' ? 'is-yes' : 'is-no');
+      const when = at ? new Date(at) : null;
+      const stamp = when && !isNaN(when)
+        ? when.toLocaleString('ro-RO', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+        : '';
+      box.innerHTML = answer === 'yes'
+        ? 'Te așteptăm! <small>Ai confirmat' + (stamp ? ' pe ' + stamp : '') + '. Poți schimba răspunsul oricând de pe acest link.</small>'
+        : 'Am notat că nu vii. <small>' + (stamp ? 'Răspuns înregistrat pe ' + stamp + '. ' : '')
+          + 'Locul tău a fost eliberat. Dacă te răzgândești, apasă „Da, vin".</small>';
+      // Keep the buttons available: changing your mind is the normal case.
+      el('askBox').style.display = 'block';
+    }
+
+    async function load() {
+      if (!carId || !token) {
+        el('title').textContent = 'Link invalid';
+        setMsg('Linkul nu este complet. Deschide-l exact așa cum l-ai primit.', true);
+        return;
+      }
+      try {
+        const r = await fetch(SUPA_URL + '/functions/v1/rsvp?c=' + encodeURIComponent(carId)
+          + '&t=' + encodeURIComponent(token),
+          { headers: { apikey: SUPA_ANON, Authorization: 'Bearer ' + SUPA_ANON } });
+        const d = await r.json();
+        if (!r.ok || d.error) {
+          el('title').textContent = d.error === 'not_found' ? 'Nu am găsit mașina' : 'Link invalid';
+          setMsg(d.error === 'forbidden' || d.error === 'not_found'
+            ? 'Cere organizatorilor un link nou.'
+            : 'Ceva n-a mers. Încearcă din nou mai târziu.', true);
+          return;
+        }
+        const c = d.car || {};
+        const name = [c.brand, c.model].filter(Boolean).join(' ') || c.plate || 'Mașina ta';
+        el('carName').textContent = name;
+        el('carMeta').textContent = [c.plate, c.zone].filter(Boolean).join(' · ');
+        if (c.entry_no) { el('carNo').textContent = '#' + c.entry_no; el('carNo').style.display = 'flex'; }
+        el('carBox').style.display = 'flex';
+        el('evName').textContent = (d.event && d.event.title) || '';
+        el('askBox').style.display = 'block';
+        if (d.rsvp) showState(d.rsvp, d.rsvp_at);
+      } catch (_) {
+        setMsg('Nu am putut încărca datele. Verifică internetul și reîncarcă.', true);
+      }
+    }
+
+    async function answer(value) {
+      el('btnYes').disabled = true; el('btnNo').disabled = true;
+      setMsg('Se trimite…');
+      try {
+        const r = await fetch(SUPA_URL + '/functions/v1/rsvp', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPA_ANON, Authorization: 'Bearer ' + SUPA_ANON,
+          },
+          body: JSON.stringify({ c: carId, t: token, answer: value }),
+        });
+        const d = await r.json();
+        if (!r.ok || d.error) {
+          setMsg(d.error === 'rate_limited'
+            ? 'Prea multe încercări. Mai încearcă peste o oră.'
+            : 'Nu am putut salva răspunsul. Încearcă din nou.', true);
+          return;
+        }
+        setMsg('');
+        showState(value, d.rsvp_at);
+      } catch (_) {
+        setMsg('Nu am putut salva răspunsul. Verifică internetul.', true);
+      } finally {
+        el('btnYes').disabled = false; el('btnNo').disabled = false;
+      }
+    }
+
+    el('btnYes').addEventListener('click', () => answer('yes'));
+    el('btnNo').addEventListener('click', () => answer('no'));
+    load();
+  </script>
+</body>
+</html>

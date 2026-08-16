@@ -963,6 +963,88 @@
           </div>
         </div>
 
+        <!-- Trash. Deleting a car has been reversible-for-30-days since the
+             activity log showed 1.670 manual deletions in two days: importing,
+             disliking the result, wiping it by hand, importing again. -->
+        <div class="setting-block" id="trashBlock" style="display:none;">
+          <div class="setting-label" data-i18n="trash.label">ȘTERSE RECENT</div>
+          <div class="setting-row" style="align-items:flex-start;">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+            </div>
+            <div class="txt" style="flex:1;">
+              <strong data-i18n="trash.title">Mașini șterse</strong>
+              <span data-i18n="trash.sub">O mașină ștearsă stă aici 30 de zile și poate fi adusă înapoi cu numărul ei de concurs. După 30 de zile se șterge definitiv.</span>
+              <div class="announce-compose">
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button type="button" class="btn small ghost" id="trashRefreshBtn" data-i18n="trash.refresh">Reîncarcă</button>
+                  <button type="button" class="btn danger small" id="trashEmptyBtn" data-i18n="trash.empty">Golește definitiv</button>
+                </div>
+                <div class="modal-msg" id="trashMsg" style="margin-top:6px;"></div>
+                <div id="trashList" class="backup-list"></div>
+              </div>
+            </div>
+          </div>
+          <div class="setting-row" style="align-items:flex-start;">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </div>
+            <div class="txt" style="flex:1;">
+              <strong data-i18n="trash.imports_title">Importuri recente</strong>
+              <span data-i18n="trash.imports_sub">Fiecare import e un lot. Dacă a intrat ceva greșit, anulezi tot lotul dintr-o apăsare în loc să ștergi rând cu rând.</span>
+              <div class="announce-compose">
+                <div id="importList" class="backup-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Telegram. SMS has never had a provider configured here, so this is
+             the first channel that can actually deliver anything. -->
+        <div class="setting-block" id="telegramBlock" style="display:none;">
+          <div class="setting-label" data-i18n="tg.label">TELEGRAM</div>
+          <div class="setting-row" style="align-items:flex-start;">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+            </div>
+            <div class="txt" style="flex:1;">
+              <strong data-i18n="tg.title">Bot de Telegram</strong>
+              <span data-i18n="tg.sub">Anunțurile și confirmările merg pe Telegram acolo unde participantul s-a conectat, și pe SMS pentru restul. Telegram nu costă nimic.</span>
+              <div class="announce-compose">
+                <label class="field-label" for="tgToken" data-i18n="tg.token">Token de la @BotFather</label>
+                <input type="password" id="tgToken" autocomplete="off" placeholder="123456:ABC-DEF..." />
+                <div class="field-hint" data-i18n="tg.token_hint">Scrie-i lui @BotFather pe Telegram: /newbot. Îți dă un token — îl lipești aici.</div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                  <button type="button" class="btn small" id="tgConnectBtn" data-i18n="tg.connect">Conectează botul</button>
+                  <button type="button" class="btn small ghost" id="tgStatusBtn" data-i18n="tg.check">Verifică</button>
+                </div>
+                <label class="switch-row" style="margin-top:10px;">
+                  <input type="checkbox" id="tgPrefer" checked />
+                  <span data-i18n="tg.prefer">Preferă Telegram, folosește SMS ca rezervă</span>
+                </label>
+                <div class="modal-msg" id="tgMsg" style="margin-top:6px;"></div>
+              </div>
+            </div>
+          </div>
+          <div class="setting-row" style="align-items:flex-start;">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            </div>
+            <div class="txt" style="flex:1;">
+              <strong data-i18n="tg.base_title">Adresa publică a aplicației</strong>
+              <span data-i18n="tg.base_sub">Necesară ca linkul de confirmare din mesaje să ducă undeva. Fără ea, {{confirmare}} rămâne gol.</span>
+              <div class="announce-compose">
+                <input type="url" id="publicBaseUrl" inputmode="url" placeholder="https://..." />
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                  <button type="button" class="btn small" id="publicBaseSaveBtn" data-i18n="common.save">Salvează</button>
+                  <button type="button" class="btn small ghost" id="publicBaseHereBtn" data-i18n="tg.base_here">Folosește adresa curentă</button>
+                </div>
+                <div class="modal-msg" id="publicBaseMsg" style="margin-top:6px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="setting-block" id="dangerZoneBlock" style="display:none;">
           <div class="setting-label" data-i18n="settings.danger">DATE</div>
           <div class="setting-row">
@@ -971,7 +1053,7 @@
             </div>
             <div class="txt">
               <strong data-i18n="settings.delete_all_cars">Șterge toate mașinile</strong>
-              <span data-i18n="settings.delete_all_cars_help">Elimină toate mașinile din baza de date (acțiune ireversibilă)</span>
+              <span data-i18n="settings.delete_all_cars_help">Mută în coș toate mașinile evenimentului în lucru. Se pot aduce înapoi 30 de zile.</span>
             </div>
             <button class="btn danger small" id="deleteAllCarsBtn" data-i18n="settings.delete_btn">Șterge</button>
           </div>
@@ -1635,6 +1717,13 @@
             <label data-i18n="event.waiver">Acord de participare</label>
             <textarea name="waiver_text" rows="3" data-i18n-placeholder="event.waiver_ph" placeholder="Lasă gol dacă nu ceri niciun acord."></textarea>
             <span class="field-hint" data-i18n="event.waiver_hint">Textul apare la înscriere. Participantul bifează și își scrie numele — se salvează cu dată și oră.</span>
+          </div>
+          <div class="form-field">
+            <label class="switch-row">
+              <input type="checkbox" name="entries_frozen" id="eventFrozen">
+              <span data-i18n="event.freeze">Îngheață lista de start</span>
+            </label>
+            <span class="field-hint" data-i18n="event.freeze_hint">După ce ai printat pass-urile. Numerele existente nu se mai schimbă; mașinile noi primesc numere în continuare.</span>
           </div>
           <div class="form-field">
             <label data-i18n="modal.add_event.cover">Copertă (imagine)</label>
