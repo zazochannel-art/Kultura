@@ -174,13 +174,13 @@ try {
     print: !!document.getElementById('guidePrintBtn'),
   }));
   check('guide-modal-shown', guide.shown);
-  // 17 steps across 5 phases, plus nav / roles / automatic / troubleshooting.
-  check('guide-has-all-steps', guide.steps === 17);
+  // 18 steps across 5 phases, plus nav / roles / automatic / troubleshooting.
+  check('guide-has-all-steps', guide.steps === 18);
   check('guide-has-all-phases', guide.phases === 9);
   // Numbering runs continuously across phases — "step 9" has to mean one thing.
   check('guide-numbering-continuous',
-    guide.numbered.join(',') === Array.from({ length: 17 }, (_, i) => i + 1).join(','));
-  check('guide-steps-say-where', guide.wheres === 17);
+    guide.numbered.join(',') === Array.from({ length: 18 }, (_, i) => i + 1).join(','));
+  check('guide-steps-say-where', guide.wheres === 18);
   check('guide-has-troubleshooting', guide.trouble >= 5);
   check('guide-has-print-button', guide.print);
   await page.evaluate(() => document.querySelector('#modal-guide [data-close]').click());
@@ -739,6 +739,152 @@ try {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
       console.log(`event scope checks: ${e.message}`);
+    }
+  }
+
+  // 4i. Entry numbers + judging. The number is how a car show identifies a car
+  // to everyone not holding its paperwork; judging is the panel score, grouped
+  // by the car's existing class.
+  {
+    const CARS = [
+      { id: 1, entry_no: 1, brand: 'VW', model: 'Golf', owner: 'A', plate: 'P1', status: 'Sosit', category: 'Performance', event_id: 6 },
+      { id: 2, entry_no: 2, brand: 'Mazda', model: 'RX-7', owner: 'B', plate: 'P2', status: 'Sosit', category: 'JDM', event_id: 6 },
+      { id: 3, entry_no: 3, brand: 'BMW', model: 'E30', owner: 'C', plate: 'P3', status: 'Invitat', category: 'Retro', event_id: 6 },
+      { id: 4, entry_no: 4, brand: 'Nissan', model: 'Silvia', owner: 'D', plate: 'P4', status: 'Sosit', category: 'JDM', event_id: 6 },
+    ];
+    let scores = [];
+    const jctx = await browser.newContext({ viewport: { width: 430, height: 930 }, isMobile: true, hasTouch: true });
+    await jctx.route('**://*.supabase.co/**', (r) => {
+      const u = r.request().url(), m = r.request().method();
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      if (u.includes('/rest/v1/judge_scores')) {
+        if (m === 'GET') return J(scores);
+        const rows = [].concat(JSON.parse(r.request().postData() || '{}'));
+        for (const row of rows) {
+          const i = scores.findIndex((s) => String(s.car_id) === String(row.car_id) && s.judge_email === row.judge_email);
+          if (i >= 0) scores[i] = row; else scores.push(row);
+        }
+        return J(rows);
+      }
+      if (u.includes('/rest/v1/cars')) return J(CARS);
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Festival', status: 'Activ', archived: false }]);
+      if (u.includes('/rest/v1/profiles')) {
+        return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+      }
+      if (u.includes('/rest/v1/')) return J([]);
+      return r.abort();
+    });
+    const jp = await jctx.newPage();
+    try {
+      await jp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await jp.evaluate(() => localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      })));
+      await jp.reload({ waitUntil: 'domcontentloaded' });
+      await jp.waitForTimeout(2200);
+      await jp.evaluate(() => {
+        document.getElementById('splashScreen')?.remove();
+        document.querySelector('.mtab[data-section="cars"], .tab[data-section="cars"]')?.click();
+      });
+      await jp.waitForTimeout(600);
+      const nos = await jp.evaluate(() =>
+        [...document.querySelectorAll('#carsList .entry-no')].map((x) => x.textContent));
+      check('entry-no-on-car-cards', nos.join() === '#1,#2,#3,#4');
+
+      await jp.evaluate(() => document.getElementById('judgeBtn').click());
+      await jp.waitForSelector('#judgeResults .judge-car', { state: 'visible', timeout: 8000 });
+      const before = await jp.evaluate(() => document.getElementById('judgeProgress').textContent);
+      check('judge-progress-starts-empty', /0/.test(before));
+
+      for (const [car, score] of [[1, 9], [2, 7], [4, 10]]) {
+        await jp.click(`[data-judge-car="${car}"][data-judge-score="${score}"]`);
+        await jp.waitForTimeout(300);
+      }
+      const after = await jp.evaluate(() => ({
+        prog: document.getElementById('judgeProgress').textContent,
+        set: [...document.querySelectorAll('.judge-score.is-set')].map((x) => x.dataset.judgeCar + '=' + x.textContent).sort(),
+      }));
+      check('judge-scores-persist', after.set.join() === '1=9,2=7,4=10');
+      check('judge-progress-counts', /3/.test(after.prog));
+
+      // "Not scored" must leave exactly the one car nobody rated.
+      await jp.evaluate(() => document.querySelector('[data-judge-filter="todo"]').click());
+      await jp.waitForTimeout(300);
+      const todo = await jp.evaluate(() => document.querySelectorAll('#judgeResults .judge-car').length);
+      check('judge-todo-filter', todo === 1);
+
+      // Searching by the number on the windscreen — the whole point of #1.
+      await jp.evaluate(() => document.querySelector('[data-judge-filter="all"]').click());
+      await jp.fill('#judgeSearch', '2');
+      await jp.waitForTimeout(300);
+      const found = await jp.evaluate(() =>
+        [...document.querySelectorAll('#judgeResults .entry-no')].map((x) => x.textContent));
+      check('judge-search-by-entry-no', found.join() === '#2');
+
+      await jp.fill('#judgeSearch', '');
+      await jp.evaluate(() => document.getElementById('judgeResultsBtn').click());
+      await jp.waitForTimeout(500);
+      const res = await jp.evaluate(() => ({
+        classes: [...document.querySelectorAll('.judge-class-t')].map((x) => x.textContent).sort(),
+        winners: [...document.querySelectorAll('.judge-res.is-win')].map((x) => x.textContent.replace(/\s+/g, ' ').trim()),
+      }));
+      // Only classes with at least one score appear; Retro was never scored.
+      check('judge-results-per-class', res.classes.join() === 'JDM,PERFORMANCE'
+        || res.classes.join() === 'JDM,Performance');
+      check('judge-picks-class-winners',
+        res.winners.some((w) => /#4/.test(w) && /10/.test(w))
+        && res.winners.some((w) => /#1/.test(w) && /9/.test(w)));
+    } catch (e) {
+      for (const n of ['entry-no-on-car-cards', 'judge-progress-starts-empty', 'judge-scores-persist',
+        'judge-progress-counts', 'judge-todo-filter', 'judge-search-by-entry-no',
+        'judge-results-per-class', 'judge-picks-class-winners']) {
+        if (!checks.some((c) => c.name === n)) check(n, false);
+      }
+      console.log(`judging checks: ${e.message}`);
+    }
+    await jctx.close();
+  }
+
+  // 4j. Waiver + waitlist on the public registration form. Both are driven by
+  // the event, so the form must react to what event-info reports.
+  {
+    for (const [label, ev, wantWaiver, wantFull] of [
+      ['waiver', { id: 6, title: 'F', waiver_text: 'Particip pe propria răspundere.', spots_left: 40 }, true, false],
+      ['full', { id: 6, title: 'F', waiver_text: '', spots_left: 0 }, false, true],
+      ['plain', { id: 6, title: 'F', waiver_text: '', spots_left: null }, false, false],
+    ]) {
+      const wctx = await browser.newContext({ viewport: { width: 430, height: 930 } });
+      await wctx.route('**://*.supabase.co/**', (r) => {
+        const u = r.request().url();
+        if (u.includes('/functions/v1/event-info')) {
+          return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ event: ev, agenda: [] }) });
+        }
+        return r.abort();
+      });
+      const wp = await wctx.newPage();
+      try {
+        await wp.goto(`${BASE}/register.html`, { waitUntil: 'domcontentloaded' });
+        await wp.waitForTimeout(900);
+        const st = await wp.evaluate(() => ({
+          waiver: document.getElementById('waiverBox').style.display !== 'none',
+          cap: document.getElementById('capNote').style.display !== 'none',
+          full: document.getElementById('capNote').classList.contains('is-full'),
+        }));
+        check(`register-${label}-waiver-shown`, st.waiver === wantWaiver);
+        check(`register-${label}-capacity-notice`, st.cap === wantFull);
+        if (wantFull) check('register-full-notice-is-red', st.full);
+      } catch (e) {
+        console.log(`register ${label}: ${e.message}`);
+        check(`register-${label}-waiver-shown`, false);
+        check(`register-${label}-capacity-notice`, false);
+      }
+      await wctx.close();
     }
   }
 

@@ -482,6 +482,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h2v5H8zM12 11h2v7h-2zM16 15h0v3"/></svg>
             <span data-i18n="report.btn">Raport</span>
           </button>
+          <button class="add-btn muted" id="judgeBtn" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2-6.3-4.6-6.3 4.6L7.9 13.8 2 9.4h7.6z"/></svg>
+            <span data-i18n="judge.btn">Jurizare</span>
+          </button>
           <button class="add-btn grad-gate" id="gateOpenBtn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>
             <span data-i18n="gate.open">Poartă</span>
@@ -1159,6 +1163,8 @@
              (red for blocklist, amber for duplicate). Styling the wrapper made
              a duplicate-only registration look like a blocklist hit. -->
         <div id="regDetailBlock" hidden></div>
+        <!-- The signed waiver, when the participant accepted one. -->
+        <div id="regDetailWaiver" class="reg-waiver" hidden></div>
         <form id="regDetailForm" class="reg-detail-form" autocomplete="off">
           <div class="rd-row">
             <div><label data-i18n="reg.f_car">Marcă</label><input name="brand" data-i18n-placeholder="car.detail.brand"></div>
@@ -1199,6 +1205,7 @@
         <div class="modal-actions">
           <button type="button" class="btn danger" id="regDetailReject" data-i18n="reg.reject">Respinge</button>
           <button type="button" class="btn ghost" id="regDetailHold" data-i18n="reg.hold">În așteptare</button>
+          <button type="button" class="btn ghost" id="regDetailWaitlist" data-i18n="reg.to_waitlist">Listă de așteptare</button>
           <button type="button" class="btn ghost" id="regDetailSave" data-i18n="reg.save">Salvează</button>
           <button type="button" class="btn" id="regDetailApprove" data-i18n="reg.approve">Aprobă</button>
         </div>
@@ -1620,6 +1627,16 @@
             <input type="text" name="location" placeholder="Romexpo, București">
           </div>
           <div class="form-field">
+            <label data-i18n="event.capacity">Locuri disponibile</label>
+            <input type="number" name="reg_capacity" min="1" data-i18n-placeholder="event.capacity_ph" placeholder="Lasă gol pentru nelimitat">
+            <span class="field-hint" data-i18n="event.capacity_hint">Când se umple, înscrierile noi intră automat pe lista de așteptare.</span>
+          </div>
+          <div class="form-field">
+            <label data-i18n="event.waiver">Acord de participare</label>
+            <textarea name="waiver_text" rows="3" data-i18n-placeholder="event.waiver_ph" placeholder="Lasă gol dacă nu ceri niciun acord."></textarea>
+            <span class="field-hint" data-i18n="event.waiver_hint">Textul apare la înscriere. Participantul bifează și își scrie numele — se salvează cu dată și oră.</span>
+          </div>
+          <div class="form-field">
             <label data-i18n="modal.add_event.cover">Copertă (imagine)</label>
             <input type="hidden" name="cover_url" id="eventCoverUrl">
             <div class="cover-picker">
@@ -1753,6 +1770,28 @@
     </div>
 
     <!-- GATE — offline check-in overlay -->
+    <!-- Judging. A full-screen surface like the gate, because it is used the
+         same way: on a phone, walking the field, one car at a time. Scores are
+         panel-only (staff+) — People's Choice is the separate public vote. -->
+    <div class="gate-overlay" id="judgeOverlay" aria-hidden="true">
+      <div class="gate-head">
+        <button class="gate-close" id="judgeCloseBtn" aria-label="Închide">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <div class="gate-title">
+          <strong data-i18n="judge.title">Jurizare</strong>
+          <span id="judgeProgress" class="judge-progress"></span>
+        </div>
+        <button class="btn small ghost" id="judgeResultsBtn" data-i18n="judge.results">Rezultate</button>
+      </div>
+      <div class="gate-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="judgeSearch" data-i18n-placeholder="judge.search_ph" placeholder="Număr, marcă sau proprietar…" inputmode="search">
+      </div>
+      <div class="chips" id="judgeChips" style="padding:0 16px 8px;"></div>
+      <div class="gate-results" id="judgeResults"></div>
+    </div>
+
     <div class="gate-overlay" id="gateOverlay" aria-hidden="true">
       <div class="gate-head">
         <button class="gate-close" id="gateCloseBtn" aria-label="Închide">

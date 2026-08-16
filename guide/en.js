@@ -39,7 +39,7 @@ export default {
         {
           title: 'Create the event',
           where: 'Events → Add',
-          body: 'Set the date and location. They appear automatically on the public schedule page and on Home, with a countdown. Then set its status to Active: everything you add from now on (cars, tasks, guests) attaches to it automatically, and the lists show only what belongs to it.',
+          body: 'Set the date and location. They appear automatically on the public schedule page and on Home, with a countdown. Then set its status to Active: everything you add from now on (cars, tasks, guests) attaches to it automatically, and the lists show only what belongs to it. This is also where you can set how many spots are available (blank or 0 = no limit) and the text of a participation waiver, if you want it ticked at registration.',
           tip: 'When the event is over, set its status to Finished. Nothing is deleted — it just leaves the view, and the app moves on to your next event. To look back, pick the event from the header selector, or "All events".',
         },
         {
@@ -50,7 +50,7 @@ export default {
         {
           title: 'Open registrations',
           where: 'Settings → Public pages → "Car registration"',
-          body: 'Take the link with "Copy link", or the QR code (printable, for a poster). You also choose which event the link is for: left on automatic it always follows the active event, pinned to one it stays that event\'s link — which is what a printed poster needs. The form tells people on the spot if the car is already registered, and accepts at most 3 registrations per hour from the same connection as spam protection.',
+          body: 'Take the link with "Copy link", or the QR code (printable, for a poster). You also choose which event the link is for: left on automatic it always follows the active event, pinned to one it stays that event\'s link — which is what a printed poster needs. The form tells people on the spot if the car is already registered, and accepts at most 3 registrations per hour from the same connection as spam protection. If you set a number of spots, the form warns when few are left and, once they run out, stays open: whoever registers goes on the waiting list rather than being turned away.',
           role: 'admin',
         },
         {
@@ -73,12 +73,12 @@ export default {
         {
           title: 'Approve the registrations',
           where: 'Cars → the "Registered" column',
-          body: 'Each card opens for details. You can Approve (it becomes a car, with a zone), put it On hold, or Reject. Watch the flags: ⛔ means the plate is on the blocklist, ⧉ means the plate already exists in the system. The blocklist flag stays on the car after approval too — you see it on the card in the Cars list, and at the gate.',
+          body: 'Each card opens for details. You can Approve (it becomes a car, with a zone), put it On hold, or Reject. Watch the flags: ⛔ means the plate is on the blocklist, ⧉ means the plate already exists in the system. The blocklist flag stays on the car after approval too — you see it on the card in the Cars list, and at the gate. If the event has a number of spots, a "Waiting list" tab appears too, holding those who came after the spots ran out — you approve them the same way, when a spot frees up.',
         },
         {
           title: 'Print the passes',
           where: 'Cars → Passes',
-          body: 'Generates an A6 card for every car in the filtered list, carrying its check-in QR code. Filter the list first if you only want some of them.',
+          body: 'Generates an A6 card for every car in the filtered list, carrying its check-in QR code. Filter the list first if you only want some of them. The pass also carries the entry number in large print — it is given automatically, in registration order, and restarts from 1 at every event.',
         },
         {
           title: 'Prepare the gate tablets',
@@ -108,6 +108,13 @@ export default {
           title: 'The arrivals wall',
           where: 'Gate → 🖥 Arrivals wall',
           body: 'A screen meant for a projector: the latest arrivals, with a sound for each new car. The presentation button starts auto-scrolling.',
+        },
+        {
+          title: 'Judge the cars',
+          where: 'Cars → Judging',
+          body: 'A full-screen phone view, meant for standing in front of the car: the entry number, the car, and ten buttons from 1 to 10. Press once and the score is saved; press another and it replaces it. The top shows how many you have scored, the "Not scored" filter leaves only what you have not seen, and search works by the number on the windscreen. Results shows the average per car, grouped by class, with 🏆 on the winner.',
+          tip: 'Each judge has one score per car, so the average is the panel\'s average. On a tie both are marked — the jury decides, not the app.',
+          role: 'staff',
         },
         {
           title: 'See who is here right now',
@@ -168,6 +175,7 @@ export default {
     'Welcome SMS on arrival and approval SMS, if you enabled them',
     'A notification when a new registration comes in',
     'Automatic cleanup of old logs',
+    'An entry number for every new car, counted separately for each event',
   ],
 
   troubleTitle: 'When something goes wrong',
@@ -180,6 +188,10 @@ export default {
       f: 'Close it completely and reopen. The new version takes effect on the second start.' },
     { p: 'Someone says they cannot register',
       f: 'They have probably hit the limit of 3 registrations per hour. They can try later, or you add them by hand from Cars → Add.' },
+    { p: 'Someone ended up on the waiting list by mistake',
+      f: 'Open the registration from Cars → Waiting list and approve it normally. The list blocks nothing, it is only a queue.' },
+    { p: 'You cannot see the Judging button',
+      f: 'It is for staff and admins only. Check your role on the Team page.' },
     { p: 'The voting page says voting is not open',
       f: 'That is expected — it has to be opened first from Settings → Best Car voting.' },
     { p: 'SMS are not going out',

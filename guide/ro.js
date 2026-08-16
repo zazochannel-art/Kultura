@@ -39,7 +39,7 @@ export default {
         {
           title: 'Creezi evenimentul',
           where: 'Evenimente → Adaugă',
-          body: 'Pui data și locația. Apar automat pe pagina publică de program și pe ecranul de Acasă, cu numărătoare inversă. Pune-i apoi statusul Activ: tot ce adaugi de acum (mașini, taskuri, invitați) se leagă automat de el, iar listele arată doar ce ține de el.',
+          body: 'Pui data și locația. Apar automat pe pagina publică de program și pe ecranul de Acasă, cu numărătoare inversă. Pune-i apoi statusul Activ: tot ce adaugi de acum (mașini, taskuri, invitați) se leagă automat de el, iar listele arată doar ce ține de el. Tot aici poți pune un număr de locuri disponibile (gol sau 0 = fără limită) și textul unui acord de participare, dacă vrei să fie bifat la înscriere.',
           tip: 'Când termini evenimentul, pune-i statusul Finalizat. Datele nu se șterg — ies din vedere, iar aplicația trece la următorul eveniment. Ca să te uiți înapoi, alege evenimentul din selectorul din antet, sau „Toate evenimentele".',
         },
         {
@@ -50,7 +50,7 @@ export default {
         {
           title: 'Deschizi înscrierile',
           where: 'Setări → Pagini publice → „Înscriere mașină"',
-          body: 'Iei linkul cu „Copiază linkul", sau codul QR (printabil, pentru afiș). Tot acolo alegi pentru ce eveniment e linkul: lăsat pe automat urmează mereu evenimentul activ, ales anume rămâne al acelui eveniment — asta vrei pe un afiș printat. Formularul le spune pe loc dacă mașina e deja înscrisă și acceptă maxim 3 înscrieri pe oră de pe aceeași conexiune, ca protecție anti-spam.',
+          body: 'Iei linkul cu „Copiază linkul", sau codul QR (printabil, pentru afiș). Tot acolo alegi pentru ce eveniment e linkul: lăsat pe automat urmează mereu evenimentul activ, ales anume rămâne al acelui eveniment — asta vrei pe un afiș printat. Formularul le spune pe loc dacă mașina e deja înscrisă și acceptă maxim 3 înscrieri pe oră de pe aceeași conexiune, ca protecție anti-spam. Dacă ai pus un număr de locuri, formularul anunță când mai sunt puține și, când s-au ocupat, rămâne deschis: cine se înscrie intră pe lista de așteptare, nu e refuzat.',
           role: 'admin',
         },
         {
@@ -73,12 +73,12 @@ export default {
         {
           title: 'Aprobi înscrierile',
           where: 'Mașini → coloana „Înscrise"',
-          body: 'Fiecare card se deschide pentru detalii. Poți Aproba (devine mașină, cu zonă alocată), pune pe Așteptare, sau Respinge. Ai grijă la semnalizări: ⛔ înseamnă că placa e pe lista neagră, ⧉ că placa există deja în sistem. Semnalizarea de listă neagră rămâne pe mașină și după aprobare — o vezi pe card, în lista Mașini, și la poartă.',
+          body: 'Fiecare card se deschide pentru detalii. Poți Aproba (devine mașină, cu zonă alocată), pune pe Așteptare, sau Respinge. Ai grijă la semnalizări: ⛔ înseamnă că placa e pe lista neagră, ⧉ că placa există deja în sistem. Semnalizarea de listă neagră rămâne pe mașină și după aprobare — o vezi pe card, în lista Mașini, și la poartă. Dacă evenimentul are un număr de locuri, apare și tabul „Listă de așteptare", cu cei veniți după ce s-au ocupat locurile — îi aprobi la fel, când se eliberează un loc.',
         },
         {
           title: 'Printezi pass-urile',
           where: 'Mașini → Pass-uri',
-          body: 'Generează un card A6 pentru fiecare mașină din lista filtrată, cu codul QR de check-in. Dacă vrei doar o parte, filtrează întâi lista.',
+          body: 'Generează un card A6 pentru fiecare mașină din lista filtrată, cu codul QR de check-in. Dacă vrei doar o parte, filtrează întâi lista. Pe pass e tipărit mare și numărul de concurs — se dă automat, în ordinea înscrierii, și reîncepe de la 1 la fiecare eveniment.',
         },
         {
           title: 'Pregătești tabletele de la poartă',
@@ -108,6 +108,13 @@ export default {
           title: 'Peretele de sosiri',
           where: 'Poartă → 🖥 Perete sosiri',
           body: 'Ecran gândit pentru proiector: ultimele sosiri, cu sunet la fiecare mașină nouă. Butonul de prezentare pornește derularea automată.',
+        },
+        {
+          title: 'Jurizezi mașinile',
+          where: 'Mașini → Jurizare',
+          body: 'Un ecran pe tot telefonul, gândit ca să stai în fața mașinii: numărul de concurs, mașina, și zece butoane de la 1 la 10. Apeși o dată, nota se salvează; apeși alta, o înlocuiește. Sus vezi câte ai punctat, filtrul „Nepunctate" îți lasă doar ce n-ai văzut, iar căutarea merge după numărul de pe parbriz. Rezultate arată media per mașină, grupată pe clase, cu 🏆 pe câștigător.',
+          tip: 'Fiecare jurat are o singură notă per mașină, deci media e media panelului. La egalitate se marchează amândoi — decide juriul, nu aplicația.',
+          role: 'staff',
         },
         {
           title: 'Vezi cine e prezent acum',
@@ -168,6 +175,7 @@ export default {
     'SMS de bun venit la sosire și SMS la aprobare, dacă le-ai bifat',
     'Notificare când intră o înscriere nouă',
     'Curățarea automată a jurnalelor vechi',
+    'Numărul de concurs la fiecare mașină nouă, separat pentru fiecare eveniment',
   ],
 
   troubleTitle: 'Când ceva nu merge',
@@ -180,6 +188,10 @@ export default {
       f: 'Închide-o complet și redeschide. Versiunea nouă se activează la a doua pornire.' },
     { p: 'Cineva zice că nu se poate înscrie',
       f: 'Probabil a atins limita de 3 înscrieri pe oră. Poate încerca mai târziu, sau îl adaugi tu manual din Mașini → Adaugă.' },
+    { p: 'Cineva a ajuns pe lista de așteptare din greșeală',
+      f: 'Deschide înscrierea din Mașini → Listă de așteptare și aprob-o normal. Lista nu blochează nimic, e doar o coadă.' },
+    { p: 'Nu îți apare butonul Jurizare',
+      f: 'E doar pentru staff și admin. Verifică-ți rolul în pagina Echipa.' },
     { p: 'Pagina de votare zice că votarea nu e deschisă',
       f: 'Normal — trebuie deschisă întâi din Setări → Votare Best Car.' },
     { p: 'Nu pleacă SMS-urile',

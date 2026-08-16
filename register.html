@@ -55,6 +55,13 @@
       background:linear-gradient(135deg,var(--cyan),var(--purple));box-shadow:0 12px 30px rgba(6,182,212,.3);
     }
     button.submit:disabled{opacity:.6}
+    .waiver{margin:18px 0;padding:14px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.10)}
+    .waiver-text{font-size:13px;line-height:1.6;color:#c9d2e0;white-space:pre-wrap;max-height:180px;overflow:auto;margin-bottom:12px}
+    .waiver-agree{display:flex;align-items:center;gap:10px;margin:0 0 12px;font-size:14px;color:#e8edf5;cursor:pointer}
+    .waiver-agree input{width:20px;height:20px;flex:0 0 auto;accent-color:#f8589c;margin:0}
+    .cap-note{margin:0 0 14px;padding:10px 12px;border-radius:12px;font-size:13px;line-height:1.5;
+      color:#f59e0b;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.32)}
+    .cap-note.is-full{color:#ef4444;background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.32)}
     .msg{margin-top:16px;padding:12px 14px;border-radius:12px;font-size:14px;display:none}
     .msg.show{display:block}
     .msg.ok{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.3)}
@@ -163,13 +170,27 @@
           <textarea name="note" rows="2" placeholder="Cerințe speciale..."></textarea>
         </div>
 
+        <!-- Shown only when the organiser set a waiver text for this event. -->
+        <div class="waiver" id="waiverBox" style="display:none;">
+          <div class="waiver-text" id="waiverText"></div>
+          <label class="waiver-agree">
+            <input type="checkbox" id="waiverOk">
+            <span>Am citit și sunt de acord</span>
+          </label>
+          <label>Numele tău, ca semnătură</label>
+          <input id="waiverName" placeholder="Prenume Nume" autocomplete="name">
+        </div>
+
+        <!-- Warns before a long form is filled in, not after. -->
+        <div class="cap-note" id="capNote" style="display:none;"></div>
+
         <button type="submit" class="submit" id="submitBtn">Trimite înscrierea</button>
         <div class="msg" id="msg"></div>
       </form>
       <div class="done" id="done" style="display:none;">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
-        <h2>Înscriere trimisă!</h2>
-        <p>Mulțumim! Organizatorii îți vor verifica înscrierea și te vor contacta.</p>
+        <h2 id="doneTitle">Înscriere trimisă!</h2>
+        <p id="doneText">Mulțumim! Organizatorii îți vor verifica înscrierea și te vor contacta.</p>
       </div>
     </div>
     <p class="foot">© 2026 Kultura</p>
@@ -283,6 +304,38 @@
     }
 
     const form = document.getElementById('regForm');
+    // Pull the event's waiver text and how many spots are left. Both come from
+    // the same public function the agenda page uses.
+    let waiverRequired = false;
+    (async () => {
+      try {
+        const evParam = new URLSearchParams(location.search).get('event') || '';
+        const r = await fetch(SUPA_URL + '/functions/v1/event-info'
+          + (evParam ? '?event=' + encodeURIComponent(evParam) : ''),
+          { headers: { apikey: SUPA_ANON, Authorization: 'Bearer ' + SUPA_ANON } });
+        const d = await r.json();
+        const ev = d && d.event;
+        if (!ev) return;
+        if (ev.waiver_text) {
+          waiverRequired = true;
+          document.getElementById('waiverText').textContent = ev.waiver_text;
+          document.getElementById('waiverBox').style.display = 'block';
+        }
+        const left = ev.spots_left;
+        if (left === 0) {
+          const n = document.getElementById('capNote');
+          n.className = 'cap-note is-full';
+          n.textContent = 'Locurile s-au ocupat. Te poți înscrie în continuare — intri pe lista de așteptare și ești anunțat dacă se eliberează un loc.';
+          n.style.display = 'block';
+        } else if (typeof left === 'number' && left <= 10) {
+          const n = document.getElementById('capNote');
+          n.className = 'cap-note';
+          n.textContent = left === 1 ? 'A mai rămas un singur loc.' : ('Au mai rămas ' + left + ' locuri.');
+          n.style.display = 'block';
+        }
+      } catch (_) { /* the form still works without this */ }
+    })();
+
     const btn = document.getElementById('submitBtn');
     const msg = document.getElementById('msg');
     const showMsg = (txt, kind) => { msg.textContent = txt; msg.className = 'msg show ' + kind; };
@@ -354,6 +407,13 @@
       if (!base.brand || !base.model || !base.owner || !base.phone) {
         showMsg('Completează marca, modelul, numele și telefonul.', 'err'); return;
       }
+      if (waiverRequired) {
+        const ok = document.getElementById('waiverOk').checked;
+        const nm = document.getElementById('waiverName').value.trim();
+        if (!ok || nm.length < 3) {
+          showMsg('Bifează acordul de participare și scrie-ți numele.', 'err'); return;
+        }
+      }
       btn.disabled = true;
       let uploaded = [];
       try {
@@ -370,6 +430,7 @@
             // validates it against real events and falls back to the active
             // one, so a tampered value can only pick a different real event.
             event_id: new URLSearchParams(location.search).get('event') || null,
+            waiver_name: waiverRequired ? document.getElementById('waiverName').value.trim() : null,
             company_website: g('company_website'),
           }),
         });
@@ -383,6 +444,12 @@
         return;
       }
       if (!res.ok || data.error) { showMsg('Eroare: ' + (data.error || res.status), 'err'); return; }
+      if (data.status === 'waitlist') {
+        document.getElementById('doneTitle').textContent = 'Ești pe lista de așteptare';
+        document.getElementById('doneText').textContent =
+          'Locurile erau deja ocupate, așa că înscrierea ta a intrat pe lista de așteptare. '
+          + 'Te anunțăm imediat ce se eliberează un loc.';
+      }
       document.getElementById('done').style.display = 'block';
       form.style.display = 'none';
     });
