@@ -913,8 +913,15 @@ try {
       if (u.includes('/rest/v1/import_log')) return J(IMPORTS);
       if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Festival', status: 'Activ', archived: false, entries_frozen: false }]);
       if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
-      if (u.includes('/rest/v1/app_config')) return J([{ key: 'telegram_bot_username', value: 'kultura_test_bot' }, { key: 'telegram_bot_token', value: 'secret-token-value' }]);
+      // `app_config` has RLS on with no policies: a signed-in client gets an
+      // empty list, not an error. Modelling that is the whole point — the first
+      // version of this panel read the bot token straight from here and quietly
+      // got nothing, and a mock that returned rows hid it.
+      if (u.includes('/rest/v1/app_config')) return J([]);
       if (u.includes('/rest/v1/ui_settings')) return J([{ key: 'notify_prefer_telegram', value: '1' }, { key: 'public_base_url', value: 'https://kultura.example' }]);
+      if (u.includes('/functions/v1/telegram')) {
+        return J({ ok: true, has_token: true, username: 'kultura_test_bot', webhook: 'https://x/functions/v1/telegram', linked: 4 });
+      }
       if (u.includes('/rest/v1/')) return J([]);
       return r.abort();
     });
@@ -956,6 +963,8 @@ try {
         importRows: document.querySelectorAll('#importList .backup-row').length,
         tgShown: getComputedStyle(document.getElementById('telegramBlock')).display,
         tokenValue: document.getElementById('tgToken').value,
+        tokenPlaceholder: document.getElementById('tgToken').placeholder,
+        tgMsg: document.getElementById('tgMsg').textContent,
         baseUrl: document.getElementById('publicBaseUrl').value,
       }));
       check('trash-panel-visible-to-admin', s.trashShown === 'block');
@@ -969,11 +978,16 @@ try {
       // The stored bot token must never be echoed back into the page.
       check('telegram-token-never-echoed', s.tokenValue === '');
       check('public-base-url-loaded', s.baseUrl === 'https://kultura.example');
+      // Everything the panel knows about the bot has to come from the edge
+      // function, because app_config is unreachable from the browser.
+      check('telegram-state-comes-from-function', /kultura_test_bot/.test(s.tgMsg) && /4/.test(s.tgMsg));
+      check('telegram-token-marked-stored', /salvat/i.test(s.tokenPlaceholder));
     } catch (e) {
       for (const n of ['rsvp-badges-on-cards', 'trash-panel-visible-to-admin', 'trash-lists-deleted-car',
         'trash-offers-restore', 'trash-entry-badge-not-stretched', 'imports-listed',
         'import-undo-only-for-live-batch', 'telegram-panel-visible-to-admin',
-        'telegram-token-never-echoed', 'public-base-url-loaded']) {
+        'telegram-token-never-echoed', 'public-base-url-loaded',
+        'telegram-state-comes-from-function', 'telegram-token-marked-stored']) {
         if (!checks.some((c) => c.name === n)) check(n, false);
       }
       console.log(`trash/telegram checks: ${e.message}`);

@@ -336,7 +336,19 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     doar la trecerea în `no`, nu la fiecare apăsare, altfel un participant
     indecis ar plimba toată coada înainte. Promovarea duce în `pending`, nu în
     aprobat: echipa tot decide, doar că nu mai trebuie să observe locul liber.
-23. **`send-sms` trimite pe două canale.** Numele a rămas pentru că îl apelează
+23. **Nu citi și nu scrie `app_config` din client.** Tabelul are RLS activ
+    **fără nicio politică**, intenționat: conține secrete. Din browser nu
+    întorci nici măcar o eroare — primești o listă goală, deci codul pare că
+    merge și tace. Exact așa s-a stricat prima versiune a panoului de Telegram:
+    salva tokenul într-un tabel inaccesibil și apoi nu găsea niciun token.
+    Orice secret trece printr-o edge function care verifică apelantul și scrie
+    cu service role. Setările **ne**-secrete stau în `ui_settings`, unde staff
+    are voie să scrie.
+    Corolarul pentru teste: un mock care întoarce rânduri din `app_config`
+    ascunde defectul. Verificarea `telegram-state-comes-from-function` întoarce
+    listă goală de acolo, tocmai ca panoul să fie obligat să afle totul din
+    funcție.
+24. **`send-sms` trimite pe două canale.** Numele a rămas pentru că îl apelează
     clientul, două joburi cron și două funcții din bază. Nu-l face să pice cu
     `no_provider` când există bot de Telegram: aici **nu a existat niciodată** un
     furnizor SMS configurat, deci Telegram e adesea singurul canal care chiar
