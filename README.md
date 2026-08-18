@@ -70,13 +70,11 @@ a dat 27 de verificări verzi printr-un proxy care răspundea 403 la tot. În CI
 merge cu `CONTRACT_REQUIRE=1`, deci „n-am ajuns la backend" pică în loc să
 treacă în tăcere.
 
-Smoke-testul rulează **ermetic**: taie toate cererile către `*.supabase.co`, ca
-rezultatul să nu depindă de accesibilitatea backend-ului și ca testele să nu
-lovească producția. Include și o verificare de accesibilitate (WCAG 2 A/AA, prin
+Smoke-testul include și o verificare de accesibilitate (WCAG 2 A/AA, prin
 axe-core) pe toate paginile livrate; dacă `axe-core` nu e instalat, partea aia
 se sare.
 
-Excepția e coada offline: acolo backendul e **simulat**, nu tăiat. Un check-in
+Excepția de la „ermetic" e coada offline: acolo backendul e **simulat**, nu tăiat. Un check-in
 făcut fără semnal trebuie nu doar să *intre* în coadă, ci și să *iasă* din ea —
 exact o dată — când revine conexiunea, iar asta se poate verifica doar dacă
 cineva răspunde la scriere. Verificările `gate-flush-*` acoperă drumul ăsta.
@@ -403,7 +401,15 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     `revoke all ... from public, anon, authenticated`. Excepțiile sunt tot cele
     din regula 1 (helperii de RLS) plus ce apelezi explicit prin `rpc()`.
     Verifică după fiecare migrare cu advisor-ul Supabase — el a prins-o, nu eu.
-28. **`send-sms` trimite pe două canale.** Numele a rămas pentru că îl apelează
+28. **Orice cale de mesaj trebuie să ducă un `car_id`.** Telegram-ul se
+    rezolvă din el: fără car_id, `send-sms` n-are cum să găsească chatul și
+    mesajul poate pleca doar ca SMS. Trei căi au fost livrate așa — campania
+    din SMS Center, SMS-ul la aprobare și cel de bun venit — deci treceau
+    automat pe un canal fără furnizor, adică nicăieri.
+    A doua parte a aceleiași greșeli: toate trei ieșeau devreme dacă lipsea
+    telefonul. Un participant conectat pe Telegram e de contactat chiar fără
+    număr; condiția corectă e „telefon **sau** chat", nu „telefon".
+29. **`send-sms` trimite pe două canale.** Numele a rămas pentru că îl apelează
     clientul, două joburi cron și două funcții din bază. Nu-l face să pice cu
     `no_provider` când există bot de Telegram: aici **nu a existat niciodată** un
     furnizor SMS configurat, deci Telegram e adesea singurul canal care chiar

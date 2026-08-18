@@ -915,4 +915,5 @@ export default {
   "offline.needs_connection": "{what} needs a connection.",
   "offline.what_registration": "Approving a registration",
   "offline.what_restore": "Bringing a car back from the trash",
+  "sms.split_channels": "{tg} on Telegram, {sms} by SMS",
 };
