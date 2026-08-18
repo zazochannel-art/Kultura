@@ -70,13 +70,11 @@ a dat 27 de verificări verzi printr-un proxy care răspundea 403 la tot. În CI
 merge cu `CONTRACT_REQUIRE=1`, deci „n-am ajuns la backend" pică în loc să
 treacă în tăcere.
 
-Smoke-testul rulează **ermetic**: taie toate cererile către `*.supabase.co`, ca
-rezultatul să nu depindă de accesibilitatea backend-ului și ca testele să nu
-lovească producția. Include și o verificare de accesibilitate (WCAG 2 A/AA, prin
+Smoke-testul include și o verificare de accesibilitate (WCAG 2 A/AA, prin
 axe-core) pe toate paginile livrate; dacă `axe-core` nu e instalat, partea aia
 se sare.
 
-Excepția e coada offline: acolo backendul e **simulat**, nu tăiat. Un check-in
+Excepția de la „ermetic" e coada offline: acolo backendul e **simulat**, nu tăiat. Un check-in
 făcut fără semnal trebuie nu doar să *intre* în coadă, ci și să *iasă* din ea —
 exact o dată — când revine conexiunea, iar asta se poate verifica doar dacă
 cineva răspunde la scriere. Verificările `gate-flush-*` acoperă drumul ăsta.
