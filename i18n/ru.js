@@ -915,4 +915,5 @@ export default {
   "offline.needs_connection": "{what} требует подключения.",
   "offline.what_registration": "Одобрение заявки",
   "offline.what_restore": "Возврат машины из корзины",
+  "sms.split_channels": "{tg} в Telegram, {sms} по SMS",
 };

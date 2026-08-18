@@ -928,4 +928,5 @@ export default {
   "offline.needs_connection": "{what} are nevoie de conexiune.",
   "offline.what_registration": "Aprobarea unei înscrieri",
   "offline.what_restore": "Aducerea unei mașini înapoi din coș",
+  "sms.split_channels": "{tg} pe Telegram, {sms} prin SMS",
 };

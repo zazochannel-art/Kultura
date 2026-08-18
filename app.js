@@ -20,7 +20,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v116';
+    const APP_VERSION = 'v117';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -2584,11 +2584,16 @@
       const fb = (el('smsFilterBrand')?.value || '').trim();
       const fc = (el('smsFilterCategory')?.value || '').trim();
       const fcity = (el('smsFilterCity')?.value || '').trim();
-      const byPhone = new Map();
-      const add = (phone, vars) => {
+      // Keyed by car (or by phone for VIP guests, who have no car). It used to
+      // be keyed by phone alone, which quietly dropped anyone reachable only on
+      // Telegram — and without a car id the sender could never find their chat,
+      // so a campaign could not use the bot at all.
+      const byKey = new Map();
+      const add = (phone, vars, carId, chatId) => {
         const n = normalizePhone(phone);
-        if (!n) return;
-        if (!byPhone.has(n)) byPhone.set(n, { phone, vars });
+        if (!n && !chatId) return;             // no way to reach this person
+        const key = carId != null ? 'c' + carId : 'p' + n;
+        if (!byKey.has(key)) byKey.set(key, { phone: phone || '', car_id: carId ?? null, _chat: !!chatId, vars });
       };
       // Participants (cars)
       const wantAll = aud.has('all'), wantConf = aud.has('confirmed'), wantUnconf = aud.has('unconfirmed');
@@ -2604,7 +2609,7 @@
             prenume: parts.shift() || '', nume: parts.join(' '),
             marca: c.brand || '', model: c.model || '', numar: c.plate || '',
             categoria: c.category || '', qr_code: ticketUrl(c)
-          });
+          }, c.id, c.telegram_chat_id);
         }
       }
       // VIP guests by category
@@ -2619,7 +2624,7 @@
           });
         }
       }
-      return Array.from(byPhone.values());
+      return Array.from(byKey.values());
     }
 
     function smsSegments(txt) {
@@ -2634,9 +2639,13 @@
     }
 
     function updateSmsCount() {
-      const n = smsRecipients().length;
+      const list = smsRecipients();
+      const n = list.length;
+      const viaTg = list.filter(r => r._chat).length;
       const box = el('smsRecipientCount');
-      if (box) box.textContent = t('sms.will_receive', { n });
+      if (!box) return;
+      box.textContent = t('sms.will_receive', { n })
+        + (n ? ' · ' + t('sms.split_channels', { tg: viaTg, sms: n - viaTg }) : '');
     }
     function updateSmsMeta() {
       const txt = el('smsMessage')?.value || '';

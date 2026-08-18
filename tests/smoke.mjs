@@ -1247,6 +1247,70 @@ try {
     }
   }
 
+  // 4o. Campaign recipients must be able to reach Telegram. The list used to be
+  // keyed by phone number and carried no car id, so a campaign could never use
+  // the bot — and anyone reachable only on Telegram was dropped outright.
+  {
+    const CARS = [
+      // No phone at all, but a linked chat: previously invisible to a campaign.
+      { id: 1, entry_no: 1, brand: 'VW', model: 'Golf', owner: 'Ana Pop', plate: 'P1', status: 'Sosit', event_id: 6, phone: null, contact: null, telegram_chat_id: 111, deleted_at: null },
+      // Phone only: still reachable, by SMS.
+      { id: 2, entry_no: 2, brand: 'Mazda', model: 'RX7', owner: 'Ion Rus', plate: 'P2', status: 'Sosit', event_id: 6, phone: '+37360000002', contact: null, telegram_chat_id: null, deleted_at: null },
+      // Neither: genuinely unreachable, must not be counted.
+      { id: 3, entry_no: 3, brand: 'BMW', model: 'E30', owner: 'Fara Contact', plate: 'P3', status: 'Sosit', event_id: 6, phone: null, contact: null, telegram_chat_id: null, deleted_at: null },
+    ];
+    const sctx = await browser.newContext({ viewport: { width: 430, height: 930 }, isMobile: true, hasTouch: true });
+    await sctx.route('**://*.supabase.co/**', (r) => {
+      const u = r.request().url();
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      if (u.includes('/functions/v1/health')) {
+        return J({ ok: true, telegram: { configured: true, username: 'B', webhook_live: true, linked: 1, total: 3, preferred: true }, sms: { configured: true, provider: 'x' }, public_base_url: 'https://k.example' });
+      }
+      if (u.includes('/functions/v1/')) return J({ ok: true });
+      if (u.includes('/rest/v1/cars')) return J(/deleted_at=not\.is\.null/.test(u) ? [] : CARS);
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'F', status: 'Activ', archived: false, entries_frozen: false, is_sandbox: false }]);
+      if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+      if (u.includes('/rest/v1/')) return J([]);
+      return r.abort();
+    });
+    const sp = await sctx.newPage();
+    try {
+      await sp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await sp.evaluate(() => localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      })));
+      await sp.reload({ waitUntil: 'domcontentloaded' });
+      await sp.waitForTimeout(2400);
+      await sp.evaluate(() => {
+        document.getElementById('splashScreen')?.remove();
+        document.querySelector('.mtab[data-section="sms"], .tab[data-section="sms"]')?.click();
+      });
+      await sp.waitForTimeout(500);
+      // Nudge the audience so the count recomputes.
+      await sp.evaluate(() => {
+        const cb = document.querySelector('#smsAudience input[data-sms-aud="all"]');
+        cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      await sp.waitForTimeout(400);
+      const txt = await sp.evaluate(() => document.getElementById('smsRecipientCount').textContent);
+      // Two reachable of three; the one with neither channel is left out.
+      check('campaign-counts-only-reachable', /\b2\b/.test(txt) && !/\b3\b/.test(txt), txt);
+      check('campaign-shows-channel-split', /1/.test(txt) && /Telegram/i.test(txt), txt);
+    } catch (e) {
+      for (const n of ['campaign-counts-only-reachable', 'campaign-shows-channel-split']) {
+        if (!checks.some((c) => c.name === n)) check(n, false);
+      }
+      console.log(`campaign checks: ${e.message}`);
+    }
+    await sctx.close();
+  }
+
   // 5. Public pages (given out by QR at the event) must render standalone.
   // They talk to Supabase, which is unreachable here, so we only assert the
   // static shell renders and nothing throws before the network call.

@@ -176,6 +176,15 @@ trebuie să stai cu ochii pe listă.
 Textul mementoului se schimbă din **SMS Center → Automatizări**. Variabilele
 noi: `{{numar_concurs}}`, `{{zona}}` și `{{confirmare}}` (linkul).
 
+> **Toate mesajele merg prin bot** acolo unde participantul s-a conectat:
+> campania din SMS Center, mesajul de bun venit la sosire, cel de la aprobare,
+> mementourile și mesajul individual. SMS-ul rămâne rezervă pentru cine nu e
+> conectat. Sub lista de destinatari din SMS Center scrie exact cum se împarte:
+> câți primesc pe Telegram și câți prin SMS.
+>
+> Cine e conectat pe Telegram primește mesajele **chiar dacă n-are număr de
+> telefon în fișă**.
+
 ### 8. Pregătește tabletele de la poartă
 Pe fiecare dispozitiv de la intrare:
 

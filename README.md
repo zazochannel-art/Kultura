@@ -403,7 +403,15 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     `revoke all ... from public, anon, authenticated`. Excepțiile sunt tot cele
     din regula 1 (helperii de RLS) plus ce apelezi explicit prin `rpc()`.
     Verifică după fiecare migrare cu advisor-ul Supabase — el a prins-o, nu eu.
-28. **`send-sms` trimite pe două canale.** Numele a rămas pentru că îl apelează
+28. **Orice cale de mesaj trebuie să ducă un `car_id`.** Telegram-ul se
+    rezolvă din el: fără car_id, `send-sms` n-are cum să găsească chatul și
+    mesajul poate pleca doar ca SMS. Trei căi au fost livrate așa — campania
+    din SMS Center, SMS-ul la aprobare și cel de bun venit — deci treceau
+    automat pe un canal fără furnizor, adică nicăieri.
+    A doua parte a aceleiași greșeli: toate trei ieșeau devreme dacă lipsea
+    telefonul. Un participant conectat pe Telegram e de contactat chiar fără
+    număr; condiția corectă e „telefon **sau** chat", nu „telefon".
+29. **`send-sms` trimite pe două canale.** Numele a rămas pentru că îl apelează
     clientul, două joburi cron și două funcții din bază. Nu-l face să pice cu
     `no_provider` când există bot de Telegram: aici **nu a existat niciodată** un
     furnizor SMS configurat, deci Telegram e adesea singurul canal care chiar
