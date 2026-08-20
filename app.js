@@ -20,7 +20,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v119';
+    const APP_VERSION = 'v120';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -8641,17 +8641,9 @@
         </div>
 
         <div class="detail-section">
-          <div class="detail-section-title" style="display:flex; align-items:center;">
-            ${escape(t('car.detail.section_zone'))}
-            <button class="detail-edit-btn" id="carEditZoneBtn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              ${escape(t('common.edit'))}
-            </button>
-          </div>
+          <div class="detail-section-title">${escape(t('car.detail.section_zone'))}</div>
           <div id="carZoneView">
-            ${c.zone
-              ? `<div class="detail-text">${escape(c.zone)}</div>`
-              : `<div class="detail-text empty">${escape(t('car.detail.zone_empty'))}</div>`}
+            <select class="detail-select" id="carZoneInput" aria-label="${escape(t('car.detail.section_zone'))}">${zoneOptionsHTML(c.zone)}</select>
           </div>
         </div>
 
@@ -8767,28 +8759,27 @@
         el('carNotesInput').focus();
       };
 
-      // Zone inline editor
-      el('carEditZoneBtn').onclick = () => {
-        const view = el('carZoneView');
-        view.innerHTML = `
-          <select class="detail-select" id="carZoneInput">${zoneOptionsHTML(c.zone)}</select>
-          <div class="detail-inline-actions">
-            <button class="btn ghost small" id="carZoneCancel">${escape(t('common.cancel'))}</button>
-            <button class="btn small" id="carZoneSave">${escape(t('common.save'))}</button>
-          </div>`;
-        el('carEditZoneBtn').style.display = 'none';
-        el('carZoneCancel').onclick = () => showCarDetail(c.id);
-        el('carZoneSave').onclick = async () => {
-          const btn = el('carZoneSave'); btn.disabled = true;
-          const newVal = el('carZoneInput').value.trim();
-          const { error } = await supa.from('cars').update({ zone: newVal || null }).eq('id', c.id);
-          if (error) { showToast('Eroare: ' + error.message, 'error'); btn.disabled = false; return; }
-          showToast(t('car.detail.zone_saved'));
-          c.zone = newVal;
-          await loadData();
-          showCarDetail(c.id);
-        };
-        el('carZoneInput').focus();
+      // Zone: the select is the field, so picking a zone is the save. Keep the
+      // previous value around to put back if the write fails — otherwise the
+      // dropdown would keep showing a zone the car is not actually in.
+      const zoneSel = el('carZoneInput');
+      if (zoneSel) zoneSel.onchange = async () => {
+        const prev = c.zone || '';
+        const newVal = zoneSel.value.trim();
+        if (newVal === prev) return;
+        zoneSel.disabled = true;
+        const { error } = await supa.from('cars').update({ zone: newVal || null }).eq('id', c.id);
+        zoneSel.disabled = false;
+        if (error) {
+          showToast(t('common.error') + ': ' + error.message, 'error');
+          zoneSel.value = prev;
+          return;
+        }
+        showToast(t('car.detail.zone_saved'));
+        c.zone = newVal;
+        const row = (state.cars || []).find(x => String(x.id) === String(c.id));
+        if (row) row.zone = newVal;
+        renderCars(); renderZoneBoard();
       };
 
       // ----- Photos: upload / view / delete -----
@@ -8842,9 +8833,13 @@
         img.onclick = () => openLightbox(photos, i);
       });
 
-      // Members are viewers: hide the inline edit affordances (zone/notes/photos).
+      // Members are viewers: hide the inline edit affordances (notes/photos).
       if (!roleAtLeast('staff')) {
-        ['carEditZoneBtn', 'carEditNotesBtn', 'carPhotoAddBtn'].forEach(id => { const b = el(id); if (b) b.style.display = 'none'; });
+        ['carEditNotesBtn', 'carPhotoAddBtn'].forEach(id => { const b = el(id); if (b) b.style.display = 'none'; });
+        // The zone is a live field now, not something behind an Edit button, so
+        // it has to be disabled rather than hidden — otherwise a member is
+        // handed a control whose every use the database refuses.
+        const zs = el('carZoneInput'); if (zs) zs.disabled = true;
         el('carDetailBody').querySelectorAll('[data-photo-del]').forEach(b => { b.style.display = 'none'; });
       }
 

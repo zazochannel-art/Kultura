@@ -734,7 +734,6 @@ export default {
   "modal.add_event.cover_pick": "Выбрать изображение",
   "car.detail.no_photos": "Нет фотографий",
   "car.detail.section_zone": "Зона",
-  "car.detail.zone_empty": "Зона не заполнена. Нажмите \"Изменить\", чтобы указать зону.",
   "car.detail.zone_placeholder": "напр. A1, VIP, Терраса и т.д.",
   "car.detail.zone_saved": "Зона обновлена.",
   "car.detail.section_car": "Автомобиль",

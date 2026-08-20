@@ -734,7 +734,6 @@ export default {
   "modal.add_event.cover_pick": "Choose image",
   "car.detail.no_photos": "No photos",
   "car.detail.section_zone": "Zone",
-  "car.detail.zone_empty": "Zone is not set. Click \"Edit\" to write the assigned zone.",
   "car.detail.zone_placeholder": "e.g. A1, VIP, Terrace etc.",
   "car.detail.zone_saved": "Zone updated.",
   "car.detail.section_car": "Vehicle",
