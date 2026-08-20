@@ -425,6 +425,20 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     Tabelul `vip_guests` a rămas în bază și în backup: scoaterea din meniu nu
     șterge date. Coloanele `cars.vip_arrived` / `vip_arrived_at` erau citite doar
     de modulul scos, deci nu se mai cer la fiecare încărcare de mașini.
+31. **Dacă o stare se poate seta din UI, trebuie și citită înapoi la pornire.**
+    Coada de înscrieri are trei stări — `pending`, `hold`, `waitlist` — dar
+    `loadData()` cerea doar primele două. „Pe lista de așteptare" scria în bază,
+    dădea toast, desena tabul… și înscrierea dispărea la următoarea pornire.
+    Handlerul de realtime o scotea din `state` la fel, deci pe alt dispozitiv
+    cardul dispărea pe loc. Când adaugi o stare nouă, caută **toate** locurile
+    care enumeră stările, nu doar cel care scrie.
+    A doua parte: în română cele două butoane vecine se citeau aproape la fel
+    („În așteptare" / „Listă de așteptare"), iar badge-urile de pe carduri erau
+    **identice** — `reg.hold` și `reg.waitlist` aveau amândouă textul „În
+    așteptare". În engleză și rusă erau distincte de la început, deci gardă de
+    i18n nu avea ce prinde: cheile existau și erau traduse, doar că în română
+    însemnau același lucru. Acum: „Amână" (amânată, decizi mai târziu) vs
+    „Pe lista de așteptare" (evenimentul e plin).
 
 ## Rămas de făcut manual
 

@@ -247,6 +247,7 @@ export default {
   "reg.approved": "{name} добавлен",
   "reg.new": "Новая заявка",
   "reg.hold": "На рассмотрении",
+  "reg.hold_action": "Отложить",
   "reg.held": "Отложено на рассмотрение",
   "reg.save": "Сохранить",
   "reg.saved": "Изменения сохранены",
