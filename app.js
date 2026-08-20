@@ -20,7 +20,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v117';
+    const APP_VERSION = 'v118';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -449,7 +449,7 @@
       t.addEventListener('click', () => selectSection(t.dataset.section));
     });
 
-    // ----- Command palette (Ctrl/Cmd-K): jump to any car, VIP, event or task -----
+    // ----- Command palette (Ctrl/Cmd-K): jump to any car, event or task -----
     let _cmdkItems = [], _cmdkIdx = 0;
     function openCmdk() {
       const ov = el('cmdk'); if (!ov) return;
@@ -474,15 +474,6 @@
             run: () => { selectSection('cars'); setTimeout(() => { try { showCarDetail(c.id); } catch (_) {} }, 60); } });
         }
         if (items.length > 40) break;
-      }
-      // VIP guests
-      for (const v of (state.vips || [])) {
-        const nm = [v.first_name, v.last_name].filter(Boolean).join(' ');
-        if (!s || hit(nm) || hit(v.company) || hit(v.phone)) {
-          items.push({ type: t('cmdk.vip'), label: nm || v.company || '—', sub: [v.company, v.role].filter(Boolean).join(' · '),
-            run: () => { selectSection('vip'); setTimeout(() => { try { showVipDetail(v.id); } catch (_) {} }, 60); } });
-        }
-        if (items.length > 60) break;
       }
       // Events
       for (const ev of (state.events || [])) {
@@ -2371,22 +2362,6 @@
       }
     });
 
-    el('deleteAllVipsBtn')?.addEventListener('click', async () => {
-      if (!await uiConfirm(t('settings.confirm_delete_all_vips'))) return;
-      try {
-        const { error } = await supa.from('vip_guests').delete().neq('id', 0);
-        if (error) {
-          uiAlert(t('common.error') + ': ' + error.message);
-        } else {
-          uiAlert(t('settings.deleted_all_vips'));
-          await loadData();
-          try { renderVip(); } catch (_) {}
-        }
-      } catch (err) {
-        uiAlert(t('common.error') + ': ' + err.message);
-      }
-    });
-
     // ----- Google Sheets auto-sync (admin) -----
     // The saved CSV link lives in ui_settings; a pg_cron job pulls it every few
     // minutes. This just lets an admin set the link and trigger a sync on demand.
@@ -2424,7 +2399,6 @@
           if (msg) { msg.style.color = 'var(--text-dim)'; msg.textContent = t('sheetsync.started'); }
           setTimeout(async () => {
             try { await loadData(); } catch (_) {}
-            try { renderVip(); } catch (_) {}
             if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('sheetsync.started_done'); }
             if (btn) btn.disabled = false;
           }, 6000);
@@ -2441,7 +2415,6 @@
         if (data && data.error) throw new Error(data.note || data.error);
         if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('sheetsync.done', { n: data?.inserted ?? 0, u: data?.updated ?? 0, s: data?.skipped ?? 0 }); }
         await loadData();
-        try { renderVip(); } catch (_) {}
         if (btn) btn.disabled = false;
       } catch (e) {
         if (msg) { msg.style.color = 'var(--red)'; msg.textContent = t('common.error') + ': ' + (e.message || e); }
@@ -2562,7 +2535,7 @@
     })();
 
     // ================= SMS CENTER (admin) =================
-    // Recipients come from cars (participants) + vip_guests (by category).
+    // Recipients come from the cars of the event in hand.
     // Sending goes through the send-sms edge function; live progress is polled
     // from the sms_history row it updates.
     const SMS_VAR_KEYS = ['prenume', 'nume', 'marca', 'model', 'numar', 'categoria', 'qr_code'];
@@ -2575,8 +2548,6 @@
       return Array.from(document.querySelectorAll('#smsAudience input[type=checkbox]:checked'))
         .map(c => c.dataset.smsAud);
     }
-    // Map an audience checkbox to a vip_guests.category (case-insensitive contains).
-    const SMS_AUD_TO_CAT = { vip: 'vip', media: 'media', staff: 'staff', expozanti: 'expozant', voluntari: 'voluntar' };
 
     // Build the de-duplicated recipient list from the current selection + filters.
     function smsRecipients() {
@@ -2584,10 +2555,9 @@
       const fb = (el('smsFilterBrand')?.value || '').trim();
       const fc = (el('smsFilterCategory')?.value || '').trim();
       const fcity = (el('smsFilterCity')?.value || '').trim();
-      // Keyed by car (or by phone for VIP guests, who have no car). It used to
-      // be keyed by phone alone, which quietly dropped anyone reachable only on
-      // Telegram — and without a car id the sender could never find their chat,
-      // so a campaign could not use the bot at all.
+      // Keyed by car. It used to be keyed by phone alone, which quietly dropped
+      // anyone reachable only on Telegram — and without a car id the sender
+      // could never find their chat, so a campaign could not use the bot.
       const byKey = new Map();
       const add = (phone, vars, carId, chatId) => {
         const n = normalizePhone(phone);
@@ -2610,18 +2580,6 @@
             marca: c.brand || '', model: c.model || '', numar: c.plate || '',
             categoria: c.category || '', qr_code: ticketUrl(c)
           }, c.id, c.telegram_chat_id);
-        }
-      }
-      // VIP guests by category
-      const cats = Array.from(aud).map(a => SMS_AUD_TO_CAT[a]).filter(Boolean);
-      if (cats.length) {
-        for (const v of activeVips()) {
-          const cat = (v.category || 'VIP').toLowerCase();
-          if (!cats.some(k => cat.includes(k))) continue;
-          add(v.phone, {
-            prenume: v.first_name || '', nume: v.last_name || '',
-            marca: '', model: '', numar: '', categoria: v.category || '', qr_code: ''
-          });
         }
       }
       return Array.from(byKey.values());
@@ -2669,9 +2627,9 @@
       fill('smsFilterCity', uniq(cars.map(c => c.city)));
     }
     function renderSmsStats() {
-      const cars = activeCars(), vips = activeVips();
-      const people = cars.length + vips.length;
-      const valid = cars.filter(c => smsPhoneOk(c.phone)).length + vips.filter(v => smsPhoneOk(v.phone)).length;
+      const cars = activeCars();
+      const people = cars.length;
+      const valid = cars.filter(c => smsPhoneOk(c.phone) || c.telegram_chat_id).length;
       const today = new Date().toISOString().slice(0, 10);
       const sentToday = _smsHistory
         .filter(h => (h.created_at || '').slice(0, 10) === today)
@@ -3058,10 +3016,9 @@
 
     // ----- STATE for filters / search -----
     const state = {
-      cars: [], tasks: [], events: [], profiles: [], notifications: [], team: [], announcements: [], vips: [], agenda: [], registrations: [],
+      cars: [], tasks: [], events: [], profiles: [], notifications: [], team: [], announcements: [], agenda: [], registrations: [],
       authUsers: null,
       carsFilter: 'all', carsSearch: '',
-      vipFilter: 'all', vipSearch: '', vipShown: 60,
       tasksFilter: 'all', tasksSearch: '', tasksDept: 'all', tasksAssignee: 'all',
       tasksSort: localStorage.getItem('kultura_tasks_sort') || 'priority',
       tasksView: localStorage.getItem('kultura_tasks_view') || 'list',
@@ -3144,7 +3101,6 @@
     }
     function activeCars()  { return (state.cars  || []).filter(matchesActiveEvent); }
     function activeTasks() { return (state.tasks || []).filter(matchesActiveEvent); }
-    function activeVips()  { return (state.vips  || []).filter(matchesActiveEvent); }
 
     function populateEventPicker() {
       const sel = el('activeEventSelect');
@@ -3191,7 +3147,6 @@
       try { renderMyTasks(); } catch (_) {}
       try { renderZones(); } catch (_) {}
       try { renderTeam(); } catch (_) {}
-      try { renderVip(); } catch (_) {}
       try { renderAgenda(); } catch (_) {}
       try { renderRegQueue(); } catch (_) {}
     }
@@ -3280,8 +3235,8 @@
       if (arrBtn) arrBtn.style.display = staff ? '' : 'none';
       const gateBtn = el('gateOpenBtn');
       if (gateBtn) gateBtn.style.display = staff ? '' : 'none';
-      // Add / import buttons (cars/events/tasks/VIP) are for staff and admins only.
-      document.querySelectorAll('.add-btn[data-modal], #aiImportBtn, #vipImportBtn').forEach(b => {
+      // Add / import buttons (cars/events/tasks) are for staff and admins only.
+      document.querySelectorAll('.add-btn[data-modal], #aiImportBtn').forEach(b => {
         b.style.display = staff ? '' : 'none';
       });
       try { renderRegQueue(); } catch (_) {}
@@ -3301,7 +3256,7 @@
     // (notes, modifications, photos, checklist, detailed_description, …) are only
     // needed in the detail view, which hydrates them on demand. `updated_at` is
     // included so any edit still bumps the fingerprint.
-    const CAR_LIST_COLS  = 'id,entry_no,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,vip_arrived,vip_arrived_at,arrived_at,checked_in_by,checked_in_gate,left_at,checked_out_by,deleted_at,deleted_by,rsvp,rsvp_at,telegram_chat_id,import_batch';
+    const CAR_LIST_COLS  = 'id,entry_no,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,arrived_at,checked_in_by,checked_in_gate,left_at,checked_out_by,deleted_at,deleted_by,rsvp,rsvp_at,telegram_chat_id,import_batch';
     const TASK_LIST_COLS = 'id,title,event,date,status,status_color,is_completed,event_id,due_at,created_at,assigned_user_id,assigned_user_name,started_at,completed_at,completed_by_user_id,completed_by_user_name,priority,category,due_date,created_by,assigned_to,assigned_at,completed_by,team,updated_at,reminder_sent';
 
     // Canonical parking zones (car categories). Single source of truth for the
@@ -3319,8 +3274,7 @@
       return html;
     }
 
-    const CAR_FP_FIELDS   = ['id','entry_no','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at','vip_arrived','rsvp','telegram_chat_id'];
-    const VIP_FP_FIELDS   = ['id','first_name','last_name','company','role','category','guests_count','phone','arrived','arrived_at','event_id','companions','updated_at'];
+    const CAR_FP_FIELDS   = ['id','entry_no','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at','rsvp','telegram_chat_id'];
     const AGENDA_FP_FIELDS = ['id','event_id','title','at_time','notes','updated_at'];
     const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','telegram','email','city','category','year','social_links','transport_info','modifications','photos','status','created_at'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
@@ -3506,7 +3460,6 @@
             supa.from('events').select('*').order('id', { ascending: false }),
             supa.from('profiles').select('*'),
             supa.from('announcements').select('*').order('id', { ascending: false }).limit(20),
-            supa.from('vip_guests').select('*').order('id', { ascending: false }),
             supa.from('event_agenda').select('*').order('at_time', { ascending: true }),
             supa.from('car_registrations').select('*').in('status', ['pending', 'hold']).order('id', { ascending: false }),
             supa.from('plate_blocklist').select('plate, plate_norm, reason').order('id', { ascending: false })
@@ -3533,10 +3486,9 @@
           const nextEvents   = results[2].status === 'fulfilled' && !results[2].value.error ? (results[2].value.data || []) : null;
           const nextProfiles = results[3].status === 'fulfilled' && !results[3].value.error ? (results[3].value.data || []) : null;
           const nextAnnounce = results[4] && results[4].status === 'fulfilled' && !results[4].value.error ? (results[4].value.data || []) : null;
-          const nextVips     = results[5] && results[5].status === 'fulfilled' && !results[5].value.error ? (results[5].value.data || []) : null;
-          const nextAgenda   = results[6] && results[6].status === 'fulfilled' && !results[6].value.error ? (results[6].value.data || []) : null;
-          const nextRegs     = results[7] && results[7].status === 'fulfilled' && !results[7].value.error ? (results[7].value.data || []) : null;
-          const nextBlock    = results[8] && results[8].status === 'fulfilled' && !results[8].value.error ? (results[8].value.data || []) : null;
+          const nextAgenda   = results[5] && results[5].status === 'fulfilled' && !results[5].value.error ? (results[5].value.data || []) : null;
+          const nextRegs     = results[6] && results[6].status === 'fulfilled' && !results[6].value.error ? (results[6].value.data || []) : null;
+          const nextBlock    = results[7] && results[7].status === 'fulfilled' && !results[7].value.error ? (results[7].value.data || []) : null;
 
           if (nextCars     !== null) state.cars     = nextCars;
           try { renderReadyList(); } catch (_) {}
@@ -3544,7 +3496,6 @@
           if (nextEvents   !== null) state.events   = nextEvents;
           if (nextProfiles !== null) state.profiles = nextProfiles;
           if (nextAnnounce !== null) { state.announcements = nextAnnounce; try { renderHomeAnnounce(); renderAnnounceRecent(); } catch (_) {} }
-          if (nextVips     !== null) state.vips     = nextVips;
           if (nextAgenda   !== null) state.agenda   = nextAgenda;
           if (nextRegs     !== null) state.registrations = nextRegs;
           if (nextBlock    !== null) { state.blocklist = nextBlock; rebuildBlockSet(); try { renderBlocklist(); } catch (_) {} }
@@ -3611,7 +3562,6 @@
             tasks:    makeFp(state.tasks,    TASK_FP_FIELDS),
             events:   makeFp(state.events,   EVENT_FP_FIELDS),
             profiles: makeFp(state.profiles, PROF_FP_FIELDS),
-            vips:     makeFp(state.vips,     VIP_FP_FIELDS),
             agenda:   makeFp(state.agenda,   AGENDA_FP_FIELDS),
             regs:     makeFp(state.registrations, REG_FP_FIELDS)
           };
@@ -3619,10 +3569,9 @@
           const tasksChanged  = newFp.tasks    !== _fp.tasks;
           const eventsChanged = newFp.events   !== _fp.events;
           const profsChanged  = newFp.profiles !== _fp.profiles;
-          const vipsChanged   = newFp.vips     !== _fp.vips;
           const agendaChanged = newFp.agenda   !== _fp.agenda;
           const regsChanged   = newFp.regs     !== _fp.regs;
-          const anyChanged    = carsChanged || tasksChanged || eventsChanged || profsChanged || vipsChanged || agendaChanged || regsChanged;
+          const anyChanged    = carsChanged || tasksChanged || eventsChanged || profsChanged || agendaChanged || regsChanged;
 
           // Persist new fingerprints upfront so we don't accidentally re-render
           // the same state twice if a renderer synchronously triggers another poll.
@@ -3630,7 +3579,6 @@
           _fp.tasks    = newFp.tasks;
           _fp.events   = newFp.events;
           _fp.profiles = newFp.profiles;
-          _fp.vips     = newFp.vips;
           _fp.agenda   = newFp.agenda;
           _fp.regs     = newFp.regs;
 
@@ -3673,7 +3621,6 @@
               try { renderCarsChips(); } catch (_) {}
               try { renderCars(); } catch (_) {}
               try { renderZones(); } catch (_) {}   // zone panel depends on cars
-              try { renderVip(); } catch (_) {}      // cars appear as participants in the VIP list
               // Keep the gate's live free-spots strip / list fresh if it's open.
               if (el('gateOverlay')?.classList.contains('show')) {
                 try { renderGateZones(); } catch (_) {}
@@ -3688,9 +3635,6 @@
               try { renderEvents(); } catch (_) {}
               try { updateAvatarUI(); } catch (_) {}
               try { populateTaskAssignees(); } catch (_) {}
-            }
-            if (vipsChanged) {
-              try { renderVip(); } catch (_) {}
             }
             if (agendaChanged || eventsChanged) {
               try { renderAgenda(); } catch (_) {}
@@ -3908,8 +3852,8 @@
             const { error } = await supa.from('cars').update(action.patch).eq('id', action.carId);
             if (error) throw error;
           } else if (action.type === 'row-update') {
-            // Generic queued write for tables other than `cars` (VIP guests,
-            // tasks) so field actions survive a dead connection too.
+            // Generic queued write for tables other than `cars`, so field
+            // actions survive a dead connection too.
             const { error } = await supa.from(action.table).update(action.patch).eq('id', action.rowId);
             if (error) throw error;
           }
@@ -7303,7 +7247,6 @@
         try { renderCarsChips(); } catch (_) {}
         try { renderCars(); } catch (_) {}
         try { renderZones(); } catch (_) {}
-        try { renderVip(); } catch (_) {}
         if (el('gateOverlay')?.classList.contains('show')) {
           try { renderGateZones(); } catch (_) {}
           try { renderGate(); } catch (_) {}
@@ -7338,433 +7281,6 @@
         if (openTaskDetailId != null && tm?.classList.contains('show') && !_isTypingIn(tm)) {
           try { showTaskDetail(openTaskDetailId); } catch (_) {}
         }
-      });
-    }
-
-    // ================= VIP GUESTS =================
-    // A fast door-check screen for the VIP area: search, filter, one-tap arrival
-    // toggle with optimistic save + realtime sync. Windowed list for 5000+ rows.
-    let openVipDetailId = null;
-    let _vipFilteredCount = 0;
-    let _vipIO = null;
-
-    function vipFullName(v) {
-      return [v.first_name, v.last_name].filter(Boolean).join(' ').trim() || t('vip.unnamed');
-    }
-    function vipSubtitle(v) {
-      return [v.company, v.role].filter(Boolean).join(' · ');
-    }
-    function renderVipStats() {
-      const all = vipEntries();
-      const total = all.length, arrived = all.filter(v => v.arrived).length;
-      const set = (id, val) => { const n = el(id); if (n && n.textContent !== String(val)) n.textContent = val; };
-      set('vipStatTotal', total); set('vipStatArrived', arrived); set('vipStatWaiting', total - arrived);
-      set('vipHeadTotal', total); set('vipHeadArrived', arrived);
-    }
-    // The VIP list shows two kinds of people: manually-added VIP guests and the
-    // participants from the cars list. Both are normalised to the same shape so
-    // one card renderer / one filter / one sort covers both. `kind` drives the
-    // badge and the arrive/detail actions.
-    function vipEntries() {
-      const out = [];
-      for (const v of activeVips()) {
-        const cat = (v.category || 'VIP').trim() || 'VIP';
-        out.push({
-          kind: 'vip', id: v.id, key: 'vip-' + v.id,
-          name: vipFullName(v), sub: vipSubtitle(v),
-          badgeText: cat, badgeClass: vipBadgeClass(cat),
-          arrived: !!v.arrived, guests: vipCompanions(v).length,
-          search: [v.first_name, v.last_name, v.company].filter(Boolean).join(' ').toLowerCase()
-        });
-      }
-      for (const c of activeCars()) {
-        // The participant is shown by the OWNER's name — never by the car.
-        // Fall back to the plate only when there is no owner, so the card is
-        // never blank.
-        const name = (c.owner || '').trim() || (c.plate || '').trim() || t('vip.unnamed');
-        // Sub-line kept minimal: just the plate for identification at the gate.
-        const sub = (c.owner || '').trim() && (c.plate || '').trim() ? c.plate.trim() : '';
-        out.push({
-          kind: 'car', id: c.id, key: 'car-' + c.id,
-          name, sub,
-          badgeText: t('vip.badge_participant'), badgeClass: 'participant',
-          // Sosirea în VIP e separată de statusul de la poartă (vip_arrived).
-          arrived: !!c.vip_arrived, guests: 0,
-          search: [c.owner, c.brand, c.model, c.plate].filter(Boolean).join(' ').toLowerCase()
-        });
-      }
-      return out;
-    }
-    // Map a person category to a badge colour class.
-    function vipBadgeClass(cat) {
-      const k = (cat || '').toLowerCase();
-      if (k.includes('particip')) return 'participant';
-      if (k.includes('organiz')) return 'organizator';
-      if (k.includes('partener') || k.includes('partner')) return 'partener';
-      if (k.includes('drift')) return 'drift';
-      return 'vip';
-    }
-    function vipCardHTML(e) {
-      const name = e.name;
-      const arrived = !!e.arrived;
-      const isCar = e.kind === 'car';
-      const badgeLabel = e.badgeText || (isCar ? t('vip.badge_participant') : t('vip.badge_vip'));
-      const badgeClass = e.badgeClass || (isCar ? 'participant' : 'vip');
-      const arriveAttr = isCar ? `data-car-arrive="${e.id}"` : `data-vip-arrive="${e.id}"`;
-      const idAttr = isCar ? `data-car-id="${e.id}"` : `data-vip-id="${e.id}"`;
-      return `
-        <article class="vip-card ${arrived ? 'arrived' : ''}" ${idAttr}>
-          <div class="vip-av" style="${avatarBg(name)}">${escape(twoInitials(name))}</div>
-          <div class="vip-main">
-            <div class="vip-nrow"><span class="vip-name">${escape(name)}</span><span class="vip-badge ${badgeClass}">${escape(badgeLabel)}</span></div>
-            ${e.sub ? `<div class="vip-sub">${escape(e.sub)}</div>` : ''}
-            <div class="vip-meta">
-              <span class="vip-status ${arrived ? 'on' : 'off'}">${arrived ? '🟢' : '🔴'} ${escape(arrived ? t('vip.arrived_yes') : t('vip.arrived_no'))}</span>
-              ${e.guests > 0 ? `<span class="vip-guests">👥 ${e.guests}</span>` : ''}
-            </div>
-          </div>
-          ${roleAtLeast('staff') ? `<button class="vip-arrive-btn ${arrived ? 'undo' : ''}" ${arriveAttr} type="button">
-            ${arrived ? '↩ ' + escape(t('vip.undo')) : '✔ ' + escape(t('vip.mark_arrived'))}
-          </button>` : ''}
-        </article>`;
-    }
-    function ensureVipObserver() {
-      if (_vipIO) return;
-      const sentinel = el('vipSentinel');
-      if (!sentinel || !('IntersectionObserver' in window)) return;
-      _vipIO = new IntersectionObserver((entries) => {
-        if (entries.some(e => e.isIntersecting) && state.vipShown < _vipFilteredCount) {
-          state.vipShown += 60;
-          renderVip();
-        }
-      }, { rootMargin: '500px' });
-      _vipIO.observe(sentinel);
-    }
-    function renderVip() {
-      const list = el('vipList');
-      if (!list) return;
-      ensureVipObserver();
-      renderVipStats();
-      const q = (state.vipSearch || '').trim().toLowerCase();
-      const f = state.vipFilter || 'all';
-      let rows = vipEntries().filter(e => {
-        if (f === 'arrived' && !e.arrived) return false;
-        if (f === 'waiting' && e.arrived) return false;
-        if (!q) return true;
-        return e.search.includes(q);
-      });
-      // Alphabetical by name (Romanian collation, case-insensitive).
-      rows.sort((a, b) => a.name.localeCompare(b.name, 'ro', { sensitivity: 'base' }));
-      _vipFilteredCount = rows.length;
-      if (!rows.length) {
-        list.innerHTML = `<div class="vip-empty">${escape((q || f !== 'all') ? t('vip.none_match') : t('vip.none'))}</div>`;
-        return;
-      }
-      const shown = Math.min(state.vipShown, rows.length);
-      list.innerHTML = rows.slice(0, shown).map(vipCardHTML).join('');
-    }
-    function flashVipCard(id) {
-      const node = document.querySelector(`.vip-card[data-vip-id="${id}"]`);
-      if (!node) return;
-      node.classList.remove('just-arrived'); void node.offsetWidth; node.classList.add('just-arrived');
-      setTimeout(() => node.classList.remove('just-arrived'), 950);
-    }
-    function applyLocalVipPatch(id, patch) {
-      const i = (state.vips || []).findIndex(x => String(x.id) === String(id));
-      if (i < 0) return;
-      state.vips[i] = { ...state.vips[i], ...patch };
-      _fp.vips = makeFp(state.vips, VIP_FP_FIELDS);
-      withPreservedUI(() => { try { renderVip(); } catch (_) {} });
-      const dm = document.getElementById('modal-vip-detail');
-      if (openVipDetailId != null && dm?.classList.contains('show')) { try { showVipDetail(openVipDetailId); } catch (_) {} }
-    }
-    function toggleVipArrived(id) {
-      const v = (state.vips || []).find(x => String(x.id) === String(id));
-      if (!v) return;
-      const arrived = !v.arrived;
-      const patch = { arrived, arrived_at: arrived ? new Date().toISOString() : null };
-      applyLocalVipPatch(id, patch); // optimistic
-      if (arrived) { haptic(120); flashVipCard(id); try { auroraPulse(); } catch (_) {} }
-      // Queued like gate check-ins: marking a VIP as arrived is a field action
-      // and must not be lost when the venue's connection drops.
-      enqueueAction({ type: 'row-update', table: 'vip_guests', rowId: id, patch });
-      flushOutbox();
-      updateGateSyncUI();
-      const base = arrived ? t('vip.toast_arrived', { name: vipFullName(v) }) : t('vip.toast_undo', { name: vipFullName(v) });
-      showToast(navigator.onLine ? base : base + ' · ' + t('offline.queued'));
-    }
-    // Arrive toggle for a participant (car) shown in the VIP list. This is a
-    // SEPARATE arrival state (vip_arrived) — it does NOT touch the gate status.
-    function toggleCarArrivedFromVip(id) {
-      const car = (state.cars || []).find(c => String(c.id) === String(id));
-      if (!car) return;
-      const arrived = !car.vip_arrived;
-      const patch = { vip_arrived: arrived, vip_arrived_at: arrived ? new Date().toISOString() : null };
-      applyLocalCarPatch(id, patch);
-      enqueueAction({ type: 'car-update', carId: id, patch });
-      flushOutbox();
-      if (arrived) { haptic(120); try { auroraPulse(); } catch (_) {} }
-      try { renderVip(); } catch (_) {}
-      const name = (car.owner || '').trim() || [car.brand, car.model].filter(Boolean).join(' ') || car.plate || '';
-      showToast(arrived ? t('vip.toast_arrived', { name }) : t('vip.toast_undo', { name }));
-    }
-    // WhatsApp + Call buttons for a VIP guest (uses the phone field).
-    function vipContactButtons(v) {
-      const phone = normalizePhone(v.phone);
-      if (!phone) return '';
-      const name = vipFullName(v);
-      const ev = (state.events || []).find(e => String(e.id) === String(v.event_id));
-      const parts = [`Bună${name && name !== t('vip.unnamed') ? ' ' + name : ''}!`];
-      if (ev?.title) parts.push(`Vă așteptăm la ${ev.title}.`);
-      const msg = encodeURIComponent(parts.join(' '));
-      const wa = `https://wa.me/${phone}?text=${msg}`;
-      const tel = `tel:+${phone}`;
-      return `
-        <div class="vip-contact">
-          <a class="btn ghost contact-wa" href="${wa}" target="_blank" rel="noopener">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm5.8 14.01c-.24.68-1.42 1.31-1.96 1.35-.5.05-.96.23-3.23-.67-2.73-1.08-4.45-3.88-4.58-4.06-.13-.18-1.1-1.46-1.1-2.79 0-1.33.7-1.98.94-2.25.24-.27.53-.34.7-.34.18 0 .35 0 .5.01.16.01.38-.06.59.45.24.58.81 2 .88 2.14.07.14.12.31.02.49-.09.18-.14.29-.28.45-.14.16-.29.36-.42.48-.14.14-.28.29-.12.56.16.27.71 1.17 1.53 1.9 1.05.94 1.94 1.23 2.21 1.37.27.14.43.12.59-.07.16-.18.68-.79.86-1.07.18-.27.36-.22.6-.13.24.09 1.55.73 1.81.86.27.14.44.2.5.31.07.11.07.63-.17 1.31z"/></svg>
-            WhatsApp
-          </a>
-          <a class="btn ghost" href="${tel}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-            ${escape(t('car.contact.call'))}
-          </a>
-        </div>`;
-    }
-    function vipDetailRow(label, value) {
-      return `<div class="vip-drow"><span class="vip-drow-l">${escape(label)}</span><span class="vip-drow-v">${escape(value)}</span></div>`;
-    }
-    // Named companions the guest arrives with — stored as a jsonb array.
-    function vipCompanions(v) {
-      const c = v && v.companions;
-      return Array.isArray(c) ? c : [];
-    }
-    function companionName(c) {
-      return [c && c.first, c && c.last].filter(Boolean).join(' ').trim();
-    }
-    async function saveVipCompanions(id, arr) {
-      // Stored count = number of accompanying people (matches the card badge).
-      const count = arr.length;
-      applyLocalVipPatch(id, { companions: arr, guests_count: count }); // optimistic (re-renders detail)
-      const { error } = await supa.from('vip_guests').update({ companions: arr, guests_count: count }).eq('id', id);
-      if (error) showToast(t('common.error') + ': ' + error.message, 'error');
-    }
-    function companionsSectionHTML(v) {
-      const list = vipCompanions(v);
-      const staff = roleAtLeast('staff');
-      const items = list.map((c, i) => `
-        <div class="vip-comp-row">
-          <span class="vip-comp-nm">${escape(companionName(c) || t('vip.unnamed'))}</span>
-          ${staff ? `<button class="vip-comp-del" data-vip-comp-del="${i}" type="button" aria-label="${escape(t('common.delete'))}">&times;</button>` : ''}
-        </div>`).join('');
-      return `
-        <div class="vip-comp">
-          <div class="vip-comp-h">${escape(t('vip.companions'))}${list.length ? ` (${list.length})` : ''}</div>
-          <div class="vip-comp-list">${items || `<div class="vip-comp-empty">${escape(t('vip.companions_empty'))}</div>`}</div>
-          ${staff ? `<div class="vip-comp-add">
-            <input type="text" id="vipCompFirst" placeholder="${escape(t('vip.f_first'))}">
-            <input type="text" id="vipCompLast" placeholder="${escape(t('vip.f_last'))}">
-            <button class="btn small" id="vipCompAddBtn" type="button">${escape(t('vip.companions_add'))}</button>
-          </div>` : ''}
-        </div>`;
-    }
-    function showVipDetail(id) {
-      const v = (state.vips || []).find(x => String(x.id) === String(id));
-      if (!v) return;
-      openVipDetailId = v.id;
-      const name = vipFullName(v);
-      el('vipDetailTitle').textContent = name;
-      el('vipDetailBadges').innerHTML =
-        `<span class="vip-status ${v.arrived ? 'on' : 'off'}">${v.arrived ? '🟢' : '🔴'} ${escape(v.arrived ? t('vip.arrived_yes') : t('vip.arrived_no'))}</span>`;
-      const rows = [];
-      const sub = vipSubtitle(v);
-      if (sub) rows.push(vipDetailRow(t('vip.company_role'), sub));
-      if (v.phone) rows.push(`<div class="vip-drow"><span class="vip-drow-l">${escape(t('vip.phone'))}</span><a class="vip-drow-v vip-phone" href="tel:${escape(v.phone)}">${escape(v.phone)}</a></div>`);
-      if (v.arrived && v.arrived_at) rows.push(vipDetailRow(t('vip.arrived_at'), fmtRelative(v.arrived_at)));
-      if (v.notes) rows.push(vipDetailRow(t('vip.notes'), v.notes));
-      el('vipDetailBody').innerHTML = rows.join('') + vipContactButtons(v) + companionsSectionHTML(v);
-      el('vipDetailActions').innerHTML = roleAtLeast('staff')
-        ? `<button class="btn vip-detail-toggle ${v.arrived ? 'ghost' : ''}" data-vip-arrive="${v.id}" type="button">${v.arrived ? '↩ ' + escape(t('vip.undo')) : '✔ ' + escape(t('vip.mark_arrived'))}</button>`
-        : '';
-      // Wire the companions editor (elements are rebuilt on every open).
-      const addBtn = el('vipCompAddBtn');
-      if (addBtn) {
-        const doAdd = () => {
-          const first = (el('vipCompFirst').value || '').trim();
-          const last = (el('vipCompLast').value || '').trim();
-          if (!first && !last) { el('vipCompFirst').focus(); return; }
-          const arr = vipCompanions(v).concat([{ first, last }]);
-          saveVipCompanions(v.id, arr);
-        };
-        addBtn.onclick = doAdd;
-        ['vipCompFirst', 'vipCompLast'].forEach(fid => {
-          const inp = el(fid);
-          if (inp) inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); doAdd(); } });
-        });
-      }
-      el('vipDetailBody').querySelectorAll('[data-vip-comp-del]').forEach(btn => {
-        btn.onclick = () => {
-          const idx = parseInt(btn.dataset.vipCompDel, 10);
-          const arr = vipCompanions(v).filter((_, i) => i !== idx);
-          saveVipCompanions(v.id, arr);
-        };
-      });
-      openModal('vip-detail');
-    }
-
-    // VIP wiring
-    el('vipChips')?.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-vip-filter]');
-      if (!b) return;
-      state.vipFilter = b.dataset.vipFilter;
-      state.vipShown = 60;
-      el('vipChips').querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c === b));
-      renderVip();
-    });
-    el('vipList')?.addEventListener('click', (e) => {
-      const ab = e.target.closest('[data-vip-arrive]');
-      if (ab) { e.stopPropagation(); toggleVipArrived(ab.dataset.vipArrive); return; }
-      const cab = e.target.closest('[data-car-arrive]');
-      if (cab) { e.stopPropagation(); toggleCarArrivedFromVip(cab.dataset.carArrive); return; }
-      const vcard = e.target.closest('[data-vip-id]');
-      if (vcard) { showVipDetail(vcard.dataset.vipId); return; }
-      const ccard = e.target.closest('[data-car-id]');
-      if (ccard) showCarDetail(ccard.dataset.carId);
-    });
-    el('vipDetailActions')?.addEventListener('click', (e) => {
-      const ab = e.target.closest('[data-vip-arrive]');
-      if (ab) toggleVipArrived(ab.dataset.vipArrive);
-    });
-    (function () {
-      let tvip;
-      el('vipSearch')?.addEventListener('input', (e) => {
-        state.vipSearch = e.target.value;
-        state.vipShown = 60;
-        clearTimeout(tvip);
-        tvip = setTimeout(renderVip, 150);
-      });
-    })();
-    el('form-add-vip')?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const f = e.target;
-      const fd = new FormData(f);
-      const btn = f.querySelector('button[type="submit"]');
-      const msg = el('modal-add-vip-msg');
-      const showErr = (txt) => { if (msg) { msg.textContent = txt; msg.className = 'modal-msg show'; msg.style.color = 'var(--red)'; } };
-      const row = {
-        first_name: (fd.get('first_name') || '').trim(),
-        last_name: (fd.get('last_name') || '').trim(),
-        company: (fd.get('company') || '').trim() || null,
-        role: (fd.get('role') || '').trim() || null,
-        category: (fd.get('category') || 'VIP').trim() || 'VIP',
-        phone: (fd.get('phone') || '').trim() || null,
-        notes: (fd.get('notes') || '').trim() || null,
-        event_id: fd.get('event_id') ? Number(fd.get('event_id')) : null
-      };
-      if (!row.first_name && !row.last_name) { showErr(t('vip.err_name')); return; }
-      if (btn) btn.disabled = true;
-      const { error } = await supa.from('vip_guests').insert(row);
-      if (btn) btn.disabled = false;
-      if (error) { showErr(t('common.error') + ': ' + error.message); return; }
-      closeModal(document.getElementById('modal-add-vip'));
-      await loadData();
-      renderVip();
-    });
-
-    // ----- Import VIP guests from an Excel/CSV file -----
-    // Flexible header matching (ro/en/ru). A single "name" column is split into
-    // first/last on the first space.
-    function mapVipRow(obj) {
-      const entries = Object.keys(obj).map(k => [String(k).trim().toLowerCase(), obj[k]]);
-      const keys = entries.map(e => e[0]);
-      // First matching column value for a predicate over the (lowercased) header.
-      const val = (pred) => {
-        for (const [k, v] of entries) {
-          if (pred(k) && v != null && String(v).trim() !== '') return String(v).trim();
-        }
-        return '';
-      };
-      const isFirstCol = (k) => k.includes('prenume') || k.includes('first') || k === 'имя';
-      const isNameCol  = (k) => k.includes('nume') || k.includes('name') || k.includes('famil') ||
-                                k.includes('surname') || k.includes('фамил') || k.includes('полное');
-      const hasFirstCol = keys.some(isFirstCol);
-      let first, last;
-      if (hasFirstCol) {
-        // Separate columns: "prenume" → first, a name column that isn't "prenume" → last.
-        first = val(isFirstCol);
-        last = val((k) => isNameCol(k) && !isFirstCol(k));
-      } else {
-        // Single name column (full name) → split on the first space.
-        const full = val((k) => isNameCol(k) || k === 'имя');
-        const parts = full.split(/\s+/);
-        first = parts.shift() || '';
-        last = parts.join(' ');
-      }
-      return {
-        first_name: first,
-        last_name: last,
-        company: val((k) => k.includes('compan') || k.includes('firm') || k.includes('компан')) || null,
-        role: val((k) => k.includes('func') || k.includes('role') || k.includes('должност')) || null,
-        phone: val((k) => k.includes('telefon') || k.includes('phone') || k === 'tel' || k.includes('телефон')) || null
-      };
-    }
-    async function importVipFromExcel(file) {
-      if (!file) return;
-      let rows;
-      try {
-        const XLSX = await ensureXLSX();
-        const buf = await file.arrayBuffer();
-        const wb = XLSX.read(buf, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
-        rows = json.map(mapVipRow).filter(r => r.first_name || r.last_name);
-      } catch (e) {
-        uiAlert(t('vip.import_err') + ' ' + (e.message || e));
-        return;
-      }
-      if (!rows.length) { uiAlert(t('vip.import_empty')); return; }
-      const ok = await uiConfirm(t('vip.import_confirm', { n: rows.length }));
-      if (!ok) return;
-      // Scope imported guests to the active event, when one is selected.
-      const ev = state.activeEventId ? Number(state.activeEventId) : null;
-      if (ev) rows.forEach(r => { r.event_id = ev; });
-      const BATCH = 100;
-      let done = 0;
-      try {
-        for (let i = 0; i < rows.length; i += BATCH) {
-          const { error } = await supa.from('vip_guests').insert(rows.slice(i, i + BATCH));
-          if (error) throw new Error(error.message);
-          done += Math.min(BATCH, rows.length - i);
-        }
-      } catch (e) {
-        uiAlert(t('common.error') + ': ' + (e.message || e));
-      }
-      await loadData();
-      renderVip();
-      if (done) showToast(t('vip.import_done', { n: done }));
-    }
-    el('vipImportBtn')?.addEventListener('click', () => el('vipImportInput')?.click());
-    el('vipImportInput')?.addEventListener('change', (e) => {
-      const file = e.target.files && e.target.files[0];
-      e.target.value = ''; // allow re-selecting the same file
-      importVipFromExcel(file);
-    });
-
-    function applyRealtimeVip(payload) {
-      if (!state.vips) state.vips = [];
-      const { eventType, new: nu, old: ou } = payload;
-      if (eventType === 'DELETE') {
-        state.vips = state.vips.filter(x => String(x.id) !== String(ou?.id));
-      } else if (nu) {
-        const i = state.vips.findIndex(x => String(x.id) === String(nu.id));
-        if (i >= 0) state.vips[i] = { ...state.vips[i], ...nu };
-        else state.vips.unshift(nu);
-      }
-      _fp.vips = makeFp(state.vips, VIP_FP_FIELDS);
-      withPreservedUI(() => {
-        try { renderVip(); } catch (_) {}
-        const dm = document.getElementById('modal-vip-detail');
-        if (openVipDetailId != null && dm?.classList.contains('show')) { try { showVipDetail(openVipDetailId); } catch (_) {} }
       });
     }
 
@@ -8202,12 +7718,6 @@
           state.profiles = state.profiles.filter(p => p.email !== (ou?.email));
         }
         if (typeof renderTeam === 'function') renderTeam();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'vip_guests' }, (payload) => {
-        if (payload.eventType === 'UPDATE' && payload.new.arrived && !payload.old.arrived) {
-          sendAppNotification('Invitat VIP sosit', `${[payload.new.first_name, payload.new.last_name].filter(Boolean).join(' ')} a sosit.`);
-        }
-        applyRealtimeVip(payload);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, (payload) => {
         // Team announcements broadcast live to everyone (no 20s poll wait).
