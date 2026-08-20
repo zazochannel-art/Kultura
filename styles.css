@@ -1,4 +1,9 @@
 :root {
+      /* Native popups (select option lists, date pickers) are drawn by the OS,
+         not by us. Without a scheme it draws them light while our options
+         inherit the near-white --text — white on white. [data-theme="light"]
+         flips this further down. */
+      color-scheme: dark;
       /* Premium dark palette (Linear / Vercel / Stripe inspired). */
       --bg: #09090B;
       --surface: rgba(24,24,27,0.72);
@@ -1071,7 +1076,6 @@
       background-repeat: no-repeat;
       background-position: right 14px center;
       padding-right: 40px;
-      color-scheme: dark;
     }
     .form-field select option,
     .form-field select optgroup {
@@ -1253,6 +1257,11 @@
       background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='1 1 6 6 11 1'/></svg>");
       background-repeat: no-repeat;
       background-position: right 14px center;
+    }
+    .detail-select option,
+    .detail-select optgroup {
+      background-color: var(--surface-solid);
+      color: var(--text);
     }
 
     .detail-edit-btn {

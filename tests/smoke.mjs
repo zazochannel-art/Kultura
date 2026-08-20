@@ -328,9 +328,41 @@ try {
       check('block-detail-warns', /lista neagră|blocklist|чёрн/i.test(det.warn));
       check('block-detail-shows-reason', det.warn.includes('QA reason'));
       check('block-detail-badge', det.badges.some((b) => /⛔/.test(b)));
+
+      // The zone was two clicks and a placeholder sentence away from a list of
+      // nine, and the list itself was unreadable: the OS drew the popup white
+      // while the options inherited the near-white --text off the select.
+      const zone = await bp.evaluate(() => {
+        const sel = document.getElementById('carZoneInput');
+        const opt = sel && sel.options[1];
+        const cs = opt ? getComputedStyle(opt) : null;
+        return {
+          hasSelect: !!sel,
+          hasEditBtn: !!document.getElementById('carEditZoneBtn'),
+          options: sel ? sel.options.length : 0,
+          optBg: cs ? cs.backgroundColor : '',
+          optFg: cs ? cs.color : '',
+          rootScheme: getComputedStyle(document.documentElement).colorScheme,
+        };
+      });
+      check('carzone-select-shown-directly', zone.hasSelect && !zone.hasEditBtn);
+      // Placeholder + the nine parking zones.
+      check('carzone-lists-all-zones', zone.options === 10);
+      // The exact failure that made the list look empty. Note the condition:
+      // an option with NO background of its own computes to rgba(0,0,0,0) and
+      // lets the OS popup's white through under near-white text. Comparing the
+      // two colours is not enough — transparent differs from white, so the
+      // first version of this check passed with the fix deliberately removed.
+      // What matters is that the option paints its own opaque background.
+      const opaque = /^rgb\(/.test(zone.optBg);
+      check('carzone-options-readable', opaque && zone.optBg !== zone.optFg);
+      // Root cause: no scheme meant the OS chose a light popup under dark text.
+      check('native-popups-follow-dark-scheme', zone.rootScheme === 'dark');
     } catch (e) {
       for (const n of ['block-hydrates-from-cache', 'block-card-flagged', 'block-clean-car-unflagged',
-        'block-reason-in-tooltip', 'block-detail-warns', 'block-detail-shows-reason', 'block-detail-badge']) {
+        'block-reason-in-tooltip', 'block-detail-warns', 'block-detail-shows-reason', 'block-detail-badge',
+        'carzone-select-shown-directly', 'carzone-lists-all-zones', 'carzone-options-readable',
+        'native-popups-follow-dark-scheme']) {
         if (!checks.some((c) => c.name === n)) check(n, false);
       }
       console.log(`blocklist checks: ${e.message}`);

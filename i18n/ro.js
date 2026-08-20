@@ -747,7 +747,6 @@ export default {
   "modal.add_event.cover_pick": "Alege imagine",
   "car.detail.no_photos": "Nicio fotografie",
   "car.detail.section_zone": "Zona",
-  "car.detail.zone_empty": "Zona nu este completată. Apasă \"Editează\" pentru a scrie zona plasată.",
   "car.detail.zone_placeholder": "ex: A1, VIP, Terasa etc.",
   "car.detail.zone_saved": "Zona a fost actualizată.",
   "car.detail.section_car": "Mașină",
