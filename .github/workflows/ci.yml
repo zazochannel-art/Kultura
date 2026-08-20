@@ -29,6 +29,11 @@ jobs:
       - name: i18n guard
         run: node scripts/check-i18n.mjs
 
+      # An orphan closing tag renders fine and logs nothing — the smoke suite
+      # cannot see it. This can.
+      - name: Markup guard
+        run: node scripts/check-markup.mjs
+
       - name: Unit tests
         run: node --test tests/unit.mjs
 

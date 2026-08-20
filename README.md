@@ -1,7 +1,7 @@
 # Kultura
 
 Aplicație de management pentru evenimente auto: înscrieri, check-in la poartă,
-zone de parcare, taskuri de echipă, invitați VIP, SMS/push, votare publică și
+zone de parcare, taskuri de echipă, mesaje pe Telegram/SMS, votare publică și
 rapoarte.
 
 PWA fără build step — HTML/CSS/JS servite static, cu Supabase ca backend.
@@ -414,6 +414,17 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     `no_provider` când există bot de Telegram: aici **nu a existat niciodată** un
     furnizor SMS configurat, deci Telegram e adesea singurul canal care chiar
     livrează.
+30. **O secțiune goală nu e gratis.** Modulul „Invitați VIP" (tabel `vip_guests`,
+    două taburi, două modale, listă proprie) a trăit cu **zero rânduri** de la
+    început. Nu deranja pe nimeni în cod, dar ocupa un loc în meniul pe care îl
+    vede și un voluntar de la poartă, plus un `select` și un abonament realtime
+    la fiecare pornire. A fost scos din interfață.
+    Ce **nu** s-a scos, și nu se confundă cu el: steagul `cars.is_vip` — badge-ul
+    de pe mașină, chipul „VIP" din Mașini și marcajul de la poartă. E singurul
+    „VIP" care a fost folosit vreodată.
+    Tabelul `vip_guests` a rămas în bază și în backup: scoaterea din meniu nu
+    șterge date. Coloanele `cars.vip_arrived` / `vip_arrived_at` erau citite doar
+    de modulul scos, deci nu se mai cer la fiecare încărcare de mașini.
 
 ## Rămas de făcut manual
 

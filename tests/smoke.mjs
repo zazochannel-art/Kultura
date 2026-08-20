@@ -78,10 +78,6 @@ try {
     announceBlock: !!document.getElementById('announceBlock'),
     platB: !!document.getElementById('gatePlateBtn'),
     zoneBoard: !!document.getElementById('zoneBoard'),
-    vipSection: !!document.getElementById('section-vip'),
-    vipList: !!document.getElementById('vipList'),
-    vipAddModal: !!document.getElementById('modal-add-vip'),
-    vipStat: !!document.getElementById('vipStatTotal'),
     regQueue: !!document.getElementById('regQueue'),
     gateLogout: !!document.getElementById('gateLogoutBtn'),
     agendaBlock: !!document.getElementById('agendaBlock'),
@@ -106,6 +102,27 @@ try {
     afluxCounters: !!document.getElementById('afluxCounters'),
   }));
   Object.entries(els).forEach(([k, v]) => check('element:' + k, v));
+
+  // The VIP-guests module was removed: it held zero rows for the whole life of
+  // the app while taking a slot in the menu that a gate volunteer also saw.
+  // The VIP *flag on a car* is a different thing and stays — pinned below.
+  const vipGone = await page.evaluate(() => ({
+    section: !!document.getElementById('section-vip'),
+    list: !!document.getElementById('vipList'),
+    addModal: !!document.getElementById('modal-add-vip'),
+    detailModal: !!document.getElementById('modal-vip-detail'),
+    tab: !!document.querySelector('[data-section="vip"]'),
+    deleteAll: !!document.getElementById('deleteAllVipsBtn'),
+  }));
+  check('vip-module-section-gone', !vipGone.section);
+  check('vip-module-list-gone', !vipGone.list);
+  check('vip-module-modals-gone', !vipGone.addModal && !vipGone.detailModal);
+  check('vip-module-tab-gone', !vipGone.tab);
+  check('vip-module-settings-row-gone', !vipGone.deleteAll);
+  // The car-level VIP flag must survive the removal — asserted further down,
+  // in the event-scope block, because the chips are rendered from data and
+  // this page has none. Checking for the chip here would pass on an empty
+  // container, which is how a dead check looks alive.
 
   // 1b. Command palette opens on Ctrl-K and filters.
   await page.keyboard.press('Control+KeyK');
@@ -708,6 +725,7 @@ try {
         return {
           carsCount: Number(document.getElementById('carsCount')?.textContent),
           carsAll: n('#carsChips .chip'),
+          vipChip: !!document.querySelector('#carsChips [data-cars-filter="vip"]'),
           tasksAll: n('#tasksChips .chip'),
           regs: document.querySelectorAll('#regQueue .reg-card').length,
           pubLink: document.getElementById('regLink')?.value || '',
@@ -719,6 +737,9 @@ try {
       check('scope-tasks-chip-follows', on6.tasksAll === 1);
       check('scope-reg-queue-follows', on6.regs === 1);
       check('scope-public-link-carries-event', /[?&]event=6\b/.test(on6.pubLink));
+      // Removing the VIP-guests module must not take the VIP flag on a car with
+      // it: the chip is the only way to pull that list up at the gate.
+      check('vip-car-flag-kept', on6.vipChip);
 
       await cp.evaluate(() => {
         const s = document.getElementById('activeEventSelect');
@@ -735,7 +756,8 @@ try {
         'event-scope-finished-still-reachable', 'event-scope-all-shows-everything',
         'event-scope-unassigned-always-visible', 'scope-cars-count-follows',
         'scope-cars-chip-follows', 'scope-tasks-chip-follows', 'scope-reg-queue-follows',
-        'scope-public-link-carries-event', 'scope-counts-update-on-switch']) {
+        'scope-public-link-carries-event', 'scope-counts-update-on-switch',
+        'vip-car-flag-kept']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
       console.log(`event scope checks: ${e.message}`);
