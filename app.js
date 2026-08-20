@@ -20,7 +20,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v118';
+    const APP_VERSION = 'v119';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -3461,7 +3461,10 @@
             supa.from('profiles').select('*'),
             supa.from('announcements').select('*').order('id', { ascending: false }).limit(20),
             supa.from('event_agenda').select('*').order('at_time', { ascending: true }),
-            supa.from('car_registrations').select('*').in('status', ['pending', 'hold']).order('id', { ascending: false }),
+            // 'waitlist' belongs here too: the queue renders a tab for it and the
+            // detail modal can move a registration onto it. Fetching only the
+            // other two meant a waitlisted entry vanished on the next load.
+            supa.from('car_registrations').select('*').in('status', ['pending', 'hold', 'waitlist']).order('id', { ascending: false }),
             supa.from('plate_blocklist').select('plate, plate_norm, reason').order('id', { ascending: false })
           ]);
 
@@ -7642,7 +7645,7 @@
       if (eventType === 'DELETE') {
         state.registrations = state.registrations.filter(r => String(r.id) !== String(ou?.id));
       } else if (nu) {
-        if (nu.status !== 'pending' && nu.status !== 'hold') {
+        if (nu.status !== 'pending' && nu.status !== 'hold' && nu.status !== 'waitlist') {
           state.registrations = state.registrations.filter(r => String(r.id) !== String(nu.id));
         } else {
           const i = state.registrations.findIndex(r => String(r.id) === String(nu.id));

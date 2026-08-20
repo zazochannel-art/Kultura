@@ -1017,6 +1017,89 @@ try {
     await tctx.close();
   }
 
+  // 4ka. The registration queue has two neighbouring buttons — hold and
+  // waitlist — and only one of them survived a reload. `loadData()` asked for
+  // status in ('pending','hold'), so a registration moved to the waitlist was
+  // written, acknowledged with a toast, rendered into its own tab, and then
+  // gone the next time the app started. The realtime handler dropped it too.
+  //
+  // The mock here honours `status=in.(...)` the way PostgREST does, instead of
+  // answering every query with the same array. That is the whole point: a mock
+  // that ignores the filter cannot tell a correct query from a broken one, and
+  // would have reported this defect as working.
+  {
+    const REGS = [
+      { id: 21, brand: 'R', model: 'Pending', owner: 'o', plate: 'Q1', status: 'pending', event_id: 6, photos: [], created_at: new Date().toISOString() },
+      { id: 22, brand: 'R', model: 'Hold', owner: 'o', plate: 'Q2', status: 'hold', event_id: 6, photos: [], created_at: new Date().toISOString() },
+      { id: 23, brand: 'R', model: 'Wait', owner: 'o', plate: 'Q3', status: 'waitlist', event_id: 6, photos: [], created_at: new Date().toISOString() },
+    ];
+    const rctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+    await rctx.route('**://*.supabase.co/**', (r) => {
+      const u = r.request().url();
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      if (u.includes('/rest/v1/car_registrations')) {
+        // Mirror PostgREST: only hand back the statuses actually asked for.
+        const m = decodeURIComponent(u).match(/status=in\.\(([^)]*)\)/);
+        const want = m ? m[1].split(',').map((x) => x.replace(/"/g, '').trim()) : null;
+        return J(want ? REGS.filter((x) => want.includes(x.status)) : REGS);
+      }
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'planned', event_date: new Date(Date.now() + 864e5).toISOString().slice(0, 10) }]);
+      if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+      if (u.includes('/rest/v1/')) return J([]);
+      if (u.includes('/functions/v1/')) return J({});
+      return r.abort();
+    });
+    const rp = await rctx.newPage();
+    await rp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+    await rp.evaluate(() => {
+      localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      }));
+    });
+    await rp.reload({ waitUntil: 'domcontentloaded' });
+    await rp.waitForSelector('#regQueue .chip', { state: 'attached', timeout: 12000 }).catch(() => {});
+    await rp.waitForTimeout(1200);
+    try {
+      const q = await rp.evaluate(() => {
+        const n = (k) => {
+          const c = document.querySelector(`#regQueue [data-reg-filter="${k}"] .count`);
+          return c ? Number((c.textContent.match(/(\d+)/) || [])[1]) : null;
+        };
+        const labels = [...document.querySelectorAll('#regQueue [data-reg-filter]')]
+          .map((b) => b.textContent.replace(/\s+/g, ' ').replace(/·.*/, '').trim());
+        return {
+          pending: n('pending'), hold: n('hold'), waitlist: n('waitlist'),
+          labels,
+          holdBtn: (document.getElementById('regDetailHold')?.textContent || '').trim(),
+          waitBtn: (document.getElementById('regDetailWaitlist')?.textContent || '').trim(),
+        };
+      });
+      check('regqueue-pending-loaded', q.pending === 1);
+      check('regqueue-hold-loaded', q.hold === 1);
+      // The bug: this tab never appeared, because the row was never fetched.
+      check('regqueue-waitlist-survives-reload', q.waitlist === 1);
+      // The two tabs read identically in Romanian before this: both "În așteptare".
+      check('regqueue-tab-labels-distinct', new Set(q.labels).size === q.labels.length);
+      // Same for the two buttons sitting next to each other in the modal.
+      check('regqueue-action-buttons-distinct',
+        !!q.holdBtn && !!q.waitBtn && q.holdBtn !== q.waitBtn);
+    } catch (e) {
+      for (const n of ['regqueue-pending-loaded', 'regqueue-hold-loaded',
+        'regqueue-waitlist-survives-reload', 'regqueue-tab-labels-distinct',
+        'regqueue-action-buttons-distinct']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`reg queue checks: ${e.message}`);
+    }
+    await rctx.close();
+  }
+
   // 4l. The "are you coming?" page. A "no" frees a spot, so the page has to be
   // right about which answer it is sending and has to keep working for someone
   // who changes their mind.
