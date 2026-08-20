@@ -77,6 +77,19 @@ gol.
 Participanții se conectează deschizând linkul personal pe care li-l trimiți.
 Cine nu are Telegram primește SMS ca până acum.
 
+**Ce poate participantul în chat.** Botul are un meniu (butonul albastru
+„Menu", lângă câmpul de scris):
+
+| comandă | ce face |
+|---|---|
+| `/start` | conectează chatul la mașină — vine din linkul personal |
+| `/bilet` | numărul de concurs, zona și linkul către bilet |
+| `/program` | programul evenimentului la care e înscrisă mașina |
+| `/stop` | nu mai primește nimic; se poate reconecta cu linkul |
+
+Meniul se înregistrează singur când apeși **Conectează botul**, deci dacă
+adaugi comenzi noi, reapasă butonul.
+
 ### 1c. Uită-te pe Acasă ce mai lipsește
 De acum, pe **Acasă** apare o listă scurtă cu ce nu e pus la punct pentru
 evenimentul în lucru: programul gol, mașinile fără zonă, capacitatea nesetată,

@@ -440,6 +440,21 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     însemnau același lucru. Acum: „Amână" (amânată, decizi mai târziu) vs
     „Pe lista de așteptare" (evenimentul e plin).
 
+32. **Funcțiile edge nu sunt în repo.** Trăiesc doar în Supabase; `git` nu le
+    vede. Când modifici una, singura urmă rămâne aici, în README, și în
+    versiunea funcției din dashboard. Înainte s-o rescrii, citește-o cu
+    `get_edge_function` — altfel suprascrii o schimbare pe care n-o vezi în
+    diff.
+33. **Meniul botului e o promisiune.** `setMyCommands` afișează comenzile în
+    butonul albastru „Menu"; Telegram nu verifică dacă botul le și
+    implementează. O comandă listată dar netratată cădea până acum pe ramura
+    „orice alt mesaj" și răspundea cu fișa mașinii, ca și cum ar fi mers.
+    Regula: o intrare din `COMMANDS` are un handler, iar o comandă necunoscută
+    spune că e necunoscută.
+    Meniul se înregistrează în `action:'setup'`, adică la „Conectează botul".
+    E deliberat tolerant la eșec: dacă `setMyCommands` pică, setup-ul nu pică
+    — un bot care livrează fără meniu tot livrează.
+
 ## Rămas de făcut manual
 
 **Protecția împotriva parolelor compromise** nu se poate activa din cod:
