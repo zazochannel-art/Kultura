@@ -20,7 +20,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v120';
+    const APP_VERSION = 'v121';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -8731,7 +8731,10 @@
         <button class="btn ghost" data-detail-action="car-qr" data-car-id="${c.id}">${escape(t('car.detail.qr'))}</button>
         <button class="btn ghost" data-detail-action="car-ticket" data-car-id="${c.id}">${escape(t('car.detail.ticket'))}</button>
         ${roleAtLeast('staff') && (c.phone || c.contact) ? `<button class="btn ghost" data-detail-action="car-sms" data-car-id="${c.id}">${escape(t('car.detail.sms'))}</button>` : ''}
-        ${roleAtLeast('staff') && !c.telegram_chat_id ? `<button class="btn ghost" data-detail-action="car-invite-tg" data-car-id="${c.id}">${escape(t('tg.invite_one'))}</button>` : ''}
+        ${roleAtLeast('staff') && !c.telegram_chat_id
+          ? `<button class="btn ghost" data-detail-action="car-invite-tg" data-car-id="${c.id}">${
+            escape(normalizePhone(c.phone || c.contact) ? t('tg.invite_send') : t('tg.invite_one'))}</button>`
+          : ''}
         ${canDelete ? `<button class="btn danger" data-detail-action="car-delete" data-car-id="${c.id}" data-car-label="${escape(title)}">${escape(t('car.action.delete'))}</button>` : ''}
       `;
 
@@ -9077,13 +9080,31 @@
 
         } else if (action === 'car-invite-tg') {
           const id = btn.dataset.carId;
+          const car = (state.cars || []).find(x => String(x.id) === String(id));
+          const phone = car ? normalizePhone(car.phone || car.contact) : '';
+          // The window has to be opened inside the click, before the await:
+          // minting the link is a round trip, and a window opened after it is
+          // treated as a popup and blocked — silently, on mobile Safari.
+          const win = phone ? window.open('', '_blank') : null;
           try {
             const rows = await tgInviteFor([id]);
             const link = rows[0]?.link;
             if (!link) throw new Error(t('tg.no_token_yet'));
-            await navigator.clipboard.writeText(link);
-            showToast(t('tg.invite_one_copied'));
+            if (phone && win) {
+              win.location = `https://wa.me/${phone}?text=${encodeURIComponent(
+                // The space lives in the value, not the template: an empty
+                // owner must not leave "Bună !" behind.
+                t('tg.invite_msg', { name: car.owner ? ' ' + car.owner : '', link }))}`;
+              showToast(t('tg.invite_sent'));
+            } else {
+              // No phone, or the browser refused the window: the link is still
+              // worth having, so fall back to the clipboard rather than fail.
+              if (win) win.close();
+              await navigator.clipboard.writeText(link);
+              showToast(t('tg.invite_one_copied'));
+            }
           } catch (e) {
+            if (win) win.close();
             showToast(t('common.error') + ': ' + (e.message || e), 'error');
           }
           btn.disabled = false;

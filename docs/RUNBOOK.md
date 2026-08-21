@@ -77,6 +77,14 @@ gol.
 Participanții se conectează deschizând linkul personal pe care li-l trimiți.
 Cine nu are Telegram primește SMS ca până acum.
 
+**Cum trimiți linkul unui singur șofer.** Deschide mașina și apasă **Trimite
+linkul de conectare**. Se deschide WhatsApp cu textul gata scris, către numărul
+lui — tu doar apeși Trimite. Dacă mașina n-are telefon, butonul scrie „Link
+Telegram" și copiază linkul, ca să-l pui unde vrei.
+
+De ce WhatsApp și nu Telegram: omul **nu e încă pe Telegram**, de-aia primește
+linkul — botul nu-i poate scrie primul. Butonul dispare după ce se conectează.
+
 **Ce poate participantul în chat.** Botul are un meniu (butonul albastru
 „Menu", lângă câmpul de scris):
 
