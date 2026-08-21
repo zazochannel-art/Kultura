@@ -1132,6 +1132,114 @@ try {
     await rctx.close();
   }
 
+  // 4kb. Sending a driver the bot connect link. The driver is by definition NOT
+  // on Telegram yet — that is what the link is for — so the bot cannot deliver
+  // it and SMS has no provider configured. WhatsApp is the one channel that
+  // actually works, which is also how the app already contacts drivers.
+  //
+  // The click is exercised for real because the ordering is the fragile part:
+  // minting the link is a round trip, and a window opened after an await is
+  // treated as a popup and blocked. Asserting on markup alone would miss that.
+  {
+    const CARS = [
+      { id: 1, entry_no: 1, brand: 'Dacia', model: 'Logan', owner: 'Ion Popa', plate: 'P1', phone: '069123456', status: 'Invitat', event_id: 6, telegram_chat_id: null, deleted_at: null },
+      { id: 2, entry_no: 2, brand: 'BMW', model: 'M3', owner: 'Fara Telefon', plate: 'P2', phone: '', status: 'Invitat', event_id: 6, telegram_chat_id: null, deleted_at: null },
+    ];
+    const LINK = 'https://t.me/KulturaEventBot?start=1-abcdef0123456789abcdef01';
+    const MINT_MS = 1500;
+    const ictx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+    // Catch the hand-off instead of letting it out to the real wa.me: the run
+    // stays hermetic, and the popup gets a URL we can read back.
+    await ictx.route('**://wa.me/**', (r) =>
+      r.fulfill({ status: 200, contentType: 'text/html', body: '<html><body>wa</body></html>' }));
+    await ictx.route('**://*.supabase.co/**', (r) => {
+      const u = r.request().url();
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      // Deliberately slow. Headless Chromium does not enforce the popup
+      // blocker, so ordering cannot be observed by whether a window appears —
+      // only by WHEN. With the window opened first it shows up immediately;
+      // opened after the mint it cannot appear before this delay elapses.
+      if (u.includes('/functions/v1/telegram')) {
+        return new Promise((res) => setTimeout(
+          () => res(J({ ok: true, cars: [{ id: 1, link: LINK, linked: false }] })), MINT_MS));
+      }
+      if (u.includes('/rest/v1/cars')) return J(/deleted_at=not\.is\.null/.test(u) ? [] : CARS);
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'planned' }]);
+      // Staff, or the button is not rendered at all and every check below is
+      // vacuous.
+      if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'staff' }]);
+      if (u.includes('/rest/v1/')) return J([]);
+      if (u.includes('/functions/v1/')) return J({});
+      return r.abort();
+    });
+    const ip = await ictx.newPage();
+    await ip.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+    await ip.evaluate(() => {
+      localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      }));
+    });
+    await ip.reload({ waitUntil: 'domcontentloaded' });
+    await ip.waitForSelector('#carsList .car-row', { state: 'attached', timeout: 12000 }).catch(() => {});
+    // The rows render while Home is still the visible section, so they are
+    // attached but not clickable until we switch tabs.
+    await ip.evaluate(() => document.querySelector('.tab[data-section="cars"], .mtab[data-section="cars"]')?.click());
+    await ip.waitForTimeout(900);
+    try {
+      // Car with a phone: the button must offer to send, not to copy.
+      await ip.locator('[data-row-id="1"] .row-title').click();
+      await ip.waitForSelector('[data-detail-action="car-invite-tg"]', { state: 'attached', timeout: 5000 });
+      const withPhone = (await ip.locator('[data-detail-action="car-invite-tg"]').innerText()).trim();
+      check('invite-btn-offers-to-send-when-phone', /trimite/i.test(withPhone));
+
+      const t0 = Date.now();
+      const [popup] = await Promise.all([
+        ip.waitForEvent('popup', { timeout: 8000 }),
+        ip.locator('[data-detail-action="car-invite-tg"]').click(),
+      ]);
+      const openedAfter = Date.now() - t0;
+      // The real bug this guards: a window opened after the round trip is a
+      // popup, and mobile Safari kills it without a word.
+      check('invite-window-opens-before-the-round-trip', openedAfter < MINT_MS);
+      // The window is opened blank first and pointed at wa.me after the link
+      // is minted, so wait for that second navigation rather than the open.
+      await popup.waitForURL(/wa\.me/, { timeout: 8000 }).catch(() => {});
+      const wa = decodeURIComponent(popup.url());
+      // A window opened after the await would never have reached wa.me.
+      check('invite-opens-whatsapp-to-the-driver', wa.includes('wa.me/') && wa.includes('37369123456'));
+      // The point of the whole button: the connect link has to be in the text.
+      check('invite-message-carries-the-connect-link', wa.includes(LINK));
+      await popup.close();
+      await ip.evaluate(() => document.querySelector('#modal-car-detail')?.classList.remove('show'));
+      await ip.waitForTimeout(500);
+
+      // No phone: nothing to send to, so the label must say copy instead.
+      // Wait for the modal to actually be showing THIS car — reading the button
+      // too early gets the previous car's label and quietly passes.
+      await ip.locator('[data-row-id="2"] .row-title').click();
+      await ip.waitForFunction(
+        () => (document.getElementById('carDetailBody')?.textContent || '').includes('P2'),
+        null, { timeout: 8000 });
+      const noPhone = (await ip.locator('[data-detail-action="car-invite-tg"]').innerText()).trim();
+      check('invite-btn-falls-back-to-copy-without-phone',
+        !/trimite/i.test(noPhone) && noPhone.length > 0);
+    } catch (e) {
+      for (const n of ['invite-btn-offers-to-send-when-phone', 'invite-window-opens-before-the-round-trip',
+        'invite-opens-whatsapp-to-the-driver',
+        'invite-message-carries-the-connect-link', 'invite-btn-falls-back-to-copy-without-phone']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`invite checks: ${e.message}`);
+    }
+    await ictx.close();
+  }
+
   // 4l. The "are you coming?" page. A "no" frees a spot, so the page has to be
   // right about which answer it is sending and has to keep working for someone
   // who changes their mind.
