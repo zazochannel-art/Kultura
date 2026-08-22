@@ -20,7 +20,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v121';
+    const APP_VERSION = 'v122';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -1943,6 +1943,23 @@
       const noZone = cars.filter(c => !String(c.zone || '').trim()).length;
 
       const items = [];
+
+      // An event whose real date has passed but still reads "Activ". The app
+      // keeps counting down to it and the readiness list keeps nagging about
+      // preparation nobody needs any more. `date` is free text ("8 august
+      // 2026"), so only `starts_at` can answer this.
+      const endsAt = ev.ends_at ? Date.parse(ev.ends_at) : (ev.starts_at ? Date.parse(ev.starts_at) : NaN);
+      if (!Number.isNaN(endsAt) && endsAt < Date.now()) {
+        const days = Math.floor((Date.now() - endsAt) / 86400000);
+        items.push({ k: 'over', txt: t('ready.event_over', { n: days }), go: 'events' });
+      }
+
+      // Two date fields, and the one that means anything can be empty: `date`
+      // is free text for humans, `starts_at` is what reminders, the countdown
+      // and the confirmation window all read. Without it they skip the event
+      // in silence, which looks exactly like "nothing was due".
+      if (!ev.starts_at) items.push({ k: 'nodate', txt: t('ready.no_start'), go: 'events' });
+
       if (!agenda.length) items.push({ k: 'agenda', txt: t('ready.agenda'), go: 'home' });
       if (cars.length && noZone) items.push({ k: 'zones', txt: t('ready.zones', { n: noZone, total: cars.length }), go: 'cars' });
       if (!ev.reg_capacity) items.push({ k: 'cap', txt: t('ready.capacity'), go: 'events' });
@@ -2167,6 +2184,44 @@
       return data.cars || [];
     }
 
+    // Hand one driver their connect link. Lives in one place because the
+    // ordering below is easy to get wrong and there are now two callers.
+    //
+    // The driver is by definition NOT on Telegram yet — that is what the link
+    // is for — so the bot cannot deliver it, and there has never been an SMS
+    // provider. WhatsApp is the channel that actually works.
+    async function sendInviteToDriver(carId) {
+      const car = (state.cars || []).find(x => String(x.id) === String(carId));
+      const phone = car ? normalizePhone(car.phone || car.contact) : '';
+      // Opened inside the click, before the await: minting the link is a round
+      // trip, and a window opened after it is treated as a popup and blocked —
+      // silently, on mobile Safari.
+      const win = phone ? window.open('', '_blank') : null;
+      try {
+        const rows = await tgInviteFor([carId]);
+        const link = rows[0]?.link;
+        if (!link) throw new Error(t('tg.no_token_yet'));
+        if (phone && win) {
+          win.location = `https://wa.me/${phone}?text=${encodeURIComponent(
+            // The space lives in the value, not the template: an empty owner
+            // must not leave "Bună !" behind.
+            t('tg.invite_msg', { name: car && car.owner ? ' ' + car.owner : '', link }))}`;
+          showToast(t('tg.invite_sent'));
+        } else {
+          // No phone, or the browser refused the window: the link is still
+          // worth having, so fall back to the clipboard rather than fail.
+          if (win) win.close();
+          await navigator.clipboard.writeText(link);
+          showToast(t('tg.invite_one_copied'));
+        }
+        return true;
+      } catch (e) {
+        if (win) win.close();
+        showToast(t('common.error') + ': ' + (e.message || e), 'error');
+        return false;
+      }
+    }
+
     el('tgConnectBtn')?.addEventListener('click', async () => {
       const msg = el('tgMsg'); const tok = el('tgToken');
       const value = (tok?.value || '').trim();
@@ -2184,6 +2239,52 @@
       } finally {
         if (btn) btn.disabled = false;
       }
+    });
+
+    // Who can actually be reached, and one tap per person to fix it. The count
+    // alone (1 of 52) has been visible in the health pill for a while and moved
+    // nothing, because there was nowhere to go from it.
+    function renderTgFunnel() {
+      const box = el('tgFunnel');
+      if (!box) return;
+      if (!roleAtLeast('staff')) { box.hidden = true; return; }
+      const cars = activeCars();
+      if (!cars.length) { box.hidden = true; return; }
+      const missing = cars.filter(c => !c.telegram_chat_id);
+      const linked = cars.length - missing.length;
+      if (!missing.length) {
+        box.innerHTML = `<div class="tg-funnel-head is-done">${escape(t('tg.funnel_all', { n: cars.length }))}</div>`;
+        box.hidden = false;
+        return;
+      }
+      // Long lists are the normal case here (51 of 52), so cap the rows and say
+      // how many are not shown rather than rendering a wall.
+      const SHOWN = 12;
+      const rows = missing.slice(0, SHOWN).map(c => {
+        const name = [c.brand, c.model].filter(Boolean).join(' ') || c.plate || '—';
+        const who = [c.owner, c.plate].filter(Boolean).join(' · ');
+        const can = !!normalizePhone(c.phone || c.contact);
+        return `<div class="tg-funnel-row">
+          <span class="tg-funnel-no">${c.entry_no ? '#' + escape(String(c.entry_no)) : ''}</span>
+          <span class="tg-funnel-name"><strong>${escape(name)}</strong><small>${escape(who)}</small></span>
+          <button type="button" class="btn small ghost" data-tg-invite="${c.id}">${
+            escape(can ? t('tg.invite_send') : t('tg.invite_one'))}</button>
+        </div>`;
+      }).join('');
+      const more = missing.length - Math.min(SHOWN, missing.length);
+      box.innerHTML =
+        `<div class="tg-funnel-head">${escape(t('tg.funnel_head', { linked, total: cars.length }))}</div>`
+        + rows
+        + (more ? `<div class="tg-funnel-more">${escape(t('tg.funnel_more', { n: more }))}</div>` : '');
+      box.hidden = false;
+    }
+
+    el('tgFunnel')?.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-tg-invite]');
+      if (!b) return;
+      b.disabled = true;
+      await sendInviteToDriver(b.dataset.tgInvite);
+      b.disabled = false;
     });
 
     el('tgStatusBtn')?.addEventListener('click', async () => {
@@ -3212,7 +3313,7 @@
       const tgBlk = el('telegramBlock');
       if (tgBlk) {
         tgBlk.style.display = admin ? 'block' : 'none';
-        if (admin) { try { loadTelegramSettings(); loadChannelHealth().then(renderReadyList); } catch (_) {} }
+        if (admin) { try { loadTelegramSettings(); renderTgFunnel(); loadChannelHealth().then(renderReadyList); } catch (_) {} }
       }
       const wipeRow = el('sandboxWipeRow');
       if (wipeRow) wipeRow.style.display = (admin && activeEventIsSandbox()) ? 'flex' : 'none';
@@ -3494,7 +3595,6 @@
           const nextBlock    = results[7] && results[7].status === 'fulfilled' && !results[7].value.error ? (results[7].value.data || []) : null;
 
           if (nextCars     !== null) state.cars     = nextCars;
-          try { renderReadyList(); } catch (_) {}
           if (nextTasks    !== null) state.tasks    = nextTasks;
           if (nextEvents   !== null) state.events   = nextEvents;
           if (nextProfiles !== null) state.profiles = nextProfiles;
@@ -3502,6 +3602,13 @@
           if (nextAgenda   !== null) state.agenda   = nextAgenda;
           if (nextRegs     !== null) state.registrations = nextRegs;
           if (nextBlock    !== null) { state.blocklist = nextBlock; rebuildBlockSet(); try { renderBlocklist(); } catch (_) {} }
+
+          // After every slice, not after `cars`: both of these read the active
+          // event out of state.events and the role out of state.profiles. Run
+          // earlier they answer from the previous load — on a cold start, from
+          // nothing at all.
+          try { renderReadyList(); } catch (_) {}
+          try { renderTgFunnel(); } catch (_) {}
 
           // Deltas can add and change rows but never reveal a deletion, so
           // sweep for vanished ids on a slow cadence. A full fetch is already
@@ -7499,7 +7606,8 @@
       const f = document.getElementById('regDetailForm');
       if (f) REG_EDIT_FIELDS.forEach(n => { const inp = f.elements[n]; if (inp) inp.value = r[n] == null ? '' : String(r[n]); });
       const zoneSel = el('regDetailZone');
-      if (zoneSel) zoneSel.innerHTML = zoneOptionsHTML('');
+      if (zoneSel) { zoneSel.innerHTML = zoneOptionsHTML(''); zoneSel.classList.remove('is-missing'); }
+      const zoneWarn = el('regZoneWarn'); if (zoneWarn) zoneWarn.hidden = true;
       _regChannel = 'none';
       document.querySelectorAll('#regDetailChannel .chip').forEach(c => c.classList.toggle('active', c.dataset.regChannel === 'none'));
       openModal('reg-detail');
@@ -7528,10 +7636,25 @@
     el('regDetailApprove')?.addEventListener('click', () => {
       const id = _regDetailId; if (!id) return;
       const zone = (el('regDetailZone')?.value || '').trim();
+      // 47 of 52 approved cars had no zone, and the zone was set by hand 17
+      // times in the life of the app — because nothing ever asked for it at the
+      // one moment somebody is already looking at the car. Ask here.
+      if (!zone) {
+        const sel = el('regDetailZone');
+        if (sel) { sel.classList.add('is-missing'); sel.focus(); }
+        const warn = el('regZoneWarn');
+        if (warn) { warn.textContent = t('reg.zone_required'); warn.hidden = false; }
+        return;
+      }
       const edits = readRegForm();
       const channel = _regChannel;
       closeModal(document.getElementById('modal-reg-detail'));
       approveRegistration(id, zone, edits, channel);
+    });
+    // Clear the complaint as soon as they answer it.
+    el('regDetailZone')?.addEventListener('change', () => {
+      el('regDetailZone')?.classList.remove('is-missing');
+      const warn = el('regZoneWarn'); if (warn) warn.hidden = true;
     });
     el('regDetailHold')?.addEventListener('click', () => {
       const id = _regDetailId; if (!id) return;
@@ -9079,34 +9202,7 @@
           return;
 
         } else if (action === 'car-invite-tg') {
-          const id = btn.dataset.carId;
-          const car = (state.cars || []).find(x => String(x.id) === String(id));
-          const phone = car ? normalizePhone(car.phone || car.contact) : '';
-          // The window has to be opened inside the click, before the await:
-          // minting the link is a round trip, and a window opened after it is
-          // treated as a popup and blocked — silently, on mobile Safari.
-          const win = phone ? window.open('', '_blank') : null;
-          try {
-            const rows = await tgInviteFor([id]);
-            const link = rows[0]?.link;
-            if (!link) throw new Error(t('tg.no_token_yet'));
-            if (phone && win) {
-              win.location = `https://wa.me/${phone}?text=${encodeURIComponent(
-                // The space lives in the value, not the template: an empty
-                // owner must not leave "Bună !" behind.
-                t('tg.invite_msg', { name: car.owner ? ' ' + car.owner : '', link }))}`;
-              showToast(t('tg.invite_sent'));
-            } else {
-              // No phone, or the browser refused the window: the link is still
-              // worth having, so fall back to the clipboard rather than fail.
-              if (win) win.close();
-              await navigator.clipboard.writeText(link);
-              showToast(t('tg.invite_one_copied'));
-            }
-          } catch (e) {
-            if (win) win.close();
-            showToast(t('common.error') + ': ' + (e.message || e), 'error');
-          }
+          await sendInviteToDriver(btn.dataset.carId);
           btn.disabled = false;
           return;
 

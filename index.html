@@ -968,6 +968,10 @@
                   <button type="button" class="btn small ghost" id="tgInviteAllBtn" data-i18n="tg.invite_all">Copiază linkurile de invitație</button>
                 </div>
                 <div class="field-hint" data-i18n="tg.invite_hint">Nimeni nu primește mesaje până nu își deschide linkul personal — un bot nu poate scrie primul. Linkul apare oricum pe biletul fiecărui participant, sub codul QR de pe pass.</div>
+                <!-- Who is still unreachable, and one tap to fix each. Without
+                     this the count lives only in a health pill and nobody can
+                     act on it. -->
+                <div id="tgFunnel" class="tg-funnel" hidden></div>
                 <label class="switch-row" style="margin-top:10px;">
                   <input type="checkbox" id="tgPrefer" checked />
                   <span data-i18n="tg.prefer">Preferă Telegram, folosește SMS ca rezervă</span>
@@ -1222,6 +1226,7 @@
         </form>
         <label class="setting-label" for="regDetailZone" style="margin-top:6px;" data-i18n="reg.zone_label">ZONĂ LA EVENIMENT</label>
         <select id="regDetailZone"></select>
+        <div class="field-error" id="regZoneWarn" role="alert" hidden></div>
         <label class="setting-label" style="margin-top:12px;" data-i18n="reg.confirm_label">TRIMITE CONFIRMAREA</label>
         <div class="chips" id="regDetailChannel">
           <button type="button" class="chip active" data-reg-channel="none" data-i18n="reg.confirm_none">Nu trimite</button>

@@ -455,6 +455,27 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     E deliberat tolerant la eșec: dacă `setMyCommands` pică, setup-ul nu pică
     — un bot care livrează fără meniu tot livrează.
 
+34. **Un câmp obligatoriu se cere unde omul e deja acolo.** Zona era editabilă
+    în fișa mașinii, dar nimic n-o cerea vreodată — rezultatul măsurat: 47 din
+    52 de mașini fără zonă și 17 atribuiri de zonă în toată viața aplicației.
+    Acum aprobarea unei înscrieri o cere, fiindcă ăsta e singurul moment în
+    care cineva se uită oricum la mașina aceea.
+    Ce **nu** s-a făcut: completare automată din categorie. Zonele se numesc ca
+    și categoriile, dar potrivirea exactă acoperă doar 18 din 52 (JDM, Stance,
+    Retro); pentru Performance, Drift, Supercar, German ar însemna să ghicim
+    planul de parcare al organizatorului. O hartă categorie→zonă se poate face,
+    dar o alege el, nu noi.
+35. **`events.date` e text, `events.starts_at` e adevărul.** `date` e scris de
+    om („23 - 24 August 2025"), `starts_at` e ce citesc reminderele,
+    numărătoarea inversă și fereastra de confirmare. Poate fi null — și atunci
+    toate trei sar peste eveniment **în tăcere**, ceea ce arată exact ca „n-a
+    fost nimic de trimis". Lista de pregătire o spune acum pe față.
+36. **Randează după ce ai pus toată starea, nu după prima felie.**
+    `renderReadyList()` era chemat imediat după `state.cars`, înainte de
+    `state.events` și `state.profiles` — deși citește evenimentul activ din
+    primul și rolul din al doilea. La pornire la rece răspundea din nimic.
+    Mutat după toate atribuirile, împreună cu `renderTgFunnel()`.
+
 ## Rămas de făcut manual
 
 **Protecția împotriva parolelor compromise** nu se poate activa din cod:
