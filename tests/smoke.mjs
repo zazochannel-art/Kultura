@@ -1416,10 +1416,13 @@ try {
   // first. The feature shipped once with no way to hand the link out at all,
   // so this guards the path rather than the plumbing.
   {
-    for (const [label, extra, wantLink, wantOk] of [
-      ['fresh', { tg_link: 'https://t.me/KulturaEventBot?start=42-abc', tg_linked: false }, true, false],
-      ['linked', { tg_link: 'https://t.me/KulturaEventBot?start=42-abc', tg_linked: true }, false, true],
-      ['nobot', { tg_link: '', tg_linked: false }, false, false],
+    // Only the participant who still has to connect gets anything here. Once
+    // linked there is nothing to do, and the ticket is read at a gate: every
+    // block that is not the QR code pushes it further down the screen.
+    for (const [label, extra, wantLink] of [
+      ['fresh', { tg_link: 'https://t.me/KulturaEventBot?start=42-abc', tg_linked: false }, true],
+      ['linked', { tg_link: 'https://t.me/KulturaEventBot?start=42-abc', tg_linked: true }, false],
+      ['nobot', { tg_link: '', tg_linked: false }, false],
     ]) {
       const tkctx = await browser.newContext({ viewport: { width: 430, height: 930 } });
       await tkctx.route('**://*.supabase.co/**', (r) => {
@@ -1446,11 +1449,13 @@ try {
             href: a ? a.getAttribute('href') : '',
             target: a ? a.getAttribute('target') : '',
             h: a ? a.getBoundingClientRect().height : 0,
-            ok: !!document.querySelector('.t-tg-ok'),
+            // Nothing Telegram-shaped at all: neither the old confirmation
+            // block nor its hint line may survive.
+            anyTg: /telegram/i.test(document.body.innerText),
           };
         });
         check(`ticket-${label}-telegram-button`, v.exists === wantLink && (v.href.length > 0) === wantLink);
-        check(`ticket-${label}-already-linked`, v.ok === wantOk);
+        check(`ticket-${label}-telegram-only-when-useful`, v.anyTg === wantLink);
         if (wantLink) {
           check('ticket-telegram-link-is-deep-link', /^https:\/\/t\.me\/\w+\?start=42-/.test(v.href));
           // A finger target, not a text link — this is the whole conversion step.
@@ -1458,7 +1463,7 @@ try {
         }
       } catch (e) {
         console.log(`ticket ${label}: ${e.message}`);
-        for (const n of [`ticket-${label}-telegram-button`, `ticket-${label}-already-linked`]) {
+        for (const n of [`ticket-${label}-telegram-button`, `ticket-${label}-telegram-only-when-useful`]) {
           if (!checks.some((c) => c.name === n)) check(n, false);
         }
       }
