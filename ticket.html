@@ -36,11 +36,6 @@
       font-size:16px; font-weight:800; min-height:52px; line-height:22px;
     }
     .t-tg:active{ filter:brightness(.92); }
-    .t-tg-ok{
-      margin-top:16px; padding:13px 14px; border-radius:14px; text-align:center;
-      font-size:14px; font-weight:700; color:#6ee7b7;
-      background:rgba(16,185,129,.14); border:1px solid rgba(16,185,129,.36);
-    }
     .t-rows{ margin-top:20px; border-top:1px solid var(--border); }
     .t-row{ display:flex; justify-content:space-between; gap:12px; padding:11px 0; border-bottom:1px solid var(--border); font-size:14px; }
     .t-row .k{ color:var(--dim); }
@@ -72,9 +67,11 @@
       // A Telegram bot can only write to someone who opened it first, so this
       // button is the only way a participant ever gets connected. The pass QR
       // already leads here, which is why it lives on this page.
+      // Only for someone who still has to connect. Once linked there is nothing
+      // to do here, and the ticket is read at a gate — every block that is not
+      // the QR code pushes it further down the screen.
       function tgBlock(d){
-        if(!d.tg_link) return '';
-        if(d.tg_linked) return '<div class="t-tg-ok">✓ Primești anunțurile pe Telegram</div>';
+        if(!d.tg_link || d.tg_linked) return '';
         return '<a class="t-tg" href="'+esc(d.tg_link)+'" target="_blank" rel="noopener">'+
                  'Primește anunțurile pe Telegram</a>'+
                '<div class="t-hint">Programul, zona și confirmarea participării, direct în Telegram.</div>';

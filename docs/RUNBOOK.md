@@ -107,6 +107,21 @@ linkul — botul nu-i poate scrie primul. Butonul dispare după ce se conecteaz�
 Meniul se înregistrează singur când apeși **Conectează botul**, deci dacă
 adaugi comenzi noi, reapasă butonul.
 
+Mesajul pe care îl vede participantul arată așa:
+
+> 🏁 **Kultura Auto Weekend Festival**
+>
+> **Volkswagen Golf** · `DLP 300`
+>
+> 🎫 Număr de concurs: **#53**
+> 📍 Zonă: **Modern**
+>
+> 🎟 Deschide biletul cu cod QR →
+
+Placa e pusă în monospațiat intenționat: în Telegram, o atingere pe ea o
+copiază — e singurul câmp pe care cineva chiar trebuie să-l dicteze sau să-l
+scrie în altă parte.
+
 ### 1c. Uită-te pe Acasă ce mai lipsește
 De acum, pe **Acasă** apare o listă scurtă cu ce nu e pus la punct pentru
 evenimentul în lucru: programul gol, mașinile fără zonă, capacitatea nesetată,
