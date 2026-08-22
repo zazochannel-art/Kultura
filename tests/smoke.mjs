@@ -1240,6 +1240,110 @@ try {
     await ictx.close();
   }
 
+  // 4kc. A car cannot be approved without a zone, and the people who cannot be
+  // reached are listed where somebody can act on them.
+  //
+  // Both come from the same measurement: 47 of 52 approved cars had no zone and
+  // the zone had been set by hand 17 times in the life of the app, while 1 of
+  // 52 participants was reachable on Telegram. Neither number was attached to
+  // anything a person could press.
+  {
+    const REGS = [
+      { id: 31, brand: 'Honda', model: 'S2000', owner: 'Ana', plate: 'Z1', phone: '069111222', status: 'pending', event_id: 6, category: 'JDM', photos: [], created_at: new Date().toISOString() },
+    ];
+    const CARS = [
+      { id: 1, entry_no: 1, brand: 'VW', model: 'Golf', owner: 'Ion', plate: 'C1', phone: '069123456', status: 'Invitat', event_id: 6, telegram_chat_id: null, deleted_at: null },
+      { id: 2, entry_no: 2, brand: 'Audi', model: 'S4', owner: 'Maria', plate: 'C2', phone: '069222333', status: 'Invitat', event_id: 6, telegram_chat_id: 555, deleted_at: null },
+    ];
+    const zctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+    await zctx.route('**://*.supabase.co/**', (r) => {
+      const u = r.request().url();
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      if (u.includes('/rest/v1/car_registrations')) return J(REGS);
+      if (u.includes('/rest/v1/cars')) return J(/deleted_at=not\.is\.null/.test(u) ? [] : CARS);
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString() }]);
+      if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+      if (u.includes('/rest/v1/')) return J([]);
+      if (u.includes('/functions/v1/')) return J({});
+      return r.abort();
+    });
+    const zp = await zctx.newPage();
+    await zp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+    await zp.evaluate(() => {
+      localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      }));
+    });
+    await zp.reload({ waitUntil: 'domcontentloaded' });
+    await zp.waitForTimeout(1600);
+    await zp.evaluate(() => document.getElementById('splashScreen')?.remove());
+    try {
+      await zp.evaluate(() => document.querySelector('.tab[data-section="cars"], .mtab[data-section="cars"]')?.click());
+      await zp.waitForSelector('#regQueue .reg-card', { state: 'visible', timeout: 8000 });
+      await zp.locator('#regQueue .reg-card').first().click();
+      await zp.waitForSelector('#regDetailZone', { state: 'visible', timeout: 5000 });
+
+      // Approve with the zone still on the placeholder: it must refuse, say
+      // why, and leave the modal open so the answer can be given.
+      await zp.locator('#regDetailApprove').click();
+      await zp.waitForTimeout(400);
+      const refused = await zp.evaluate(() => ({
+        modalOpen: !!document.querySelector('#modal-reg-detail.show'),
+        warned: !document.getElementById('regZoneWarn')?.hidden,
+        marked: !!document.querySelector('#regDetailZone.is-missing'),
+        text: (document.getElementById('regZoneWarn')?.textContent || '').trim(),
+      }));
+      check('approve-refused-without-zone', refused.modalOpen && refused.warned, JSON.stringify(refused));
+      check('approve-says-why-zone-is-needed', /zon/i.test(refused.text) && refused.marked);
+
+      // Choosing one clears the complaint straight away.
+      await zp.selectOption('#regDetailZone', 'JDM');
+      await zp.waitForTimeout(250);
+      const cleared = await zp.evaluate(() => ({
+        warned: !document.getElementById('regZoneWarn')?.hidden,
+        marked: !!document.querySelector('#regDetailZone.is-missing'),
+      }));
+      check('approve-warning-clears-on-choice', !cleared.warned && !cleared.marked);
+
+      await zp.evaluate(() => document.querySelector('#modal-reg-detail')?.classList.remove('show'));
+
+      // The funnel: two cars, one linked, so it must name the other one and
+      // offer to send.
+      await zp.evaluate(() => document.querySelector('.tab[data-section="settings"], .mtab[data-section="settings"]')?.click());
+      await zp.waitForTimeout(1200);
+      const funnel = await zp.evaluate(() => {
+        const box = document.getElementById('tgFunnel');
+        return {
+          hidden: box?.hidden !== false,
+          head: (box?.querySelector('.tg-funnel-head')?.textContent || '').trim(),
+          rows: [...(box?.querySelectorAll('.tg-funnel-row') || [])].map(r => r.textContent.replace(/\s+/g, ' ').trim()),
+          sendable: (box?.querySelectorAll('[data-tg-invite]') || []).length,
+        };
+      });
+      check('funnel-visible-when-someone-unreachable', !funnel.hidden);
+      check('funnel-counts-linked-out-of-total', /1.*2/.test(funnel.head), funnel.head);
+      // Only the unlinked car — listing the connected one would be noise.
+      check('funnel-lists-only-the-unreachable',
+        funnel.rows.length === 1 && /Ion|Golf/.test(funnel.rows[0]), JSON.stringify(funnel.rows));
+      check('funnel-offers-a-send-button', funnel.sendable === 1);
+    } catch (e) {
+      for (const n of ['approve-refused-without-zone', 'approve-says-why-zone-is-needed',
+        'approve-warning-clears-on-choice', 'funnel-visible-when-someone-unreachable',
+        'funnel-counts-linked-out-of-total', 'funnel-lists-only-the-unreachable',
+        'funnel-offers-a-send-button']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`zone/funnel checks: ${e.message}`);
+    }
+    await zctx.close();
+  }
+
   // 4l. The "are you coming?" page. A "no" frees a spot, so the page has to be
   // right about which answer it is sending and has to keep working for someone
   // who changes their mind.
@@ -1418,8 +1522,13 @@ try {
       telegram: { configured: true, username: 'Bot', webhook_live: true, linked: 0, total: 2, preferred: true },
       sms: { configured: false, provider: '' }, public_base_url: '',
     };
-    const READY_EVENT = { id: 6, title: 'F', status: 'Activ', archived: false, entries_frozen: true, is_sandbox: false, reg_capacity: 40 };
+    const SOON = new Date(Date.now() + 3 * 86400e3).toISOString();
+    const PAST = new Date(Date.now() - 14 * 86400e3).toISOString();
+    // A real start date is part of being ready: without it the reminders, the
+    // countdown and the confirmation window all skip the event in silence.
+    const READY_EVENT = { id: 6, title: 'F', status: 'Activ', archived: false, entries_frozen: true, is_sandbox: false, reg_capacity: 40, starts_at: SOON };
     const RAW_EVENT = { id: 6, title: 'F', status: 'Activ', archived: false, entries_frozen: false, is_sandbox: false, reg_capacity: null };
+    const OVER_EVENT = { ...READY_EVENT, starts_at: PAST, ends_at: PAST };
     const CARS = [
       { id: 1, entry_no: 1, brand: 'VW', model: 'Golf', owner: 'A', plate: 'P1', status: 'Sosit', event_id: 6, zone: '', deleted_at: null },
       { id: 2, entry_no: 2, brand: 'Mazda', model: 'RX7', owner: 'B', plate: 'P2', status: 'Sosit', event_id: 6, zone: 'A1', deleted_at: null },
@@ -1435,6 +1544,10 @@ try {
       check('ready-list-names-empty-agenda', rows.some(r => /[Pp]rogram/.test(r)));
       check('ready-list-counts-missing-zones', rows.some(r => /1 din 2/.test(r)));
       check('ready-list-flags-unfrozen-list', rows.some(r => /îngheț/i.test(r)));
+      // RAW_EVENT deliberately has no starts_at. `date` is free text, so this
+      // is the only field that can answer "when", and nothing used to say it
+      // was missing.
+      check('ready-list-flags-missing-start-date', rows.some(r => /dat[ăa] real/i.test(r)));
 
       await a.p.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
       await a.p.waitForTimeout(1000);
@@ -1479,13 +1592,25 @@ try {
         [...document.querySelectorAll('#channelHealth .chan-pill')].every(x => x.classList.contains('is-ok')));
       check('channel-health-all-green-when-configured', green === true, String(okPills));
       await b.c.close();
+
+      // An event two weeks past its end, still marked Activ — the state the
+      // live event has been in. Everything else about it is complete, so this
+      // row is the only thing the list can be reacting to.
+      const d = await mk(HEALTHY, CARS.map(c => ({ ...c, zone: 'A1' })), OVER_EVENT,
+        [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }]);
+      await d.p.waitForTimeout(900);
+      const overRows = await d.p.evaluate(() =>
+        [...document.querySelectorAll('#readyList .ready-row')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
+      check('ready-list-flags-finished-event', overRows.some(r => /încheiat/i.test(r)), overRows.join(' | '));
+      await d.c.close();
     } catch (e) {
       for (const n of ['ready-list-shows-gaps', 'ready-list-names-empty-agenda',
         'ready-list-counts-missing-zones', 'ready-list-flags-unfrozen-list',
         'channel-health-has-three-pills', 'channel-health-warns-on-zero-linked',
         'channel-health-flags-missing-base-url', 'offline-bar-shows-when-offline',
         'offline-bar-says-saved-locally', 'ready-list-hides-when-nothing-missing',
-        'channel-health-all-green-when-configured']) {
+        'channel-health-all-green-when-configured',
+        'ready-list-flags-missing-start-date', 'ready-list-flags-finished-event']) {
         if (!checks.some((c) => c.name === n)) check(n, false);
       }
       console.log(`readiness/health checks: ${e.message}`);

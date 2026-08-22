@@ -77,6 +77,15 @@ gol.
 Participanții se conectează deschizând linkul personal pe care li-l trimiți.
 Cine nu are Telegram primește SMS ca până acum.
 
+**Nu poți aproba o mașină fără zonă.** La aprobare, dacă zona e pe „— alege
+zona —", butonul refuză și îți spune de ce. E singurul moment în care te uiți
+oricum la mașina aceea; dacă o lași pentru mai târziu, „mai târziu" nu vine —
+47 din 52 de mașini stăteau fără zonă.
+
+**Cine încă nu poate primi mesaje.** În **Setări → Telegram** apare acum lista
+celor neconectați, cu un buton de trimitere lângă fiecare. Cât timp acolo scrie
+„1 din 52", o campanie ajunge la o singură persoană.
+
 **Cum trimiți linkul unui singur șofer.** Deschide mașina și apasă **Trimite
 linkul de conectare**. Se deschide WhatsApp cu textul gata scris, către numărul
 lui — tu doar apeși Trimite. Dacă mașina n-are telefon, butonul scrie „Link

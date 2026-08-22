@@ -4495,6 +4495,23 @@ html {
 }
 .reg-waiver span { color: var(--text); opacity: .85; }
 .field-hint { display: block; margin-top: 4px; font-size: 12px; line-height: 1.45; color: var(--text-mute); }
+/* A refusal, not a hint: it appears only after the operator tried to approve. */
+.field-error { display: block; margin-top: 6px; font-size: 12px; line-height: 1.45; color: var(--red); font-weight: 600; }
+.field-error[hidden] { display: none; }
+select.is-missing { border-color: var(--red); }
+
+/* Who cannot be reached yet, and one tap each to fix it. Capped in JS, so this
+   never has to scroll far. */
+.tg-funnel { margin-top: 10px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.tg-funnel-head { padding: 9px 12px; font-size: 12px; font-weight: 700; background: var(--fill-2); color: var(--text-dim); }
+.tg-funnel-head.is-done { color: var(--green); }
+.tg-funnel-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-top: 1px solid var(--border); }
+.tg-funnel-no { flex: 0 0 auto; min-width: 34px; font-weight: 800; font-size: 12px; color: var(--brand); }
+.tg-funnel-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tg-funnel-name strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tg-funnel-name small { font-size: 11px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tg-funnel-row .btn { flex: 0 0 auto; }
+.tg-funnel-more { padding: 8px 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-mute); }
 
 /* ---- Recently deleted / RSVP / Telegram (F10–F13) ---------------------- */
 
