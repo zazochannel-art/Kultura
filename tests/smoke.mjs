@@ -1817,6 +1817,131 @@ try {
     }
   }
 
+  // 4p. Numbered parking spots drawn on the venue photo.
+  //
+  // The zone answered "roughly where"; with 52 cars in one field that stopped
+  // being enough. A spot is a number placed on the map, and the pin carries the
+  // car sitting on it — which is the whole reason for putting the plan on the
+  // picture instead of in a list.
+  {
+    const CARS = [
+      // On a spot and already here: the pin must read as arrived.
+      { id: 1, entry_no: 11, brand: 'VW', model: 'Golf', owner: 'Ana', plate: 'P1', status: 'Sosit', zone: 'Stance', spot_no: 1, event_id: 6, deleted_at: null },
+      // On a spot but not arrived yet.
+      { id: 2, entry_no: 12, brand: 'Mazda', model: 'RX7', owner: 'Ion', plate: 'P2', status: 'Invitat', zone: 'Stance', spot_no: 2, event_id: 6, deleted_at: null },
+      // Has the zone but no spot — the map must show its spot as free.
+      { id: 3, entry_no: 13, brand: 'BMW', model: 'E30', owner: 'Dan', plate: 'P3', status: 'Invitat', zone: 'Stance', spot_no: null, event_id: 6, deleted_at: null },
+    ];
+    const SPOTS = [
+      { zone: 'Stance', no: 1, x: 20, y: 30 },
+      { zone: 'Stance', no: 2, x: 50, y: 30 },
+      { zone: 'Stance', no: 3, x: 80, y: 30 },
+    ];
+    let saved = null;
+    const mctx = await browser.newContext({ viewport: { width: 1400, height: 1100 } });
+    await mctx.route('**://*.supabase.co/**', (r) => {
+      const u = r.request().url(), m = r.request().method();
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      if (u.includes('/rest/v1/ui_settings')) {
+        if (m === 'POST') {
+          try {
+            const b = JSON.parse(r.request().postData() || '{}');
+            if (b.key === 'zone_spots') saved = JSON.parse(b.value);
+          } catch (_) { /* the assertion below reports it */ }
+          return J([]);
+        }
+        if (u.includes('zone_spots')) return J([{ value: JSON.stringify(SPOTS) }]);
+        if (u.includes('zone_map_url')) return J([{ value: 'https://map.test/plan.png' }]);
+        return J([]);
+      }
+      if (u.includes('/rest/v1/cars')) return J(/deleted_at=not\.is\.null/.test(u) ? [] : CARS);
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString() }]);
+      if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+      if (u.includes('/rest/v1/')) return J([]);
+      if (u.includes('/functions/v1/')) return J({});
+      return r.abort();
+    });
+    // A real image, so the wrapper has a size and percentages mean something.
+    await mctx.route('**://map.test/**', (r) => r.fulfill({
+      status: 200, contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500"><rect width="800" height="500" fill="#334"/></svg>',
+    }));
+    const mp = await mctx.newPage();
+    try {
+      await mp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await mp.evaluate(() => localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      })));
+      await mp.reload({ waitUntil: 'domcontentloaded' });
+      await mp.waitForTimeout(2400);
+      await mp.evaluate(() => {
+        document.getElementById('splashScreen')?.remove();
+        document.querySelector('.tab[data-section="map"], .mtab[data-section="map"]')?.click();
+      });
+      await mp.waitForSelector('.map-spot', { state: 'attached', timeout: 8000 });
+
+      const view = await mp.evaluate(() => {
+        const pin = (n) => document.querySelector(`.map-spot[data-spot-no="${n}"]`);
+        const read = (n) => {
+          const el2 = pin(n);
+          return el2 ? {
+            cls: el2.className,
+            no: el2.querySelector('.ms-no')?.textContent || '',
+            car: el2.querySelector('.ms-car')?.textContent || '',
+            left: el2.style.left, top: el2.style.top,
+          } : null;
+        };
+        return { count: document.querySelectorAll('.map-spot').length, one: read(1), two: read(2), three: read(3),
+          info: document.getElementById('mapSpotInfo')?.textContent || '' };
+      });
+      check('spots-drawn-on-the-map', view.count === 3, String(view.count));
+      // Positions come from percentages so the plan survives any screen size.
+      check('spots-positioned-by-percent', view.one.left === '20%' && view.one.top === '30%',
+        `${view.one.left},${view.one.top}`);
+      // The point of the feature: the pin says who is on it.
+      check('spots-occupied-show-the-car', /taken/.test(view.one.cls) && view.one.car === '#11', JSON.stringify(view.one));
+      check('spots-keep-the-number-when-taken', view.one.no === '1', view.one.no);
+      // Arrived reads differently from expected — that is the glance value.
+      check('spots-arrived-marked-apart', /here/.test(view.one.cls) && !/here/.test(view.two.cls),
+        `${view.one.cls} | ${view.two.cls}`);
+      // A car with the zone but no spot must not colour a spot in.
+      check('spots-free-stay-free', !/taken/.test(view.three.cls) && view.three.no === '3', JSON.stringify(view.three));
+      check('spots-summary-counts-occupancy', /2/.test(view.info) && /3/.test(view.info), view.info);
+
+      // Placing: pick a zone, turn on edit, tap the photo.
+      await mp.selectOption('#spotZone', 'Retro');
+      await mp.evaluate(() => document.getElementById('spotEditBtn').click());
+      const box = await mp.evaluate(() => {
+        const r = document.getElementById('mapImageWrap').getBoundingClientRect();
+        return { x: r.x, y: r.y, w: r.width, h: r.height };
+      });
+      await mp.mouse.click(box.x + box.w * 0.4, box.y + box.h * 0.8);
+      await mp.waitForTimeout(600);
+      const added = (saved || []).find((sp) => sp.zone === 'Retro');
+      check('spots-placing-writes-config', !!added, JSON.stringify(saved));
+      // Numbering restarts per zone: Retro's first spot is 1, not 4.
+      check('spots-numbered-per-zone', !!added && added.no === 1, JSON.stringify(added));
+      check('spots-placed-where-tapped',
+        !!added && Math.abs(added.x - 40) < 3 && Math.abs(added.y - 80) < 3, JSON.stringify(added));
+    } catch (e) {
+      for (const n of ['spots-drawn-on-the-map', 'spots-positioned-by-percent',
+        'spots-occupied-show-the-car', 'spots-keep-the-number-when-taken',
+        'spots-arrived-marked-apart', 'spots-free-stay-free',
+        'spots-summary-counts-occupancy', 'spots-placing-writes-config',
+        'spots-numbered-per-zone', 'spots-placed-where-tapped']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`map spot checks: ${e.message}`);
+    }
+    await mctx.close();
+  }
+
   // 5. Public pages (given out by QR at the event) must render standalone.
   // They talk to Supabase, which is unreachable here, so we only assert the
   // static shell renders and nothing throws before the network call.

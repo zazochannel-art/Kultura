@@ -240,6 +240,26 @@ Pe fiecare dispozitiv de la intrare:
 > **Ca să ieși din kiosk:** apeși butonul roșu de kiosk din antet și confirmi.
 > Alternativ, ții apăsat 1,5 secunde pe titlul „Poartă — Check-in".
 
+### 8b. Așază locurile pe hartă (o dată per locație)
+**Hartă.** Cu planul încărcat, ai deasupra o bară: alegi zona, apeși **Așază
+locuri**, apoi apeși pe hartă în fiecare loc de parcare. Numerele se dau singure,
+de la 1, separat pentru fiecare zonă. Le tragi ca să le muți, apeși pe unul ca
+să-l ștergi. Apeși din nou butonul când ai terminat.
+
+Apoi:
+
+- **Umple automat** așază mașinile care au deja zonă pe locurile libere din acea
+  zonă. Nu inventează zone și nu mută pe nimeni de pe un loc ocupat.
+- Apeși pe un loc liber ca să alegi manual cine stă acolo.
+- Apeși pe un loc ocupat ca să deschizi fișa mașinii.
+
+Pinul arată **numărul locului**, iar când e ocupat arată **mașina** — verde dacă
+a sosit, albastru dacă e încă așteptată. Deasupra scrie câte locuri sunt ocupate
+din total.
+
+> Două mașini nu pot ajunge pe același loc: baza refuză a doua. Dacă cineva
+> ocupă locul între timp, primești un mesaj și reîncarci harta.
+
 ### 9. Fă un backup
 **Setări → Copii de siguranță → Fă backup acum.** Există și unul automat zilnic
 la 03:17, dar unul manual înainte de eveniment nu strică.

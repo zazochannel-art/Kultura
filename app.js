@@ -21,7 +21,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v124';
+    const APP_VERSION = 'v125';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -411,6 +411,7 @@
       }
       loadDepartments();
       loadZoneConfig();
+      loadZoneSpots();
       startPolling();
     }
     function leaveApp() {
@@ -562,8 +563,19 @@
       const container = el('mapContainer');
       if (!container) return;
       if (_mapUrl) {
-        container.innerHTML = `<div class="map-image-wrap"><img src="${escape(_mapUrl)}" alt="Harta zonelor" id="mapImage"></div>`;
-        el('mapImage').onclick = () => openLightbox(_mapUrl);
+        // The spot layer sits inside the same wrapper as the image so both scale
+        // together — percentages only mean anything against the rendered photo.
+        container.innerHTML = `<div class="map-image-wrap" id="mapImageWrap">`
+          + `<img src="${escape(_mapUrl)}" alt="${escape(t('map.title'))}" id="mapImage">`
+          + `<div class="map-spot-layer" id="mapSpotLayer"></div>`
+          + `</div>`;
+        // Opening the lightbox would swallow every tap meant for a spot, so it
+        // moves to its own control while spots are being placed or read.
+        el('mapImage').onclick = (e) => {
+          if (_spotEdit || ZONE_SPOTS.length) return;
+          e.preventDefault(); openLightbox(_mapUrl);
+        };
+        try { renderMapSpots(); } catch (_) {}
       } else {
         container.innerHTML = `
           <div class="map-empty">
@@ -642,6 +654,272 @@
         return { ...o, capacity: cap, free: cap != null ? Math.max(0, cap - o.assigned) : null };
       });
     }
+
+    // ----- NUMBERED PARKING SPOTS ON THE MAP -----
+    //
+    // The zone answers "roughly where". With 52 cars in one field that stopped
+    // being enough to send a driver anywhere, so a zone can now be given
+    // numbered spots placed on the venue photo, and a car sits on one of them.
+    //
+    // Positions are percentages of the image, never pixels: the same plan has to
+    // survive a phone, a laptop and a projector without drifting off the tarmac.
+    //
+    // The spot list is layout — it belongs with the map, in ui_settings. Which
+    // car is on which spot is data about the car, so it lives on `cars.spot_no`,
+    // guarded by a unique index: two drivers must never be sent to one square.
+    let ZONE_SPOTS = [];            // [{ zone, no, x, y }]
+    let _spotEdit = false;          // placing/moving spots
+    let _spotEditZone = '';         // which zone new spots belong to
+
+    const spotKey = (zone, no) => (zone || '').trim().toLowerCase() + '#' + no;
+    function spotsOfZone(zone) {
+      const k = (zone || '').trim().toLowerCase();
+      return ZONE_SPOTS.filter(s => s.zone.trim().toLowerCase() === k)
+        .sort((a, b) => a.no - b.no);
+    }
+    // Car currently on a spot, within the active event.
+    function carOnSpot(zone, no) {
+      const k = (zone || '').trim().toLowerCase();
+      return activeCars().find(c =>
+        c.spot_no === no && (c.zone || '').trim().toLowerCase() === k) || null;
+    }
+    // Lowest free number in a zone, or null when the zone is full or has none.
+    function nextFreeSpot(zone) {
+      for (const s of spotsOfZone(zone)) {
+        if (!carOnSpot(zone, s.no)) return s.no;
+      }
+      return null;
+    }
+
+    async function loadZoneSpots() {
+      try {
+        const { data } = await supa.from('ui_settings').select('value').eq('key', 'zone_spots').maybeSingle();
+        let arr = null;
+        if (data && data.value) { try { arr = typeof data.value === 'string' ? JSON.parse(data.value) : data.value; } catch (_) {} }
+        if (Array.isArray(arr)) {
+          ZONE_SPOTS = arr
+            .filter(s => s && s.zone && Number.isFinite(+s.no))
+            .map(s => ({
+              zone: String(s.zone).trim(),
+              no: Math.max(1, parseInt(s.no, 10) || 1),
+              // Clamp on read as well as write: a bad value in the table must
+              // not put a pin outside the image where nobody can grab it.
+              x: Math.min(100, Math.max(0, Number(s.x) || 0)),
+              y: Math.min(100, Math.max(0, Number(s.y) || 0)),
+            }));
+        }
+      } catch (_) {}
+      try { renderMapSpots(); } catch (_) {}
+    }
+    async function saveZoneSpots(next) {
+      ZONE_SPOTS = next;
+      const { error } = await supa.from('ui_settings').upsert(
+        { key: 'zone_spots', value: JSON.stringify(next), updated_at: new Date().toISOString() },
+        { onConflict: 'key' }
+      );
+      if (error) { uiAlert(t('common.error') + ': ' + error.message); return false; }
+      renderMapSpots();
+      return true;
+    }
+
+    // Draw the spots over the map photo. Occupied ones carry the car so the plan
+    // can be read at a glance — which is the whole point of putting it on the
+    // picture instead of in a list.
+    function renderMapSpots() {
+      const layer = el('mapSpotLayer');
+      if (!layer) return;
+      if (!_mapUrl) { layer.innerHTML = ''; return; }
+      layer.classList.toggle('is-editing', _spotEdit);
+      layer.innerHTML = ZONE_SPOTS.map((sp) => {
+        const car = carOnSpot(sp.zone, sp.no);
+        const cls = ['map-spot'];
+        if (car) {
+          cls.push('taken');
+          if (statusKey(car.status) === 'sosit') cls.push('here');
+        }
+        const label = car
+          ? (car.entry_no ? '#' + car.entry_no : (car.plate || '•'))
+          : String(sp.no);
+        // The title carries the full story for a pointer; the pin itself stays
+        // small enough that a full zone still fits on the photo.
+        const who = car
+          ? [car.entry_no ? '#' + car.entry_no : '', [car.brand, car.model].filter(Boolean).join(' '), car.plate, car.owner]
+              .filter(Boolean).join(' · ')
+          : t('spots.free');
+        return `<button type="button" class="${cls.join(' ')}"
+          style="left:${sp.x}%; top:${sp.y}%"
+          data-spot-zone="${escape(sp.zone)}" data-spot-no="${sp.no}"
+          title="${escape(sp.zone + ' · ' + t('spots.spot_n', { n: sp.no }) + ' — ' + who)}">
+          <span class="ms-no">${escape(String(sp.no))}</span>
+          <span class="ms-car">${escape(label)}</span>
+        </button>`;
+      }).join('');
+      const bar = el('mapSpotBar');
+      if (bar) bar.hidden = !(roleAtLeast('staff') && _mapUrl);
+      const zoneSel = el('spotZone');
+      if (zoneSel && zoneSel.options.length !== PARKING_ZONES.length + 1) {
+        zoneSel.innerHTML = `<option value="">${escape(t('spots.pick_zone'))}</option>`
+          + PARKING_ZONES.map(z => `<option value="${escape(z)}">${escape(z)}</option>`).join('');
+      }
+      const info = el('mapSpotInfo');
+      if (info) {
+        const total = ZONE_SPOTS.length;
+        const taken = ZONE_SPOTS.filter(sp => carOnSpot(sp.zone, sp.no)).length;
+        info.textContent = total ? t('spots.summary', { taken, total }) : t('spots.none_yet');
+      }
+    }
+
+    // Where a pointer landed, as a percentage of the photo. Clamped, because a
+    // drag that leaves the image must stop at the edge rather than park a spot
+    // somewhere unreachable.
+    function mapPointPct(ev) {
+      const wrap = el('mapImageWrap');
+      if (!wrap) return null;
+      const r = wrap.getBoundingClientRect();
+      if (!r.width || !r.height) return null;
+      const px = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+      const py = (ev.touches ? ev.touches[0].clientY : ev.clientY) - r.top;
+      return {
+        x: Math.min(100, Math.max(0, (px / r.width) * 100)),
+        y: Math.min(100, Math.max(0, (py / r.height) * 100)),
+      };
+    }
+
+    el('spotEditBtn')?.addEventListener('click', () => {
+      _spotEdit = !_spotEdit;
+      const b = el('spotEditBtn');
+      if (b) { b.textContent = t(_spotEdit ? 'spots.place_done' : 'spots.place'); b.classList.toggle('active', _spotEdit); }
+      if (_spotEdit) showToast(t('spots.place_hint'));
+      renderMapSpots();
+    });
+
+    el('spotZone')?.addEventListener('change', (e) => { _spotEditZone = e.target.value || ''; });
+
+    // Placing: a tap on the photo drops the next number of the chosen zone.
+    el('mapContainer')?.addEventListener('click', async (e) => {
+      if (!_spotEdit || !roleAtLeast('staff')) return;
+      if (e.target.closest('.map-spot')) return;      // handled below
+      if (!el('mapImageWrap')?.contains(e.target)) return;
+      if (!_spotEditZone) { showToast(t('spots.pick_zone_first'), 'error'); return; }
+      const at = mapPointPct(e);
+      if (!at) return;
+      const used = spotsOfZone(_spotEditZone).map(sp => sp.no);
+      // Reuse a gap before extending the range, so deleting spot 3 and adding
+      // one again gives you 3 back instead of an ever-growing set of numbers.
+      let no = 1; while (used.includes(no)) no++;
+      await saveZoneSpots(ZONE_SPOTS.concat([{ zone: _spotEditZone, no, x: at.x, y: at.y }]));
+    });
+
+    // A spot: while editing it is a handle, otherwise it is the car on it.
+    el('mapContainer')?.addEventListener('click', async (e) => {
+      const pin = e.target.closest('.map-spot');
+      if (!pin) return;
+      e.stopPropagation();
+      const zone = pin.dataset.spotZone, no = Number(pin.dataset.spotNo);
+      if (_spotEdit) {
+        if (!roleAtLeast('staff')) return;
+        if (!await uiConfirm(t('spots.remove_confirm', { zone, n: no }))) return;
+        await saveZoneSpots(ZONE_SPOTS.filter(sp => spotKey(sp.zone, sp.no) !== spotKey(zone, no)));
+        return;
+      }
+      const car = carOnSpot(zone, no);
+      if (car) { showCarDetail(car.id); return; }
+      if (roleAtLeast('staff')) await assignCarToSpot(zone, no);
+    });
+
+    // Dragging a placed spot. Pointer events cover mouse and touch in one path.
+    (function spotDrag() {
+      let dragging = null;
+      const start = (e) => {
+        if (!_spotEdit || !roleAtLeast('staff')) return;
+        const pin = e.target.closest('.map-spot');
+        if (!pin) return;
+        dragging = { zone: pin.dataset.spotZone, no: Number(pin.dataset.spotNo), pin, moved: false };
+        pin.setPointerCapture?.(e.pointerId);
+      };
+      const move = (e) => {
+        if (!dragging) return;
+        const at = mapPointPct(e);
+        if (!at) return;
+        dragging.moved = true;
+        dragging.pin.style.left = at.x + '%';
+        dragging.pin.style.top = at.y + '%';
+        dragging.at = at;
+      };
+      const end = async () => {
+        const d = dragging; dragging = null;
+        // A tap is not a drag: without this every placement click would also
+        // write a no-op move, and the delete confirm would never be reached.
+        if (!d || !d.moved || !d.at) return;
+        await saveZoneSpots(ZONE_SPOTS.map(sp =>
+          spotKey(sp.zone, sp.no) === spotKey(d.zone, d.no) ? { ...sp, x: d.at.x, y: d.at.y } : sp));
+      };
+      document.addEventListener('pointerdown', start);
+      document.addEventListener('pointermove', move);
+      document.addEventListener('pointerup', end);
+      document.addEventListener('pointercancel', end);
+    })();
+
+    // Put a car on a spot. The unique index is the real guard; this is the
+    // friendly half of it.
+    async function setCarSpot(carId, zone, no) {
+      if (!requireOnline(t('spots.what'))) return false;
+      const { error } = await supa.from('cars')
+        .update({ zone: zone || '', spot_no: no })
+        .eq('id', carId);
+      if (error) {
+        // 23505 is the one-car-per-spot index. Somebody else got there first,
+        // which is exactly what it exists to prevent.
+        showToast(/duplicate key|23505/i.test(error.message || '')
+          ? t('spots.taken_race') : t('common.error') + ': ' + error.message, 'error');
+        return false;
+      }
+      const row = (state.cars || []).find(c => String(c.id) === String(carId));
+      if (row) { row.zone = zone || ''; row.spot_no = no; }
+      renderMapSpots(); renderZones(); renderCars();
+      return true;
+    }
+
+    async function assignCarToSpot(zone, no) {
+      // Offer the zone's own cars first — usually the answer — then anyone
+      // unplaced, because the point of the map is to place the unplaced.
+      const cars = activeCars().filter(c => c.spot_no == null);
+      const inZone = cars.filter(c => (c.zone || '').trim().toLowerCase() === zone.trim().toLowerCase());
+      const rest = cars.filter(c => !inZone.includes(c));
+      const pool = inZone.concat(rest);
+      if (!pool.length) { showToast(t('spots.nobody_free'), 'error'); return; }
+      const label = (c) => [c.entry_no ? '#' + c.entry_no : '',
+        [c.brand, c.model].filter(Boolean).join(' ') || c.plate || '—',
+        c.owner].filter(Boolean).join(' · ');
+      const pick = await uiChoose(
+        t('spots.assign_title', { zone, n: no }),
+        pool.slice(0, 60).map(c => ({ value: String(c.id), label: label(c) })));
+      if (!pick) return;
+      if (await setCarSpot(pick, zone, no)) showToast(t('spots.assigned', { zone, n: no }));
+    }
+
+    // Fill every free spot from the cars already assigned to that zone but not
+    // yet placed. Nothing is moved and nothing is invented: a car keeps the zone
+    // it already has, and cars without one are left alone.
+    el('spotAutoBtn')?.addEventListener('click', async () => {
+      if (!roleAtLeast('staff')) return;
+      if (!ZONE_SPOTS.length) { showToast(t('spots.none_yet'), 'error'); return; }
+      const plan = [];
+      const zones = [...new Set(ZONE_SPOTS.map(sp => sp.zone.trim()))];
+      for (const z of zones) {
+        const waiting = activeCars().filter(c =>
+          c.spot_no == null && (c.zone || '').trim().toLowerCase() === z.toLowerCase());
+        const free = spotsOfZone(z).filter(sp => !carOnSpot(z, sp.no));
+        for (let i = 0; i < Math.min(waiting.length, free.length); i++) {
+          plan.push({ carId: waiting[i].id, zone: z, no: free[i].no });
+        }
+      }
+      if (!plan.length) { showToast(t('spots.nothing_to_fill')); return; }
+      if (!await uiConfirm(t('spots.autofill_confirm', { n: plan.length }))) return;
+      let done = 0;
+      for (const p of plan) { if (await setCarSpot(p.carId, p.zone, p.no)) done++; }
+      showToast(t('spots.autofill_done', { n: done }));
+    });
 
     // Interactive zone breakdown, derived live from car data (respects the
     // active-event filter). Each card shows real-time occupancy vs capacity.
@@ -3384,7 +3662,7 @@
     // (notes, modifications, photos, checklist, detailed_description, …) are only
     // needed in the detail view, which hydrates them on demand. `updated_at` is
     // included so any edit still bumps the fingerprint.
-    const CAR_LIST_COLS  = 'id,entry_no,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,arrived_at,checked_in_by,deleted_at,deleted_by,rsvp,rsvp_at,telegram_chat_id,import_batch';
+    const CAR_LIST_COLS  = 'id,entry_no,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,arrived_at,checked_in_by,spot_no,deleted_at,deleted_by,rsvp,rsvp_at,telegram_chat_id,import_batch';
     const TASK_LIST_COLS = 'id,title,event,date,status,status_color,is_completed,event_id,due_at,created_at,assigned_user_id,assigned_user_name,started_at,completed_at,completed_by_user_id,completed_by_user_name,priority,category,due_date,created_by,assigned_to,assigned_at,completed_by,team,updated_at,reminder_sent';
 
     // Canonical parking zones (car categories). Single source of truth for the
@@ -3402,7 +3680,7 @@
       return html;
     }
 
-    const CAR_FP_FIELDS   = ['id','entry_no','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at','rsvp','telegram_chat_id'];
+    const CAR_FP_FIELDS   = ['id','entry_no','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at','spot_no','rsvp','telegram_chat_id'];
     const AGENDA_FP_FIELDS = ['id','event_id','title','at_time','notes','updated_at'];
     const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','telegram','email','city','category','year','social_links','transport_info','modifications','photos','status','created_at'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
@@ -3636,6 +3914,7 @@
           // nothing at all.
           try { renderReadyList(); } catch (_) {}
           try { renderTgFunnel(); } catch (_) {}
+          try { renderMapSpots(); } catch (_) {}
 
           // Deltas can add and change rows but never reveal a deletion, so
           // sweep for vanished ids on a slow cadence. A full fetch is already
@@ -7921,6 +8200,7 @@
         // live for everyone when an admin changes it.
         try { loadMap(); } catch (_) {}
         try { loadZoneConfig(); } catch (_) {}
+        try { loadZoneSpots(); } catch (_) {}
         try { loadDepartments(); } catch (_) {}
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_agenda' }, (payload) => {
@@ -8161,12 +8441,14 @@
       if (r) r(result);
     }
     let _dialogInput = false;
-    function uiDialog({ title = '', message = '', okLabel = 'OK', cancelLabel = null, danger = false, input = false, inputValue = '', inputPlaceholder = '' }) {
+    let _dialogSelect = false;
+    function uiDialog({ title = '', message = '', okLabel = 'OK', cancelLabel = null, danger = false, input = false, inputValue = '', inputPlaceholder = '', choices = null }) {
       return new Promise((resolve) => {
         // A dialog opened over another one settles the previous as cancelled.
         if (_dialogResolve) _dialogClose(input ? null : false);
         _dialogResolve = resolve;
         _dialogInput = !!input;
+        _dialogSelect = !!choices;
         el('uiDialogTitle').textContent = title;
         el('uiDialogTitle').style.display = title ? 'block' : 'none';
         el('uiDialogMessage').textContent = message;
@@ -8175,6 +8457,14 @@
           inp.style.display = input ? 'block' : 'none';
           if (input) { inp.value = inputValue || ''; inp.placeholder = inputPlaceholder || ''; }
         }
+        const sel = el('uiDialogSelect');
+        if (sel) {
+          sel.style.display = choices ? 'block' : 'none';
+          if (choices) {
+            sel.innerHTML = choices.map((c) =>
+              `<option value="${escape(String(c.value))}">${escape(c.label)}</option>`).join('');
+          }
+        }
         const ok = el('uiDialogOk');
         const cancel = el('uiDialogCancel');
         ok.textContent = okLabel;
@@ -8182,7 +8472,7 @@
         cancel.style.display = cancelLabel ? 'inline-block' : 'none';
         if (cancelLabel) cancel.textContent = cancelLabel;
         el('uiDialog').classList.add('show');
-        if (input && inp) inp.focus(); else ok.focus();
+        if (input && inp) inp.focus(); else if (choices && sel) sel.focus(); else ok.focus();
       });
     }
     // Text-input dialog: resolves the entered string, or null on cancel.
@@ -8194,7 +8484,10 @@
         input: true, inputValue: opts.value || '', inputPlaceholder: opts.placeholder || '',
       });
     }
-    el('uiDialogOk').addEventListener('click', () => _dialogClose(_dialogInput ? (el('uiDialogInput')?.value ?? '') : true));
+    el('uiDialogOk').addEventListener('click', () => _dialogClose(
+      _dialogInput ? (el('uiDialogInput')?.value ?? '')
+        : _dialogSelect ? (el('uiDialogSelect')?.value ?? null)
+          : true));
     el('uiDialogCancel').addEventListener('click', () => _dialogClose(false));
     el('uiDialog').addEventListener('click', (e) => { if (e.target === el('uiDialog')) _dialogClose(false); });
     document.addEventListener('keydown', (e) => {
@@ -8210,6 +8503,17 @@
         okLabel: opts.okLabel || t('common.confirm'),
         cancelLabel: opts.cancelLabel || t('common.cancel'),
         danger: opts.danger !== false
+      });
+    }
+
+    // Pick-one dialog: resolves the chosen value, or false on cancel.
+    function uiChoose(message, choices, opts = {}) {
+      if (!choices || !choices.length) return Promise.resolve(false);
+      return uiDialog({
+        title: opts.title || '', message,
+        okLabel: opts.okLabel || t('common.confirm'),
+        cancelLabel: opts.cancelLabel || t('common.cancel'),
+        danger: false, choices,
       });
     }
 
@@ -8835,6 +9139,7 @@
                 + (c.rsvp_at ? ' · ' + fmtDateTime(c.rsvp_at) : '')
               : null)}
             ${fieldRow('Telegram', c.telegram_chat_id ? t('tg.linked') : t('tg.not_linked'))}
+            ${fieldRow(t('car.detail.spot'), c.spot_no ? (c.zone ? c.zone + ' · ' : '') + t('spots.spot_n', { n: c.spot_no }) : null)}
             ${fieldRow(t('car.detail.brand'), c.brand)}
             ${fieldRow(t('car.detail.model'), c.model)}
             ${fieldRow(t('car.detail.year'), c.year)}

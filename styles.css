@@ -1948,6 +1948,47 @@
 }
 .map-image-wrap img { width: 100%; height: auto; display: block; cursor: zoom-in; }
 
+/* ---- Numbered spots over the venue photo ---------------------------------
+   Positions are percentages, so the wrapper must establish the coordinate
+   space and the layer must match the image exactly. */
+.map-image-wrap { position: relative; }
+.map-spot-layer { position: absolute; inset: 0; pointer-events: none; }
+.map-spot-layer .map-spot { pointer-events: auto; }
+.map-spot-layer.is-editing { cursor: crosshair; }
+
+.map-spot {
+  position: absolute; transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-width: 34px; min-height: 34px; padding: 3px 5px;
+  border-radius: 9px; border: 1.5px solid rgba(255,255,255,0.5);
+  background: rgba(15,23,42,0.72); backdrop-filter: blur(3px);
+  color: #fff; font-size: 11px; font-weight: 800; line-height: 1.1;
+  cursor: pointer; touch-action: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+}
+.map-spot .ms-no { font-size: 12px; }
+.map-spot .ms-car { display: none; }
+/* An occupied spot leads with the car, because that is the question being
+   asked of the map. The number stays, smaller, so the plan is still readable. */
+.map-spot.taken { background: rgba(59,130,246,0.92); border-color: rgba(255,255,255,0.75); }
+.map-spot.taken .ms-no { font-size: 9px; opacity: .85; font-weight: 700; }
+.map-spot.taken .ms-car { display: block; font-size: 12px; white-space: nowrap; }
+.map-spot.here { background: rgba(16,185,129,0.94); }
+.map-spot:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.map-spot-layer.is-editing .map-spot { cursor: grab; }
+.map-spot-layer.is-editing .map-spot:active { cursor: grabbing; }
+
+.map-spot-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;
+}
+.map-spot-bar[hidden] { display: none; }
+.map-spot-zone {
+  padding: 7px 10px; border-radius: 10px; font-size: 13px;
+  background: var(--fill-1); border: 1px solid var(--border); color: var(--text);
+}
+.map-spot-bar .btn.active { background: var(--brand); color: #1a0410; border-color: transparent; }
+.map-spot-info { font-size: 12px; color: var(--text-dim); }
+
 /* ============ MAP CROP EDITOR ============ */
 .cropper {
   position: relative;
