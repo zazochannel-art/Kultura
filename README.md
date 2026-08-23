@@ -476,6 +476,14 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     primul și rolul din al doilea. La pornire la rece răspundea din nimic.
     Mutat după toate atribuirile, împreună cu `renderTgFunnel()`.
 
+37. **Ce se poate verifica la Telegram fără să deranjezi pe cineva.** Marcajul
+    HTML e validat de API **înainte** de căutarea chatului: trimite mesajul
+    către un `chat_id` inexistent și citește descrierea erorii —
+    `can't parse entities` înseamnă marcaj stricat, `chat not found` înseamnă
+    că a trecut de parser. Așa se testează formatarea fără să ajungă nimic la
+    un om real. (Toate cele trei formate — fișă, program, bun venit — au fost
+    verificate așa.)
+
 ## Rămas de făcut manual
 
 **Protecția împotriva parolelor compromise** nu se poate activa din cod:
