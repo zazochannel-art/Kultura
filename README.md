@@ -531,6 +531,27 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     offline, deci locul ar trebui pus și el în coadă, iar indexul de unicitate
     s-ar aplica abia la golire, când e prea târziu ca operatorul să afle. Se
     face separat, cu rezolvarea conflictelor la flush.
+44. **Un plan se desenează pe rânduri, nu punct cu punct.** Planurile reale au
+    ranguri de patruzeci de locuri pe o linie. Apăsat unul câte unul nu mai e
+    planificare, e introducere de date, așa că un rând se descrie prin cele două
+    capete ale lui și prin câte locuri intră între ele. Iar orice unealtă care
+    scrie patruzeci de rânduri dintr-un gest are nevoie de o anulare de aceeași
+    mărime — de aici „Golește zona".
+45. **Fără zoom, harta se poate privi, dar nu se poate folosi.** Scalată pe un
+    telefon, o celulă de parcare are câțiva pixeli: nu se poate apăsa, nu se
+    poate citi. Zoom-ul nu e un adaos peste locurile numerotate, e condiția ca
+    ele să existe. Pinii se contra-scalează, ca mărirea să-i depărteze între ei
+    în loc să-i umfle unul peste altul, iar sub o mărire utilă planul dens arată
+    puncte colorate: ocuparea se citește dintr-o privire, mașinile revin când e
+    loc pentru ele. Deplasarea se oprește la marginea imaginii — un plan care
+    poate fi tras în afara ramei lasă cititorul cu ecranul gol.
+46. **Numărul locului nu călătorește cu mașina.** Locul aparține zonei în care a
+    fost dat. Mutată în altă zonă, mașina și-l pierde: păstrat, ar arăta fie
+    către un loc care nu există în zona nouă, fie către unul deja ocupat, iar
+    indexul de unicitate ar refuza toată mutarea cu o eroare de cheie duplicată.
+47. **`cars.zone` e NOT NULL cu implicit `''`.** „Fără zonă" se scrie cu șir gol,
+    nu cu null — altfel baza refuză scrierea, iar opțiunea goală din selectorul
+    de zonă devine un mesaj de eroare. Verificat pe producție: `23502`.
 
 ## Rămas de făcut manual
 

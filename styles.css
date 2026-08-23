@@ -1940,13 +1940,42 @@
 .map-empty svg { width: 56px; height: 56px; opacity: 0.6; }
 .map-empty p { font-size: 14px; color: var(--text-dim); }
 .map-empty .map-empty-hint { font-size: 12px; color: var(--text-mute); }
-.map-image-wrap {
+/* The viewport is the frame; the wrapper inside it is what moves. Border and
+   clipping live out here so they do not scale with the plan. */
+.map-viewport {
+  position: relative;
   border: 1px solid var(--border);
   border-radius: 20px;
   overflow: hidden;
   background: var(--surface-solid);
+  touch-action: none;
 }
-.map-image-wrap img { width: 100%; height: auto; display: block; cursor: zoom-in; }
+.map-image-wrap {
+  transform-origin: 0 0;
+  will-change: transform;
+  background: var(--surface-solid);
+}
+.map-image-wrap img { width: 100%; height: auto; display: block; cursor: zoom-in; -webkit-user-drag: none; user-select: none; }
+/* Zoomed in on a phone the plan is read through a letterbox, so the frame is
+   allowed to grow — but only when it is smaller than that to begin with. */
+.map-viewport.is-zoomed { min-height: min(60vh, 520px); }
+.map-viewport.is-zoomed .map-image-wrap img { cursor: grab; }
+.map-viewport.is-zoomed .map-image-wrap:active img { cursor: grabbing; }
+
+.map-zoom {
+  position: absolute; right: 10px; bottom: 10px; z-index: 3;
+  display: flex; align-items: center; gap: 2px; padding: 3px;
+  border-radius: 12px; border: 1px solid var(--border);
+  background: rgba(15,23,42,0.82); backdrop-filter: blur(6px);
+}
+.map-zoom button {
+  min-width: 30px; height: 30px; padding: 0 7px;
+  border: 0; border-radius: 9px; background: transparent;
+  color: #fff; font-size: 15px; font-weight: 800; cursor: pointer;
+}
+.map-zoom button:hover { background: rgba(255,255,255,0.14); }
+.map-zoom button#mapZoomReset { font-size: 11px; font-weight: 700; }
+.map-zoom .map-zoom-val { min-width: 44px; text-align: center; font-size: 11px; font-weight: 700; color: #fff; }
 
 /* ---- Numbered spots over the venue photo ---------------------------------
    Positions are percentages, so the wrapper must establish the coordinate
@@ -1957,7 +1986,10 @@
 .map-spot-layer.is-editing { cursor: crosshair; }
 
 .map-spot {
-  position: absolute; transform: translate(-50%, -50%);
+  /* Counter-scaled against the map's zoom: the pin keeps its size on screen
+     while the plan grows under it, so zooming spreads pins apart instead of
+     inflating them into one another. */
+  position: absolute; transform: translate(-50%, -50%) scale(var(--pin-s, 1));
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   min-width: 34px; min-height: 34px; padding: 3px 5px;
   border-radius: 9px; border: 1.5px solid rgba(255,255,255,0.5);
@@ -1978,10 +2010,23 @@
 .map-spot-layer.is-editing .map-spot { cursor: grab; }
 .map-spot-layer.is-editing .map-spot:active { cursor: grabbing; }
 
+/* Dense plans: at fit-width forty pins in a row are a smear, so they fall back
+   to dots and the cars come back as soon as there is room to read them. */
+.map-spot-layer.dense .map-spot { min-width: 15px; min-height: 15px; padding: 0; border-radius: 50%; border-width: 1px; }
+.map-spot-layer.dense .map-spot .ms-no { font-size: 8px; }
+.map-spot-layer.dense .map-spot.taken .ms-no { font-size: 8px; opacity: 1; }
+.map-spot-layer.dense .map-spot.taken .ms-car { display: none; }
+
+/* The first end of a row being laid — a target, not a control. */
+.map-spot.ghost { pointer-events: none; background: rgba(217,70,239,0.9); border-style: dashed; }
+
 .map-spot-bar {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;
 }
 .map-spot-bar[hidden] { display: none; }
+/* Chromium's [hidden] already outranks `.btn`'s own display; WebKit's does not
+   declare it !important, so say it here rather than trust the engine. */
+.map-spot-bar .btn[hidden] { display: none; }
 .map-spot-zone {
   padding: 7px 10px; border-radius: 10px; font-size: 13px;
   background: var(--fill-1); border: 1px solid var(--border); color: var(--text);
