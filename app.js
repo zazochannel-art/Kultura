@@ -21,7 +21,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v125';
+    const APP_VERSION = 'v126';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -565,14 +565,25 @@
       if (_mapUrl) {
         // The spot layer sits inside the same wrapper as the image so both scale
         // together — percentages only mean anything against the rendered photo.
-        container.innerHTML = `<div class="map-image-wrap" id="mapImageWrap">`
-          + `<img src="${escape(_mapUrl)}" alt="${escape(t('map.title'))}" id="mapImage">`
+        // The viewport clips; the wrapper inside it is what zooms and pans, so
+        // the image and its spots move as one piece.
+        container.innerHTML = `<div class="map-viewport" id="mapViewport">`
+          + `<div class="map-image-wrap" id="mapImageWrap">`
+          + `<img src="${escape(_mapUrl)}" alt="${escape(t('map.title'))}" id="mapImage" draggable="false">`
           + `<div class="map-spot-layer" id="mapSpotLayer"></div>`
+          + `</div>`
+          + `<div class="map-zoom">`
+          + `<button type="button" id="mapZoomOut" aria-label="${escape(t('map.zoom_out'))}" title="${escape(t('map.zoom_out'))}">&minus;</button>`
+          + `<span class="map-zoom-val" id="mapZoomVal">100%</span>`
+          + `<button type="button" id="mapZoomIn" aria-label="${escape(t('map.zoom_in'))}" title="${escape(t('map.zoom_in'))}">+</button>`
+          + `<button type="button" id="mapZoomReset" aria-label="${escape(t('map.zoom_reset'))}" title="${escape(t('map.zoom_reset'))}">100%</button>`
+          + `</div>`
           + `</div>`;
+        applyMapTransform();
         // Opening the lightbox would swallow every tap meant for a spot, so it
         // moves to its own control while spots are being placed or read.
         el('mapImage').onclick = (e) => {
-          if (_spotEdit || ZONE_SPOTS.length) return;
+          if (_spotEdit || ZONE_SPOTS.length || _mapZoom > 1.01 || _mapPanMoved) return;
           e.preventDefault(); openLightbox(_mapUrl);
         };
         try { renderMapSpots(); } catch (_) {}
@@ -670,6 +681,8 @@
     let ZONE_SPOTS = [];            // [{ zone, no, x, y }]
     let _spotEdit = false;          // placing/moving spots
     let _spotEditZone = '';         // which zone new spots belong to
+    let _spotRow = false;           // laying a whole row instead of one spot
+    let _rowFrom = null;            // first end of the row being laid
 
     const spotKey = (zone, no) => (zone || '').trim().toLowerCase() + '#' + no;
     function spotsOfZone(zone) {
@@ -682,6 +695,15 @@
       const k = (zone || '').trim().toLowerCase();
       return activeCars().find(c =>
         c.spot_no === no && (c.zone || '').trim().toLowerCase() === k) || null;
+    }
+    // Hand out `count` spot numbers for a zone, filling gaps before extending
+    // the range: deleting spot 3 and adding one again gives you 3 back instead
+    // of an ever-growing set of numbers.
+    function allocSpotNumbers(zone, count) {
+      const used = new Set(spotsOfZone(zone).map(sp => sp.no));
+      const out = [];
+      for (let n = 1; out.length < count; n++) { if (!used.has(n)) out.push(n); }
+      return out;
     }
     // Lowest free number in a zone, or null when the zone is full or has none.
     function nextFreeSpot(zone) {
@@ -754,8 +776,18 @@
           <span class="ms-car">${escape(label)}</span>
         </button>`;
       }).join('');
+      // The first end of a row being laid, so you can see what you are aiming at.
+      if (_spotEdit && _spotRow && _rowFrom) {
+        layer.insertAdjacentHTML('beforeend',
+          `<span class="map-spot ghost" style="left:${_rowFrom.x}%; top:${_rowFrom.y}%" aria-hidden="true">`
+          + `<span class="ms-no">${escape(t('spots.row_a'))}</span></span>`);
+      }
+      renderSpotDensity();
       const bar = el('mapSpotBar');
       if (bar) bar.hidden = !(roleAtLeast('staff') && _mapUrl);
+      for (const id of ['spotRowBtn', 'spotClearBtn']) {
+        const b = el(id); if (b) b.hidden = !_spotEdit;
+      }
       const zoneSel = el('spotZone');
       if (zoneSel && zoneSel.options.length !== PARKING_ZONES.length + 1) {
         zoneSel.innerHTML = `<option value="">${escape(t('spots.pick_zone'))}</option>`
@@ -785,10 +817,218 @@
       };
     }
 
+    // ----- ZOOM & PAN ------------------------------------------------------
+    // A real venue plan is rows of forty slots. Scaled to fit a phone, one slot
+    // is a few pixels wide: the map can be looked at but not used. Zoom is what
+    // makes the interactive half reachable, so it ships with the plan, not after.
+    let _mapZoom = 1, _mapPanX = 0, _mapPanY = 0, _mapPanMoved = false;
+    const MAP_ZOOM_MAX = 8;
+
+    // The plan's size before any zoom. `offsetWidth`/`offsetHeight` round to
+    // whole pixels, and at 8x half a pixel becomes a visible strip of frame
+    // beside the map — so measure it properly, and only when the width changes.
+    let _mapContentW = 0, _mapContentH = 0, _mapMeasuredAt = -1;
+    function mapContentSize(wrap) {
+      if (_mapMeasuredAt !== wrap.offsetWidth || !_mapContentH) {
+        const cs = getComputedStyle(wrap);
+        _mapContentW = parseFloat(cs.width) || wrap.offsetWidth;
+        _mapContentH = parseFloat(cs.height) || wrap.offsetHeight;
+        _mapMeasuredAt = wrap.offsetWidth;
+      }
+      return { w: _mapContentW, h: _mapContentH };
+    }
+    function clampMapPan() {
+      const vp = el('mapViewport'), wrap = el('mapImageWrap');
+      if (!vp || !wrap) return;
+      // Measure the wrapper, not the frame: zoomed in, the frame grows taller
+      // than the plan is at rest, and the two sizes stop agreeing.
+      const size = mapContentSize(wrap);
+      const cw = size.w * _mapZoom, ch = size.h * _mapZoom;
+      // The plan always covers the frame: panning can never expose a void
+      // beside it, which would leave the reader unsure where the map went.
+      _mapPanX = Math.min(0, Math.max(Math.min(0, vp.clientWidth - cw), _mapPanX));
+      _mapPanY = Math.min(0, Math.max(Math.min(0, vp.clientHeight - ch), _mapPanY));
+    }
+    // Pins keep their size on screen while the plan grows underneath them, so
+    // zooming spreads them apart instead of inflating them into each other.
+    function renderSpotDensity() {
+      const layer = el('mapSpotLayer');
+      if (!layer) return;
+      layer.style.setProperty('--pin-s', String(1 / _mapZoom));
+      // Forty pins on one row is a smear at fit-width. Until there is room for
+      // them the plan shows dots; the cars appear as soon as they can be read.
+      layer.classList.toggle('dense', ZONE_SPOTS.length > 24 && _mapZoom < 1.8);
+    }
+    function applyMapTransform() {
+      const wrap = el('mapImageWrap');
+      if (!wrap) return;
+      clampMapPan();
+      wrap.style.transform = `translate(${_mapPanX}px, ${_mapPanY}px) scale(${_mapZoom})`;
+      const val = el('mapZoomVal');
+      if (val) val.textContent = Math.round(_mapZoom * 100) + '%';
+      el('mapViewport')?.classList.toggle('is-zoomed', _mapZoom > 1.01);
+      renderSpotDensity();
+    }
+    function setMapZoom(next, cx, cy) {
+      const vp = el('mapViewport');
+      if (!vp) return;
+      const z0 = _mapZoom;
+      const z1 = Math.min(MAP_ZOOM_MAX, Math.max(1, next));
+      if (Math.abs(z1 - z0) < 1e-4) return;
+      const r = vp.getBoundingClientRect();
+      // Anchor on the point under the pointer, otherwise zooming walks away
+      // from whatever you were leaning in to look at.
+      const ax = (cx == null ? r.width / 2 : cx - r.left);
+      const ay = (cy == null ? r.height / 2 : cy - r.top);
+      _mapPanX = ax - (ax - _mapPanX) * (z1 / z0);
+      _mapPanY = ay - (ay - _mapPanY) * (z1 / z0);
+      _mapZoom = z1;
+      applyMapTransform();
+    }
+    function resetMapZoom() { _mapZoom = 1; _mapPanX = 0; _mapPanY = 0; applyMapTransform(); }
+
+    el('mapContainer')?.addEventListener('click', (e) => {
+      const b = e.target.closest?.('.map-zoom button');
+      if (!b) return;
+      e.stopPropagation();
+      if (b.id === 'mapZoomIn') setMapZoom(_mapZoom * 1.5);
+      else if (b.id === 'mapZoomOut') setMapZoom(_mapZoom / 1.5);
+      else resetMapZoom();
+    });
+    el('mapContainer')?.addEventListener('wheel', (e) => {
+      if (!el('mapViewport')?.contains(e.target)) return;
+      e.preventDefault();
+      setMapZoom(_mapZoom * (e.deltaY < 0 ? 1.2 : 1 / 1.2), e.clientX, e.clientY);
+    }, { passive: false });
+
+    // Drag to pan, two fingers to pinch. Pointer events cover mouse and touch
+    // in one path, the same way spot dragging does.
+    (function mapPan() {
+      const pts = new Map();
+      let pinch = null, pan = null;
+      const two = () => [...pts.values()];
+      const down = (e) => {
+        const vp = el('mapViewport');
+        if (!vp || !vp.contains(e.target) || e.target.closest('.map-zoom')) return;
+        // Cleared on every touch, not only when a pan starts: otherwise the
+        // last drag before zooming back out keeps swallowing the next tap.
+        _mapPanMoved = false;
+        pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pts.size === 2) {
+          const [a, b] = two();
+          pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: _mapZoom };
+          pan = null;
+          return;
+        }
+        if (pts.size !== 1) return;
+        // Nothing to pan at fit-width, and claiming the gesture there would
+        // swallow the tap that places a spot.
+        if (_mapZoom <= 1.01) return;
+        if (_spotEdit && e.target.closest('.map-spot')) return;  // that is the pin's drag
+        pan = { x: e.clientX, y: e.clientY, px: _mapPanX, py: _mapPanY };
+      };
+      const move = (e) => {
+        if (!pts.has(e.pointerId)) return;
+        pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pts.size === 2 && pinch && pinch.d > 0) {
+          const [a, b] = two();
+          _mapPanMoved = true;
+          setMapZoom(pinch.z * (Math.hypot(a.x - b.x, a.y - b.y) / pinch.d),
+            (a.x + b.x) / 2, (a.y + b.y) / 2);
+          e.preventDefault();
+          return;
+        }
+        if (!pan) return;
+        const dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+        // A tap is not a pan: below the threshold the click still gets through.
+        if (!_mapPanMoved && Math.hypot(dx, dy) < 6) return;
+        _mapPanMoved = true;
+        _mapPanX = pan.px + dx; _mapPanY = pan.py + dy;
+        applyMapTransform();
+        e.preventDefault();
+      };
+      const up = (e) => {
+        pts.delete(e.pointerId);
+        if (pts.size < 2) pinch = null;
+        if (!pts.size) pan = null;
+      };
+      document.addEventListener('pointerdown', down);
+      document.addEventListener('pointermove', move, { passive: false });
+      document.addEventListener('pointerup', up);
+      document.addEventListener('pointercancel', up);
+    })();
+
+    // ----- A WHOLE ROW AT ONCE ---------------------------------------------
+    // Plans are drawn in rows: forty slots along one line. Tapping each of them
+    // is not planning, it is data entry — so a row is described by its two ends
+    // and how many slots sit between, and the app spaces them out.
+    function setRowMode(on) {
+      _spotRow = on;
+      if (!on) _rowFrom = null;
+      const b = el('spotRowBtn');
+      if (b) { b.classList.toggle('active', on); b.textContent = t(on ? 'spots.row_cancel' : 'spots.row'); }
+      if (on) showToast(t('spots.row_hint_start'));
+      renderMapSpots();
+    }
+
+    async function placeSpotRow(a, b) {
+      const zone = _spotEditZone;
+      const raw = await uiPrompt(t('spots.row_count_q', { zone }), { value: '10' });
+      if (raw == null) return;
+      const n = parseInt(String(raw).trim(), 10);
+      if (!Number.isFinite(n) || n < 2 || n > 120) { showToast(t('spots.row_count_bad'), 'error'); return; }
+      const nums = allocSpotNumbers(zone, n);
+      const add = [];
+      for (let i = 0; i < n; i++) {
+        const k = i / (n - 1);
+        add.push({
+          zone, no: nums[i],
+          x: Math.min(100, Math.max(0, a.x + (b.x - a.x) * k)),
+          y: Math.min(100, Math.max(0, a.y + (b.y - a.y) * k)),
+        });
+      }
+      if (await saveZoneSpots(ZONE_SPOTS.concat(add))) showToast(t('spots.row_done', { n, zone }));
+    }
+
+    el('spotRowBtn')?.addEventListener('click', () => {
+      if (!roleAtLeast('staff')) return;
+      if (!_spotRow && !_spotEditZone) { showToast(t('spots.pick_zone_first'), 'error'); return; }
+      setRowMode(!_spotRow);
+    });
+
+    // Clearing a zone. Laying forty spots in one gesture needs an undo of the
+    // same size, or the first mistake costs forty taps to walk back.
+    el('spotClearBtn')?.addEventListener('click', async () => {
+      if (!roleAtLeast('staff')) return;
+      const zone = _spotEditZone;
+      if (!zone) { showToast(t('spots.pick_zone_first'), 'error'); return; }
+      const mine = spotsOfZone(zone);
+      if (!mine.length) { showToast(t('spots.none_yet'), 'error'); return; }
+      const onThem = mine.map(sp => carOnSpot(zone, sp.no)).filter(Boolean);
+      if (!await uiConfirm(t('spots.clear_confirm', { n: mine.length, zone, cars: onThem.length }))) return;
+      // Free the cars first: a spot number pointing at a spot that no longer
+      // exists would keep showing on the car's card as a place to go.
+      if (onThem.length) {
+        if (!requireOnline(t('spots.what'))) return;
+        const { error } = await supa.from('cars').update({ spot_no: null }).in('id', onThem.map(c => c.id));
+        if (error) { uiAlert(t('common.error') + ': ' + error.message); return; }
+        for (const c of onThem) {
+          const row = (state.cars || []).find(x => String(x.id) === String(c.id));
+          if (row) row.spot_no = null;
+        }
+      }
+      const k = zone.trim().toLowerCase();
+      if (await saveZoneSpots(ZONE_SPOTS.filter(sp => sp.zone.trim().toLowerCase() !== k))) {
+        renderCars();
+        showToast(t('spots.cleared', { n: mine.length, zone }));
+      }
+    });
+
     el('spotEditBtn')?.addEventListener('click', () => {
       _spotEdit = !_spotEdit;
       const b = el('spotEditBtn');
       if (b) { b.textContent = t(_spotEdit ? 'spots.place_done' : 'spots.place'); b.classList.toggle('active', _spotEdit); }
+      if (!_spotEdit) setRowMode(false);
       if (_spotEdit) showToast(t('spots.place_hint'));
       renderMapSpots();
     });
@@ -798,22 +1038,33 @@
     // Placing: a tap on the photo drops the next number of the chosen zone.
     el('mapContainer')?.addEventListener('click', async (e) => {
       if (!_spotEdit || !roleAtLeast('staff')) return;
-      if (e.target.closest('.map-spot')) return;      // handled below
       if (!el('mapImageWrap')?.contains(e.target)) return;
+      if (_mapPanMoved) return;                       // that was a pan, not a tap
+      // In row mode a pin is just scenery: both ends of the row are points on
+      // the photo, and a dense zone leaves nowhere else to aim.
+      if (!_spotRow && e.target.closest('.map-spot')) return;   // handled below
       if (!_spotEditZone) { showToast(t('spots.pick_zone_first'), 'error'); return; }
       const at = mapPointPct(e);
       if (!at) return;
-      const used = spotsOfZone(_spotEditZone).map(sp => sp.no);
-      // Reuse a gap before extending the range, so deleting spot 3 and adding
-      // one again gives you 3 back instead of an ever-growing set of numbers.
-      let no = 1; while (used.includes(no)) no++;
-      await saveZoneSpots(ZONE_SPOTS.concat([{ zone: _spotEditZone, no, x: at.x, y: at.y }]));
+      if (_spotRow) {
+        if (!_rowFrom) { _rowFrom = at; renderMapSpots(); showToast(t('spots.row_hint_end')); return; }
+        const from = _rowFrom;
+        setRowMode(false);
+        await placeSpotRow(from, at);
+        return;
+      }
+      await saveZoneSpots(ZONE_SPOTS.concat([
+        { zone: _spotEditZone, no: allocSpotNumbers(_spotEditZone, 1)[0], x: at.x, y: at.y },
+      ]));
     });
 
     // A spot: while editing it is a handle, otherwise it is the car on it.
     el('mapContainer')?.addEventListener('click', async (e) => {
       const pin = e.target.closest('.map-spot');
-      if (!pin) return;
+      if (!pin || _spotRow) return;
+      // A pan that happens to end over a pin is still a pan: without this,
+      // dragging across a full zone opens whichever car you let go on.
+      if (_mapPanMoved) return;
       e.stopPropagation();
       const zone = pin.dataset.spotZone, no = Number(pin.dataset.spotNo);
       if (_spotEdit) {
@@ -831,7 +1082,7 @@
     (function spotDrag() {
       let dragging = null;
       const start = (e) => {
-        if (!_spotEdit || !roleAtLeast('staff')) return;
+        if (!_spotEdit || _spotRow || !roleAtLeast('staff')) return;
         const pin = e.target.closest('.map-spot');
         if (!pin) return;
         dragging = { zone: pin.dataset.spotZone, no: Number(pin.dataset.spotNo), pin, moved: false };
@@ -9255,18 +9506,30 @@
         const newVal = zoneSel.value.trim();
         if (newVal === prev) return;
         zoneSel.disabled = true;
-        const { error } = await supa.from('cars').update({ zone: newVal || null }).eq('id', c.id);
+        // A spot number belongs to a zone, so it cannot survive the move: kept,
+        // it would either point at a spot that does not exist in the new zone or
+        // collide with the car already standing there — and the unique index
+        // would refuse the whole change with a raw duplicate-key error.
+        const hadSpot = c.spot_no != null;
+        // `zone` is NOT NULL with an empty-string default: clearing it means '',
+        // not null, or the database refuses the write outright.
+        const patch = { zone: newVal };
+        if (hadSpot) patch.spot_no = null;
+        const { error } = await supa.from('cars').update(patch).eq('id', c.id);
         zoneSel.disabled = false;
         if (error) {
           showToast(t('common.error') + ': ' + error.message, 'error');
           zoneSel.value = prev;
           return;
         }
-        showToast(t('car.detail.zone_saved'));
+        showToast(hadSpot ? t('car.detail.zone_saved_spot_freed') : t('car.detail.zone_saved'));
         c.zone = newVal;
+        if (hadSpot) c.spot_no = null;
         const row = (state.cars || []).find(x => String(x.id) === String(c.id));
-        if (row) row.zone = newVal;
+        if (row) { row.zone = newVal; if (hadSpot) row.spot_no = null; }
         renderCars(); renderZoneBoard();
+        try { renderMapSpots(); } catch (_) {}
+        if (hadSpot) showCarDetail(c.id);
       };
 
       // ----- Photos: upload / view / delete -----

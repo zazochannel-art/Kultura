@@ -1942,6 +1942,291 @@ try {
     await mctx.close();
   }
 
+  // 4q. A drawn plan, not a photo with a few pins on it.
+  //
+  // The venue plan is rows of forty slots. Tapping each one is data entry, and
+  // at fit-width a slot is a few pixels across — so the plan is laid a row at a
+  // time and read by zooming in. Both halves are what make the map usable at
+  // all, which is why they are checked against a dense fixture, not three pins.
+  {
+    const SPOTS = Array.from({ length: 26 }, (_, i) => ({
+      zone: 'Stance', no: i + 1, x: 10 + (80 * i) / 25, y: 12 + (74 * i) / 25,
+    }));
+    const CARS = [
+      { id: 1, entry_no: 11, brand: 'VW', model: 'Golf', owner: 'Ana', plate: 'P1', status: 'Sosit', zone: 'Stance', spot_no: 1, event_id: 6, deleted_at: null },
+      { id: 2, entry_no: 12, brand: 'Mazda', model: 'RX7', owner: 'Ion', plate: 'P2', status: 'Invitat', zone: 'Stance', spot_no: 2, event_id: 6, deleted_at: null },
+    ];
+    let saved = null;
+    const carPatches = [];
+    const zctx = await browser.newContext({ viewport: { width: 1200, height: 950 } });
+    await zctx.route('**://*.supabase.co/**', (r) => {
+      const u = r.request().url(), m = r.request().method();
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      if (u.includes('/rest/v1/ui_settings')) {
+        if (m === 'POST') {
+          try {
+            const b = JSON.parse(r.request().postData() || '{}');
+            if (b.key === 'zone_spots') saved = JSON.parse(b.value);
+          } catch (_) { /* the assertions below report it */ }
+          return J([]);
+        }
+        if (u.includes('zone_spots')) return J([{ value: JSON.stringify(SPOTS) }]);
+        if (u.includes('zone_map_url')) return J([{ value: 'https://map.test/plan.png' }]);
+        return J([]);
+      }
+      if (u.includes('/rest/v1/cars')) {
+        if (m === 'PATCH') { carPatches.push({ url: u, body: r.request().postData() || '' }); return J([]); }
+        return J(/deleted_at=not\.is\.null/.test(u) ? [] : CARS);
+      }
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString() }]);
+      if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+      if (u.includes('/rest/v1/')) return J([]);
+      if (u.includes('/functions/v1/')) return J({});
+      return r.abort();
+    });
+    await zctx.route('**://map.test/**', (r) => r.fulfill({
+      status: 200, contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><rect width="900" height="600" fill="#2b3245"/></svg>',
+    }));
+    const zp = await zctx.newPage();
+    try {
+      await zp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await zp.evaluate(() => localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      })));
+      await zp.reload({ waitUntil: 'domcontentloaded' });
+      await zp.waitForTimeout(2400);
+      await zp.evaluate(() => {
+        document.getElementById('splashScreen')?.remove();
+        document.querySelector('.tab[data-section="map"], .mtab[data-section="map"]')?.click();
+      });
+      await zp.waitForSelector('.map-spot', { state: 'attached', timeout: 8000 });
+
+      // Twenty-six pins across one photo at fit-width is a smear: the plan
+      // falls back to dots, and the cars come back once there is room to read
+      // them. Anything else and the overview is unreadable exactly when the
+      // zone is full, which is the moment it is needed.
+      const dense = await zp.evaluate(() => {
+        const layer = document.getElementById('mapSpotLayer');
+        const at1 = layer.classList.contains('dense');
+        document.getElementById('mapZoomIn').click();
+        document.getElementById('mapZoomIn').click();
+        return { at1, zoomed: layer.classList.contains('dense') };
+      });
+      check('spots-dense-plans-fall-back-to-dots', dense.at1 && !dense.zoomed, JSON.stringify(dense));
+
+      // The row tools belong to placing mode: outside it the bar would offer two
+      // controls with nothing to act on. This checks the wiring that sets
+      // `hidden`; the stylesheet rule beside it is belt-and-braces for engines
+      // whose [hidden] does not outrank `.btn`'s own display.
+      const tools = await zp.evaluate(() => {
+        const vis = (id) => {
+          const b = document.getElementById(id);
+          return !!b && getComputedStyle(b).display !== 'none';
+        };
+        const before = { row: vis('spotRowBtn'), clear: vis('spotClearBtn') };
+        document.getElementById('spotEditBtn').click();
+        const during = { row: vis('spotRowBtn'), clear: vis('spotClearBtn') };
+        document.getElementById('spotEditBtn').click();
+        return { before, during };
+      });
+      check('spots-row-tools-only-while-placing',
+        !tools.before.row && !tools.before.clear && tools.during.row && tools.during.clear,
+        JSON.stringify(tools));
+
+      // A pin keeps its size on screen while the plan grows under it, so
+      // zooming spreads pins apart instead of inflating them into each other.
+      // Measured between two zoom levels that are both past the dense cutoff,
+      // or the fallback's own size change would answer for the counter-scale.
+      const pin = await zp.evaluate(() => {
+        const w = () => document.querySelector('.map-spot[data-spot-no="3"]').getBoundingClientRect().width;
+        const a = w();
+        document.getElementById('mapZoomIn').click();
+        return { a, b: w(), zoom: document.getElementById('mapZoomVal').textContent };
+      });
+      check('map-zoom-keeps-pins-legible', Math.abs(pin.a - pin.b) < 1.5 && pin.a > 10, JSON.stringify(pin));
+
+      const zoomed = await zp.evaluate(() => {
+        const wrap = document.getElementById('mapImageWrap');
+        return { t: wrap.style.transform, val: document.getElementById('mapZoomVal').textContent };
+      });
+      check('map-zoom-scales-the-plan', /scale\(3\.375\)/.test(zoomed.t) && zoomed.val === '338%', JSON.stringify(zoomed));
+
+      // Dragging past the corner must stop at the corner: a plan that can be
+      // pulled off its own frame leaves the reader looking at nothing.
+      //
+      // Dragged repeatedly, because one swipe is shorter than the slack at this
+      // zoom — the first version of this check moved the plan a third of the way
+      // and passed with the clamp deliberately removed.
+      const vpBox = await zp.evaluate(() => {
+        const r = document.getElementById('mapViewport').getBoundingClientRect();
+        return { x: r.x, y: r.y, w: r.width, h: r.height };
+      });
+      // Kept away from the bottom-right corner: the zoom control lives there
+      // and a gesture starting on it is not a pan at all.
+      const swipe = async (fromF, toF) => {
+        for (let i = 0; i < 4; i++) {
+          await zp.mouse.move(vpBox.x + vpBox.w * fromF, vpBox.y + vpBox.h * fromF);
+          await zp.mouse.down();
+          await zp.mouse.move(vpBox.x + vpBox.w * toF, vpBox.y + vpBox.h * toF, { steps: 8 });
+          await zp.mouse.up();
+          await zp.waitForTimeout(80);
+        }
+      };
+      // Against the frame's content box, not its border box: the clamp works in
+      // clientWidth, and comparing to the outer rect is off by the 1px border.
+      const corners = async () => zp.evaluate(() => {
+        const vp2 = document.getElementById('mapViewport');
+        const v = vp2.getBoundingClientRect(), cs = getComputedStyle(vp2);
+        const x0 = v.left + (parseFloat(cs.borderLeftWidth) || 0);
+        const y0 = v.top + (parseFloat(cs.borderTopWidth) || 0);
+        const w = document.getElementById('mapImageWrap').getBoundingClientRect();
+        return { l: w.left - x0, t: w.top - y0, r: w.right - (x0 + vp2.clientWidth), b: w.bottom - (y0 + vp2.clientHeight) };
+      });
+      await swipe(0.10, 0.85);          // pull the plan down-right, past its own edge
+      const atStart = await corners();
+
+      await swipe(0.85, 0.10);          // and back up-left, past the other edge
+      const atEnd = await corners();
+      check('map-pan-cannot-expose-a-void',
+        Math.abs(atStart.l) < 1 && Math.abs(atStart.t) < 1
+        && Math.abs(atEnd.r) < 1 && Math.abs(atEnd.b) < 1,
+        JSON.stringify({ atStart, atEnd }));
+
+      // Placing while zoomed in is the normal case on a dense plan, so the
+      // percentage written down has to be the point under the finger — not the
+      // point it would have been at fit-width.
+      await zp.selectOption('#spotZone', 'Euro');
+      await zp.evaluate(() => document.getElementById('spotEditBtn').click());
+      const geo = await zp.evaluate(() => {
+        const w = document.getElementById('mapImageWrap').getBoundingClientRect();
+        const v = document.getElementById('mapViewport').getBoundingClientRect();
+        return { wx: w.x, wy: w.y, ww: w.width, wh: w.height, vx: v.x, vy: v.y, vw: v.width, vh: v.height };
+      });
+      const tapX = geo.vx + geo.vw * 0.28, tapY = geo.vy + geo.vh * 0.34;
+      const want = { x: (tapX - geo.wx) / geo.ww * 100, y: (tapY - geo.wy) / geo.wh * 100 };
+      await zp.mouse.click(tapX, tapY);
+      await zp.waitForTimeout(500);
+      const one = (saved || []).find((sp) => sp.zone === 'Euro');
+      check('spots-placed-where-tapped-when-zoomed',
+        !!one && Math.abs(one.x - want.x) < 1 && Math.abs(one.y - want.y) < 1,
+        JSON.stringify({ one, want }));
+
+      await zp.evaluate(() => document.getElementById('mapZoomReset').click());
+      await zp.waitForTimeout(150);
+      const back = await zp.evaluate(() => ({
+        t: document.getElementById('mapImageWrap').style.transform,
+        val: document.getElementById('mapZoomVal').textContent,
+      }));
+      check('map-zoom-reset-returns-to-fit',
+        /scale\(1\)/.test(back.t) && /translate\(0px, 0px\)/.test(back.t) && back.val === '100%',
+        JSON.stringify(back));
+
+      // A whole row from its two ends. This is the difference between laying a
+      // plan and typing one in: forty slots for two taps and a number.
+      saved = null;
+      await zp.selectOption('#spotZone', 'Stance');
+      await zp.evaluate(() => document.getElementById('spotRowBtn').click());
+      const wrapBox = await zp.evaluate(() => {
+        const r = document.getElementById('mapImageWrap').getBoundingClientRect();
+        return { x: r.x, y: r.y, w: r.width, h: r.height };
+      });
+      await zp.mouse.click(wrapBox.x + wrapBox.w * 0.20, wrapBox.y + wrapBox.h * 0.80);
+      await zp.waitForTimeout(250);
+      await zp.mouse.click(wrapBox.x + wrapBox.w * 0.80, wrapBox.y + wrapBox.h * 0.90);
+      await zp.waitForTimeout(400);
+      await zp.fill('#uiDialogInput', '5');
+      await zp.evaluate(() => document.getElementById('uiDialogOk').click());
+      await zp.waitForTimeout(600);
+      const row = (saved || []).filter((sp) => sp.zone === 'Stance' && sp.no > 26).sort((a, b) => a.no - b.no);
+      check('spots-row-places-the-whole-rank', row.length === 5, JSON.stringify(row.map((r2) => r2.no)));
+      check('spots-row-ends-land-on-the-taps',
+        row.length === 5
+        && Math.abs(row[0].x - 20) < 1.5 && Math.abs(row[0].y - 80) < 1.5
+        && Math.abs(row[4].x - 80) < 1.5 && Math.abs(row[4].y - 90) < 1.5,
+        JSON.stringify(row.length ? [row[0], row[4]] : []));
+      // Evenly spaced, not merely present: the middle spot sits halfway.
+      check('spots-row-spaced-evenly',
+        row.length === 5 && Math.abs(row[2].x - 50) < 1.5 && Math.abs(row[2].y - 85) < 1.5,
+        JSON.stringify(row[2] || null));
+      // The zone already had 26 spots, so the row continues at 27 — a second
+      // rank must not renumber the first.
+      check('spots-row-numbers-continue-the-zone',
+        row.length === 5 && row[0].no === 27 && row[4].no === 31, JSON.stringify(row.map((r2) => r2.no)));
+
+      // Moving a car to another zone: the spot number belongs to the zone it
+      // was given in, so it cannot travel. Kept, it would either point at a
+      // spot the new zone does not have or collide with the car already there,
+      // and the unique index would refuse the move with a duplicate-key error.
+      carPatches.length = 0;
+      await zp.evaluate(() =>
+        document.querySelector('.tab[data-section="cars"], .mtab[data-section="cars"]')?.click());
+      await zp.waitForTimeout(400);
+      await zp.evaluate(() => document.querySelector('[data-row-id="1"] .row-title')?.click());
+      await zp.waitForSelector('#carZoneInput', { timeout: 6000 });
+      await zp.waitForTimeout(300);
+      await zp.selectOption('#carZoneInput', 'Euro');
+      await zp.waitForTimeout(600);
+      const moved = carPatches.map((c2) => c2.body.replace(/\s/g, ''));
+      check('car-zone-change-releases-the-spot',
+        moved.some((b) => /"zone":"Euro"/.test(b) && /"spot_no":null/.test(b)), JSON.stringify(moved));
+
+      // `cars.zone` is NOT NULL with an empty-string default, so clearing the
+      // zone has to write '' — null is refused outright and the picker's own
+      // placeholder option becomes an error message.
+      carPatches.length = 0;
+      await zp.waitForSelector('#carZoneInput', { timeout: 6000 });
+      await zp.selectOption('#carZoneInput', '');
+      await zp.waitForTimeout(600);
+      const cleared = carPatches.map((c2) => c2.body.replace(/\s/g, ''));
+      check('car-zone-change-never-writes-null-zone',
+        cleared.length > 0 && cleared.every((b) => !/"zone":null/.test(b)) && cleared.some((b) => /"zone":""/.test(b)),
+        JSON.stringify(cleared));
+
+      // Clearing a zone has to free the cars standing in it, or their cards
+      // keep pointing at a spot that no longer exists. Runs after the move
+      // above, so the zone change is not waiting on a hydration fetch that a
+      // loaded machine may not deliver in time. Which ids the freeing write
+      // names is left open on purpose: the fixture answers every read with the
+      // same two cars, so a re-read can put one of them back on its spot.
+      carPatches.length = 0;
+      saved = null;
+      await zp.evaluate(() => {
+        document.getElementById('modal-car-detail')?.classList.remove('show');
+        document.querySelector('.tab[data-section="map"], .mtab[data-section="map"]')?.click();
+      });
+      await zp.waitForTimeout(300);
+      await zp.evaluate(() => document.getElementById('spotClearBtn').click());
+      await zp.waitForTimeout(400);
+      await zp.evaluate(() => document.getElementById('uiDialogOk').click());
+      await zp.waitForTimeout(700);
+      const freed = carPatches.find((c2) => /"spot_no":null/.test(c2.body.replace(/\s/g, '')));
+      const leftOver = (saved || []).filter((sp) => sp.zone === 'Stance');
+      check('spots-clearing-a-zone-frees-its-cars',
+        !!freed && /id=in\./.test(freed.url) && Array.isArray(saved) && leftOver.length === 0,
+        JSON.stringify({ freed: freed && freed.url, leftOver: leftOver.length, saved: (saved || []).length }));
+
+    } catch (e) {
+      for (const n of ['spots-row-places-the-whole-rank', 'spots-row-ends-land-on-the-taps',
+        'spots-row-spaced-evenly', 'spots-row-numbers-continue-the-zone',
+        'map-zoom-scales-the-plan', 'map-zoom-keeps-pins-legible',
+        'map-zoom-reset-returns-to-fit', 'map-pan-cannot-expose-a-void',
+        'spots-placed-where-tapped-when-zoomed', 'spots-dense-plans-fall-back-to-dots',
+        'spots-clearing-a-zone-frees-its-cars', 'car-zone-change-releases-the-spot',
+        'car-zone-change-never-writes-null-zone', 'spots-row-tools-only-while-placing']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`map zoom/row checks: ${e.message}`);
+    }
+    await zctx.close();
+  }
+
   // 5. Public pages (given out by QR at the event) must render standalone.
   // They talk to Supabase, which is unreachable here, so we only assert the
   // static shell renders and nothing throws before the network call.
