@@ -308,7 +308,6 @@
           </div>
           <div class="aflux-cols">
             <div><div class="aflux-sub" data-i18n="aflux.by_operator">Check-in pe operator</div><div id="afluxOps"></div></div>
-            <div><div class="aflux-sub" data-i18n="aflux.by_gate">Pe poartă</div><div id="afluxGates"></div></div>
           </div>
         </div>
 
@@ -1525,7 +1524,6 @@
               <select name="status">
                 <option value="Invitat">Invitat</option>
                 <option value="Sosit">Sosit</option>
-                <option value="Plecat">Plecat</option>
                 <option value="În așteptare">În așteptare</option>
               </select>
             </div>
@@ -1769,7 +1767,6 @@
         <div class="gate-title">
           <h2 data-i18n="gate.title">Poartă — Check-in</h2>
           <div class="gate-title-meta">
-            <button type="button" class="gate-label-btn" id="gateLabelBtn" title="Denumire poartă" data-i18n-title="gate.label_edit"></button>
             <span class="gate-sync" id="gateSync"></span>
           </div>
         </div>
@@ -1798,6 +1795,15 @@
         <video id="gateVideo" playsinline muted></video>
         <div class="gate-scan-frame"></div>
         <div class="gate-scan-hint" id="gateScanHint"></div>
+        <!-- 10 check-ins landed in a single minute, all from one phone. In that
+             burst the confirmation card is one tap per car and the camera stops
+             between each. This keeps it running. -->
+        <label class="gate-burst-toggle">
+          <input type="checkbox" id="gateBurst">
+          <span data-i18n="gate.burst">Scanare rapidă</span>
+          <b id="gateBurstCount"></b>
+        </label>
+        <div class="gate-burst-flash" id="gateBurstFlash" aria-hidden="true"></div>
         <button type="button" class="gate-plate-capture" id="gatePlateCapture" hidden data-i18n="gate.plate_capture">Capturează plăcuța</button>
         <button type="button" class="gate-scan-close" id="gateScanClose" aria-label="Închide">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>

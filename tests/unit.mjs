@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import {
   escape, normalizePhone, telegramLink, twoInitials, hexToRgba,
   statusKey, normPlateKey, fmtRelative, fmtDateTime,
-  mergeById, maxWatermark, overlapFrom, backupAgeHours,
+  mergeById, maxWatermark, overlapFrom, backupAgeHours, gateBurstAction,
 } from '../utils.js';
 
 test('escape neutralises HTML metacharacters', () => {
@@ -195,4 +195,27 @@ test('overlapFrom rewinds the watermark by the safety margin', () => {
   // from "Invalid Date", which the server would reject outright.
   assert.equal(overlapFrom('junk', 15000), 'junk');
   assert.equal(overlapFrom(null, 15000), null);
+});
+
+test('gateBurstAction keeps the two expensive cases off the fast path', () => {
+  // The normal case: wave them through without stopping the camera.
+  assert.equal(gateBurstAction('invitat', false), 'checkin');
+  // No status yet is still a car that has not arrived.
+  assert.equal(gateBurstAction('', false), 'checkin');
+  assert.equal(gateBurstAction(null, false), 'checkin');
+
+  // Already inside: acknowledge, but write nothing. Re-stamping would move the
+  // arrival time and hide when the car actually turned up.
+  assert.equal(gateBurstAction('sosit', false), 'dup');
+
+  // A blocklisted plate is the one car somebody has to look at — it must stop
+  // the camera even when it has not arrived yet, and even if already inside.
+  assert.equal(gateBurstAction('invitat', true), 'card');
+  assert.equal(gateBurstAction('sosit', true), 'card');
+  assert.equal(gateBurstAction('', true), 'card');
+
+  // Anything we do not recognise is not something to guess at while waving
+  // cars through.
+  assert.equal(gateBurstAction('plecat', false), 'card');
+  assert.equal(gateBurstAction('nonsense', false), 'card');
 });

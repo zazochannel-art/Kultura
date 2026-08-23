@@ -4,7 +4,8 @@
     import {
       escape, reduceMotion as _reduceMotion, normalizePhone, telegramLink,
       nameHue, avatarBg, twoInitials, hexToRgba, downscaleImage,
-      statusKey, normPlateKey, fmtDateTime, fmtRelative, mergeById, maxWatermark, overlapFrom, backupAgeHours
+      statusKey, normPlateKey, fmtDateTime, fmtRelative, mergeById, maxWatermark, overlapFrom, backupAgeHours,
+      gateBurstAction
     } from './utils.js';
     import { haptic, confettiBurst, successCheck, auroraPulse } from './effects.js';
 
@@ -20,7 +21,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v123';
+    const APP_VERSION = 'v124';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -1901,16 +1902,26 @@
 
     let _health = null;
 
-    async function loadChannelHealth() {
-      const box = el('channelHealth');
-      if (!box) return;
+    // Whether a channel can actually deliver is decided server-side. Fetching is
+    // separate from rendering because the SMS Center needs the answer without
+    // the settings panel ever having been opened.
+    async function fetchHealth() {
       try {
         const { data, error } = await supa.functions.invoke('health', { body: {} });
         if (error || data?.error) throw new Error(data?.error || error.message);
         _health = data;
       } catch (_) {
-        _health = null; box.hidden = true; return;
+        _health = null;
       }
+      return _health;
+    }
+    async function ensureHealth() {
+      return _health || await fetchHealth();
+    }
+    async function loadChannelHealth() {
+      const box = el('channelHealth');
+      if (!box) return;
+      if (!await fetchHealth()) { box.hidden = true; return; }
       const tg = _health.telegram || {};
       const sms = _health.sms || {};
       const pill = (state, label) =>
@@ -2346,10 +2357,8 @@
         const evName = ev ? (ev.title || ev.name || '') : t('report.all_events');
         const evMeta = ev ? [ev.date, ev.location].filter(Boolean).join(' · ') : '';
         const isArr = (c) => statusKey(c.status) === 'sosit';
-        const isLeft = (c) => statusKey(c.status) === 'plecat';
         const arrived = cars.filter(isArr).length;
-        const left = cars.filter(isLeft).length;
-        const everArrived = cars.filter(c => isArr(c) || isLeft(c) || c.arrived_at).length;
+        const everArrived = cars.filter(c => isArr(c) || c.arrived_at).length;
         // Arrivals per hour.
         const byHour = {};
         cars.forEach(c => { if (c.arrived_at) { const h = new Date(c.arrived_at).getHours(); byHour[h] = (byHour[h] || 0) + 1; } });
@@ -2422,7 +2431,6 @@
           <div class="stats">
             ${stat(cars.length, t('report.total_cars'))}
             ${stat(arrived, t('aflux.present_now'))}
-            ${stat(left, t('aflux.left'))}
             ${stat(everArrived, t('aflux.arrived_total'))}
           </div>
           ${extra}
@@ -2739,7 +2747,7 @@
       set('smsStatTotal', people); set('smsStatValid', valid); set('smsStatToday', sentToday);
     }
     function smsStatusBadge(s) {
-      const map = { sent: 'green', sending: 'blue', scheduled: 'blue', pending: 'blue', cancelling: 'orange', cancelled: 'orange', error: 'red' };
+      const map = { sent: 'green', partial: 'orange', sending: 'blue', scheduled: 'blue', pending: 'blue', cancelling: 'orange', cancelled: 'orange', error: 'red' };
       return map[s] || 'blue';
     }
     async function loadSmsHistory() {
@@ -2842,7 +2850,21 @@
         return;
       }
 
-      if (!await uiConfirm(t('sms.confirm_send', { n: recips.length }))) return;
+      // Say who can actually receive this before it is sent, not after.
+      //
+      // The last campaign reported 52 recipients and status "sent" while 51 of
+      // them failed with no_provider: they had no Telegram chat, and no SMS
+      // provider has ever been configured here. A phone number in the list is
+      // not a channel.
+      const health = await ensureHealth();
+      const smsWorks = !!(health && health.sms && health.sms.configured);
+      const reach = recips.filter(r => r._chat || smsWorks).length;
+      const unreachable = recips.length - reach;
+      if (!reach) { setMsg(t('sms.err_nobody_reachable', { n: recips.length }), false); return; }
+      const ask = unreachable
+        ? t('sms.confirm_send_partial', { reach, left: unreachable })
+        : t('sms.confirm_send', { n: recips.length });
+      if (!await uiConfirm(ask)) return;
       _smsSending = true;
       const btn = el('smsSendBtn'); if (btn) btn.disabled = true;
       setMsg(t('sms.sending'), true);
@@ -2860,7 +2882,12 @@
           throw new Error(b?.note || b?.error || fnErr.message);
         }
         if (data?.error) throw new Error(data.note || data.error);
-        setMsg(t('sms.done', { sent: data?.sent ?? 0, failed: data?.failed ?? 0 }), true);
+        const sent = data?.sent ?? 0, failed = data?.failed ?? 0;
+        // Green only when everything landed. Anything else is reported as what
+        // it is, with the way out of it.
+        setMsg(failed
+          ? t('sms.done_partial', { sent, failed })
+          : t('sms.done', { sent, failed }), !failed);
       } catch (e) {
         setMsg(t('common.error') + ': ' + (e.message || e), false);
       } finally {
@@ -3357,7 +3384,7 @@
     // (notes, modifications, photos, checklist, detailed_description, …) are only
     // needed in the detail view, which hydrates them on demand. `updated_at` is
     // included so any edit still bumps the fingerprint.
-    const CAR_LIST_COLS  = 'id,entry_no,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,arrived_at,checked_in_by,checked_in_gate,left_at,checked_out_by,deleted_at,deleted_by,rsvp,rsvp_at,telegram_chat_id,import_batch';
+    const CAR_LIST_COLS  = 'id,entry_no,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,arrived_at,checked_in_by,deleted_at,deleted_by,rsvp,rsvp_at,telegram_chat_id,import_batch';
     const TASK_LIST_COLS = 'id,title,event,date,status,status_color,is_completed,event_id,due_at,created_at,assigned_user_id,assigned_user_name,started_at,completed_at,completed_by_user_id,completed_by_user_name,priority,category,due_date,created_by,assigned_to,assigned_at,completed_by,team,updated_at,reminder_sent';
 
     // Canonical parking zones (car categories). Single source of truth for the
@@ -4007,56 +4034,24 @@
       }
     }
 
-    // Per-device gate label so several operators can scan in parallel and each
-    // arrival records which gate handled it (avoids "who checked this in?" mixups).
-    function gateLabel() {
-      try { return (localStorage.getItem('kultura_gate_label') || '').trim(); } catch (_) { return ''; }
-    }
-    function setGateLabel(v) {
-      try {
-        const s = String(v || '').trim().slice(0, 40);
-        if (s) localStorage.setItem('kultura_gate_label', s);
-        else localStorage.removeItem('kultura_gate_label');
-      } catch (_) {}
-      renderGateLabel();
-    }
-    function renderGateLabel() {
-      const b = el('gateLabelBtn');
-      if (!b) return;
-      const lbl = gateLabel();
-      b.textContent = lbl ? ('📍 ' + lbl) : t('gate.label_set');
-      b.classList.toggle('is-set', !!lbl);
-    }
-    el('gateLabelBtn')?.addEventListener('click', async () => {
-      const cur = gateLabel();
-      const v = await uiPrompt(t('gate.label_prompt'), { value: cur, placeholder: t('gate.label_ph') });
-      if (v === false) return;
-      setGateLabel(v);
-    });
-
-    // Perform a gate check-in (mark arrived) — optimistic + queued. Stamps which
-    // gate did it so parallel operators never overwrite each other's records.
-    function gateCheckIn(carId) {
+    // Perform a gate check-in (mark arrived) — optimistic + queued.
+    //
+    // There is one entrance. A per-device gate name used to be stamped on every
+    // arrival so parallel gates could be told apart, but it was never once set:
+    // `checked_in_gate` is empty on all 18 arrivals the app has recorded. Who
+    // checked a car in is still stamped (`checked_in_by`), which is the part
+    // anybody ever asked about.
+    function gateCheckIn(carId, opts) {
+      const quiet = !!(opts && opts.quiet);
       const patch = { status: 'Sosit', status_color: '#10B981' };
-      const g = gateLabel();
-      if (g) patch.checked_in_gate = g;
       applyLocalCarPatch(carId, patch);
       enqueueAction({ type: 'car-update', carId, patch });
       renderGate(); updateGateSyncUI();
       flushOutbox();
+      if (quiet) return;
       haptic(40);
       try { confettiBurst(); auroraPulse(); } catch (_) {}
-      showToast(g ? t('gate.checked_in_at', { gate: g }) : t('gate.checked_in'));
-    }
-    // Mark a departure (check-out) — same optimistic/queued path as check-in.
-    function gateCheckOut(carId) {
-      const patch = { status: 'Plecat', status_color: '#8B5CF6' };
-      applyLocalCarPatch(carId, patch);
-      enqueueAction({ type: 'car-update', carId, patch });
-      renderGate(); updateGateSyncUI();
-      flushOutbox();
-      haptic(30);
-      showToast(t('gate.checked_out'));
+      showToast(t('gate.checked_in'));
     }
     function gateSetZone(carId, zone) {
       const z = (zone || '').trim();
@@ -4108,7 +4103,6 @@
       if (inp) inp.value = '';
       renderGate();
       renderGateZones();
-      renderGateLabel();
       renderKioskBtn();
       updateGateSyncUI();
       flushOutbox();
@@ -4217,20 +4211,17 @@
       box.innerHTML = list.slice(0, 60).map(c => {
         const sk = statusKey(c.status);
         const arrived = sk === 'sosit';
-        const left = sk === 'plecat';
         const name = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
         const blocked = plateBlocked(c.plate) !== null;
-        // Not arrived → check-in; arrived → check-out (Plecare); left → done.
-        const actionBtn = left
-          ? `<button class="gate-arrive left" disabled>${escape(t('car.status.left'))}</button>`
-          : arrived
-            ? `<button class="gate-arrive out" data-gate-checkout="${c.id}">${escape(t('gate.leave'))}</button>`
-            : `<button class="gate-arrive" data-gate-arrive="${c.id}">${escape(t('gate.arrive'))}</button>`;
+        // Arriving is the only thing the gate does. Once in, the row is done.
+        const actionBtn = arrived
+          ? `<button class="gate-arrive is-in" disabled>${escape(t('car.status.arrived'))}</button>`
+          : `<button class="gate-arrive" data-gate-arrive="${c.id}">${escape(t('gate.arrive'))}</button>`;
         return `
-          <div class="gate-car ${arrived ? 'arrived' : ''}${left ? ' left' : ''}${blocked ? ' blocked' : ''}" data-car-id="${c.id}">
+          <div class="gate-car ${arrived ? 'arrived' : ''}${blocked ? ' blocked' : ''}" data-car-id="${c.id}">
             <div class="gate-car-info">
               <div class="gate-plate">${c.entry_no ? `<span class="entry-no">#${escape(String(c.entry_no))}</span> ` : ''}${escape(c.plate || '—')}${c.is_vip ? ' <span class="gate-vip">VIP</span>' : ''}${blocked ? ' <span class="gate-blocked">⛔</span>' : ''}</div>
-              <div class="gate-car-sub">${escape(name)}${c.owner ? ' · ' + escape(c.owner) : ''}${arrived && c.checked_in_gate ? ' <span class="gate-car-at">📍 ' + escape(c.checked_in_gate) + '</span>' : ''}</div>
+              <div class="gate-car-sub">${escape(name)}${c.owner ? ' · ' + escape(c.owner) : ''}</div>
             </div>
             <select class="gate-zone" data-gate-zone="${c.id}" title="${escape(t('gate.zone_ph'))}">${zoneOptionsHTML(c.zone)}</select>
             ${actionBtn}
@@ -4371,8 +4362,6 @@
     el('gateResults')?.addEventListener('click', (e) => {
       const arr = e.target.closest('[data-gate-arrive]');
       if (arr && !arr.disabled) { gateCheckIn(arr.dataset.gateArrive); return; }
-      const out = e.target.closest('[data-gate-checkout]');
-      if (out && !out.disabled) { gateCheckOut(out.dataset.gateCheckout); return; }
     });
     el('gateResults')?.addEventListener('change', (e) => {
       const zi = e.target.closest('[data-gate-zone]');
@@ -4861,7 +4850,15 @@
         return;
       }
       panel.hidden = false;
-      if (hint) hint.textContent = t('gate.scan_hint');
+      // Burst is a per-device habit, so it survives closing the scanner.
+      const bt = el('gateBurst');
+      if (bt) {
+        try { bt.checked = localStorage.getItem('kultura_gate_burst') === '1'; } catch (_) {}
+      }
+      _burstCount = 0;
+      const bc = el('gateBurstCount');
+      if (bc) bc.textContent = '';
+      if (hint) hint.textContent = t(burstOn() ? 'gate.burst_hint' : 'gate.scan_hint');
       try {
         // Native BarcodeDetector (Android/Chrome) when available; otherwise the
         // jsQR fallback so iPhone/Safari can scan too.
@@ -4913,8 +4910,12 @@
               const car = findCarByQr(val);
               _lastScanAt = Date.now();
               if (car) {
-                try { navigator.vibrate && navigator.vibrate(80); } catch (_) {}
-                showGateScanResult(car);
+                if (burstOn() && handleBurstScan(car)) {
+                  // stayed live: no pause, no card
+                } else {
+                  try { navigator.vibrate && navigator.vibrate(80); } catch (_) {}
+                  showGateScanResult(car);
+                }
               } else {
                 showToast(t('gate.scan_notfound'), 'error');
               }
@@ -4926,6 +4927,67 @@
       };
       _scanRAF = requestAnimationFrame(tick);
     }
+    // ---- Burst mode -------------------------------------------------------
+    //
+    // The measured shape of a real gate: 10 check-ins inside one minute, then 5
+    // more over the next nine, every one of them from the same account and the
+    // same phone. In that stretch the confirmation card costs a tap per car and
+    // stops the camera each time.
+    //
+    // With burst on, a scan checks the car in immediately — the feedback is a
+    // vibration and a colour flash instead of a dialog, and the camera never
+    // stops. Two cases deliberately still stop and ask, because getting them
+    // wrong is expensive: a blocklisted plate, and a car already inside.
+    let _burstCount = 0;
+    function burstOn() {
+      const b = el('gateBurst');
+      return !!(b && b.checked);
+    }
+    function burstFlash(kind) {
+      const f = el('gateBurstFlash');
+      if (!f) return;
+      f.className = 'gate-burst-flash is-' + kind;
+      // Restart the animation even when two scans land back to back.
+      void f.offsetWidth;
+      f.classList.add('show');
+      setTimeout(() => f.classList.remove('show'), 420);
+    }
+    function burstBump() {
+      _burstCount++;
+      const c = el('gateBurstCount');
+      if (c) c.textContent = String(_burstCount);
+    }
+    el('gateBurst')?.addEventListener('change', () => {
+      _burstCount = 0;
+      const c = el('gateBurstCount');
+      if (c) c.textContent = '';
+      try {
+        if (burstOn()) localStorage.setItem('kultura_gate_burst', '1');
+        else localStorage.removeItem('kultura_gate_burst');
+      } catch (_) {}
+      const hint = el('gateScanHint');
+      if (hint) hint.textContent = t(burstOn() ? 'gate.burst_hint' : 'gate.scan_hint');
+    });
+
+    // Returns true when the scan was fully handled without stopping the camera.
+    // Returning false hands the car to the normal confirmation card.
+    function handleBurstScan(car) {
+      const what = gateBurstAction(statusKey(car.status), plateBlocked(car.plate) !== null);
+      if (what === 'card') return false;
+      if (what === 'dup') {
+        try { navigator.vibrate && navigator.vibrate([40, 60, 40]); } catch (_) {}
+        burstFlash('dup');
+        return true;
+      }
+      // Quiet check-in: no confetti, no toast — at ten a minute the animations
+      // are the slow part and the toasts stack into a wall.
+      gateCheckIn(car.id, { quiet: true });
+      try { navigator.vibrate && navigator.vibrate(120); } catch (_) {}
+      burstFlash('ok');
+      burstBump();
+      return true;
+    }
+
     // On a successful scan, pause and show a confirmation card with the car so
     // the operator taps „Sosit" (instead of auto-marking arrival).
     function showGateScanResult(car) {
@@ -5243,11 +5305,8 @@
       if (!roleAtLeast('staff')) { block.hidden = true; return; }
       const cars = activeCars();
       const isArr = (c) => (c.status || '').toLowerCase().includes('sosit');
-      const isLeft = (c) => (c.status || '').toLowerCase().includes('plecat');
       const arrived = cars.filter(isArr);
-      const leftCars = cars.filter(isLeft);
-      // Anyone who ever arrived (present now + already left).
-      const everArrived = cars.filter(c => isArr(c) || isLeft(c) || c.arrived_at);
+      const everArrived = cars.filter(c => isArr(c) || c.arrived_at);
       block.hidden = false;
       const sum = el('afluxSummary');
       if (sum) sum.textContent = t('aflux.summary', { a: arrived.length, n: cars.length });
@@ -5261,7 +5320,6 @@
         const tile = (n, label, cls) => `<div class="aflux-tile ${cls}"><b>${n}</b><span>${escape(label)}</span></div>`;
         cnt.innerHTML =
           tile(arrived.length, t('aflux.present_now'), 'ok') +
-          tile(leftCars.length, t('aflux.left'), 'mut') +
           tile(everArrived.length, t('aflux.arrived_total'), '') +
           tile(recent, t('aflux.last15'), 'hot');
       }
@@ -5311,10 +5369,6 @@
       const ops = {};
       arrived.forEach(c => { const o = (c.checked_in_by || '').trim(); if (o) ops[o] = (ops[o] || 0) + 1; });
       countList('afluxOps', ops, 'aflux.no_operators');
-      // Arrivals per gate (parallel-gate breakdown).
-      const gates = {};
-      arrived.forEach(c => { const g = (c.checked_in_gate || '').trim(); if (g) gates[g] = (gates[g] || 0) + 1; });
-      countList('afluxGates', gates, 'aflux.no_gates');
     }
 
     function renderRegStats() {
@@ -5355,7 +5409,7 @@
       if (!roleAtLeast('staff')) { block.hidden = true; return; }
       const evs = (state.events || []);
       if (evs.length < 2) { block.hidden = true; return; }
-      const isArr = (c) => statusKey(c.status) === 'sosit' || statusKey(c.status) === 'plecat' || !!c.arrived_at;
+      const isArr = (c) => statusKey(c.status) === 'sosit' || !!c.arrived_at;
       const byEvent = {};
       (state.cars || []).forEach(c => {
         const k = c.event_id == null ? '' : String(c.event_id);
@@ -5822,10 +5876,14 @@
       document.head.appendChild(style);
     })();
 
+    // No 'plecat': in the whole life of the app not one car was ever checked
+    // out — `left_at` is null on every row that has ever existed. The button
+    // was a third state at the gate that nobody used and everybody had to read
+    // past. `statusKey` still maps the word, so a restored backup or a
+    // hand-edited row renders instead of falling over.
     const CAR_STATUS_OPTIONS = [
       { key: 'invitat', label: 'Invitat', color: '#3B82F6' },
-      { key: 'sosit',   label: 'Sosit',   color: '#10B981' },
-      { key: 'plecat',  label: 'Plecat',  color: '#8B5CF6' }
+      { key: 'sosit',   label: 'Sosit',   color: '#10B981' }
     ];
 
     function filterCars() {
@@ -5879,7 +5937,6 @@
         let label = opt.label;
         if (opt.key === 'invitat') label = t("car.status.invited");
         if (opt.key === 'sosit')   label = t("car.status.arrived");
-        if (opt.key === 'plecat')  label = t("car.status.left");
         return `
             <button class="action-btn ${active === opt.key ? 'active-' + opt.key : ''}"
                     data-action="status"
@@ -6750,7 +6807,7 @@
             - owner (string - full name of the person)
             - plate (string - VEHICLE LICENSE PLATE / NUMĂR DE ÎNMATRICULARE)
             - zone (string - parking zone if mentioned)
-            - status (string: "Invitat", "Sosit", "Plecat", or "În așteptare")
+            - status (string: "Invitat", "Sosit", or "În așteptare")
             - status_color (string: HEX, e.g., #3B82F6 for Invitat, #10B981 for Sosit)
             - is_vip (boolean - true if mentioned as VIP or special guest)
             - phone (string - PERSONAL PHONE NUMBER / NUMĂR DE TELEFON)
@@ -8486,9 +8543,9 @@
     async function loadCarTimeline(car, containerId) {
       const box = el(containerId);
       if (!box) return;
-      const order = ['invitat', 'sosit', 'plecat'];
+      const order = ['invitat', 'sosit'];
       const reached = Math.max(0, order.indexOf(statusKey(car.status) || 'invitat'));
-      const times = { invitat: car.created_at || null, sosit: null, plecat: null };
+      const times = { invitat: car.created_at || null, sosit: null };
       try {
         const { data } = await supa.from('activity_log')
           .select('new_value,created_at').eq('entity', 'car').eq('entity_id', car.id)
@@ -8502,7 +8559,6 @@
       const steps = [
         { key: 'invitat', label: t('car.timeline.invited') },
         { key: 'sosit',   label: t('car.timeline.arrived') },
-        { key: 'plecat',  label: t('car.timeline.left') },
       ];
       box.innerHTML = steps.map((s, i) => {
         const done = i <= reached, current = i === reached;

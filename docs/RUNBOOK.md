@@ -234,9 +234,7 @@ noi: `{{numar_concurs}}`, `{{zona}}` și `{{confirmare}}` (linkul).
 Pe fiecare dispozitiv de la intrare:
 
 1. Deschide **Poartă**.
-2. Apasă pe **📍 numele porții** și scrie-l („Poarta A", „Intrare VIP"). Așa vei
-   ști mai târziu pe unde a intrat fiecare mașină.
-3. Apasă butonul **kiosk** (🖥). Aplicația se blochează pe ecranul porții și
+2. Apasă butonul **kiosk** (🖥). Aplicația se blochează pe ecranul porții și
    ecranul nu se mai stinge.
 
 > **Ca să ieși din kiosk:** apeși butonul roșu de kiosk din antet și confirmi.
@@ -255,8 +253,15 @@ la 03:17, dar unul manual înainte de eveniment nu strică.
 **Scanezi QR-ul** de pe pass (sau cauți după număr) → apare cardul mașinii →
 **Sosit**.
 
-- Mașinile deja sosite au buton **Plecare**, pentru când pleacă de pe teren.
+- O mașină sosită rămâne sosită — nu se marchează plecarea. (În toată viața
+  aplicației nu s-a înregistrat nicio plecare, așa că butonul a fost scos.)
 - Poți schimba zona direct din listă.
+- **Scanare rapidă** (comutatorul de pe ecranul camerei): la un val de mașini,
+  scanarea marchează sosirea pe loc — camera nu se mai oprește și nu mai apare
+  cardul de confirmare. Feedbackul e o vibrație și un fulger verde; contorul de
+  lângă comutator arată câte ai scanat. Se oprește totuși și cere confirmare
+  pentru **plăcuțele de pe lista neagră**, iar pentru o mașină deja înăuntru
+  dă un fulger portocaliu fără să rescrie ora sosirii.
 - **Merge și fără internet.** Check-in-urile se salvează local și urcă singure
   când revine semnalul — pastila din antet arată câte așteaptă.
 - Dacă placa e pe lista neagră, apare ⛔ la scanare.
@@ -266,8 +271,8 @@ la 03:17, dar unul manual înainte de eveniment nu strică.
 sunet la fiecare sosire nouă. Butonul de prezentare pornește derularea automată.
 
 ### Cine e prezent acum
-**Acasă → Aflux:** Prezenți acum / Plecați / Total sosiri / Ultimele 15 min,
-plus defalcare pe ore, zone, mărci, orașe și **pe poartă**.
+**Acasă → Aflux:** Prezenți acum / Total sosiri / Ultimele 15 min, plus
+defalcare pe ore, zone, mărci, orașe și pe operator.
 
 ### Jurizare
 **Mașini → Jurizare** (staff și admin). Un ecran pe tot telefonul, gândit ca să

@@ -180,3 +180,22 @@ export async function downscaleImage(file, maxSide = 1600, quality = 0.82) {
     return file;
   }
 }
+
+// What a burst-mode gate scan should do with a car, with no side effects so it
+// can be reasoned about and tested on its own.
+//
+//   'card'    → stop the camera and show the confirmation card
+//   'dup'     → already inside: acknowledge, write nothing
+//   'checkin' → mark arrived and stay live
+//
+// Two cases deliberately fall back to the card, because being wrong about them
+// is expensive: a blocklisted plate is the one car somebody must actually look
+// at, and an unknown status is not something to guess at while waving cars
+// through. Re-stamping a car that is already inside would move its arrival time
+// and hide the real one, so that path writes nothing.
+export function gateBurstAction(statusKey, isBlocked) {
+  if (isBlocked) return 'card';
+  if (statusKey === 'sosit') return 'dup';
+  if (statusKey === 'invitat' || !statusKey) return 'checkin';
+  return 'card';
+}
