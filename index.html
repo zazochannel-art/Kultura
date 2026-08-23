@@ -592,6 +592,15 @@
           </div>
         </div>
         <div id="mapStatus" style="font-size:13px; color:var(--text-dim); margin-bottom:10px; display:none;"></div>
+        <!-- Numbered spots drawn over the venue photo. The zone says roughly
+             where; the number says exactly where, and the pin shows who is on
+             it. -->
+        <div class="map-spot-bar" id="mapSpotBar" hidden>
+          <select id="spotZone" class="map-spot-zone"></select>
+          <button type="button" class="btn ghost small" id="spotEditBtn" data-i18n="spots.place">Așază locuri</button>
+          <button type="button" class="btn ghost small" id="spotAutoBtn" data-i18n="spots.autofill">Umple automat</button>
+          <span class="map-spot-info" id="mapSpotInfo"></span>
+        </div>
         <div id="mapContainer">
           <div class="map-empty" id="mapEmpty">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
@@ -1991,6 +2000,9 @@
       <div class="ui-dialog-title" id="uiDialogTitle"></div>
       <div class="ui-dialog-message" id="uiDialogMessage"></div>
       <textarea id="uiDialogInput" rows="3" style="display:none;width:100%;margin-top:10px;"></textarea>
+      <!-- Picking one of many (which car goes on this spot) is a third shape
+           the dialog has to take, next to confirm and prompt. -->
+      <select id="uiDialogSelect" style="display:none;width:100%;margin-top:10px;"></select>
       <div class="ui-dialog-actions">
         <button type="button" class="ui-dialog-btn" id="uiDialogCancel">Anulează</button>
         <button type="button" class="ui-dialog-btn primary" id="uiDialogOk">OK</button>

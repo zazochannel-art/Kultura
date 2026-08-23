@@ -514,6 +514,24 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     programat, și închide orice campanie rămasă în `sending`/`cancelling` de
     peste 30 de minute, lăsând urma în `delivery_report`.
 
+41. **O poziție pe o imagine se ține în procente, nu în pixeli.** Locurile de
+    parcare sunt puncte pe fotografia locației, iar aceeași hartă se citește pe
+    telefon, pe laptop și pe proiector. Pixelii ar muta planul de pe asfalt la
+    prima schimbare de lățime. Valorile se limitează la 0–100 și la citire, nu
+    doar la scriere: un rând stricat în tabel n-are voie să scoată un pin în
+    afara imaginii, unde nimeni nu-l mai poate apuca.
+42. **Unicitatea locului e treaba bazei, nu a interfeței.** Două mașini pe
+    același loc înseamnă doi șoferi trimiși pe aceeași bucată de asfalt.
+    `cars_one_car_per_spot` e un index unic parțial pe
+    `(event_id, lower(zone), spot_no)`, doar pentru rândurile vii cu loc setat —
+    deci majoritatea neașezată nu e afectată, iar planul de luna trecută nu
+    blochează luna asta. Clientul doar traduce eroarea 23505 într-un mesaj.
+43. **Ce nu s-a făcut, deliberat: atribuirea automată la poartă.** Ar fi firească
+    — scanezi, primește locul următor — dar check-in-ul trece prin coada
+    offline, deci locul ar trebui pus și el în coadă, iar indexul de unicitate
+    s-ar aplica abia la golire, când e prea târziu ca operatorul să afle. Se
+    face separat, cu rezolvarea conflictelor la flush.
+
 ## Rămas de făcut manual
 
 **Protecția împotriva parolelor compromise** nu se poate activa din cod:
