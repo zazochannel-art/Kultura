@@ -420,8 +420,12 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     vede și un voluntar de la poartă, plus un `select` și un abonament realtime
     la fiecare pornire. A fost scos din interfață.
     Ce **nu** s-a scos, și nu se confundă cu el: steagul `cars.is_vip` — badge-ul
-    de pe mașină, chipul „VIP" din Mașini și marcajul de la poartă. E singurul
-    „VIP" care a fost folosit vreodată.
+    de pe mașină, chipul „VIP" din Mașini și marcajul de la poartă.
+    **Corectură:** aici scria că steagul de pe mașină „e singurul VIP folosit
+    vreodată". Nu e adevărat. `is_vip` n-a fost niciodată `true`, pe niciun
+    rând, nici în coșul de gunoi — la fel de mort ca modulul scos. A fost
+    păstrat pe baza unei afirmații neverificate. Rămâne deocamdată, dar ca
+    steag nefolosit, nu ca funcție dovedită.
     Tabelul `vip_guests` a rămas în bază și în backup: scoaterea din meniu nu
     șterge date. Coloanele `cars.vip_arrived` / `vip_arrived_at` erau citite doar
     de modulul scos, deci nu se mai cer la fiecare încărcare de mașini.
@@ -483,6 +487,32 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     că a trecut de parser. Așa se testează formatarea fără să ajungă nimic la
     un om real. (Toate cele trei formate — fișă, program, bun venit — au fost
     verificate așa.)
+
+38. **Ce nu se folosește se scoate, dar întâi se numără.** Trei funcții au
+    ieșit odată, fiecare cu cifra ei din producție:
+    * **Check-out la poartă** — `left_at` null pe toate cele 54 de rânduri care
+      au existat vreodată. 18 mașini au sosit, 0 au plecat.
+    * **Numele porții** — `checked_in_gate` gol la toate cele 18 sosiri, deși
+      RUNBOOK-ul îl cerea la pasul 2 al pregătirii tabletelor.
+    * **Ramura `vip_guests` din `send-sms`** — rămasă după ce modulul a fost
+      scos din interfață; clientul nu mai trimite acele audiențe, deci putea
+      doar să nu găsească nimic.
+    Coloanele rămân în bază: scoaterea din interfață nu șterge date.
+    `statusKey` încă recunoaște cuvântul „plecat", ca un backup restaurat să se
+    randeze în loc să cadă.
+39. **Un raport de succes trebuie să poată fi citit fără cifrele de lângă el.**
+    O campanie care ajungea la 1 din 52 se salva ca `sent` — verde în istoric,
+    identică cu una care chiar a plecat. Acum: `partial` când o parte a ajuns,
+    `error` când n-a ajuns nimic, plus un avertisment **înainte** de trimitere
+    care spune câți pot primi. Un număr de telefon nu e un canal cât timp nu
+    există furnizor SMS.
+40. **O stare tranzitorie are nevoie de cineva care s-o închidă.** Anularea unei
+    campanii scria `cancelling` și se baza pe bucla de trimitere s-o observe
+    între loturi — dar bucla se terminase deja, ceea ce e cazul obișnuit, o
+    campanie durând secunde. Rândul rămânea așa la nesfârșit (#3, din 20
+    august). `reconcile_stuck_sms()` rulează pe minut, lângă expeditorul
+    programat, și închide orice campanie rămasă în `sending`/`cancelling` de
+    peste 30 de minute, lăsând urma în `delivery_report`.
 
 ## Rămas de făcut manual
 

@@ -88,7 +88,6 @@ try {
     cmdk: !!document.getElementById('cmdk'),
     cmdkInput: !!document.getElementById('cmdkInput'),
     gateKiosk: !!document.getElementById('gateKioskBtn'),
-    gateLabel: !!document.getElementById('gateLabelBtn'),
     passSheet: !!document.getElementById('passSheet'),
     reportBtn: !!document.getElementById('reportBtn'),
     compareBlock: !!document.getElementById('compareBlock'),
@@ -229,6 +228,38 @@ try {
   }));
   check('gate-queued-offline', gate.queued === 1);
   check('gate-optimistic-status', gate.cached === 'Sosit');
+
+  // Arriving is the only thing the gate does now. Not one car was ever checked
+  // out — `left_at` was null on every row that ever existed — and the third
+  // state was a button everyone had to read past.
+  const gateAfter = await page.evaluate(() => ({
+    checkoutBtn: !!document.querySelector('[data-gate-checkout]'),
+    // The row it belongs to is the one we just checked in.
+    arrivedIsTerminal: !!document.querySelector('.gate-car.arrived .gate-arrive.is-in[disabled]'),
+    // One entrance: the per-device gate name is gone. It was never once set.
+    gateLabel: !!document.getElementById('gateLabelBtn'),
+    // Burst mode lives on the scanner panel.
+    burstToggle: !!document.getElementById('gateBurst'),
+    burstFlash: !!document.getElementById('gateBurstFlash'),
+  }));
+  check('gate-has-no-checkout', !gateAfter.checkoutBtn);
+  check('gate-arrived-is-terminal', gateAfter.arrivedIsTerminal);
+  check('gate-has-no-gate-name', !gateAfter.gateLabel);
+  check('gate-burst-toggle-present', gateAfter.burstToggle && gateAfter.burstFlash);
+
+  // Burst is a per-device habit: it has to survive closing the scanner.
+  const burstPersist = await page.evaluate(() => {
+    const b = document.getElementById('gateBurst');
+    if (!b) return null;
+    b.checked = true;
+    b.dispatchEvent(new Event('change'));
+    return localStorage.getItem('kultura_gate_burst');
+  });
+  check('gate-burst-remembers-choice', burstPersist === '1');
+  await page.evaluate(() => {
+    const b = document.getElementById('gateBurst');
+    if (b) { b.checked = false; b.dispatchEvent(new Event('change')); }
+  });
 
   // 4b. …and it must come back OUT of the queue when the signal returns.
   // This is the half that actually decides whether a check-in survives, and
@@ -1684,6 +1715,106 @@ try {
       console.log(`campaign checks: ${e.message}`);
     }
     await sctx.close();
+  }
+
+  // 4oa. A campaign has to say who it can actually reach, before it is sent.
+  //
+  // From production: 52 recipients, 1 delivered, 51 failed with no_provider,
+  // and the row filed as status "sent" — green in the history, identical to a
+  // campaign that really went out. Every one of those 52 had a phone number; a
+  // phone number is not a channel when no SMS provider exists.
+  {
+    const mk = async (smsConfigured, cars) => {
+      const c = await browser.newContext({ viewport: { width: 430, height: 930 }, isMobile: true, hasTouch: true });
+      await c.route('**://*.supabase.co/**', (r) => {
+        const u = r.request().url();
+        const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+        if (u.includes('/functions/v1/health')) {
+          return J({ ok: true, telegram: { configured: true, username: 'B', webhook_live: true, linked: 1, total: cars.length, preferred: true },
+            sms: { configured: smsConfigured, provider: smsConfigured ? 'x' : '' }, public_base_url: 'https://k.example' });
+        }
+        if (u.includes('/functions/v1/')) return J({ ok: true });
+        if (u.includes('/rest/v1/cars')) return J(/deleted_at=not\.is\.null/.test(u) ? [] : cars);
+        if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'F', status: 'Activ', archived: false, entries_frozen: false, is_sandbox: false }]);
+        if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+        if (u.includes('/rest/v1/')) return J([]);
+        return r.abort();
+      });
+      const p = await c.newPage();
+      await p.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await p.evaluate(() => localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      })));
+      await p.reload({ waitUntil: 'domcontentloaded' });
+      await p.waitForTimeout(2400);
+      await p.evaluate(() => {
+        document.getElementById('splashScreen')?.remove();
+        document.querySelector('.mtab[data-section="sms"], .tab[data-section="sms"]')?.click();
+        const cb = document.querySelector('#smsAudience input[data-sms-aud="all"]');
+        if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); }
+        const m = document.getElementById('smsMessage');
+        if (m) { m.value = 'Salut'; m.dispatchEvent(new Event('input', { bubbles: true })); }
+      });
+      await p.waitForTimeout(500);
+      return { c, p };
+    };
+    // One on Telegram, two with a phone only — the production shape in miniature.
+    const MIXED = [
+      { id: 1, entry_no: 1, brand: 'VW', model: 'Golf', owner: 'Ana', plate: 'P1', status: 'Invitat', event_id: 6, phone: '+37360000001', telegram_chat_id: 111, deleted_at: null },
+      { id: 2, entry_no: 2, brand: 'Mazda', model: 'RX7', owner: 'Ion', plate: 'P2', status: 'Invitat', event_id: 6, phone: '+37360000002', telegram_chat_id: null, deleted_at: null },
+      { id: 3, entry_no: 3, brand: 'BMW', model: 'E30', owner: 'Dan', plate: 'P3', status: 'Invitat', event_id: 6, phone: '+37360000003', telegram_chat_id: null, deleted_at: null },
+    ];
+    try {
+      // No SMS provider: only the linked chat can be reached.
+      const a = await mk(false, MIXED);
+      await a.p.evaluate(() => document.getElementById('smsSendBtn')?.click());
+      await a.p.waitForTimeout(600);
+      const warn = await a.p.evaluate(() => ({
+        open: !!document.querySelector('.ui-dialog.show, #uiDialog.show'),
+        text: (document.getElementById('uiDialogMessage')?.textContent || ''),
+      }));
+      // It must name both halves: who gets it, and who silently would not.
+      check('campaign-warns-before-sending', warn.open, JSON.stringify(warn));
+      check('campaign-warning-names-the-split',
+        /\b1\b/.test(warn.text) && /\b2\b/.test(warn.text), warn.text);
+      await a.p.evaluate(() => document.getElementById('uiDialogCancel')?.click());
+      await a.c.close();
+
+      // Nobody reachable at all: refuse outright rather than ask.
+      const NOBODY = MIXED.map((c) => ({ ...c, telegram_chat_id: null }));
+      const b = await mk(false, NOBODY);
+      await b.p.evaluate(() => document.getElementById('smsSendBtn')?.click());
+      await b.p.waitForTimeout(600);
+      const stop = await b.p.evaluate(() => ({
+        dialog: !!document.querySelector('.ui-dialog.show, #uiDialog.show'),
+        msg: (document.getElementById('smsSendMsg')?.textContent || ''),
+      }));
+      check('campaign-refuses-when-nobody-reachable', !stop.dialog && stop.msg.length > 0, JSON.stringify(stop));
+      check('campaign-refusal-points-at-the-fix', /Telegram/i.test(stop.msg), stop.msg);
+      await b.c.close();
+
+      // With a provider configured, everyone is reachable and it just asks.
+      const d = await mk(true, MIXED);
+      await d.p.evaluate(() => document.getElementById('smsSendBtn')?.click());
+      await d.p.waitForTimeout(600);
+      const plain = await d.p.evaluate(() => (document.getElementById('uiDialogMessage')?.textContent || ''));
+      check('campaign-no-warning-when-all-reachable', /\b3\b/.test(plain) && !/\b2\b/.test(plain), plain);
+      await d.p.evaluate(() => document.getElementById('uiDialogCancel')?.click());
+      await d.c.close();
+    } catch (e) {
+      for (const n of ['campaign-warns-before-sending', 'campaign-warning-names-the-split',
+        'campaign-refuses-when-nobody-reachable', 'campaign-refusal-points-at-the-fix',
+        'campaign-no-warning-when-all-reachable']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`campaign reach checks: ${e.message}`);
+    }
   }
 
   // 5. Public pages (given out by QR at the event) must render standalone.
