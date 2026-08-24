@@ -130,10 +130,17 @@ există deja un desen, pagina întreabă înainte să-l înlocuiască.
 
 ### `plans/plan-06.json` — terenul Kultura Fest
 
-Extras din PDF-ul de execuție al evenimentului, nu desenat de mână: **258 de
-locuri**, fiecare exact acolo unde e desenată o mașină în plan, cu unghiul ei,
-grupate în 15 zone (STANCE, MODERN CARS, JDM, AUTOSPORT, AMERICA, EURO, RETRO,
-GREEN ZONE, EXPO, VIP, DRIFT, Technical, тех. парковка, FOOD COURT, CHILL).
+Extras din PDF-ul de execuție al evenimentului, nu desenat de mână. **2 628 de
+obiecte**: tot desenul — asfalt, clădiri, alei, standuri, rândurile de parcare
+ale vizitatorilor — plus **258 de locuri**, fiecare exact acolo unde e desenată
+o mașină în plan, cu unghiul ei, grupate în 15 zone (STANCE, MODERN CARS, JDM,
+AUTOSPORT, AMERICA, EURO, RETRO, GREEN ZONE, EXPO, VIP, DRIFT, Technical,
+тех. парковка, FOOD COURT, CHILL). Culorile sunt cele din PDF.
+
+Ce **nu** intră: liniile mai scurte de 1,4 m (detaliul interior al simbolurilor
+și hașurile — 58 450 de trasee aruncate din 60 800) și conturul mașinilor, care
+e deja reprezentat de locuri. Fără filtrul ăsta planul ar avea 60 de mii de
+forme și n-ar mai fi editabil.
 
 Scara nu e ghicită: PDF-ul își poartă propriile etichete de suprafață
 (1 843,37 m², 1 091,66 m², 869,18 m², 262,70 m²), iar toate patru dau aceeași
@@ -144,6 +151,23 @@ calculată, iar locurile cad peste mașinile desenate.
 Cele 20 de locuri fără zonă sunt mașini desenate în afara oricărei zone
 colorate din PDF; sunt păstrate ca locuri și numărate separat, nu inventate o
 zonă pentru ele.
+
+Ce se desenează: **zone** (poligoane cu suprafața în m²), **rânduri** de locuri
+descrise prin cele două capete și numărul de locuri, **locuri** singulare,
+**alei**, **repere** și **text**. La import mai apar două tipuri pe care nu le
+desenezi de mână, ci vin dintr-un plan: **suprafețe** (`area`) și **linii**
+(`line`) — fondul desenului.
+
+Fondul stă pe stratul lui (`#scenery`), din două motive care se văd imediat pe
+un plan de câteva mii de forme: e **blocat** (apeși prin el, deci muți planul și
+desenezi peste fără să-l agăți — se deblochează dintr-un buton), și se
+redesenează doar când se schimbă sau când se schimbă zoom-ul. O deplasare nu-l
+atinge. Grosimile de linie sunt în pixeli de ecran (`non-scaling-stroke`), ca un
+plan CAD: firul rămâne fir la orice mărire.
+
+**Fundalul** are două stări: întunecat (ca restul aplicației) și **hârtie** —
+alb, cu etichetele în tuș, ca planul de la arhitect. Alegerea stă în plan, deci
+se exportă cu el.
 
 Ce trebuie știut înainte de a o atinge:
 

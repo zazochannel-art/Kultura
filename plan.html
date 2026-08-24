@@ -244,6 +244,10 @@
         <g id="world">
           <image id="uImg" preserveAspectRatio="none" style="display:none"></image>
           <rect id="gridRect" fill="url(#gMajor)" pointer-events="none"></rect>
+          <!-- The imported drawing: hundreds of areas and lines that never move
+               while you work, so they get their own layer and are not redrawn
+               on every pointer move. -->
+          <g id="scenery"></g>
           <g id="items"></g>
           <g id="ghost" pointer-events="none"></g>
           <g id="handles"></g>
@@ -295,6 +299,16 @@
           <p class="note">Poza stă doar dedesubt, ca să ai după ce trasa. Nu intră în plan și nu se exportă — planul rămâne desenul tău.</p>
         </div>
         <p class="note" id="uNote">Poză sau PDF. Fără machetă nu se pierde nimic: caroiajul e în metri, poți desena direct pe el.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Fundal</h2>
+        <div class="btn-row">
+          <button type="button" class="btn" id="paperBtn" aria-pressed="false">Hârtie</button>
+          <button type="button" class="btn" id="sceneryBtn" aria-pressed="true">🔒 Desenul de fond</button>
+        </div>
+        <p class="note" id="sceneryNote">Pe hârtie, planul arată ca cel de la arhitect. Desenul de fond
+          blocat înseamnă că apeși prin el: muți planul și desenezi peste, fără să-l agăți.</p>
       </section>
 
       <section class="panel">
@@ -359,9 +373,23 @@
     const newPlan = () => ({
       v: 1,
       name: 'Plan fără nume',
+      paper: false,
+      sceneryLocked: true,
       underlay: { x: -50, y: -35, w: 100, h: 70, rot: 0, opacity: 55, visible: true, locked: true },
       items: [],
     });
+
+    // A plan traced from an architect's drawing wants to look like that drawing:
+    // ink on paper, not glowing lines on black. The switch changes the canvas
+    // and every label colour with it, so text stays readable either way.
+    const INK = {
+      dark:  { label: '#f8fafc', sub: '#94a3b8', spot: '#f8fafc', bg: '#07080d', grid: '255,255,255' },
+      paper: { label: '#0f172a', sub: '#475569', spot: '#0f172a', bg: '#f4f3ee', grid: '15,23,42' },
+    };
+    const ink = () => INK[plan.paper ? 'paper' : 'dark'];
+    // Everything imported from a drawing: it is the ground the plan sits on.
+    const SCENERY = new Set(['area', 'line']);
+    const isScenery = (it) => SCENERY.has(it.t);
 
     let plan = newPlan();
     let imgSrc = '';                  // the photo itself: kept out of `plan` on purpose
@@ -462,6 +490,20 @@
       return [Math.round(p[0] / st) * st, Math.round(p[1] / st) * st];
     }
 
+    function applyPaper() {
+      const K = ink();
+      $('stageWrap').style.background = plan.paper ? K.bg : '';
+      $('gMinorLine').setAttribute('stroke', 'rgba(' + K.grid + ',.10)');
+      $('gMajorLine').setAttribute('stroke', 'rgba(' + K.grid + ',.20)');
+      const b = $('paperBtn');
+      if (b) { b.setAttribute('aria-pressed', String(!!plan.paper)); b.textContent = plan.paper ? 'Hârtie' : 'Întunecat'; }
+      const l = $('sceneryBtn');
+      if (l) {
+        const locked = plan.sceneryLocked !== false;
+        l.setAttribute('aria-pressed', String(locked));
+        l.textContent = (locked ? '🔒' : '🔓') + ' Desenul de fond';
+      }
+    }
     function applyView() {
       world.setAttribute('transform', 'translate(' + view.x + ' ' + view.y + ') scale(' + view.s + ')');
       const g = gridStep(), px = 1 / view.s;
@@ -483,6 +525,7 @@
       gridRect.setAttribute('height', (br[1] - tl[1]) + pad * 3);
 
       $('zoomVal').textContent = '1 m = ' + round(view.s, 1) + ' px';
+      reflowScenery();
       // Scale bar: the plan is in metres, so say how long a metre is on screen
       // in a length a person can actually eyeball against the drawing.
       let best = 1;
@@ -556,7 +599,7 @@
       return '<g transform="translate(' + round(cx, 3) + ' ' + round(cy, 3) + ') rotate(' + round(ang, 2) + ')">'
         + '<rect x="' + (-w / 2) + '" y="' + (-d / 2) + '" width="' + w + '" height="' + d + '" rx="' + Math.min(0.4, w / 6) + '"'
         + ' fill="' + color + '" fill-opacity="' + (taken ? '.5' : '.18') + '" stroke="' + color + '" stroke-width="' + (w / 22) + '"/>'
-        + '<text x="0" y="' + (f * 0.36) + '" font-size="' + f + '" text-anchor="middle" fill="#f8fafc"'
+        + '<text x="0" y="' + (f * 0.36) + '" font-size="' + f + '" text-anchor="middle" fill="' + ink().spot + '"'
         + ' font-weight="700" pointer-events="none">' + esc(label) + '</text>'
         + '</g>';
     }
@@ -568,24 +611,48 @@
     function itemsSvg(s, opts) {
       const o = opts || {};
       const px = 1 / s;
+      const K = ink();
       let out = '';
       for (const it of plan.items) {
+        // `only` keeps the imported ground and the things you actually edit in
+        // separate layers; without it a drag would redraw a few thousand shapes.
+        if (o.only === 'scenery' && !isScenery(it)) continue;
+        if (o.only === 'live' && isScenery(it)) continue;
         const on = !o.flat && it.id === sel;
         const col = it.color || '#3b82f6';
+        if (it.t === 'area') {
+          // Hairlines must stay hairlines when you zoom out, the way a CAD
+          // viewer draws them — otherwise the whole drawing turns into a blob.
+          out += '<polygon data-id="' + it.id + '" points="'
+            + it.pts.map((q) => q[0] + ',' + q[1]).join(' ') + '" fill="' + col
+            + '" fill-opacity="' + (it.o == null ? 1 : it.o) + '"'
+            + (it.s ? ' stroke="' + it.s + '" stroke-width="' + Math.max(0.7, (it.w || 0.05) * s)
+              + '" vector-effect="non-scaling-stroke"' : ' stroke="none"')
+            + (on ? ' stroke="#f8589c" stroke-width="2.5" vector-effect="non-scaling-stroke"' : '')
+            + '/>';
+          continue;
+        }
+        if (it.t === 'line') {
+          out += '<polyline data-id="' + it.id + '" points="'
+            + it.pts.map((q) => q[0] + ',' + q[1]).join(' ') + '" fill="none" stroke="'
+            + (on ? '#f8589c' : col) + '" stroke-width="' + Math.max(0.7, (it.w || 0.05) * s)
+            + '" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>';
+          continue;
+        }
         if (it.t === 'zone') {
           const pts = it.pts.map((p) => round(p[0], 3) + ',' + round(p[1], 3)).join(' ');
           const a = polyArea(it.pts);
           const c = centroid(it.pts);
-          const f = clamp(Math.sqrt(a) / 9, 1, 6);
+          const f = clamp(Math.sqrt(a) / 13, 0.9, 4.5);
           out += '<polygon data-id="' + it.id + '" points="' + pts + '" fill="' + col + '" fill-opacity="'
             + (on ? '.3' : '.16') + '" stroke="' + col + '" stroke-width="' + (on ? 3 * px : 2 * px)
             + '" stroke-linejoin="round"/>';
           if (it.name) {
             out += '<text x="' + round(c[0], 2) + '" y="' + round(c[1], 2) + '" font-size="' + f
-              + '" text-anchor="middle" fill="#f8fafc" font-weight="800" pointer-events="none">' + esc(it.name) + '</text>';
+              + '" text-anchor="middle" fill="' + K.label + '" font-weight="800" pointer-events="none">' + esc(it.name) + '</text>';
           }
           out += '<text x="' + round(c[0], 2) + '" y="' + round(c[1] + f * 1.15, 2) + '" font-size="' + (f * 0.62)
-            + '" text-anchor="middle" fill="#94a3b8" pointer-events="none">' + Math.round(a) + ' m²</text>';
+            + '" text-anchor="middle" fill="' + K.sub + '" pointer-events="none">' + Math.round(a) + ' m²</text>';
         } else if (it.t === 'lane') {
           const pts = it.pts.map((p) => round(p[0], 3) + ',' + round(p[1], 3)).join(' ');
           out += '<polyline data-id="' + it.id + '" points="' + pts + '" fill="none" stroke="' + col
@@ -602,7 +669,7 @@
               ? [(it.pts[i - 1][0] + it.pts[i][0]) / 2, (it.pts[i - 1][1] + it.pts[i][1]) / 2]
               : it.pts[i];
             out += '<text x="' + round(m[0], 2) + '" y="' + round(m[1] - (it.w || 4) * 0.7, 2) + '" font-size="'
-              + clamp((it.w || 4) * 0.5, 1, 3) + '" text-anchor="middle" fill="#94a3b8" pointer-events="none">'
+              + clamp((it.w || 4) * 0.5, 1, 3) + '" text-anchor="middle" fill="' + K.sub + '" pointer-events="none">'
               + esc(it.name) + '</text>';
           }
         } else if (it.t === 'row') {
@@ -640,7 +707,7 @@
             + '" stroke="#07080d" stroke-width="' + 2 * px + '"/>'
             + '<text y="' + 5 * px + '" font-size="' + 14 * px + '" text-anchor="middle" pointer-events="none">'
             + m[1] + '</text>'
-            + '<text y="' + 27 * px + '" font-size="' + 12 * px + '" text-anchor="middle" fill="#f8fafc"'
+            + '<text y="' + 27 * px + '" font-size="' + 12 * px + '" text-anchor="middle" fill="' + K.label + '"'
             + ' font-weight="700" pointer-events="none">' + esc(it.name || m[2]) + '</text>'
             + '</g>';
         } else if (it.t === 'text') {
@@ -668,12 +735,30 @@
       handlesG.innerHTML = out;
     }
 
-    function render() {
-      itemsG.innerHTML = itemsSvg(view.s, {});
+    let sceneryCount = -1;
+    function renderScenery() {
+      $('scenery').innerHTML = itemsSvg(view.s, { only: 'scenery' });
+      $('scenery').setAttribute('pointer-events', plan.sceneryLocked === false ? 'auto' : 'none');
+      sceneryCount = plan.items.filter(isScenery).length;
+      sceneryScale = view.s;
+    }
+    function render(force) {
+      // The ground is redrawn when it changed, when the thing being edited is
+      // part of it, or when the whole plan was replaced — never on every frame
+      // of a drag across a few thousand shapes.
+      const it = selected();
+      if (force || sceneryCount !== plan.items.filter(isScenery).length || (it && isScenery(it))) renderScenery();
+      itemsG.innerHTML = itemsSvg(view.s, { only: 'live' });
       renderHandles();
       renderSummary();
       renderProps();
       scheduleSave();
+    }
+    // Hairline widths are given in screen pixels, so only a zoom changes them —
+    // a pan must not redraw a few thousand shapes per frame.
+    let sceneryScale = 0;
+    function reflowScenery() {
+      if (sceneryCount > 0 && Math.abs(view.s - sceneryScale) > 1e-6) { sceneryScale = view.s; renderScenery(); }
     }
 
     // ===== SUMMARY ========================================================
@@ -743,7 +828,9 @@
       // when nothing else about the panel changed.
       const note = $('selBody').querySelector('.note');
       if (!note) return;
-      if (it.t === 'zone') {
+      if (it.t === 'area') {
+        note.textContent = Math.round(polyArea(it.pts)) + ' m² · parte din desenul de fond.';
+      } else if (it.t === 'zone') {
         note.textContent = Math.round(polyArea(it.pts)) + ' m² · ' + it.pts.length
           + ' colțuri. Trage bulinele roz ca să îndrepți conturul.';
       } else if (it.t === 'row') {
@@ -760,9 +847,18 @@
         body.innerHTML = '<p class="empty">Nimic selectat. Alege un obiect de pe plan sau desenează unul nou.</p>';
         return;
       }
-      const names = { zone: 'Zonă', lane: 'Alee', row: 'Rând de locuri', spot: 'Loc', marker: 'Reper', text: 'Text' };
+      const names = { zone: 'Zonă', lane: 'Alee', row: 'Rând de locuri', spot: 'Loc', marker: 'Reper',
+                      text: 'Text', area: 'Suprafață', line: 'Linie' };
       let h = '<p class="kind">' + names[it.t] + '</p>';
-      if (it.t === 'zone') {
+      if (it.t === 'area') {
+        h += fRow('Nume', fText('pName', it.name, 'ex: Clădire'))
+          + fColor(it.color)
+          + '<p class="note">' + Math.round(polyArea(it.pts)) + ' m² · parte din desenul de fond.</p>';
+      } else if (it.t === 'line') {
+        h += fRow('Grosime (m)', fNum('pW', it.w == null ? 0.05 : it.w, 0.01, 20, 0.01))
+          + fColor(it.color)
+          + '<p class="note">Linie din desenul de fond.</p>';
+      } else if (it.t === 'zone') {
         h += fRow('Nume', fText('pName', it.name, 'ex: Zona A'))
           + fColor(it.color)
           + '<p class="note">' + Math.round(polyArea(it.pts)) + ' m² · ' + it.pts.length + ' colțuri. '
@@ -890,7 +986,8 @@
       sel = plan.items.some((it) => it.id === keepSel) ? keepSel : null;
       $('planName').value = plan.name || '';
       syncUnderlayCtl();
-      applyView(); render();
+      applyPaper();
+      applyView(); render(true);
     }
     function undo() { if (!past.length) return; future.push(snapshot()); restore(past.pop()); updateHistBtns(); }
     function redo() { if (!future.length) return; past.push(snapshot()); restore(future.pop()); updateHistBtns(); }
@@ -1254,6 +1351,16 @@
       snap = !snap;
       $('snapBtn').setAttribute('aria-pressed', String(snap));
     });
+    $('paperBtn').addEventListener('click', () => {
+      pushHistory();
+      plan.paper = !plan.paper;
+      applyPaper(); render(true);
+    });
+    $('sceneryBtn').addEventListener('click', () => {
+      plan.sceneryLocked = plan.sceneryLocked === false;
+      applyPaper(); renderScenery(); scheduleSave();
+      toast(plan.sceneryLocked ? 'Fondul e blocat — apeși prin el' : 'Fondul se poate selecta');
+    });
     $('undoBtn').addEventListener('click', undo);
     $('redoBtn').addEventListener('click', redo);
     $('planName').addEventListener('input', (e) => { plan.name = e.target.value; scheduleSave(); });
@@ -1419,16 +1526,16 @@
       return '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="'
         + round(vx, 2) + ' ' + round(vy, 2) + ' ' + round(vw, 2) + ' ' + round(vh, 2)
         + '" font-family="Inter, Helvetica, Arial, sans-serif">'
-        + '<rect x="' + round(vx, 2) + '" y="' + round(vy, 2) + '" width="' + round(vw, 2) + '" height="' + round(vh, 2) + '" fill="#07080d"/>'
+        + '<rect x="' + round(vx, 2) + '" y="' + round(vy, 2) + '" width="' + round(vw, 2) + '" height="' + round(vh, 2) + '" fill="' + ink().bg + '"/>'
         + itemsSvg(s, { flat: true })
         + '<text x="' + round(vx + pad * 0.4, 2) + '" y="' + round(vy + pad * 0.9, 2) + '" font-size="' + (f * 1.3)
-        + '" fill="#f8fafc" font-weight="800">' + esc(plan.name || 'Plan') + '</text>'
+        + '" fill="' + ink().label + '" font-weight="800">' + esc(plan.name || 'Plan') + '</text>'
         + '<text x="' + round(vx + pad * 0.4, 2) + '" y="' + round(fy - f * 1.5, 2) + '" font-size="' + f
-        + '" fill="#94a3b8">' + spotCount() + ' locuri</text>'
+        + '" fill="' + ink().sub + '">' + spotCount() + ' locuri</text>'
         + '<line x1="' + round(vx + pad * 0.4, 2) + '" y1="' + round(fy, 2) + '" x2="' + round(vx + pad * 0.4 + bar, 2)
-        + '" y2="' + round(fy, 2) + '" stroke="#f8fafc" stroke-width="' + (f * 0.16) + '"/>'
+        + '" y2="' + round(fy, 2) + '" stroke="' + ink().label + '" stroke-width="' + (f * 0.16) + '"/>'
         + '<text x="' + round(vx + pad * 0.4 + bar + f * 0.4, 2) + '" y="' + round(fy + f * 0.35, 2) + '" font-size="'
-        + (f * 0.85) + '" fill="#94a3b8">' + bar + ' m</text>'
+        + (f * 0.85) + '" fill="' + ink().sub + '">' + bar + ' m</text>'
         + '</svg>';
     }
     $('expSvg').addEventListener('click', () => {
@@ -1442,7 +1549,7 @@
         const c = document.createElement('canvas');
         c.width = im.naturalWidth * 2; c.height = im.naturalHeight * 2;
         const ctx = c.getContext('2d');
-        ctx.fillStyle = '#07080d'; ctx.fillRect(0, 0, c.width, c.height);
+        ctx.fillStyle = ink().bg; ctx.fillRect(0, 0, c.width, c.height);
         ctx.drawImage(im, 0, 0, c.width, c.height);
         URL.revokeObjectURL(url);
         c.toBlob((b) => { if (b) { download(slug() + '.png', b); toast('PNG exportat'); } }, 'image/png');
@@ -1493,6 +1600,8 @@
       plan = {
         v: 1,
         name: String(d.name || 'Plan fără nume').slice(0, 60),
+        paper: !!d.paper,
+        sceneryLocked: d.sceneryLocked !== false,
         underlay: {
           x: num(u.x, -50), y: num(u.y, -35), w: clamp(num(u.w, 100), 1, 100000),
           h: clamp(num(u.h, 70), 1, 100000), rot: clamp(num(u.rot, 0), -180, 180),
@@ -1501,6 +1610,19 @@
         items: (Array.isArray(d.items) ? d.items : []).map((raw) => {
           const it = raw && typeof raw === 'object' ? raw : {};
           const base = { id: nextId(), color: typeof it.color === 'string' ? it.color.slice(0, 24) : '#3b82f6' };
+          if (it.t === 'area' || it.t === 'line') {
+            const pts = (Array.isArray(it.pts) ? it.pts : []).map(pt);
+            if (pts.length < 2) return null;
+            return Object.assign(base, {
+              t: it.t, pts,
+              name: it.t === 'area' ? String(it.name || '').slice(0, 60) : undefined,
+              // `o` is fill opacity, `s` the outline colour, `w` its width in
+              // metres — short keys because a traced plan carries thousands.
+              o: it.t === 'area' ? clamp(num(it.o, 1), 0, 1) : undefined,
+              s: it.t === 'area' && typeof it.s === 'string' ? it.s.slice(0, 24) : undefined,
+              w: clamp(num(it.w, 0.05), 0.005, 20),
+            });
+          }
           if (it.t === 'zone' || it.t === 'lane') {
             const pts = (Array.isArray(it.pts) ? it.pts : []).map(pt);
             if (pts.length < 2) return null;
@@ -1540,7 +1662,8 @@
       sel = null;
       $('planName').value = plan.name;
       syncUnderlayCtl();
-      applyView(); render();
+      applyPaper();
+      applyView(); render(true);
     }
 
     // ===== START ==========================================================
@@ -1587,6 +1710,7 @@
 
     $('planName').value = plan.name;
     setTool('select');
+    applyPaper();
     syncUnderlayCtl();
     updateHistBtns();
     fitAll();

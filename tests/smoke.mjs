@@ -2328,9 +2328,28 @@ try {
       // handed round as a URL instead of a file.
       await pp.evaluate(() => localStorage.clear());
       await pp.goto(`${BASE}/plan.html?load=plans/plan-06.json`, { waitUntil: 'domcontentloaded' });
-      await pp.waitForTimeout(1200);
+      await pp.waitForTimeout(2500);
       check('plan-load-param-opens-a-bundled-plan', (+(await pp.textContent('#sSpots'))) > 200,
         await pp.textContent('#sSpots'));
+
+      // A plan traced from a drawing carries thousands of background shapes.
+      // They live on their own layer: locked, so clicks reach the plan through
+      // them, and redrawn only when they change — not on every frame of a drag.
+      const layers = await pp.evaluate(() => ({
+        scenery: document.getElementById('scenery').childElementCount,
+        live: document.getElementById('items').childElementCount,
+        pe: document.getElementById('scenery').getAttribute('pointer-events'),
+        bg: getComputedStyle(document.getElementById('stageWrap')).backgroundColor,
+      }));
+      check('plan-scenery-on-its-own-layer',
+        layers.scenery > 1000 && layers.live > 200 && layers.live < layers.scenery,
+        JSON.stringify(layers));
+      check('plan-scenery-locked-so-clicks-pass-through', layers.pe === 'none', layers.pe);
+      check('plan-paper-background', layers.bg !== 'rgba(0, 0, 0, 0)' && !/^rgb\(7, 8, 13\)/.test(layers.bg), layers.bg);
+      await pp.click('#sceneryBtn');
+      await pp.waitForTimeout(250);
+      check('plan-scenery-unlocks-on-demand',
+        await pp.evaluate(() => document.getElementById('scenery').getAttribute('pointer-events')) === 'auto');
 
       // …but only from beside the page. A link is the one input a stranger
       // controls, so the path must never climb out of the site.
@@ -2368,7 +2387,9 @@ try {
         'plan-parallel-row-continues-numbering', 'plan-undo', 'plan-persists-locally',
         'plan-holds-no-photo', 'plan-never-touches-supabase',
         'plan-load-param-opens-a-bundled-plan', 'plan-load-param-refuses-a-path-outside-the-site',
-        'plan-pdf-becomes-the-template', 'plan-pdf-stays-out-of-the-saved-plan']) {
+        'plan-pdf-becomes-the-template', 'plan-pdf-stays-out-of-the-saved-plan',
+        'plan-scenery-on-its-own-layer', 'plan-scenery-locked-so-clicks-pass-through',
+        'plan-paper-background', 'plan-scenery-unlocks-on-demand']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
       console.log(`plan editor checks: ${e.message}`);
