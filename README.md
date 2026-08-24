@@ -98,6 +98,7 @@ veche în cache.
 | `sw.js` | Service worker (cache stale-while-revalidate) |
 | `server.js` | Server static pentru dezvoltare |
 | `plan.html` | Editor de plan al terenului. **De sine stătător** — vezi mai jos |
+| `plans/*.json` | Planuri gata făcute, deschise cu `plan.html?load=plans/x.json` |
 
 ### Pagini publice (se dau prin QR/link, nu necesită cont)
 
@@ -120,7 +121,29 @@ imagine.
 
 Poza intră doar ca machetă sub desen: o pui, o calibrezi cu unealta 📏 („bucata
 asta are 12 m"), trasezi peste ea, apoi o scoți. Nu intră în plan și nu se
-exportă.
+exportă. Acceptă și PDF — planul unui teren vine de la arhitect ca PDF, nu ca
+fotografie — randat cu `vendor/pdf.min.js`, încărcat abia când chiar alegi un PDF.
+
+Un plan gata făcut se deschide dintr-un link: `plan.html?load=plans/plan-06.json`.
+Calea trebuie să fie relativă și să se termine în `.json`; dacă pe dispozitiv
+există deja un desen, pagina întreabă înainte să-l înlocuiască.
+
+### `plans/plan-06.json` — terenul Kultura Fest
+
+Extras din PDF-ul de execuție al evenimentului, nu desenat de mână: **258 de
+locuri**, fiecare exact acolo unde e desenată o mașină în plan, cu unghiul ei,
+grupate în 15 zone (STANCE, MODERN CARS, JDM, AUTOSPORT, AMERICA, EURO, RETRO,
+GREEN ZONE, EXPO, VIP, DRIFT, Technical, тех. парковка, FOOD COURT, CHILL).
+
+Scara nu e ghicită: PDF-ul își poartă propriile etichete de suprafață
+(1 843,37 m², 1 091,66 m², 869,18 m², 262,70 m²), iar toate patru dau aceeași
+valoare — **0,7094 m/pt**. La scara aia simbolul mașinii măsoară 4,72 × 1,90 m,
+adică o mașină. Verificarea a fost vizuală: PDF-ul pus ca machetă la scara
+calculată, iar locurile cad peste mașinile desenate.
+
+Cele 20 de locuri fără zonă sunt mașini desenate în afara oricărei zone
+colorate din PDF; sunt păstrate ca locuri și numărate separat, nu inventate o
+zonă pentru ele.
 
 Ce trebuie știut înainte de a o atinge:
 

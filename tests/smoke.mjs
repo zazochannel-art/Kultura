@@ -21,6 +21,27 @@ const BASE = `http://localhost:${PORT}`;
 const checks = [];
 const check = (name, cond) => { checks.push({ name, ok: !!cond }); };
 
+// A valid one-page 400x200 PDF, built rather than committed: the PDF branch of
+// the template picker needs something real to parse, and a binary fixture in
+// the tree would be one more thing nobody can read in a diff.
+function tinyPdf() {
+  const stream = '1 0 0 RG 6 w 20 20 m 380 180 l S 0 0 1 rg 40 40 120 60 re f';
+  const objs = [
+    '<</Type/Catalog/Pages 2 0 R>>',
+    '<</Type/Pages/Kids[3 0 R]/Count 1>>',
+    '<</Type/Page/Parent 2 0 R/MediaBox[0 0 400 200]/Contents 4 0 R/Resources<<>>>>',
+    `<</Length ${stream.length}>>\nstream\n${stream}\nendstream`,
+  ];
+  let out = '%PDF-1.4\n';
+  const off = [];
+  objs.forEach((o, i) => { off.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+  for (const o of off) out += String(o).padStart(10, '0') + ' 00000 n \n';
+  out += `trailer\n<</Size ${objs.length + 1}/Root 1 0 R>>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(out, 'latin1');
+}
+
 function startServer() {
   const srv = spawn('node', ['server.js'], { cwd: ROOT, env: { ...process.env, PORT }, stdio: 'ignore' });
   return srv;
@@ -2302,11 +2323,52 @@ try {
         !(await pp.evaluate(() => localStorage.getItem('kultura.plan.v1') || '')).includes('data:image'));
       check('plan-never-touches-supabase',
         !(await pp.evaluate(() => document.documentElement.innerHTML)).includes('supabase'));
+
+      // A plan kept beside the page opens from a link, so a venue plan can be
+      // handed round as a URL instead of a file.
+      await pp.evaluate(() => localStorage.clear());
+      await pp.goto(`${BASE}/plan.html?load=plans/plan-06.json`, { waitUntil: 'domcontentloaded' });
+      await pp.waitForTimeout(1200);
+      check('plan-load-param-opens-a-bundled-plan', (+(await pp.textContent('#sSpots'))) > 200,
+        await pp.textContent('#sSpots'));
+
+      // …but only from beside the page. A link is the one input a stranger
+      // controls, so the path must never climb out of the site.
+      const asked = [];
+      pp.on('request', (r) => asked.push(r.url()));
+      await pp.evaluate(() => localStorage.clear());
+      await pp.goto(`${BASE}/plan.html?load=../../etc/passwd`, { waitUntil: 'domcontentloaded' });
+      await pp.waitForTimeout(700);
+      check('plan-load-param-refuses-a-path-outside-the-site',
+        // The page's own URL carries the word too — it is the path that matters.
+        await pp.textContent('#sItems') === '0'
+        && !asked.some((u) => /passwd/.test(new URL(u).pathname)));
+
+      // The venue's own drawing usually arrives as a PDF, not a photo.
+      const pdf = tinyPdf();
+      await pp.goto(`${BASE}/plan.html`, { waitUntil: 'domcontentloaded' });
+      await pp.evaluate(() => localStorage.clear());
+      await pp.reload({ waitUntil: 'domcontentloaded' });
+      await pp.waitForTimeout(400);
+      await pp.setInputFiles('#uFile', { name: 'plan.pdf', mimeType: 'application/pdf', buffer: pdf });
+      await pp.waitForTimeout(3000);
+      const href = await pp.getAttribute('#uImg', 'href');
+      const aspect = await pp.evaluate(() => {
+        const im = document.getElementById('uImg');
+        return +im.getAttribute('width') / +im.getAttribute('height');
+      });
+      check('plan-pdf-becomes-the-template',
+        await pp.locator('#uImg').isVisible() && !!href && href.startsWith('data:image/')
+        && Math.abs(aspect - 2) < 0.02, 'aspect=' + aspect);
+      check('plan-pdf-stays-out-of-the-saved-plan',
+        !(await pp.evaluate(() => localStorage.getItem('kultura.plan.v1') || '')).includes('data:image'));
     } catch (e) {
       for (const n of ['plan-zone-drawn', 'plan-zone-area-in-square-metres',
         'plan-row-spots-follow-its-length', 'plan-row-recount', 'plan-panel-keeps-focus',
         'plan-parallel-row-continues-numbering', 'plan-undo', 'plan-persists-locally',
-        'plan-holds-no-photo', 'plan-never-touches-supabase']) {
+        'plan-holds-no-photo', 'plan-never-touches-supabase',
+        'plan-load-param-opens-a-bundled-plan', 'plan-load-param-refuses-a-path-outside-the-site',
+        'plan-pdf-becomes-the-template', 'plan-pdf-stays-out-of-the-saved-plan']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
       console.log(`plan editor checks: ${e.message}`);

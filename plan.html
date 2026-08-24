@@ -269,8 +269,8 @@
       <section class="panel">
         <h2>Machetă (poza)</h2>
         <div class="btn-row">
-          <input type="file" id="uFile" accept="image/*" class="hidden-file">
-          <label class="btn" for="uFile" style="text-align:center">Pune poza</label>
+          <input type="file" id="uFile" accept="image/*,application/pdf,.pdf" class="hidden-file">
+          <label class="btn" for="uFile" style="text-align:center">Pune poza / PDF</label>
           <button type="button" class="btn danger" id="uClear">Scoate</button>
         </div>
         <div id="uCtl" hidden>
@@ -294,7 +294,7 @@
           </div>
           <p class="note">Poza stă doar dedesubt, ca să ai după ce trasa. Nu intră în plan și nu se exportă — planul rămâne desenul tău.</p>
         </div>
-        <p class="note" id="uNote">Fără poză nu se pierde nimic: caroiajul e în metri, poți desena direct pe el.</p>
+        <p class="note" id="uNote">Poză sau PDF. Fără machetă nu se pierde nimic: caroiajul e în metri, poți desena direct pe el.</p>
       </section>
 
       <section class="panel">
@@ -1274,6 +1274,40 @@
       $('uHide').textContent = u.visible ? 'Ascunde' : 'Arată';
       $('uHide').setAttribute('aria-pressed', String(!u.visible));
     }
+    // The vendored pdf.js, fetched only when a PDF is actually picked.
+    let _pdfjs = null;
+    function pdfjs() {
+      if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+      if (_pdfjs) return _pdfjs;
+      _pdfjs = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'vendor/pdf.min.js';
+        s.onload = () => {
+          try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js'; } catch (_) {}
+          resolve(window.pdfjsLib);
+        };
+        s.onerror = () => { _pdfjs = null; reject(new Error('pdf')); };
+        document.head.appendChild(s);
+      });
+      return _pdfjs;
+    }
+    // A CAD plan arrives as a PDF more often than as a photo. Page one, rendered
+    // wide enough that a 2.5 m bay is still a few pixels across.
+    async function pdfToDataUrl(file, maxSide) {
+      const lib = await pdfjs();
+      const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+      const page = await doc.getPage(1);
+      const base = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: maxSide / Math.max(base.width, base.height) });
+      const c = document.createElement('canvas');
+      c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+      const ctx = c.getContext('2d');
+      // White, not transparent: a plan is ink on paper, and the editor is dark.
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      return c.toDataURL('image/jpeg', 0.86);
+    }
+
     // Read a picked photo down to something a browser can hold in storage. The
     // template only has to be sharp enough to trace, not to print.
     function fileToDataUrl(file, maxSide) {
@@ -1326,7 +1360,9 @@
       e.target.value = '';
       if (!f) return;
       try {
-        const src = await fileToDataUrl(f, 1800);
+        const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '');
+        if (isPdf) { toast('Se citește PDF-ul…'); }
+        const src = isPdf ? await pdfToDataUrl(f, 2200) : await fileToDataUrl(f, 1800);
         pushHistory();
         setUnderlay(src, true);
         // Keeping the template across reloads is a convenience, not a promise:
@@ -1334,7 +1370,7 @@
         try { localStorage.setItem(KEY_IMG, src); }
         catch (_) { toast('Poza e prea mare ca s-o ținem minte după reîncărcare', 'error'); }
       } catch (_) {
-        toast('Nu am putut citi poza', 'error');
+        toast('Nu am putut citi fișierul', 'error');
       }
     });
     $('uClear').addEventListener('click', () => {
@@ -1523,6 +1559,27 @@
       const raw = localStorage.getItem(KEY);
       if (raw) adopt(JSON.parse(raw));
     } catch (_) {}
+
+    // `?load=plans/x.json` opens a plan kept beside the page. Same-origin,
+    // relative, and it asks before replacing work already on this device —
+    // losing somebody's drawing to a shared link would be unforgivable.
+    (async function loadFromUrl() {
+      const want = new URLSearchParams(location.search).get('load');
+      if (!want || !/^[\w./-]+\.json$/.test(want) || want.includes('..') || want.startsWith('/')) return;
+      try {
+        const r = await fetch(want, { cache: 'no-cache' });
+        if (!r.ok) throw new Error(String(r.status));
+        const data = await r.json();
+        if (plan.items.length && plan.name !== (data && data.name)
+            && !window.confirm('Deschizi „' + String((data && data.name) || want).slice(0, 60)
+              + '"? Planul de acum („' + plan.name + '", ' + plan.items.length + ' obiecte) se pierde din browserul ăsta.')) return;
+        adopt(data);
+        fitAll();
+        toast('Plan încărcat: ' + plan.items.length + ' obiecte');
+      } catch (_) {
+        toast('Nu am găsit planul „' + want + '"', 'error');
+      }
+    })();
     try {
       const im = localStorage.getItem(KEY_IMG);
       if (im) setUnderlay(im, false);
