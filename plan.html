@@ -1,0 +1,1539 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07080d">
+  <title>Kultura — Planul terenului</title>
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="stylesheet" href="vendor/fonts/fonts.css">
+  <style>
+    :root{
+      --bg:#07080d; --surface:#14182b; --surface-2:#0d1020; --border:rgba(255,255,255,0.12);
+      --brand:#f8589c; --text:#f8fafc; --text-dim:#94a3b8; --text-mute:#7d8aa0;
+      --blue:#3b82f6; --cyan:#06b6d4; --purple:#8b5cf6; --green:#10b981; --gold:#f5c542;
+      --red:#ef4444; --fill:rgba(255,255,255,0.03);
+      /* #ef4444 lands at 4.44:1 on the panel — just under AA, so text uses the lighter tint. */
+      --red-text:#f87171;
+      --topbar-h:56px;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    [hidden]{display:none !important}
+    html,body{height:100%}
+    body{
+      font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+      background:var(--bg); color:var(--text); line-height:1.45;
+      -webkit-font-smoothing:antialiased; overflow:hidden;
+      /* The editor is one screen that never scrolls: the plan pans instead. */
+      display:flex; flex-direction:column;
+    }
+    button{font-family:inherit}
+    button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{
+      outline:2px solid var(--brand); outline-offset:2px}
+
+    /* ---------- top bar ---------- */
+    .topbar{
+      height:var(--topbar-h); flex:0 0 auto; display:flex; align-items:center; gap:10px;
+      padding:0 12px; background:var(--surface-2); border-bottom:1px solid var(--border); z-index:5;
+    }
+    .topbar .logo{font-weight:900; letter-spacing:.04em; font-size:14px; color:var(--brand); white-space:nowrap}
+    .topbar .logo small{display:block; font-size:10px; font-weight:700; letter-spacing:.12em; color:var(--text-mute)}
+    #planName{
+      flex:1 1 auto; min-width:80px; max-width:280px; background:transparent; border:1px solid transparent;
+      color:var(--text); font-size:16px; font-weight:700; padding:6px 8px; border-radius:8px;
+    }
+    #planName:hover{border-color:var(--border)}
+    #planName:focus{border-color:var(--brand); background:rgba(255,255,255,.04); outline:none}
+    .tb-group{display:flex; align-items:center; gap:6px; margin-left:auto}
+    .tb{
+      display:inline-flex; align-items:center; gap:6px; height:34px; padding:0 11px; border-radius:9px;
+      background:var(--fill); border:1px solid var(--border); color:var(--text); font-size:13px;
+      font-weight:700; cursor:pointer; white-space:nowrap;
+    }
+    .tb:hover{background:rgba(255,255,255,.07)}
+    .tb:disabled{opacity:.35; cursor:default}
+    .tb.icon{padding:0; width:34px; justify-content:center; font-size:15px}
+    .tb.primary{background:var(--brand); border-color:var(--brand); color:#1a0410}
+    .saved{font-size:11px; color:var(--text-mute); white-space:nowrap; min-width:64px; text-align:right}
+
+    /* ---------- layout ---------- */
+    .editor{flex:1 1 auto; display:grid; grid-template-columns:64px 1fr 296px; min-height:0}
+
+    /* ---------- tools ---------- */
+    .tools{
+      background:var(--surface-2); border-right:1px solid var(--border);
+      display:flex; flex-direction:column; align-items:center; gap:4px; padding:8px 0; overflow:auto;
+    }
+    .tool{
+      width:48px; height:48px; border-radius:12px; border:1px solid transparent; background:transparent;
+      color:var(--text-dim); cursor:pointer; display:grid; place-items:center; gap:1px; font-size:9px;
+      font-weight:700; line-height:1;
+    }
+    .tool span.ic{font-size:19px; line-height:1}
+    .tool:hover{background:var(--fill); color:var(--text)}
+    .tool[aria-pressed="true"]{background:rgba(248,88,156,.16); border-color:var(--brand); color:var(--brand)}
+    .tool-sep{width:32px; height:1px; background:var(--border); margin:5px 0; flex:0 0 auto}
+
+    /* ---------- stage ---------- */
+    .stage{position:relative; min-width:0; background:
+      radial-gradient(1200px 700px at 50% 0%, rgba(139,92,246,.10), transparent 60%), var(--bg); overflow:hidden}
+    #stage{width:100%; height:100%; display:block; touch-action:none; cursor:crosshair}
+    #stage.pan{cursor:grab}
+    #stage.panning{cursor:grabbing}
+    #stage.pick{cursor:default}
+    .hint{
+      position:absolute; left:50%; top:12px; transform:translateX(-50%); z-index:3; max-width:min(92%,560px);
+      background:rgba(13,16,32,.92); border:1px solid var(--border); border-radius:999px; padding:8px 16px;
+      font-size:13px; color:var(--text-dim); text-align:center; backdrop-filter:blur(6px); pointer-events:none;
+    }
+    .hint b{color:var(--text)}
+    .hint[hidden]{display:none}
+    .viewbar{
+      position:absolute; left:12px; bottom:12px; z-index:3; display:flex; align-items:center; gap:6px;
+      background:rgba(13,16,32,.9); border:1px solid var(--border); border-radius:12px; padding:6px;
+      backdrop-filter:blur(6px);
+    }
+    .viewbar button{
+      width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:var(--fill);
+      color:var(--text); font-size:15px; font-weight:800; cursor:pointer; display:grid; place-items:center;
+    }
+    .viewbar button:hover{background:rgba(255,255,255,.08)}
+    .viewbar button[aria-pressed="true"]{background:rgba(248,88,156,.18); border-color:var(--brand); color:var(--brand)}
+    .viewbar .zval{font-size:12px; color:var(--text-dim); min-width:60px; text-align:center; font-variant-numeric:tabular-nums}
+    .scalebar{
+      position:absolute; right:12px; bottom:12px; z-index:3; background:rgba(13,16,32,.9);
+      border:1px solid var(--border); border-radius:10px; padding:6px 10px; font-size:11px; color:var(--text-dim);
+      backdrop-filter:blur(6px); text-align:center;
+    }
+    .scalebar .bar{height:4px; background:var(--text); border-radius:2px; margin:4px auto 0; opacity:.75}
+
+    /* ---------- properties ---------- */
+    .props{
+      background:var(--surface-2); border-left:1px solid var(--border); overflow-y:auto; padding:12px;
+      display:flex; flex-direction:column; gap:12px;
+    }
+    .panel{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px}
+    .panel h2{font-size:11px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--text-mute); margin-bottom:10px}
+    .row{display:flex; align-items:center; gap:8px; margin-bottom:8px}
+    .row:last-child{margin-bottom:0}
+    .row label{font-size:12px; color:var(--text-dim); flex:0 0 88px}
+    .row input[type="text"],.row input[type="number"],.row select{
+      flex:1 1 auto; min-width:0; background:var(--fill); border:1px solid var(--border); color:var(--text);
+      border-radius:9px; padding:9px 10px; font-size:16px; font-family:inherit;
+    }
+    .row input[type="range"]{flex:1 1 auto; min-width:0; accent-color:var(--brand)}
+    .row input[type="color"]{
+      width:38px; height:34px; padding:2px; background:var(--fill); border:1px solid var(--border);
+      border-radius:9px; cursor:pointer;
+    }
+    .row .val{font-size:12px; color:var(--text-dim); min-width:44px; text-align:right; font-variant-numeric:tabular-nums}
+    .btn-row{display:flex; gap:6px; flex-wrap:wrap}
+    .btn{
+      flex:1 1 auto; padding:9px 10px; border-radius:9px; border:1px solid var(--border); background:var(--fill);
+      color:var(--text); font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap;
+    }
+    .btn:hover{background:rgba(255,255,255,.07)}
+    .btn.danger{color:var(--red-text); border-color:rgba(239,68,68,.35)}
+    .btn.go{background:var(--brand); border-color:var(--brand); color:#1a0410}
+    /* Focusable but invisible: the label next to it is what you see, so that is
+       where the focus ring has to show up. */
+    .hidden-file{position:absolute; width:1px; height:1px; opacity:0; overflow:hidden}
+    .hidden-file:focus-visible + label{outline:2px solid var(--brand); outline-offset:2px}
+    .empty{font-size:13px; color:var(--text-mute); text-align:center; padding:14px 6px}
+    .kind{font-size:12px; font-weight:800; color:var(--brand); letter-spacing:.04em; text-transform:uppercase}
+    .stats{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+    .stat{background:var(--fill); border:1px solid var(--border); border-radius:10px; padding:8px 10px}
+    .stat b{display:block; font-size:19px; font-weight:900; font-variant-numeric:tabular-nums}
+    .stat span{font-size:11px; color:var(--text-mute)}
+    .zlist{margin-top:8px; display:flex; flex-direction:column; gap:4px}
+    .zrow{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-dim)}
+    .zrow .dot{width:9px; height:9px; border-radius:3px; flex:0 0 auto}
+    .zrow .nm{flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text)}
+    .warn{margin-top:8px; font-size:12px; color:var(--gold); background:rgba(245,197,66,.1);
+      border:1px solid rgba(245,197,66,.3); border-radius:9px; padding:8px 10px}
+    .note{font-size:11px; color:var(--text-mute); margin-top:8px; line-height:1.5}
+
+    /* ---------- toast ---------- */
+    .toast{
+      position:fixed; left:50%; bottom:22px; transform:translateX(-50%) translateY(20px); opacity:0;
+      background:var(--green); color:#04120b; font-weight:800; font-size:14px; padding:10px 18px;
+      border-radius:999px; transition:opacity .22s ease,transform .22s ease; z-index:20; pointer-events:none;
+      max-width:88vw; text-align:center;
+    }
+    .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+    .toast.error{background:var(--red); color:#fff}
+
+    /* ---------- phone ---------- */
+    @media (max-width:900px){
+      .editor{grid-template-columns:1fr; grid-template-rows:1fr auto}
+      .tools{
+        grid-row:2; flex-direction:row; justify-content:flex-start; border-right:0;
+        border-top:1px solid var(--border); padding:6px 4px calc(6px + env(safe-area-inset-bottom));
+        overflow-x:auto; overflow-y:hidden; gap:2px;
+      }
+      .tool{flex:0 0 auto; width:44px; height:44px}
+      /* The dividers are decoration; the scale tool is not. Dropping them is
+         what lets all eight tools sit on a 390px row instead of hiding the
+         last one behind a scroll nobody looks for. */
+      .tool-sep{display:none}
+      .stage{grid-row:1}
+      .props{
+        position:fixed; left:0; right:0; bottom:0; z-index:10; max-height:62vh; border-left:0;
+        border-top:1px solid var(--border); border-radius:16px 16px 0 0; padding-bottom:calc(12px + env(safe-area-inset-bottom));
+        transform:translateY(100%); transition:transform .22s ease;
+      }
+      .props.open{transform:translateY(0)}
+      .props::before{content:""; display:block; width:38px; height:4px; border-radius:2px;
+        background:var(--border); margin:0 auto 8px}
+      .topbar{padding:0 8px; gap:6px}
+      .topbar .logo small{display:none}
+      .topbar .logo{font-size:12px}
+      .saved{display:none}
+      #planName{max-width:none; min-width:40px}
+      .viewbar{bottom:auto; top:12px; left:12px}
+      /* Both bars live on the same line up here, so the zoom readout gives up
+         its width to keep the scale bar off the buttons. */
+      .viewbar .zval{display:none}
+      .scalebar{bottom:auto; top:12px; right:12px}
+      .hint{top:auto; bottom:12px}
+    }
+    @media (prefers-reduced-motion: reduce){
+      .toast,.props{transition:none}
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="logo">KULTURA<small>PLANUL TERENULUI</small></div>
+    <input type="text" id="planName" value="Plan fără nume" aria-label="Numele planului" maxlength="60">
+    <div class="tb-group">
+      <button type="button" class="tb icon" id="undoBtn" title="Înapoi (Ctrl+Z)" aria-label="Înapoi">↶</button>
+      <button type="button" class="tb icon" id="redoBtn" title="Înainte (Ctrl+Shift+Z)" aria-label="Înainte">↷</button>
+      <span class="saved" id="savedMsg" aria-live="polite"></span>
+      <button type="button" class="tb" id="sheetBtn" hidden>Detalii</button>
+    </div>
+  </header>
+
+  <div class="editor">
+    <nav class="tools" id="tools" aria-label="Unelte de desen">
+      <button type="button" class="tool" data-tool="select" aria-pressed="true" title="Alege și mută (V)"><span class="ic">↖</span>Alege</button>
+      <span class="tool-sep" aria-hidden="true"></span>
+      <button type="button" class="tool" data-tool="zone" aria-pressed="false" title="Zonă — contur închis (Z)"><span class="ic">⬠</span>Zonă</button>
+      <button type="button" class="tool" data-tool="row" aria-pressed="false" title="Rând de locuri — două capete (R)"><span class="ic">▤</span>Rând</button>
+      <button type="button" class="tool" data-tool="spot" aria-pressed="false" title="Un singur loc (L)"><span class="ic">▭</span>Loc</button>
+      <button type="button" class="tool" data-tool="lane" aria-pressed="false" title="Alee sau drum (A)"><span class="ic">⤳</span>Alee</button>
+      <button type="button" class="tool" data-tool="marker" aria-pressed="false" title="Reper: intrare, scenă, toaletă (P)"><span class="ic">📍</span>Reper</button>
+      <button type="button" class="tool" data-tool="text" aria-pressed="false" title="Text pe plan (T)"><span class="ic">T</span>Text</button>
+      <span class="tool-sep" aria-hidden="true"></span>
+      <button type="button" class="tool" data-tool="calib" aria-pressed="false" title="Calibrează macheta: trage peste ceva a cărui lungime o știi"><span class="ic">📏</span>Scară</button>
+    </nav>
+
+    <div class="stage" id="stageWrap">
+      <!-- Everything visible is drawn from the plan data. The photo underneath is
+           only a tracing template: it is never part of what gets exported. -->
+      <svg id="stage" role="application" aria-label="Planul terenului — desenează cu uneltele din stânga">
+        <defs>
+          <pattern id="gMinor" patternUnits="userSpaceOnUse" width="1" height="1">
+            <path d="M1 0 L0 0 L0 1" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1" id="gMinorLine"/>
+          </pattern>
+          <pattern id="gMajor" patternUnits="userSpaceOnUse" width="5" height="5">
+            <rect width="5" height="5" fill="url(#gMinor)"/>
+            <path d="M5 0 L0 0 L0 5" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="1" id="gMajorLine"/>
+          </pattern>
+        </defs>
+        <g id="world">
+          <image id="uImg" preserveAspectRatio="none" style="display:none"></image>
+          <rect id="gridRect" fill="url(#gMajor)" pointer-events="none"></rect>
+          <g id="items"></g>
+          <g id="ghost" pointer-events="none"></g>
+          <g id="handles"></g>
+        </g>
+      </svg>
+      <p class="hint" id="hint" hidden></p>
+      <div class="viewbar">
+        <button type="button" id="zoomOut" aria-label="Depărtează">−</button>
+        <span class="zval" id="zoomVal">1 m = 6 px</span>
+        <button type="button" id="zoomIn" aria-label="Apropie">+</button>
+        <button type="button" id="fitBtn" aria-label="Încadrează tot" title="Încadrează tot">⤢</button>
+        <button type="button" id="snapBtn" aria-pressed="true" aria-label="Aliniere la caroiaj" title="Aliniere la caroiaj (G)">⊞</button>
+      </div>
+      <div class="scalebar" id="scaleBar"><span id="scaleTxt">10 m</span><div class="bar" id="scaleLine" style="width:60px"></div></div>
+    </div>
+
+    <aside class="props" id="props" aria-label="Proprietăți">
+      <section class="panel" id="selPanel">
+        <h2>Selecție</h2>
+        <div id="selBody"><p class="empty">Nimic selectat. Alege un obiect de pe plan sau desenează unul nou.</p></div>
+      </section>
+
+      <section class="panel">
+        <h2>Machetă (poza)</h2>
+        <div class="btn-row">
+          <input type="file" id="uFile" accept="image/*" class="hidden-file">
+          <label class="btn" for="uFile" style="text-align:center">Pune poza</label>
+          <button type="button" class="btn danger" id="uClear">Scoate</button>
+        </div>
+        <div id="uCtl" hidden>
+          <div class="row" style="margin-top:10px">
+            <label for="uOpacity">Transparență</label>
+            <input type="range" id="uOpacity" min="5" max="100" value="55">
+            <span class="val" id="uOpacityVal">55%</span>
+          </div>
+          <div class="row">
+            <label for="uRot">Rotire</label>
+            <input type="range" id="uRot" min="-180" max="180" value="0">
+            <span class="val" id="uRotVal">0°</span>
+          </div>
+          <div class="row">
+            <label for="uWidth">Lățime (m)</label>
+            <input type="number" id="uWidth" min="1" max="5000" step="1" value="100">
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn" id="uLock" aria-pressed="true">🔒 Blocată</button>
+            <button type="button" class="btn" id="uHide" aria-pressed="false">Ascunde</button>
+          </div>
+          <p class="note">Poza stă doar dedesubt, ca să ai după ce trasa. Nu intră în plan și nu se exportă — planul rămâne desenul tău.</p>
+        </div>
+        <p class="note" id="uNote">Fără poză nu se pierde nimic: caroiajul e în metri, poți desena direct pe el.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Sumar</h2>
+        <div class="stats">
+          <div class="stat"><b id="sSpots">0</b><span>locuri</span></div>
+          <div class="stat"><b id="sZones">0</b><span>zone</span></div>
+          <div class="stat"><b id="sArea">0</b><span>m² desenați</span></div>
+          <div class="stat"><b id="sItems">0</b><span>obiecte</span></div>
+        </div>
+        <div class="zlist" id="zList"></div>
+        <div class="warn" id="dupWarn" hidden></div>
+      </section>
+
+      <section class="panel">
+        <h2>Planul</h2>
+        <div class="btn-row">
+          <button type="button" class="btn go" id="expJson">Exportă JSON</button>
+          <input type="file" id="impJson" accept="application/json,.json" class="hidden-file">
+          <label class="btn" for="impJson" style="text-align:center">Importă</label>
+        </div>
+        <div class="btn-row" style="margin-top:6px">
+          <button type="button" class="btn" id="expPng">PNG</button>
+          <button type="button" class="btn" id="expSvg">SVG</button>
+          <button type="button" class="btn danger" id="wipeBtn">Golește</button>
+        </div>
+        <p class="note">Planul se salvează singur în browserul ăsta. Ca să-l duci pe alt dispozitiv, exportă JSON-ul.</p>
+      </section>
+    </aside>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+    const round = (v, n) => Math.round(v * Math.pow(10, n)) / Math.pow(10, n);
+
+    // ===== MODEL ==========================================================
+    //
+    // One unit is one metre — never a pixel and never a percentage of a photo.
+    // The plan is a drawing in its own right: the photo underneath is a tracing
+    // template that can be moved, faded or thrown away without touching a
+    // single shape. That is the whole point of building it this way instead of
+    // pinning markers onto an image.
+    const KEY = 'kultura.plan.v1';
+    const KEY_IMG = 'kultura.plan.underlay.v1';
+    const SPOT_W = 2.5, SPOT_D = 5;         // one parking bay, in metres
+    const PALETTE = ['#f8589c', '#3b82f6', '#10b981', '#f5c542', '#8b5cf6', '#06b6d4', '#ef4444', '#f97316'];
+    const MARKERS = [
+      ['intrare', '🚪', 'Intrare'], ['iesire', '🏁', 'Ieșire'], ['scena', '🎤', 'Scenă'],
+      ['food', '🍔', 'Food'], ['wc', '🚻', 'Toalete'], ['medical', '⛑', 'Medical'],
+      ['foc', '🧯', 'Stingător'], ['staff', '🎽', 'Staff'], ['foto', '📸', 'Foto'],
+      ['reper', '📍', 'Reper'],
+    ];
+
+    const newPlan = () => ({
+      v: 1,
+      name: 'Plan fără nume',
+      underlay: { x: -50, y: -35, w: 100, h: 70, rot: 0, opacity: 55, visible: true, locked: true },
+      items: [],
+    });
+
+    let plan = newPlan();
+    let imgSrc = '';                  // the photo itself: kept out of `plan` on purpose
+    let sel = null;                   // selected item id
+    let tool = 'select';
+    let snap = true;
+
+    let uid = 0;
+    const nextId = () => 'i' + (++uid) + Math.random().toString(36).slice(2, 6);
+    const byId = (id) => plan.items.find((it) => it.id === id) || null;
+    const selected = () => byId(sel);
+
+    // ===== GEOMETRY =======================================================
+    const dist = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+    function polyArea(pts) {
+      let a = 0;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        a += pts[j][0] * pts[i][1] - pts[i][0] * pts[j][1];
+      }
+      return Math.abs(a / 2);
+    }
+    function centroid(pts) {
+      let x = 0, y = 0, a = 0;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const f = pts[j][0] * pts[i][1] - pts[i][0] * pts[j][1];
+        a += f; x += (pts[j][0] + pts[i][0]) * f; y += (pts[j][1] + pts[i][1]) * f;
+      }
+      // A degenerate ring (three points on a line) has no centroid; the average
+      // still puts the label somewhere sensible instead of at NaN.
+      if (Math.abs(a) < 1e-9) {
+        return [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length];
+      }
+      a *= 3;
+      return [x / a, y / a];
+    }
+
+    // Spots of a row, derived rather than stored: change the count and the row
+    // re-spaces itself instead of leaving forty stale rectangles behind.
+    function rowSpots(it) {
+      const [ax, ay] = it.a, [bx, by] = it.b;
+      const dx = bx - ax, dy = by - ay;
+      const L = Math.hypot(dx, dy) || 1e-6;
+      const ux = dx / L, uy = dy / L;          // along the row
+      const nx = -uy, ny = ux;                 // across it
+      const n = Math.max(1, it.n | 0);
+      const pitch = L / n;
+      // Never wider than its share of the line: asking for more spots packs
+      // them tighter instead of drawing them on top of each other.
+      const w = Math.min(it.sw || SPOT_W, pitch * 0.94);
+      const d = it.sd || SPOT_D;
+      const off = (it.side || 0) * d / 2;
+      const ang = Math.atan2(dy, dx) * 180 / Math.PI;
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        const t = (i + 0.5) * pitch;
+        out.push({
+          cx: ax + ux * t + nx * off, cy: ay + uy * t + ny * off,
+          ang, w, d, no: (it.start || 1) + i,
+        });
+      }
+      return out;
+    }
+    const rowLen = (it) => dist(it.a, it.b);
+    function spotCount() {
+      return plan.items.reduce((n, it) =>
+        n + (it.t === 'row' ? Math.max(1, it.n | 0) : it.t === 'spot' ? 1 : 0), 0);
+    }
+    // Every spot on the plan as {zone, no} — what the summary counts and what
+    // the duplicate check reads.
+    function allSpots() {
+      const out = [];
+      for (const it of plan.items) {
+        if (it.t === 'row') rowSpots(it).forEach((s) => out.push({ zone: it.zone || '', no: s.no, color: it.color }));
+        else if (it.t === 'spot') out.push({ zone: it.zone || '', no: it.no, color: it.color });
+      }
+      return out;
+    }
+
+    // ===== VIEW ===========================================================
+    const stage = $('stage'), world = $('world'), itemsG = $('items'),
+          ghostG = $('ghost'), handlesG = $('handles'), gridRect = $('gridRect');
+    let view = { s: 6, x: 0, y: 0 };   // s = pixels per metre
+
+    const rect = () => stage.getBoundingClientRect();
+    function toWorld(px, py) { return [(px - view.x) / view.s, (py - view.y) / view.s]; }
+    function evPoint(e) {
+      const r = rect();
+      return toWorld(e.clientX - r.left, e.clientY - r.top);
+    }
+    function gridStep() {
+      for (const g of [0.5, 1, 2, 5, 10, 25, 50, 100, 250]) if (g * view.s >= 26) return g;
+      return 500;
+    }
+    const snapStep = () => Math.max(0.25, gridStep() / 5);
+    function snapPt(p) {
+      if (!snap) return [round(p[0], 3), round(p[1], 3)];
+      const st = snapStep();
+      return [Math.round(p[0] / st) * st, Math.round(p[1] / st) * st];
+    }
+
+    function applyView() {
+      world.setAttribute('transform', 'translate(' + view.x + ' ' + view.y + ') scale(' + view.s + ')');
+      const g = gridStep(), px = 1 / view.s;
+      $('gMinor').setAttribute('width', g); $('gMinor').setAttribute('height', g);
+      $('gMinorLine').setAttribute('d', 'M' + g + ' 0 L0 0 L0 ' + g);
+      $('gMinorLine').setAttribute('stroke-width', px);
+      $('gMajor').setAttribute('width', g * 5); $('gMajor').setAttribute('height', g * 5);
+      const inner = $('gMajor').firstElementChild;
+      inner.setAttribute('width', g * 5); inner.setAttribute('height', g * 5);
+      $('gMajorLine').setAttribute('d', 'M' + (g * 5) + ' 0 L0 0 L0 ' + (g * 5));
+      $('gMajorLine').setAttribute('stroke-width', px);
+
+      const r = rect();
+      const tl = toWorld(0, 0), br = toWorld(r.width, r.height);
+      const pad = g * 5;
+      gridRect.setAttribute('x', Math.floor(tl[0] / pad) * pad - pad);
+      gridRect.setAttribute('y', Math.floor(tl[1] / pad) * pad - pad);
+      gridRect.setAttribute('width', (br[0] - tl[0]) + pad * 3);
+      gridRect.setAttribute('height', (br[1] - tl[1]) + pad * 3);
+
+      $('zoomVal').textContent = '1 m = ' + round(view.s, 1) + ' px';
+      // Scale bar: the plan is in metres, so say how long a metre is on screen
+      // in a length a person can actually eyeball against the drawing.
+      let best = 1;
+      for (const m of [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000]) { best = m; if (m * view.s >= 60) break; }
+      $('scaleTxt').textContent = best >= 1000 ? (best / 1000) + ' km' : best + ' m';
+      $('scaleLine').style.width = Math.round(best * view.s) + 'px';
+      renderUnderlay();
+      renderHandles();
+    }
+    function zoomAt(factor, cx, cy) {
+      const r = rect();
+      const ax = cx == null ? r.width / 2 : cx - r.left;
+      const ay = cy == null ? r.height / 2 : cy - r.top;
+      const s1 = clamp(view.s * factor, 0.4, 400);
+      if (Math.abs(s1 - view.s) < 1e-6) return;
+      view.x = ax - (ax - view.x) * (s1 / view.s);
+      view.y = ay - (ay - view.y) * (s1 / view.s);
+      view.s = s1;
+      applyView(); render();
+    }
+    // Bounding box of everything drawn — used by "fit" and by the exports.
+    function bounds() {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      const add = (x, y) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
+      for (const it of plan.items) {
+        if (it.pts) it.pts.forEach((p) => add(p[0], p[1]));
+        else if (it.t === 'row') { rowSpots(it).forEach((s) => { const k = Math.max(s.w, s.d) / 2; add(s.cx - k, s.cy - k); add(s.cx + k, s.cy + k); }); }
+        else if (it.t === 'spot') { const k = Math.max(it.sw || SPOT_W, it.sd || SPOT_D) / 2; add(it.x - k, it.y - k); add(it.x + k, it.y + k); }
+        else if (it.x != null) add(it.x, it.y);
+      }
+      if (x0 === Infinity) return null;
+      return { x0, y0, x1, y1, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) };
+    }
+    function fitAll() {
+      const b = bounds();
+      const r = rect();
+      if (!b) {
+        // Nothing drawn yet: frame the photo if there is one, otherwise show a
+        // sensible slice of empty ground rather than an arbitrary corner.
+        const u = plan.underlay;
+        const w = imgSrc ? u.w : 120, h = imgSrc ? u.h : 80;
+        const cx = imgSrc ? u.x + u.w / 2 : 0, cy = imgSrc ? u.y + u.h / 2 : 0;
+        view.s = clamp(Math.min(r.width / (w * 1.15), r.height / (h * 1.15)), 0.4, 400);
+        view.x = r.width / 2 - cx * view.s;
+        view.y = r.height / 2 - cy * view.s;
+      } else {
+        view.s = clamp(Math.min(r.width / (b.w * 1.2), r.height / (b.h * 1.2)), 0.4, 400);
+        view.x = r.width / 2 - (b.x0 + b.w / 2) * view.s;
+        view.y = r.height / 2 - (b.y0 + b.h / 2) * view.s;
+      }
+      applyView(); render();
+    }
+
+    // ===== DRAWING ========================================================
+    function renderUnderlay() {
+      const u = plan.underlay, im = $('uImg');
+      if (!imgSrc || !u.visible) { im.style.display = 'none'; return; }
+      im.style.display = '';
+      im.setAttribute('href', imgSrc);
+      im.setAttribute('x', u.x); im.setAttribute('y', u.y);
+      im.setAttribute('width', u.w); im.setAttribute('height', u.h);
+      im.setAttribute('opacity', (u.opacity || 55) / 100);
+      im.setAttribute('transform', 'rotate(' + (u.rot || 0) + ' ' + (u.x + u.w / 2) + ' ' + (u.y + u.h / 2) + ')');
+      im.style.cursor = u.locked ? 'inherit' : 'move';
+      im.setAttribute('pointer-events', u.locked ? 'none' : 'auto');
+    }
+
+    // A spot rectangle, used by rows and by loose spots alike.
+    function spotSvg(cx, cy, ang, w, d, label, color, taken) {
+      const f = Math.min(w, d) * 0.38;
+      return '<g transform="translate(' + round(cx, 3) + ' ' + round(cy, 3) + ') rotate(' + round(ang, 2) + ')">'
+        + '<rect x="' + (-w / 2) + '" y="' + (-d / 2) + '" width="' + w + '" height="' + d + '" rx="' + Math.min(0.4, w / 6) + '"'
+        + ' fill="' + color + '" fill-opacity="' + (taken ? '.5' : '.18') + '" stroke="' + color + '" stroke-width="' + (w / 22) + '"/>'
+        + '<text x="0" y="' + (f * 0.36) + '" font-size="' + f + '" text-anchor="middle" fill="#f8fafc"'
+        + ' font-weight="700" pointer-events="none">' + esc(label) + '</text>'
+        + '</g>';
+    }
+
+    // The whole drawing as SVG markup. `s` is pixels per metre — only the pins
+    // and their captions care, because those must keep a readable size while
+    // the plan grows underneath them. Everything else is drawn in metres, which
+    // is why the same function renders the screen and the exported file.
+    function itemsSvg(s, opts) {
+      const o = opts || {};
+      const px = 1 / s;
+      let out = '';
+      for (const it of plan.items) {
+        const on = !o.flat && it.id === sel;
+        const col = it.color || '#3b82f6';
+        if (it.t === 'zone') {
+          const pts = it.pts.map((p) => round(p[0], 3) + ',' + round(p[1], 3)).join(' ');
+          const a = polyArea(it.pts);
+          const c = centroid(it.pts);
+          const f = clamp(Math.sqrt(a) / 9, 1, 6);
+          out += '<polygon data-id="' + it.id + '" points="' + pts + '" fill="' + col + '" fill-opacity="'
+            + (on ? '.3' : '.16') + '" stroke="' + col + '" stroke-width="' + (on ? 3 * px : 2 * px)
+            + '" stroke-linejoin="round"/>';
+          if (it.name) {
+            out += '<text x="' + round(c[0], 2) + '" y="' + round(c[1], 2) + '" font-size="' + f
+              + '" text-anchor="middle" fill="#f8fafc" font-weight="800" pointer-events="none">' + esc(it.name) + '</text>';
+          }
+          out += '<text x="' + round(c[0], 2) + '" y="' + round(c[1] + f * 1.15, 2) + '" font-size="' + (f * 0.62)
+            + '" text-anchor="middle" fill="#94a3b8" pointer-events="none">' + Math.round(a) + ' m²</text>';
+        } else if (it.t === 'lane') {
+          const pts = it.pts.map((p) => round(p[0], 3) + ',' + round(p[1], 3)).join(' ');
+          out += '<polyline data-id="' + it.id + '" points="' + pts + '" fill="none" stroke="' + col
+            + '" stroke-opacity="' + (on ? '.42' : '.24') + '" stroke-width="' + (it.w || 4)
+            + '" stroke-linecap="round" stroke-linejoin="round"/>';
+          out += '<polyline points="' + pts + '" fill="none" stroke="' + col + '" stroke-opacity=".85" stroke-width="'
+            + Math.max(0.18, (it.w || 4) / 22) + '" stroke-dasharray="' + (it.w || 4) / 2 + ' ' + (it.w || 4) / 2.4
+            + '" stroke-linecap="round" pointer-events="none"/>';
+          if (it.name) {
+            // Halfway along the line, not at a vertex: a two-point alley would
+            // otherwise carry its name on its far end, out in the field.
+            const h = it.pts.length / 2, i = Math.floor(h);
+            const m = h === i
+              ? [(it.pts[i - 1][0] + it.pts[i][0]) / 2, (it.pts[i - 1][1] + it.pts[i][1]) / 2]
+              : it.pts[i];
+            out += '<text x="' + round(m[0], 2) + '" y="' + round(m[1] - (it.w || 4) * 0.7, 2) + '" font-size="'
+              + clamp((it.w || 4) * 0.5, 1, 3) + '" text-anchor="middle" fill="#94a3b8" pointer-events="none">'
+              + esc(it.name) + '</text>';
+          }
+        } else if (it.t === 'row') {
+          const sp = rowSpots(it);
+          out += '<g data-id="' + it.id + '"' + (on ? ' opacity="1"' : '') + '>';
+          for (const p of sp) out += spotSvg(p.cx, p.cy, p.ang, p.w, p.d, String(p.no), col, false);
+          out += '</g>';
+          if (on) {
+            out += '<line x1="' + it.a[0] + '" y1="' + it.a[1] + '" x2="' + it.b[0] + '" y2="' + it.b[1]
+              + '" stroke="#fff" stroke-opacity=".5" stroke-width="' + px + '" stroke-dasharray="'
+              + 6 * px + ' ' + 6 * px + '" pointer-events="none"/>';
+          }
+          if (it.zone) {
+            // At the head of the row rather than over its middle: the middle of
+            // a row is also the middle of the zone, and the two labels collided.
+            const L = Math.hypot(it.b[0] - it.a[0], it.b[1] - it.a[1]) || 1;
+            const d = it.sd || SPOT_D;
+            const back = (it.sw || SPOT_W) * 0.9;
+            const lx = it.a[0] - (it.b[0] - it.a[0]) / L * back;
+            const ly = it.a[1] - (it.b[1] - it.a[1]) / L * back;
+            out += '<text x="' + round(lx, 2) + '" y="' + round(ly + d * 0.12, 2) + '" font-size="'
+              + clamp(d * 0.34, 1, 3) + '" text-anchor="middle" fill="' + col
+              + '" font-weight="800" pointer-events="none">' + esc(it.zone) + '</text>';
+          }
+        } else if (it.t === 'spot') {
+          out += '<g data-id="' + it.id + '">'
+            + spotSvg(it.x, it.y, it.rot || 0, it.sw || SPOT_W, it.sd || SPOT_D,
+                      String(it.no == null ? 1 : it.no), col, false)
+            + '</g>';
+        } else if (it.t === 'marker') {
+          const m = MARKERS.find((k) => k[0] === it.kind) || MARKERS[MARKERS.length - 1];
+          const r0 = 13 * px;
+          out += '<g data-id="' + it.id + '" transform="translate(' + round(it.x, 3) + ' ' + round(it.y, 3) + ')">'
+            + '<circle r="' + r0 + '" fill="' + col + '" fill-opacity="' + (on ? '1' : '.9')
+            + '" stroke="#07080d" stroke-width="' + 2 * px + '"/>'
+            + '<text y="' + 5 * px + '" font-size="' + 14 * px + '" text-anchor="middle" pointer-events="none">'
+            + m[1] + '</text>'
+            + '<text y="' + 27 * px + '" font-size="' + 12 * px + '" text-anchor="middle" fill="#f8fafc"'
+            + ' font-weight="700" pointer-events="none">' + esc(it.name || m[2]) + '</text>'
+            + '</g>';
+        } else if (it.t === 'text') {
+          out += '<text data-id="' + it.id + '" x="' + round(it.x, 3) + '" y="' + round(it.y, 3) + '" font-size="'
+            + (it.size || 3) + '" fill="' + col + '" font-weight="800"'
+            + ' transform="rotate(' + (it.rot || 0) + ' ' + round(it.x, 3) + ' ' + round(it.y, 3) + ')"'
+            + (on ? ' text-decoration="underline"' : '') + '>' + esc(it.text || 'Text') + '</text>';
+        }
+      }
+      return out;
+    }
+
+    // Vertex handles for whatever is selected. Screen-sized, so they stay
+    // grabbable at any zoom — a 0.3 m handle is invisible on a 200 m field.
+    function renderHandles() {
+      const it = selected();
+      if (!it) { handlesG.innerHTML = ''; return; }
+      const px = 1 / view.s, r0 = 7 * px;
+      const pt = (x, y, i, kind) => '<circle class="h" data-h="' + i + '" data-hk="' + kind + '" cx="' + x + '" cy="' + y
+        + '" r="' + r0 + '" fill="#07080d" stroke="#f8589c" stroke-width="' + 2.4 * px + '" style="cursor:move"/>';
+      let out = '';
+      if (it.pts) it.pts.forEach((p, i) => { out += pt(p[0], p[1], i, 'v'); });
+      else if (it.t === 'row') { out += pt(it.a[0], it.a[1], 0, 'a') + pt(it.b[0], it.b[1], 1, 'b'); }
+      else if (it.x != null) out += pt(it.x, it.y, 0, 'p');
+      handlesG.innerHTML = out;
+    }
+
+    function render() {
+      itemsG.innerHTML = itemsSvg(view.s, {});
+      renderHandles();
+      renderSummary();
+      renderProps();
+      scheduleSave();
+    }
+
+    // ===== SUMMARY ========================================================
+    function renderSummary() {
+      const spots = allSpots();
+      const zones = plan.items.filter((it) => it.t === 'zone');
+      const area = zones.reduce((a, z) => a + polyArea(z.pts), 0);
+      $('sSpots').textContent = spots.length;
+      $('sZones').textContent = new Set(spots.map((s) => s.zone).filter(Boolean)).size || zones.length;
+      $('sArea').textContent = Math.round(area);
+      $('sItems').textContent = plan.items.length;
+
+      const per = new Map();
+      for (const s of spots) {
+        const k = s.zone || '— fără zonă —';
+        if (!per.has(k)) per.set(k, { n: 0, color: s.color || '#3b82f6' });
+        per.get(k).n++;
+      }
+      $('zList').innerHTML = [...per.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0], 'ro'))
+        .map(([name, o]) => '<div class="zrow"><span class="dot" style="background:' + esc(o.color) + '"></span>'
+          + '<span class="nm">' + esc(name) + '</span><span>' + o.n + '</span></div>').join('');
+
+      // Two spots with the same number in the same zone means two drivers sent
+      // to one square. Cheap to check here, expensive to discover at the gate.
+      const seen = new Set(), dup = new Set();
+      for (const s of spots) {
+        const k = (s.zone || '').toLowerCase() + '#' + s.no;
+        if (seen.has(k)) dup.add((s.zone || 'fără zonă') + ' · ' + s.no); else seen.add(k);
+      }
+      const w = $('dupWarn');
+      w.hidden = dup.size === 0;
+      if (dup.size) w.textContent = 'Numere duplicate: ' + [...dup].slice(0, 6).join(', ')
+        + (dup.size > 6 ? ' și încă ' + (dup.size - 6) : '') + '. Schimbă „primul număr" la unul din rânduri.';
+    }
+
+    // ===== PROPERTIES =====================================================
+    const fRow = (label, inner) => '<div class="row"><label for="' + inner.match(/id="([^"]+)"/)[1] + '">'
+      + esc(label) + '</label>' + inner + '</div>';
+    const fText = (id, v, ph) => '<input type="text" id="' + id + '" data-f="' + id.slice(1).toLowerCase()
+      + '" value="' + esc(v || '') + '"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '>';
+    const fNum = (id, v, min, max, step) => '<input type="number" id="' + id + '" data-f="' + id.slice(1).toLowerCase()
+      + '" value="' + v + '" min="' + min + '" max="' + max + '" step="' + (step || 1) + '">';
+    const fColor = (v) => '<div class="row"><label for="pColor">Culoare</label>'
+      + '<input type="color" id="pColor" data-f="color" value="' + esc(v || '#3b82f6') + '">'
+      + '</div>';
+
+    // Rebuilding the panel on every render would yank the field out from under
+    // the finger typing into it. The markup is built once per selection; after
+    // that the values are refreshed in place.
+    let propsFor = null;
+    function renderProps() {
+      const it = selected();
+      const key = it ? it.id + ':' + it.t : '';
+      if (key !== propsFor) { propsFor = key; buildProps(); }
+      syncProps(it);
+    }
+    function syncProps(it) {
+      if (!it) return;
+      for (const f of $('selBody').querySelectorAll('[data-f]')) {
+        if (f === document.activeElement) continue;
+        const v = it[f.dataset.f];
+        const next = v == null ? '' : String(v);
+        if (f.value !== next) f.value = next;
+      }
+      // The two notes carry live geometry, so they are worth recomputing even
+      // when nothing else about the panel changed.
+      const note = $('selBody').querySelector('.note');
+      if (!note) return;
+      if (it.t === 'zone') {
+        note.textContent = Math.round(polyArea(it.pts)) + ' m² · ' + it.pts.length
+          + ' colțuri. Trage bulinele roz ca să îndrepți conturul.';
+      } else if (it.t === 'row') {
+        const L = rowLen(it);
+        note.textContent = round(L, 1) + ' m lungime · ' + round(L / Math.max(1, it.n), 2)
+          + ' m pe loc. Numerele merg de la capătul A la B — „Inversează" le întoarce.';
+      }
+    }
+
+    function buildProps() {
+      const it = selected();
+      const body = $('selBody');
+      if (!it) {
+        body.innerHTML = '<p class="empty">Nimic selectat. Alege un obiect de pe plan sau desenează unul nou.</p>';
+        return;
+      }
+      const names = { zone: 'Zonă', lane: 'Alee', row: 'Rând de locuri', spot: 'Loc', marker: 'Reper', text: 'Text' };
+      let h = '<p class="kind">' + names[it.t] + '</p>';
+      if (it.t === 'zone') {
+        h += fRow('Nume', fText('pName', it.name, 'ex: Zona A'))
+          + fColor(it.color)
+          + '<p class="note">' + Math.round(polyArea(it.pts)) + ' m² · ' + it.pts.length + ' colțuri. '
+          + 'Trage bulinele roz ca să îndrepți conturul.</p>';
+      } else if (it.t === 'lane') {
+        h += fRow('Nume', fText('pName', it.name, 'ex: Alee principală'))
+          + fRow('Lățime (m)', fNum('pW', it.w || 4, 0.5, 60, 0.5))
+          + fColor(it.color);
+      } else if (it.t === 'row') {
+        const L = rowLen(it);
+        h += fRow('Zonă', fText('pZone', it.zone, 'ex: A'))
+          + fRow('Locuri', fNum('pN', it.n, 1, 200, 1))
+          + fRow('Primul nr.', fNum('pStart', it.start || 1, 1, 9999, 1))
+          + fRow('Lățime loc', fNum('pSw', it.sw || SPOT_W, 1.5, 10, 0.1))
+          + fRow('Adâncime', fNum('pSd', it.sd || SPOT_D, 2, 20, 0.1))
+          + '<div class="row"><label for="pSide">Față de linie</label><select id="pSide" data-f="side">'
+          + [[0, 'Pe linie'], [-1, 'În stânga'], [1, 'În dreapta']]
+            .map((o) => '<option value="' + o[0] + '"' + ((it.side || 0) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('')
+          + '</select></div>'
+          + fColor(it.color)
+          + '<div class="btn-row" style="margin-top:8px">'
+          + '<button type="button" class="btn" data-act="flip">Inversează</button>'
+          + '<button type="button" class="btn" data-act="rowdup">Rând paralel</button></div>'
+          + '<p class="note">' + round(L, 1) + ' m lungime · ' + round(L / Math.max(1, it.n), 2) + ' m pe loc. '
+          + 'Numerele merg de la capătul A la B — „Inversează" le întoarce.</p>';
+      } else if (it.t === 'spot') {
+        h += fRow('Zonă', fText('pZone', it.zone, 'ex: A'))
+          + fRow('Număr', fNum('pNo', it.no == null ? 1 : it.no, 1, 9999, 1))
+          + fRow('Rotire', fNum('pRot', it.rot || 0, -180, 180, 5))
+          + fRow('Lățime', fNum('pSw', it.sw || SPOT_W, 1.5, 10, 0.1))
+          + fRow('Adâncime', fNum('pSd', it.sd || SPOT_D, 2, 20, 0.1))
+          + fColor(it.color);
+      } else if (it.t === 'marker') {
+        h += '<div class="row"><label for="pKind">Tip</label><select id="pKind" data-f="kind">'
+          + MARKERS.map((m) => '<option value="' + m[0] + '"' + (it.kind === m[0] ? ' selected' : '') + '>'
+            + m[1] + ' ' + m[2] + '</option>').join('')
+          + '</select></div>'
+          + fRow('Nume', fText('pName', it.name, 'ex: Poarta 2'))
+          + fColor(it.color);
+      } else if (it.t === 'text') {
+        h += fRow('Text', fText('pText', it.text, 'ex: Parcare VIP'))
+          + fRow('Mărime (m)', fNum('pSize', it.size || 3, 0.5, 40, 0.5))
+          + fRow('Rotire', fNum('pRot', it.rot || 0, -180, 180, 5))
+          + fColor(it.color);
+      }
+      h += '<div class="btn-row" style="margin-top:10px">'
+        + '<button type="button" class="btn" data-act="dup">Duplică</button>'
+        + '<button type="button" class="btn danger" data-act="del">Șterge</button></div>';
+      body.innerHTML = h;
+    }
+
+    // Live edits from the panel. `input` applies immediately so the plan moves
+    // under your finger; history gets one entry per burst, not per keystroke.
+    $('selBody').addEventListener('input', (e) => {
+      const it = selected(), f = e.target.dataset.f;
+      if (!it || !f) return;
+      pushOnce(it.id + ':' + f);
+      const v = e.target.value;
+      if (['w', 'n', 'start', 'sw', 'sd', 'no', 'rot', 'size', 'side'].includes(f)) {
+        const num = parseFloat(v);
+        it[f] = Number.isFinite(num) ? num : 0;
+        if (f === 'n') it.n = clamp(Math.round(it.n), 1, 200);
+      } else {
+        it[f] = v;
+      }
+      render();
+    });
+    $('selBody').addEventListener('click', (e) => {
+      const act = e.target.dataset.act;
+      const it = selected();
+      if (!act || !it) return;
+      if (act === 'del') { pushHistory(); plan.items = plan.items.filter((x) => x.id !== it.id); sel = null; render(); return; }
+      if (act === 'dup') {
+        pushHistory();
+        const c = JSON.parse(JSON.stringify(it));
+        c.id = nextId();
+        const off = 4;
+        if (c.pts) c.pts = c.pts.map((p) => [p[0] + off, p[1] + off]);
+        if (c.a) { c.a = [c.a[0] + off, c.a[1] + off]; c.b = [c.b[0] + off, c.b[1] + off]; }
+        if (c.x != null) { c.x += off; c.y += off; }
+        plan.items.push(c); sel = c.id; render(); return;
+      }
+      if (act === 'flip' && it.t === 'row') {
+        pushHistory();
+        const a = it.a; it.a = it.b; it.b = a; render(); return;
+      }
+      if (act === 'rowdup' && it.t === 'row') {
+        // A second row facing the first, one bay away: how a real parking lane
+        // is built, and the reason rows are parametric in the first place.
+        pushHistory();
+        const dx = it.b[0] - it.a[0], dy = it.b[1] - it.a[1];
+        const L = Math.hypot(dx, dy) || 1;
+        const nx = -dy / L, ny = dx / L;
+        const gap = (it.sd || SPOT_D) * 1.05 + 6;
+        const c = JSON.parse(JSON.stringify(it));
+        c.id = nextId();
+        c.a = [it.a[0] + nx * gap, it.a[1] + ny * gap];
+        c.b = [it.b[0] + nx * gap, it.b[1] + ny * gap];
+        c.start = (it.start || 1) + Math.max(1, it.n | 0);
+        plan.items.push(c); sel = c.id; render();
+        toast('Rând paralel adăugat');
+      }
+    });
+
+    // ===== HISTORY & STORAGE ==============================================
+    let past = [], future = [], lastTag = '', lastTagAt = 0;
+    const snapshot = () => JSON.stringify(plan);
+    function pushHistory() {
+      past.push(snapshot());
+      if (past.length > 80) past.shift();
+      future = [];
+      updateHistBtns();
+    }
+    // One history entry per burst of edits on the same field — otherwise undo
+    // walks back one keystroke at a time.
+    function pushOnce(tag) {
+      const now = Date.now();
+      if (tag === lastTag && now - lastTagAt < 1400) { lastTagAt = now; return; }
+      lastTag = tag; lastTagAt = now;
+      pushHistory();
+    }
+    function restore(json) {
+      const keepSel = sel;
+      plan = JSON.parse(json);
+      sel = plan.items.some((it) => it.id === keepSel) ? keepSel : null;
+      $('planName').value = plan.name || '';
+      syncUnderlayCtl();
+      applyView(); render();
+    }
+    function undo() { if (!past.length) return; future.push(snapshot()); restore(past.pop()); updateHistBtns(); }
+    function redo() { if (!future.length) return; past.push(snapshot()); restore(future.pop()); updateHistBtns(); }
+    function updateHistBtns() { $('undoBtn').disabled = !past.length; $('redoBtn').disabled = !future.length; }
+
+    let saveT = 0;
+    function scheduleSave() {
+      clearTimeout(saveT);
+      saveT = setTimeout(() => {
+        try {
+          localStorage.setItem(KEY, JSON.stringify(plan));
+          $('savedMsg').textContent = 'salvat';
+          setTimeout(() => { if ($('savedMsg').textContent === 'salvat') $('savedMsg').textContent = ''; }, 1600);
+        } catch (_) {
+          $('savedMsg').textContent = 'nesalvat';
+        }
+      }, 500);
+    }
+
+    let toastT = 0;
+    function toast(msg, kind) {
+      const t = $('toast');
+      t.textContent = msg;
+      t.className = 'toast show' + (kind === 'error' ? ' error' : '');
+      clearTimeout(toastT);
+      toastT = setTimeout(() => { t.className = 'toast'; }, 2400);
+    }
+
+    // ===== TOOLS ==========================================================
+    const HINTS = {
+      select: 'Trage un obiect ca să-l muți, bulinele roz ca să-l îndrepți. Trage în gol ca să miști planul.',
+      zone: 'Click pentru fiecare colț al zonei. <b>Enter</b> sau dublu-click o închide, <b>Esc</b> renunță.',
+      row: 'Trage de la un capăt al rândului la celălalt (sau click–click). Numărul de locuri îl reglezi apoi în dreapta.',
+      spot: 'Click unde vine locul. Rotirea și numărul se schimbă în dreapta.',
+      lane: 'Click pe traseul aleii. <b>Enter</b> o termină, <b>Esc</b> renunță.',
+      marker: 'Click unde pui reperul: intrare, scenă, toalete.',
+      text: 'Click unde vrei textul, apoi scrie-l în dreapta.',
+      calib: 'Trage peste ceva din poză a cărui lungime o știi — o mașină, o poartă, un teren — și spune câți metri are.',
+    };
+    function setTool(t) {
+      tool = t;
+      draft = null; ghostG.innerHTML = '';
+      for (const b of document.querySelectorAll('.tool')) b.setAttribute('aria-pressed', String(b.dataset.tool === t));
+      stage.classList.toggle('pick', t === 'select');
+      const h = $('hint');
+      h.innerHTML = HINTS[t] || '';
+      h.hidden = !HINTS[t];
+      clearTimeout(hintT);
+      hintT = setTimeout(() => { h.hidden = true; }, 7000);
+    }
+    let hintT = 0;
+    $('tools').addEventListener('click', (e) => {
+      const b = e.target.closest('.tool');
+      if (b) setTool(b.dataset.tool);
+    });
+
+    function select(id) { sel = id; render(); }
+    function zoneLetter() {
+      const used = new Set(plan.items.filter((i) => i.t === 'zone').map((i) => i.name));
+      for (let i = 0; i < 26; i++) { const n = 'Zona ' + String.fromCharCode(65 + i); if (!used.has(n)) return n; }
+      return 'Zonă';
+    }
+    function rowLetter() {
+      const used = new Set(plan.items.filter((i) => i.t === 'row' || i.t === 'spot').map((i) => i.zone));
+      for (let i = 0; i < 26; i++) { const n = String.fromCharCode(65 + i); if (!used.has(n)) return n; }
+      return 'X';
+    }
+    const nextColor = () => PALETTE[plan.items.length % PALETTE.length];
+
+    function addItem(it) {
+      pushHistory();
+      it.id = nextId();
+      plan.items.push(it);
+      sel = it.id;
+      render();
+      return it;
+    }
+
+    // ===== POINTER ========================================================
+    let draft = null;      // a shape being drawn: {t, pts} or {t, a}
+    let drag = null;       // {mode, ...}
+    const pts = new Map();
+    let pinch = null, spaceDown = false;
+
+    function ghostLine(a, b, color) {
+      return '<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '" stroke="'
+        + (color || '#f8589c') + '" stroke-width="' + (1.6 / view.s) + '" stroke-dasharray="'
+        + (6 / view.s) + ' ' + (5 / view.s) + '"/>';
+    }
+    function updateGhost(cur) {
+      if (!draft) { ghostG.innerHTML = ''; return; }
+      let out = '';
+      const px = 1 / view.s;
+      if (draft.pts) {
+        const all = cur ? draft.pts.concat([cur]) : draft.pts;
+        out += '<polyline points="' + all.map((p) => p[0] + ',' + p[1]).join(' ') + '" fill="none" stroke="#f8589c"'
+          + ' stroke-width="' + 2 * px + '" stroke-linejoin="round"/>';
+        if (draft.t === 'zone' && all.length > 2) {
+          out += '<polygon points="' + all.map((p) => p[0] + ',' + p[1]).join(' ') + '" fill="#f8589c" fill-opacity=".12"/>';
+        }
+        for (const p of draft.pts) {
+          out += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + 4 * px + '" fill="#f8589c"/>';
+        }
+      } else if (draft.a && cur) {
+        out += ghostLine(draft.a, cur, draft.t === 'calib' ? '#f5c542' : '#f8589c');
+        if (draft.t === 'row') {
+          const n = Math.max(1, Math.round(dist(draft.a, cur) / SPOT_W));
+          const mid = [(draft.a[0] + cur[0]) / 2, (draft.a[1] + cur[1]) / 2];
+          out += '<text x="' + mid[0] + '" y="' + (mid[1] - 2 * px * 6) + '" font-size="' + 13 * px
+            + '" text-anchor="middle" fill="#f8589c" font-weight="800">' + n + ' locuri · '
+            + round(dist(draft.a, cur), 1) + ' m</text>';
+        } else if (draft.t === 'calib') {
+          const mid = [(draft.a[0] + cur[0]) / 2, (draft.a[1] + cur[1]) / 2];
+          out += '<text x="' + mid[0] + '" y="' + (mid[1] - 12 * px) + '" font-size="' + 13 * px
+            + '" text-anchor="middle" fill="#f5c542" font-weight="800">' + round(dist(draft.a, cur), 1) + ' m acum</text>';
+        }
+      }
+      ghostG.innerHTML = out;
+    }
+
+    function finishDraft() {
+      if (!draft || !draft.pts) return;
+      if (draft.t === 'zone' && draft.pts.length >= 3) {
+        addItem({ t: 'zone', name: zoneLetter(), color: nextColor(), pts: draft.pts });
+      } else if (draft.t === 'lane' && draft.pts.length >= 2) {
+        addItem({ t: 'lane', name: '', color: '#94a3b8', w: 4, pts: draft.pts });
+      }
+      draft = null; ghostG.innerHTML = '';
+    }
+
+    // Turn a drawn segment into a row of spots. The count comes from the
+    // length, because that is the question the ground already answers.
+    function makeRow(a, b) {
+      const L = dist(a, b);
+      if (L < 1) return;
+      addItem({
+        t: 'row', zone: rowLetter(), color: nextColor(),
+        a, b, n: clamp(Math.round(L / SPOT_W), 1, 200), sw: SPOT_W, sd: SPOT_D, side: 0, start: 1,
+      });
+      toast('Rând cu ' + selected().n + ' locuri');
+    }
+
+    // Calibration: the photo is stretched until the thing you measured really
+    // is that many metres. Nothing drawn moves — the plan is already true, it
+    // is the template underneath that was the wrong size.
+    function calibrate(a, b) {
+      const cur = dist(a, b);
+      if (cur < 1e-6) return;
+      const raw = window.prompt('Distanța asta, în realitate, câți metri are?', String(round(cur, 1)));
+      if (raw == null) return;
+      const real = parseFloat(String(raw).replace(',', '.'));
+      if (!Number.isFinite(real) || real <= 0) { toast('Număr invalid', 'error'); return; }
+      const k = real / cur;
+      pushHistory();
+      const u = plan.underlay;
+      const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      u.x = m[0] + (u.x - m[0]) * k;
+      u.y = m[1] + (u.y - m[1]) * k;
+      u.w *= k; u.h *= k;
+      syncUnderlayCtl();
+      applyView(); render();
+      toast('Machetă calibrată: ' + round(real, 1) + ' m');
+    }
+
+    function onDown(e) {
+      if (e.target.closest('.viewbar')) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 2) {
+        const [p1, p2] = [...pts.values()];
+        pinch = { d: Math.hypot(p1.x - p2.x, p1.y - p2.y), s: view.s };
+        drag = null;
+        return;
+      }
+      if (pts.size !== 1) return;
+      const p = snapPt(evPoint(e));
+      const raw = evPoint(e);
+      const panning = e.button === 1 || e.button === 2 || spaceDown;
+
+      if (!panning && tool === 'select') {
+        const h = e.target.closest('[data-h]');
+        if (h) {
+          pushHistory();
+          drag = { mode: 'vertex', i: +h.dataset.h, kind: h.dataset.hk };
+          return;
+        }
+        const g = e.target.closest('[data-id]');
+        if (g) {
+          if (g.dataset.id !== sel) select(g.dataset.id);
+          pushHistory();
+          drag = { mode: 'item', id: g.dataset.id, from: p, orig: JSON.parse(JSON.stringify(byId(g.dataset.id))) };
+          return;
+        }
+        if (e.target.id === 'uImg' && !plan.underlay.locked) {
+          pushHistory();
+          drag = { mode: 'underlay', from: raw, orig: { x: plan.underlay.x, y: plan.underlay.y } };
+          return;
+        }
+        if (sel) select(null);
+      }
+      if (!panning && (tool === 'row' || tool === 'calib')) {
+        drag = { mode: 'seg', from: p, moved: false };
+        if (!draft) draft = { t: tool, a: p };
+        return;
+      }
+      drag = { mode: 'pan', x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false, at: p };
+    }
+
+    function onMove(e) {
+      if (pts.has(e.pointerId)) pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch && pts.size === 2) {
+        const [p1, p2] = [...pts.values()];
+        const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+        if (pinch.d > 0) zoomAt((d / pinch.d) * (pinch.s / view.s), (p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
+        return;
+      }
+      const p = snapPt(evPoint(e));
+      if (!drag) { if (draft) updateGhost(p); return; }
+
+      if (drag.mode === 'pan') {
+        const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+        if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+        drag.moved = true;
+        view.x = drag.vx + dx; view.y = drag.vy + dy;
+        applyView();
+        return;
+      }
+      if (drag.mode === 'seg') {
+        if (!drag.moved && dist(drag.from, p) * view.s > 8) drag.moved = true;
+        updateGhost(p);
+        return;
+      }
+      if (drag.mode === 'underlay') {
+        const r = evPoint(e);
+        plan.underlay.x = drag.orig.x + (r[0] - drag.from[0]);
+        plan.underlay.y = drag.orig.y + (r[1] - drag.from[1]);
+        renderUnderlay(); syncUnderlayCtl(); scheduleSave();
+        return;
+      }
+      const it = selected();
+      if (!it) return;
+      if (drag.mode === 'vertex') {
+        if (drag.kind === 'v') it.pts[drag.i] = p;
+        else if (drag.kind === 'a') it.a = p;
+        else if (drag.kind === 'b') it.b = p;
+        else { it.x = p[0]; it.y = p[1]; }
+        render();
+        return;
+      }
+      if (drag.mode === 'item') {
+        const dx = p[0] - drag.from[0], dy = p[1] - drag.from[1];
+        const o = drag.orig;
+        if (o.pts) it.pts = o.pts.map((q) => [q[0] + dx, q[1] + dy]);
+        if (o.a) { it.a = [o.a[0] + dx, o.a[1] + dy]; it.b = [o.b[0] + dx, o.b[1] + dy]; }
+        if (o.x != null) { it.x = o.x + dx; it.y = o.y + dy; }
+        render();
+      }
+    }
+
+    function onUp(e) {
+      pts.delete(e.pointerId);
+      if (pts.size < 2) pinch = null;
+      const d = drag;
+      if (pts.size > 0) { drag = null; return; }
+      drag = null;
+      if (!d) return;
+
+      if (d.mode === 'seg') {
+        const p = snapPt(evPoint(e));
+        if (d.moved) {                       // dragged: both ends in one gesture
+          const a = draft ? draft.a : d.from;
+          draft = null; ghostG.innerHTML = '';
+          if (tool === 'calib') calibrate(a, p); else makeRow(a, p);
+        } else if (draft && draft.a && dist(draft.a, p) * view.s > 8) {
+          const a = draft.a;                 // second of two clicks
+          draft = null; ghostG.innerHTML = '';
+          if (tool === 'calib') calibrate(a, p); else makeRow(a, p);
+        } else {
+          draft = { t: tool, a: p };         // first click: wait for the other end
+          updateGhost(p);
+        }
+        return;
+      }
+      if (d.mode !== 'pan' || d.moved) return;
+
+      // A click that never moved: the tool gets to act on it.
+      const p = d.at || snapPt(evPoint(e));
+      if (tool === 'zone' || tool === 'lane') {
+        if (!draft) draft = { t: tool, pts: [] };
+        // Clicking the first point again closes the shape, the way every map
+        // editor does it.
+        if (draft.pts.length > 2 && dist(draft.pts[0], p) * view.s < 12) { finishDraft(); return; }
+        draft.pts.push(p);
+        updateGhost(p);
+      } else if (tool === 'spot') {
+        const zone = rowLetter();
+        const used = plan.items.filter((i) => i.t === 'spot' && i.zone === zone).length;
+        addItem({ t: 'spot', zone, no: used + 1, color: nextColor(), x: p[0], y: p[1], rot: 0, sw: SPOT_W, sd: SPOT_D });
+      } else if (tool === 'marker') {
+        addItem({ t: 'marker', kind: 'reper', name: '', color: '#f8589c', x: p[0], y: p[1] });
+      } else if (tool === 'text') {
+        addItem({ t: 'text', text: 'Text', size: 3, rot: 0, color: '#f8fafc', x: p[0], y: p[1] });
+        const f = $('pText'); if (f) { f.focus(); f.select(); }
+      }
+    }
+
+    stage.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    stage.addEventListener('contextmenu', (e) => e.preventDefault());
+    stage.addEventListener('dblclick', (e) => { e.preventDefault(); if (draft && draft.pts) finishDraft(); });
+    stage.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY);
+    }, { passive: false });
+
+    // ===== KEYBOARD =======================================================
+    const TOOL_KEYS = { v: 'select', z: 'zone', r: 'row', l: 'spot', a: 'lane', p: 'marker', t: 'text', m: 'calib' };
+    window.addEventListener('keydown', (e) => {
+      const inField = /^(input|select|textarea)$/i.test((e.target.tagName || ''));
+      if (e.key === ' ' && !inField) { spaceDown = true; stage.classList.add('pan'); e.preventDefault(); return; }
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (ctrl && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+      if (ctrl && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+      if (inField) return;
+      if (e.key === 'Escape') { draft = null; ghostG.innerHTML = ''; if (sel) select(null); return; }
+      if (e.key === 'Enter') { finishDraft(); return; }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const it = selected();
+        if (it) { e.preventDefault(); pushHistory(); plan.items = plan.items.filter((x) => x.id !== it.id); sel = null; render(); }
+        return;
+      }
+      if (e.key === 'g') { snap = !snap; $('snapBtn').setAttribute('aria-pressed', String(snap)); toast(snap ? 'Aliniere pornită' : 'Aliniere oprită'); return; }
+      // Nudging beats dragging for the last few centimetres.
+      const nudge = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+      if (nudge) {
+        const it = selected();
+        if (!it) return;
+        e.preventDefault();
+        const st = snapStep() * (e.shiftKey ? 5 : 1);
+        const dx = nudge[0] * st, dy = nudge[1] * st;
+        pushOnce(it.id + ':nudge');
+        if (it.pts) it.pts = it.pts.map((p) => [p[0] + dx, p[1] + dy]);
+        if (it.a) { it.a = [it.a[0] + dx, it.a[1] + dy]; it.b = [it.b[0] + dx, it.b[1] + dy]; }
+        if (it.x != null) { it.x += dx; it.y += dy; }
+        render();
+        return;
+      }
+      const t = TOOL_KEYS[e.key.toLowerCase()];
+      if (t) setTool(t);
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.key === ' ') { spaceDown = false; stage.classList.remove('pan'); }
+    });
+
+    // ===== VIEW CONTROLS ==================================================
+    $('zoomIn').addEventListener('click', () => zoomAt(1.4));
+    $('zoomOut').addEventListener('click', () => zoomAt(1 / 1.4));
+    $('fitBtn').addEventListener('click', fitAll);
+    $('snapBtn').addEventListener('click', () => {
+      snap = !snap;
+      $('snapBtn').setAttribute('aria-pressed', String(snap));
+    });
+    $('undoBtn').addEventListener('click', undo);
+    $('redoBtn').addEventListener('click', redo);
+    $('planName').addEventListener('input', (e) => { plan.name = e.target.value; scheduleSave(); });
+    window.addEventListener('resize', applyView);
+
+    // ===== UNDERLAY =======================================================
+    let imgAspect = 1;
+    function syncUnderlayCtl() {
+      const u = plan.underlay, has = !!imgSrc;
+      $('uCtl').hidden = !has;
+      $('uNote').hidden = has;
+      $('uClear').disabled = !has;
+      $('uOpacity').value = u.opacity; $('uOpacityVal').textContent = u.opacity + '%';
+      $('uRot').value = u.rot || 0; $('uRotVal').textContent = Math.round(u.rot || 0) + '°';
+      if (document.activeElement !== $('uWidth')) $('uWidth').value = round(u.w, 1);
+      $('uLock').textContent = u.locked ? '🔒 Blocată' : '🔓 Liberă';
+      $('uLock').setAttribute('aria-pressed', String(!!u.locked));
+      $('uHide').textContent = u.visible ? 'Ascunde' : 'Arată';
+      $('uHide').setAttribute('aria-pressed', String(!u.visible));
+    }
+    // Read a picked photo down to something a browser can hold in storage. The
+    // template only has to be sharp enough to trace, not to print.
+    function fileToDataUrl(file, maxSide) {
+      return new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onerror = () => reject(new Error('read'));
+        fr.onload = () => {
+          const im = new Image();
+          im.onerror = () => reject(new Error('decode'));
+          im.onload = () => {
+            const k = Math.min(1, maxSide / Math.max(im.naturalWidth, im.naturalHeight));
+            const c = document.createElement('canvas');
+            c.width = Math.round(im.naturalWidth * k);
+            c.height = Math.round(im.naturalHeight * k);
+            c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+            resolve(c.toDataURL('image/jpeg', 0.82));
+          };
+          im.src = fr.result;
+        };
+        fr.readAsDataURL(file);
+      });
+    }
+    function setUnderlay(src, isNew) {
+      const im = new Image();
+      im.onload = () => {
+        imgAspect = im.naturalWidth / Math.max(1, im.naturalHeight);
+        imgSrc = src;
+        const u = plan.underlay;
+        if (isNew) {
+          // A fresh photo lands 100 m wide in the middle of what you are looking
+          // at — a starting guess you fix in one gesture with the scale tool.
+          const r = rect();
+          const c = toWorld(r.width / 2, r.height / 2);
+          u.w = 100; u.h = 100 / imgAspect;
+          u.x = c[0] - u.w / 2; u.y = c[1] - u.h / 2;
+          u.rot = 0; u.visible = true; u.locked = false;
+        } else {
+          u.h = u.w / imgAspect;
+        }
+        syncUnderlayCtl(); applyView(); render();
+        if (isNew) {
+          if (!bounds()) fitAll();
+          toast('Acum calibrează scara: unealta 📏');
+        }
+      };
+      im.src = src;
+    }
+    $('uFile').addEventListener('change', async (e) => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      try {
+        const src = await fileToDataUrl(f, 1800);
+        pushHistory();
+        setUnderlay(src, true);
+        // Keeping the template across reloads is a convenience, not a promise:
+        // a big photo can blow the storage quota, and that must not lose the plan.
+        try { localStorage.setItem(KEY_IMG, src); }
+        catch (_) { toast('Poza e prea mare ca s-o ținem minte după reîncărcare', 'error'); }
+      } catch (_) {
+        toast('Nu am putut citi poza', 'error');
+      }
+    });
+    $('uClear').addEventListener('click', () => {
+      imgSrc = '';
+      try { localStorage.removeItem(KEY_IMG); } catch (_) {}
+      syncUnderlayCtl(); applyView();
+      toast('Macheta a fost scoasă — planul rămâne');
+    });
+    $('uOpacity').addEventListener('input', (e) => { plan.underlay.opacity = +e.target.value; syncUnderlayCtl(); renderUnderlay(); scheduleSave(); });
+    $('uRot').addEventListener('input', (e) => { plan.underlay.rot = +e.target.value; syncUnderlayCtl(); renderUnderlay(); scheduleSave(); });
+    $('uWidth').addEventListener('input', (e) => {
+      const w = parseFloat(e.target.value);
+      if (!Number.isFinite(w) || w <= 0) return;
+      const u = plan.underlay;
+      const cx = u.x + u.w / 2, cy = u.y + u.h / 2;
+      u.w = w; u.h = w / (imgAspect || 1);
+      u.x = cx - u.w / 2; u.y = cy - u.h / 2;
+      renderUnderlay(); scheduleSave();
+    });
+    $('uLock').addEventListener('click', () => { plan.underlay.locked = !plan.underlay.locked; syncUnderlayCtl(); renderUnderlay(); scheduleSave(); });
+    $('uHide').addEventListener('click', () => { plan.underlay.visible = !plan.underlay.visible; syncUnderlayCtl(); renderUnderlay(); scheduleSave(); });
+
+    // ===== EXPORT / IMPORT ================================================
+    function download(name, blob) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }
+    const slug = () => (plan.name || 'plan').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'plan';
+
+    // The exported drawing carries no photo and no grid: what leaves here is the
+    // plan we built, readable on its own sheet of paper.
+    function planSvgDoc() {
+      const b = bounds() || { x0: -50, y0: -35, w: 100, h: 70 };
+      const pad = Math.max(4, Math.max(b.w, b.h) * 0.07);
+      const vx = b.x0 - pad, vy = b.y0 - pad, vw = b.w + pad * 2, vh = b.h + pad * 2 + pad;
+      const W = 1600, H = Math.max(200, Math.round(W * vh / vw));
+      const s = W / vw;
+      let bar = 1;
+      for (const m of [1, 2, 5, 10, 20, 50, 100, 200, 500]) { bar = m; if (m > vw / 8) break; }
+      const fy = vy + vh - pad * 0.35, f = pad * 0.42;
+      return '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="'
+        + round(vx, 2) + ' ' + round(vy, 2) + ' ' + round(vw, 2) + ' ' + round(vh, 2)
+        + '" font-family="Inter, Helvetica, Arial, sans-serif">'
+        + '<rect x="' + round(vx, 2) + '" y="' + round(vy, 2) + '" width="' + round(vw, 2) + '" height="' + round(vh, 2) + '" fill="#07080d"/>'
+        + itemsSvg(s, { flat: true })
+        + '<text x="' + round(vx + pad * 0.4, 2) + '" y="' + round(vy + pad * 0.9, 2) + '" font-size="' + (f * 1.3)
+        + '" fill="#f8fafc" font-weight="800">' + esc(plan.name || 'Plan') + '</text>'
+        + '<text x="' + round(vx + pad * 0.4, 2) + '" y="' + round(fy - f * 1.5, 2) + '" font-size="' + f
+        + '" fill="#94a3b8">' + spotCount() + ' locuri</text>'
+        + '<line x1="' + round(vx + pad * 0.4, 2) + '" y1="' + round(fy, 2) + '" x2="' + round(vx + pad * 0.4 + bar, 2)
+        + '" y2="' + round(fy, 2) + '" stroke="#f8fafc" stroke-width="' + (f * 0.16) + '"/>'
+        + '<text x="' + round(vx + pad * 0.4 + bar + f * 0.4, 2) + '" y="' + round(fy + f * 0.35, 2) + '" font-size="'
+        + (f * 0.85) + '" fill="#94a3b8">' + bar + ' m</text>'
+        + '</svg>';
+    }
+    $('expSvg').addEventListener('click', () => {
+      download(slug() + '.svg', new Blob([planSvgDoc()], { type: 'image/svg+xml;charset=utf-8' }));
+      toast('SVG exportat');
+    });
+    $('expPng').addEventListener('click', () => {
+      const url = URL.createObjectURL(new Blob([planSvgDoc()], { type: 'image/svg+xml;charset=utf-8' }));
+      const im = new Image();
+      im.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = im.naturalWidth * 2; c.height = im.naturalHeight * 2;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#07080d'; ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(im, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob((b) => { if (b) { download(slug() + '.png', b); toast('PNG exportat'); } }, 'image/png');
+      };
+      im.onerror = () => { URL.revokeObjectURL(url); toast('Nu am putut face PNG-ul', 'error'); };
+      im.src = url;
+    });
+    $('expJson').addEventListener('click', () => {
+      download(slug() + '.json', new Blob([JSON.stringify(plan, null, 2)], { type: 'application/json' }));
+      toast('JSON exportat');
+    });
+    $('impJson').addEventListener('change', (e) => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      const fr = new FileReader();
+      fr.onload = () => {
+        try {
+          const data = JSON.parse(String(fr.result));
+          pushHistory();
+          adopt(data);
+          fitAll();
+          toast('Plan importat: ' + plan.items.length + ' obiecte');
+        } catch (_) {
+          toast('Fișierul nu e un plan valid', 'error');
+        }
+      };
+      fr.onerror = () => toast('Nu am putut citi fișierul', 'error');
+      fr.readAsText(f);
+    });
+    $('wipeBtn').addEventListener('click', () => {
+      if (!plan.items.length) { toast('Planul e deja gol'); return; }
+      if (!window.confirm('Ștergi tot ce ai desenat? Poza-machetă rămâne.')) return;
+      pushHistory();
+      plan.items = [];
+      sel = null;
+      render();
+      toast('Plan golit');
+    });
+
+    // Anything coming from a file or from storage is a stranger: coerce it into
+    // the shape the renderer expects instead of trusting the numbers in it.
+    function adopt(data) {
+      const d = data && typeof data === 'object' ? data : {};
+      const u = d.underlay && typeof d.underlay === 'object' ? d.underlay : {};
+      const num = (v, dflt) => (Number.isFinite(+v) ? +v : dflt);
+      const pt = (p) => [num(p && p[0], 0), num(p && p[1], 0)];
+      plan = {
+        v: 1,
+        name: String(d.name || 'Plan fără nume').slice(0, 60),
+        underlay: {
+          x: num(u.x, -50), y: num(u.y, -35), w: clamp(num(u.w, 100), 1, 100000),
+          h: clamp(num(u.h, 70), 1, 100000), rot: clamp(num(u.rot, 0), -180, 180),
+          opacity: clamp(num(u.opacity, 55), 5, 100), visible: u.visible !== false, locked: u.locked !== false,
+        },
+        items: (Array.isArray(d.items) ? d.items : []).map((raw) => {
+          const it = raw && typeof raw === 'object' ? raw : {};
+          const base = { id: nextId(), color: typeof it.color === 'string' ? it.color.slice(0, 24) : '#3b82f6' };
+          if (it.t === 'zone' || it.t === 'lane') {
+            const pts = (Array.isArray(it.pts) ? it.pts : []).map(pt);
+            if (pts.length < 2) return null;
+            return Object.assign(base, {
+              t: it.t, name: String(it.name || '').slice(0, 60), pts,
+              w: it.t === 'lane' ? clamp(num(it.w, 4), 0.5, 60) : undefined,
+            });
+          }
+          if (it.t === 'row') {
+            return Object.assign(base, {
+              t: 'row', zone: String(it.zone || '').slice(0, 30), a: pt(it.a), b: pt(it.b),
+              n: clamp(Math.round(num(it.n, 1)), 1, 200), sw: clamp(num(it.sw, SPOT_W), 1.5, 10),
+              sd: clamp(num(it.sd, SPOT_D), 2, 20), side: clamp(Math.round(num(it.side, 0)), -1, 1),
+              start: clamp(Math.round(num(it.start, 1)), 1, 9999),
+            });
+          }
+          if (it.t === 'spot') {
+            return Object.assign(base, {
+              t: 'spot', zone: String(it.zone || '').slice(0, 30), no: clamp(Math.round(num(it.no, 1)), 1, 9999),
+              x: num(it.x, 0), y: num(it.y, 0), rot: clamp(num(it.rot, 0), -180, 180),
+              sw: clamp(num(it.sw, SPOT_W), 1.5, 10), sd: clamp(num(it.sd, SPOT_D), 2, 20),
+            });
+          }
+          if (it.t === 'marker') {
+            const kind = MARKERS.some((m) => m[0] === it.kind) ? it.kind : 'reper';
+            return Object.assign(base, { t: 'marker', kind, name: String(it.name || '').slice(0, 40), x: num(it.x, 0), y: num(it.y, 0) });
+          }
+          if (it.t === 'text') {
+            return Object.assign(base, {
+              t: 'text', text: String(it.text || 'Text').slice(0, 80), x: num(it.x, 0), y: num(it.y, 0),
+              size: clamp(num(it.size, 3), 0.5, 40), rot: clamp(num(it.rot, 0), -180, 180),
+            });
+          }
+          return null;
+        }).filter(Boolean),
+      };
+      sel = null;
+      $('planName').value = plan.name;
+      syncUnderlayCtl();
+      applyView(); render();
+    }
+
+    // ===== START ==========================================================
+    // The phone puts the properties in a sheet: a 300px column beside a plan is
+    // most of a phone screen, and the plan is the thing you came for.
+    const phone = window.matchMedia('(max-width:900px)');
+    function syncSheet() {
+      $('sheetBtn').hidden = !phone.matches;
+      if (!phone.matches) $('props').classList.remove('open');
+    }
+    $('sheetBtn').addEventListener('click', () => $('props').classList.toggle('open'));
+    phone.addEventListener('change', syncSheet);
+    syncSheet();
+
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) adopt(JSON.parse(raw));
+    } catch (_) {}
+    try {
+      const im = localStorage.getItem(KEY_IMG);
+      if (im) setUnderlay(im, false);
+    } catch (_) {}
+
+    $('planName').value = plan.name;
+    setTool('select');
+    syncUnderlayCtl();
+    updateHistBtns();
+    fitAll();
+  })();
+  </script>
+</body>
+</html>

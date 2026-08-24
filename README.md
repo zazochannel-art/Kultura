@@ -97,6 +97,7 @@ veche în cache.
 | `styles.css` | Stiluri |
 | `sw.js` | Service worker (cache stale-while-revalidate) |
 | `server.js` | Server static pentru dezvoltare |
+| `plan.html` | Editor de plan al terenului. **De sine stătător** — vezi mai jos |
 
 ### Pagini publice (se dau prin QR/link, nu necesită cont)
 
@@ -108,6 +109,32 @@ veche în cache.
 | `feedback.html` | Feedback post-eveniment (stele + comentariu) |
 | `confirm.html` | „Vii la eveniment?" — link personal semnat, trimis în memento |
 | `ticket.html` | Biletul participantului (QR de check-in) **și** butonul de conectare la Telegram |
+
+### `plan.html` — planul desenat al terenului
+
+Pagină separată (`/plan.html`), fără legătură cu harta din aplicație. Harta din
+`index.html` e o **poză** peste care se pun pini; asta e un **desen**: zone ca
+poligoane, rânduri de locuri descrise prin cele două capete și numărul de
+locuri, alei, repere și text — totul în **metri**, nu în procente dintr-o
+imagine.
+
+Poza intră doar ca machetă sub desen: o pui, o calibrezi cu unealta 📏 („bucata
+asta are 12 m"), trasezi peste ea, apoi o scoți. Nu intră în plan și nu se
+exportă.
+
+Ce trebuie știut înainte de a o atinge:
+
+- **Nu vorbește cu Supabase.** Planul stă în `localStorage`
+  (`kultura.plan.v1`), macheta separat (`kultura.plan.underlay.v1`, best-effort:
+  o poză prea mare depășește cota și atunci se pierde doar macheta, nu planul).
+  Se mută între dispozitive prin export/import JSON.
+- **Nu împarte nimic cu `zone_map_url` / `zone_spots`.** Sunt două lucruri
+  diferite, intenționat. Dacă vreodată se leagă, legătura se face explicit,
+  prin JSON-ul exportat.
+- **Un singur fișier**, ca `vote.html` și `agenda.html`: HTML + CSS + JS inline.
+  Sintaxa lui nu e prinsă de `node --check` din CI (verifică doar `*.js`), dar
+  pagina e acoperită de `tests/smoke.mjs` (secțiunea `4r`) și de sweep-ul de
+  accesibilitate.
 
 ## Roluri și permisiuni
 

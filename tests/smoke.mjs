@@ -453,7 +453,7 @@ try {
     const small = [];
     const overflowing = [];
     const stillVisible = [];
-    for (const name of ['index', 'register', 'vote', 'agenda', 'feedback', 'ticket', 'confirmed', 'privacy']) {
+    for (const name of ['index', 'register', 'vote', 'agenda', 'feedback', 'ticket', 'confirmed', 'privacy', 'plan']) {
       const mp = await mctx.newPage();
       try {
         await mp.goto(`${BASE}/${name}.html`, { waitUntil: 'domcontentloaded' });
@@ -499,7 +499,7 @@ try {
     // before that rule existed. Left as-is pending a call on it, not an
     // oversight; add it here the moment its viewport is cleaned up.
     const metas = [];
-    for (const name of ['index', 'register', 'vote', 'agenda', 'feedback']) {
+    for (const name of ['index', 'register', 'vote', 'agenda', 'feedback', 'plan']) {
       const mp = await mctx.newPage();
       await mp.goto(`${BASE}/${name}.html`, { waitUntil: 'domcontentloaded' });
       const v = await mp.evaluate(() =>
@@ -2227,6 +2227,95 @@ try {
     await zctx.close();
   }
 
+  // 4r. The plan editor (`plan.html`). It shares nothing with the zone map above:
+  // no Supabase, no ui_settings, no photo in the saved plan. The photo is a
+  // tracing template and the drawing is the deliverable, so what is checked here
+  // is that shapes can be drawn, a row re-spaces itself, and the plan outlives
+  // the photo it was traced from.
+  {
+    const pctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const pp = await pctx.newPage();
+    const perrs = [];
+    pp.on('pageerror', (e) => perrs.push(e.message));
+    try {
+      await pp.goto(`${BASE}/plan.html`, { waitUntil: 'domcontentloaded' });
+      await pp.evaluate(() => localStorage.clear());
+      await pp.reload({ waitUntil: 'domcontentloaded' });
+      await pp.waitForTimeout(400);
+      const box = await pp.locator('#stage').boundingBox();
+      const at = (fx, fy) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy });
+
+      // A zone: a click per corner, Enter closes it.
+      await pp.click('.tool[data-tool="zone"]');
+      for (const [fx, fy] of [[0.25, 0.2], [0.6, 0.2], [0.6, 0.5], [0.25, 0.5]]) {
+        const q = at(fx, fy);
+        await pp.mouse.click(q.x, q.y);
+        await pp.waitForTimeout(50);
+      }
+      await pp.keyboard.press('Enter');
+      await pp.waitForTimeout(200);
+      check('plan-zone-drawn', await pp.textContent('#sItems') === '1');
+      check('plan-zone-area-in-square-metres', (+(await pp.textContent('#sArea'))) > 0);
+
+      // A row: one drag gives both ends, and the count comes from the length.
+      await pp.click('.tool[data-tool="row"]');
+      const a = at(0.3, 0.7), b = at(0.75, 0.7);
+      await pp.mouse.move(a.x, a.y);
+      await pp.mouse.down();
+      await pp.mouse.move(b.x, b.y, { steps: 10 });
+      await pp.mouse.up();
+      await pp.waitForTimeout(700);
+      // "More than one spot" passes with the spacing broken. What the row
+      // promises is that its spots come from its length, so check that number.
+      const row = await pp.evaluate(() => {
+        const it = JSON.parse(localStorage.getItem('kultura.plan.v1') || '{}').items
+          .find((x) => x.t === 'row');
+        return it ? { len: Math.hypot(it.b[0] - it.a[0], it.b[1] - it.a[1]), n: it.n } : null;
+      });
+      check('plan-row-spots-follow-its-length',
+        !!row && row.n > 1 && (+(await pp.textContent('#sSpots'))) === Math.round(row.len / 2.5));
+
+      // Retuning the count must not steal the field being typed into.
+      await pp.fill('#pN', '12');
+      await pp.waitForTimeout(250);
+      check('plan-row-recount', await pp.textContent('#sSpots') === '12');
+      check('plan-panel-keeps-focus',
+        await pp.evaluate(() => document.activeElement && document.activeElement.id) === 'pN');
+
+      // A facing row continues the numbering rather than repeating it.
+      await pp.click('[data-act="rowdup"]');
+      await pp.waitForTimeout(250);
+      check('plan-parallel-row-continues-numbering',
+        await pp.textContent('#sSpots') === '24' && await pp.locator('#dupWarn').isHidden());
+
+      await pp.keyboard.press('Control+z');
+      await pp.waitForTimeout(200);
+      check('plan-undo', await pp.textContent('#sSpots') === '12');
+
+      // The plan is the drawing: it survives a reload, and it survives losing
+      // the photo it was traced from — which never entered the saved plan.
+      await pp.waitForTimeout(700);
+      await pp.reload({ waitUntil: 'domcontentloaded' });
+      await pp.waitForTimeout(500);
+      check('plan-persists-locally', await pp.textContent('#sItems') === '2');
+      check('plan-holds-no-photo',
+        !(await pp.evaluate(() => localStorage.getItem('kultura.plan.v1') || '')).includes('data:image'));
+      check('plan-never-touches-supabase',
+        !(await pp.evaluate(() => document.documentElement.innerHTML)).includes('supabase'));
+    } catch (e) {
+      for (const n of ['plan-zone-drawn', 'plan-zone-area-in-square-metres',
+        'plan-row-spots-follow-its-length', 'plan-row-recount', 'plan-panel-keeps-focus',
+        'plan-parallel-row-continues-numbering', 'plan-undo', 'plan-persists-locally',
+        'plan-holds-no-photo', 'plan-never-touches-supabase']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`plan editor checks: ${e.message}`);
+    }
+    check('plan-no-errors', perrs.length === 0);
+    if (perrs.length) console.log('  plan.html errors:', perrs.slice(0, 3));
+    await pctx.close();
+  }
+
   // 5. Public pages (given out by QR at the event) must render standalone.
   // They talk to Supabase, which is unreachable here, so we only assert the
   // static shell renders and nothing throws before the network call.
@@ -2258,7 +2347,7 @@ try {
   const axePath = resolve(ROOT, 'node_modules/axe-core/axe.min.js');
   if (existsSync(axePath)) {
     const axeSrc = readFileSync(axePath, 'utf8');
-    for (const name of ['index', 'register', 'vote', 'agenda', 'feedback']) {
+    for (const name of ['index', 'register', 'vote', 'agenda', 'feedback', 'plan']) {
       const p = await ctx.newPage();
       try {
         await p.goto(`${BASE}/${name}.html`, { waitUntil: 'domcontentloaded' });
