@@ -371,10 +371,12 @@ poligonul zonei din plan). Cu ea:
 **Rama e cât planul, nu cât pagina.** Un plan de teren e cam la fel de înalt pe
 cât e de lat, deci lăsată liberă rama umplea fereastra și încă puțin — puteai
 citi harta sau butoanele de sub ea, niciodată amândouă. Acum e plafonată la
-`min(68vh, 560px)` pe înălțime și la aceeași valoare ori proporția desenului pe
-lățime, iar desenul **încape** înăuntru în loc să umple lățimea. Pe telefon
-niciun plafon nu prinde: ecranul e mai îngust decât plafonul și planul mai
-scund, deci rama rămâne exact cum era.
+`min(72vh, 720px)` pe înălțime și la aceeași valoare ori proporția desenului pe
+lățime, iar desenul **încape** înăuntru în loc să umple lățimea. Plafonul e cel
+mai mare care ține marginea de jos a ramei deasupra pliului la 1280×800, cea mai
+strâmtă fereastră de laptop pe care merită socotit — prima încercare, la 560px,
+a ieșit mult mai mică decât trebuia. Pe telefon niciun plafon nu prinde: ecranul
+e mai îngust decât plafonul și planul mai scund, deci rama rămâne exact cum era.
 
 **Un tap lângă o boxă o alege pe ea.** La lățime întreagă o boxă are patru
 pixeli pe un laptop și sub trei pe telefon: desenată exact, și imposibil de
