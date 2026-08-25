@@ -1084,10 +1084,17 @@
     // about a fifth of a second on a slow phone. The transform shows the change
     // at once and the size follows when the burst stops — so it responds
     // immediately and is sharp wherever you land.
-    let _zoomSettle = 0;
+    let _zoomSettle = 0, _mapPointers = 0;
     function settleMapZoom() {
       clearTimeout(_zoomSettle);
-      _zoomSettle = setTimeout(() => { _zoomSettle = 0; applyMapTransform(); }, 140);
+      _zoomSettle = setTimeout(() => {
+        // Never while a finger is still on the glass. Committing the size
+        // re-lays out the whole drawing, and doing that in the middle of a
+        // touch is both a stutter and a good way to lose the gesture.
+        if (_mapPointers) { settleMapZoom(); return; }
+        _zoomSettle = 0;
+        applyMapTransform();
+      }, 140);
     }
 
     let _shownZoom = -1;
@@ -1164,15 +1171,17 @@
       const down = (e) => {
         const vp = el('mapViewport');
         if (!vp || !vp.contains(e.target) || e.target.closest('.map-zoom')) return;
-        // Promote the wrapper for the length of the gesture only. Left on
-        // permanently, `will-change: transform` is a standing instruction to
-        // reuse the bitmap — which is the other half of why the plan came out
-        // blurred once anything scaled it.
-        vp.classList.add('gesturing');
         // Cleared on every touch, not only when a pan starts: otherwise the
         // last drag before zooming back out keeps swallowing the next tap.
         _mapPanMoved = false;
+        // A primary pointer going down is a new gesture, so nothing from the
+        // last one is still on the glass. Without this, a single `pointerup`
+        // that never arrives — which a touch screen does not promise — leaves a
+        // ghost finger in the set, and every later drag is read as half a pinch
+        // and pans nothing at all.
+        if (e.isPrimary) pts.clear();
         pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        _mapPointers = pts.size;
         if (pts.size === 2) {
           const [a, b] = two();
           pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: _mapZoom };
@@ -1210,7 +1219,8 @@
         pts.delete(e.pointerId);
         const wasPinch = pts.size < 2 && pinch;
         if (pts.size < 2) pinch = null;
-        if (!pts.size) { pan = null; el('mapViewport')?.classList.remove('gesturing'); }
+        if (!pts.size) pan = null;
+        _mapPointers = pts.size;
         // The pinch left the size where it started and the difference in the
         // transform. Commit it now rather than waiting out the settle: the
         // fingers are off the glass, which is when the picture is looked at.

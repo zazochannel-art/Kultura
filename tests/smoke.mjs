@@ -2195,6 +2195,40 @@ try {
         && Math.abs(atEnd.r) < 1 && Math.abs(atEnd.b) < 1,
         JSON.stringify({ atStart, atEnd }));
 
+      // A touch screen does not promise a `pointerup` for every `pointerdown`:
+      // a call arrives, the system claims the gesture, the finger leaves over
+      // the edge. A finger left behind in the set makes every later drag look
+      // like half a pinch — and then the map zooms but never moves, with
+      // nothing to do about it short of reloading the page.
+      await swipe(0.10, 0.85);                    // back against the top-left stop
+      const ghost = await zp.evaluate(() => {
+        const vp2 = document.getElementById('mapViewport');
+        const wrap = document.getElementById('mapImageWrap');
+        const r = vp2.getBoundingClientRect();
+        const cx = Math.round(r.left + r.width / 2), cy = Math.round(r.top + r.height / 2);
+        const fire = (type, x, y, id) => {
+          const t = document.elementFromPoint(x, y) || vp2;
+          t.dispatchEvent(new PointerEvent(type, { pointerId: id, isPrimary: true,
+            clientX: x, clientY: y, bubbles: true, cancelable: true }));
+        };
+        const dx = () => {
+          const m = /translate\((-?[\d.]+)px/.exec(wrap.style.transform);
+          return m ? +m[1] : 0;
+        };
+        fire('pointerdown', cx, cy, 91);           // a finger that never lifts
+        fire('pointermove', cx - 20, cy - 20, 91);
+        const before = dx(), zoom = document.getElementById('mapZoomVal').textContent;
+        fire('pointerdown', cx, cy, 92);           // the drag that comes after it
+        fire('pointermove', cx - 40, cy - 30, 92);
+        fire('pointermove', cx - 90, cy - 60, 92);
+        const after = dx();
+        fire('pointerup', cx - 90, cy - 60, 92);
+        return { before, after, zoom, zoomAfter: document.getElementById('mapZoomVal').textContent };
+      });
+      check('map-pan-survives-a-finger-that-never-lifts',
+        ghost.after - ghost.before < -20 && ghost.zoomAfter === ghost.zoom,
+        JSON.stringify(ghost));
+
       // Placing while zoomed in is the normal case on a dense plan, so the
       // percentage written down has to be the point under the finger — not the
       // point it would have been at fit-width.
@@ -2320,6 +2354,7 @@ try {
         'map-zoom-lays-the-plan-out-larger', 'map-zoom-never-stretches-what-it-drew',
         'map-zoom-grows-pins-slower-than-the-plan', 'map-pins-carry-no-backdrop-filter',
         'map-zoom-reset-returns-to-fit', 'map-pan-cannot-expose-a-void',
+        'map-pan-survives-a-finger-that-never-lifts',
         'spots-placed-where-tapped-when-zoomed', 'spots-dense-plans-fall-back-to-dots',
         'spots-clearing-a-zone-frees-its-cars', 'car-zone-change-releases-the-spot',
         'car-zone-change-never-writes-null-zone', 'spots-row-tools-only-while-placing']) {

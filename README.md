@@ -234,15 +234,32 @@ Trei lucruri vin la pachet cu asta:
   loc, dimensiunea vine când rafala se termină — deci răspunde imediat și e clar
   acolo unde te oprești. Ridicatul degetelor de pe sticlă o fixează fără să mai
   aștepte.
-- **`will-change: transform` doar cât ține gestul.** Lăsat permanent, e
+- **Fără `will-change: transform`, în nicio direcție.** Lăsat permanent, e
   instrucțiunea „refolosește bitmap-ul pe care îl ai" — cealaltă jumătate a
-  motivului pentru care planul ieșea neclar.
+  motivului pentru care planul ieșea neclar. Pornit doar cât ține gestul, în
+  schimb, schimbă stratul elementului în mijlocul unei secvențe de atingere,
+  ceea ce e un mod bun de a pierde secvența. Deplasarea e o translație acum;
+  motoarele o compozitează fără să fie rugate — și a ieșit chiar mai ieftină
+  (471 ms pe gest față de 750, cu jumătate din `HitTest`).
 
 Redesenarea SVG-ului la schimbarea de octavă merge tot cu dimensiunea fixată,
 niciodată cu gestul: era singurul lucru scump de pe apăsare — 124 ms din cele
 146 pe care le lua un pas de zoom pe un telefon lent, față de 4 când octava nu
 se schimba. Acum un pas costă ~5 ms în handler și ~60 ms până pe ecran, măsurat
 cu procesorul încetinit de patru ori.
+
+**Gesturile nu se calcă pe dimensiune.** Două lucruri care nu se văd, dar care
+se simt ca „harta nu se mai mișcă":
+
+- Un `pointerdown` primar **golește setul de degete** înainte să se adauge în el.
+  Un ecran tactil nu promite un `pointerup` pentru fiecare `pointerdown` — vine
+  un apel, sistemul ia gestul, degetul iese pe margine. Un deget rămas în set
+  face ca orice tragere de după să arate a jumătate de pinch: harta se mărește,
+  dar nu se mai mută, până la reîncărcarea paginii. `tests/smoke.mjs` are
+  `map-pan-survives-a-finger-that-never-lifts` exact pentru asta.
+- **Fixarea dimensiunii nu se face cât timp e un deget pe sticlă.** Ea reașază
+  tot desenul; făcută în mijlocul unei atingeri e și o smucitură, și o ocazie de
+  a pierde gestul. Cronometrul se reprogramează până se ridică degetele.
 
 Fiindcă planul se așază la mărimea lui adevărată, un pin măsurat în pixeli are
 deja aceeași mărime pe ecran la orice zoom — de-aia `--pin-s` e acum
