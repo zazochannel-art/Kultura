@@ -2007,8 +2007,17 @@
       <div class="ui-dialog-message" id="uiDialogMessage"></div>
       <textarea id="uiDialogInput" rows="3" style="display:none;width:100%;margin-top:10px;"></textarea>
       <!-- Picking one of many (which car goes on this spot) is a third shape
-           the dialog has to take, next to confirm and prompt. -->
-      <select id="uiDialogSelect" style="display:none;width:100%;margin-top:10px;"></select>
+           the dialog has to take, next to confirm and prompt. A list you can
+           search and tap, rather than a native select: on a phone that one is a
+           spinner scrolled blind past a hundred names, and the answer is nearly
+           always a car somebody has just said out loud. Tapping a row is the
+           answer — there is nothing left to confirm after it. -->
+      <div class="ui-pick" id="uiDialogPick" style="display:none;">
+        <input type="search" class="ui-pick-search" id="uiDialogPickSearch"
+               autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
+        <div class="ui-pick-list" id="uiDialogPickList" role="listbox"></div>
+        <div class="ui-pick-note" id="uiDialogPickNote"></div>
+      </div>
       <div class="ui-dialog-actions">
         <button type="button" class="ui-dialog-btn" id="uiDialogCancel">Anulează</button>
         <button type="button" class="ui-dialog-btn primary" id="uiDialogOk">OK</button>
