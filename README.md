@@ -98,6 +98,7 @@ veche în cache.
 | `sw.js` | Service worker (cache stale-while-revalidate) |
 | `server.js` | Server static pentru dezvoltare |
 | `plan.html` | Editor de plan al terenului. **De sine stătător** — vezi mai jos |
+| `plan-render.js` | Geometria și desenul unui plan. Importat și de editor, și de `app.js` |
 | `plans/*.json` | Planuri gata făcute, deschise cu `plan.html?load=plans/x.json` |
 
 ### Pagini publice (se dau prin QR/link, nu necesită cont)
@@ -169,6 +170,11 @@ plan CAD: firul rămâne fir la orice mărire.
 alb, cu etichetele în tuș, ca planul de la arhitect. Alegerea stă în plan, deci
 se exportă cu el.
 
+Geometria și desenul nu stau în pagină, ci în [`plan-render.js`](plan-render.js),
+importat și de editor, și de `app.js`. Dacă fiecare ar desena în felul lui,
+s-ar despărți în timp, iar un loc ar ajunge în două locuri diferite în cele două
+— singurul lucru pe care un plan de parcare n-are voie să-l facă.
+
 Ce trebuie știut înainte de a o atinge:
 
 - **Nu vorbește cu Supabase.** Planul stă în `localStorage`
@@ -182,6 +188,31 @@ Ce trebuie știut înainte de a o atinge:
   Sintaxa lui nu e prinsă de `node --check` din CI (verifică doar `*.js`), dar
   pagina e acoperită de `tests/smoke.mjs` (secțiunea `4r`) și de sweep-ul de
   accesibilitate.
+
+### Planul ca hartă a aplicației
+
+În secțiunea **Hartă**, un staff are butonul „Adu planul terenului". Apăsat o
+dată, `plans/plan-06.json` devine harta: planul e randat ca **SVG** (harta se
+mărește până la 8× la poartă, iar un desen rămâne clar acolo unde o poză se
+împăstează), urcat în bucket-ul `maps`, iar locurile lui intră în `zone_spots`.
+
+Aici se întâlnesc două feluri de a spune unde stă o mașină: planul e un desen în
+**metri**, harta e o imagine cu pini în **procente** din ea. Conversia și
+randarea vin din același `view box` — de-aia cad pinii pe locuri. Restul
+aplicației nu se schimbă: check-in, „umple automat", zoom, toate merg mai
+departe pe locurile aduse.
+
+Trei lucruri pe care le spune explicit, în loc să le înghită:
+
+- **numele zonelor.** Desenul zice `MODERN CARS`, aplicația zice `Modern`.
+  `PLAN_ZONE_ALIASES` le împacă; altfel o mașină din `Modern` n-ar prinde niciun
+  pin. Potrivirea e altfel după literă, fără majuscule (`STANCE` = `Stance`).
+- **locurile fără zonă.** Din cele 258 desenate, 20 sunt în afara oricărei zone
+  colorate. Un loc fără zonă nu poate primi o mașină, deci nu e adus — și scrie
+  câte au fost.
+- **mașinile rămase fără loc.** Dacă o mașină stătea pe un loc care nu există în
+  planul nou, `spot_no` i se pune pe `null` și numărul lor apare în interfață.
+  Un număr de loc care nu duce nicăieri e mai rău decât niciun număr.
 
 ## Roluri și permisiuni
 

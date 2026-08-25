@@ -8,6 +8,9 @@
       gateBurstAction
     } from './utils.js';
     import { haptic, confettiBurst, successCheck, auroraPulse } from './effects.js';
+    // The venue plan drawn in plan.html. Same module the editor uses, so the
+    // map the app shows and the plan somebody drew can never disagree.
+    import { planSpots, planSvgDoc } from './plan-render.js';
 
     const SUPABASE_URL = 'https://knphmxxokowwkruimdus.supabase.co';
     const SUPABASE_ANON = 'sb_publishable_9b7WSJF4UlfF1JIdCDjWqQ_dxOTpqSW';
@@ -1357,6 +1360,7 @@
       if (b) b.addEventListener('pointerdown', onDown);
     })();
     el('mapUploadBtn').addEventListener('click', () => el('mapFileInput').click());
+    el('mapPlanBtn')?.addEventListener('click', importVenuePlan);
     // Lazy-load the vendored pdf.js only when a PDF is actually chosen.
     let _pdfjsLoading = null;
     function ensurePdfJs() {
@@ -1521,7 +1525,7 @@
       status.style.color = 'var(--text-dim)';
       status.textContent = t('map.uploading');
       try {
-        const ext = blob.type === 'image/png' ? 'png' : 'jpg';
+        const ext = blob.type === 'image/svg+xml' ? 'svg' : blob.type === 'image/png' ? 'png' : 'jpg';
         const path = `zone-map-${Date.now()}.${ext}`;
         const { error: upErr } = await supa.storage.from('maps')
           .upload(path, blob, { contentType: blob.type || 'image/jpeg' });
@@ -1538,9 +1542,105 @@
         status.textContent = t('map.saved');
         status.style.color = 'var(--green)';
         setTimeout(() => { status.style.display = 'none'; }, 1500);
+        return true;
       } catch (err) {
         status.textContent = t('map.upload_error') + ': ' + (err.message || err);
         status.style.color = 'var(--red)';
+        return false;
+      }
+    }
+
+    // ----- THE DRAWN PLAN AS THE MAP -----
+    //
+    // Two ways of saying where a car goes meet here. The plan (plan.html) is a
+    // drawing in metres; the map is an image with pins placed in percentages of
+    // it. Rendering the plan once and converting its spots in the same breath
+    // is what keeps the pins on the bays: both come from the same view box.
+    const PLAN_URL = 'plans/plan-06.json';
+    // The drawing carries the venue's own zone names. Where one means a zone the
+    // app already knows, the app's spelling wins — otherwise a car parked in
+    // "Modern" would never match a spot labelled "MODERN CARS".
+    const PLAN_ZONE_ALIASES = { 'modern cars': 'Modern', 'super cars': 'Super Cars' };
+    function appZoneName(name) {
+      const k = String(name || '').trim().toLowerCase();
+      if (!k) return '';
+      const exact = PARKING_ZONES.find(z => z.toLowerCase() === k);
+      if (exact) return exact;
+      const alias = PLAN_ZONE_ALIASES[k];
+      return alias && PARKING_ZONES.includes(alias) ? alias : String(name).trim();
+    }
+
+    async function importVenuePlan() {
+      if (!roleAtLeast('staff')) return;
+      if (!requireOnline(t('map.plan_what'))) return;
+      const status = el('mapStatus');
+      let plan;
+      try {
+        const res = await fetch(PLAN_URL, { cache: 'no-cache' });
+        if (!res.ok) throw new Error(String(res.status));
+        plan = await res.json();
+      } catch (_) {
+        showToast(t('map.plan_missing'), 'error');
+        return;
+      }
+      const spots = planSpots(plan);
+      if (!spots.length) { showToast(t('map.plan_empty'), 'error'); return; }
+
+      // Replacing the map replaces every pin on it, and a pin can have a car.
+      // Say how many before doing it, not after.
+      const parked = activeCars().filter(c => c.spot_no != null).length;
+      if (!await uiConfirm(t('map.plan_confirm', {
+        name: plan.name || 'plan', n: spots.length, cars: parked,
+      }))) return;
+
+      const doc = planSvgDoc(plan, { spotsWord: t('map.plan_spots_word') });
+      // SVG, not a photo: the map zooms to 8x at the gate, and a drawing that
+      // stays sharp there is the whole point of having drawn it.
+      if (!await uploadMapBlob(new Blob([doc.svg], { type: 'image/svg+xml' }))) return;
+
+      const pct = (v, a, len) => Math.min(100, Math.max(0, ((v - a) / len) * 100));
+      const next = spots.map(sp => ({
+        zone: appZoneName(sp.zone),
+        no: sp.no,
+        x: Math.round(pct(sp.x, doc.view.x, doc.view.w) * 100) / 100,
+        y: Math.round(pct(sp.y, doc.view.y, doc.view.h) * 100) / 100,
+      })).filter(sp => sp.zone);
+      // A spot the drawing gives no zone to cannot be used here: a car carries a
+      // zone, and a pin with none could never be filled. They stay visible in
+      // the drawing itself, and the count below says how many they were.
+      const zoneless = spots.length - next.length;
+      if (!await saveZoneSpots(next)) return;
+
+      // A car pointing at a spot that no longer exists would keep showing a
+      // place to go that isn't on the plan any more.
+      const live = new Set(next.map(sp => sp.zone.trim().toLowerCase() + '#' + sp.no));
+      const orphans = activeCars().filter(c =>
+        c.spot_no != null && !live.has((c.zone || '').trim().toLowerCase() + '#' + c.spot_no));
+      if (orphans.length) {
+        const { error } = await supa.from('cars').update({ spot_no: null }).in('id', orphans.map(c => c.id));
+        if (error) { uiAlert(t('common.error') + ': ' + error.message); return; }
+        for (const c of orphans) {
+          const row = (state.cars || []).find(x => String(x.id) === String(c.id));
+          if (row) row.spot_no = null;
+        }
+        renderCars();
+      }
+
+      // Zones the drawing has and the app does not: their spots are on the map
+      // but no car can ever be assigned to them, so say so rather than let
+      // somebody discover it at the gate.
+      const unknown = [...new Set(next.map(sp => sp.zone)
+        .filter(z => !PARKING_ZONES.some(p => p.toLowerCase() === z.toLowerCase())))];
+      showToast(t('map.plan_done', { n: next.length }));
+      const notes = [
+        orphans.length ? t('map.plan_freed', { n: orphans.length }) : '',
+        zoneless ? t('map.plan_no_zone', { n: zoneless }) : '',
+        unknown.length ? t('map.plan_unknown_zones', { list: unknown.join(', ') }) : '',
+      ].filter(Boolean);
+      if (notes.length) {
+        status.style.display = 'block';
+        status.style.color = 'var(--text-dim)';
+        status.textContent = notes.join(' ');
       }
     }
 

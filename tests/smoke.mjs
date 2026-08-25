@@ -2399,6 +2399,128 @@ try {
     await pctx.close();
   }
 
+  // 4s. The drawn plan becoming the app's map.
+  //
+  // Two ways of saying where a car goes meet here: the plan is a drawing in
+  // metres, the map is an image with pins in percentages of it. What must hold
+  // is that the pins land on the bays — so the render and the conversion have
+  // to come from the same view box — and that nothing is lost quietly: a car
+  // whose spot is not on the new plan has to be freed, and spots the drawing
+  // gives no zone have to be reported rather than dropped in silence.
+  {
+    const CARS = [
+      { id: 1, entry_no: 11, brand: 'VW', model: 'Golf', owner: 'Ana', plate: 'P1', status: 'Sosit', zone: 'Stance', spot_no: 1, event_id: 6, deleted_at: null },
+      { id: 2, entry_no: 12, brand: 'Mazda', model: 'RX7', owner: 'Ion', plate: 'P2', status: 'Invitat', zone: 'Stance', spot_no: 999, event_id: 6, deleted_at: null },
+    ];
+    let savedSpots = null, savedUrl = null, uploaded = null;
+    const carPatches = [];
+    const mctx2 = await browser.newContext({ viewport: { width: 1280, height: 950 } });
+    await mctx2.route('**://*.supabase.co/**', (r) => {
+      const u = r.request().url(), m = r.request().method();
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      if (u.includes('/storage/v1/object/public/maps/')) {
+        // supabase-js posts the file inside a multipart envelope; storage serves
+        // back the part, not the envelope, so the stand-in unwraps it too.
+        const body = (uploaded && uploaded.body) || '';
+        const a = body.indexOf('<svg'), b = body.lastIndexOf('</svg>');
+        return r.fulfill({ status: 200, contentType: 'image/svg+xml',
+          body: a >= 0 && b > a ? body.slice(a, b + 6) : '<svg xmlns="http://www.w3.org/2000/svg"/>' });
+      }
+      if (u.includes('/storage/v1/object/maps/')) {
+        if (m === 'POST' || m === 'PUT') { uploaded = { url: u, body: r.request().postData() || '' }; return J({ Key: 'maps/x' }); }
+        return J({});
+      }
+      if (u.includes('/rest/v1/ui_settings')) {
+        if (m === 'POST') {
+          try {
+            const b = JSON.parse(r.request().postData() || '{}');
+            if (b.key === 'zone_spots') savedSpots = JSON.parse(b.value);
+            if (b.key === 'zone_map_url') savedUrl = b.value;
+          } catch (_) { /* the assertions below report it */ }
+        }
+        return J([]);
+      }
+      if (u.includes('/rest/v1/cars')) {
+        if (m === 'PATCH') { carPatches.push({ url: u, body: r.request().postData() || '' }); return J([]); }
+        return J(/deleted_at=not\.is\.null/.test(u) ? [] : CARS);
+      }
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString() }]);
+      if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+      if (u.includes('/rest/v1/')) return J([]);
+      if (u.includes('/functions/v1/')) return J({});
+      return r.abort();
+    });
+    const ip = await mctx2.newPage();
+    const ierrs = [];
+    ip.on('pageerror', (e) => ierrs.push(e.message));
+    try {
+      await ip.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await ip.evaluate(() => localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      })));
+      await ip.reload({ waitUntil: 'domcontentloaded' });
+      await ip.waitForTimeout(2600);
+      await ip.evaluate(() => {
+        document.getElementById('splashScreen')?.remove();
+        document.querySelector('.tab[data-section="map"], .mtab[data-section="map"]')?.click();
+      });
+      await ip.waitForTimeout(500);
+      check('plan-import-button-for-staff', await ip.locator('#mapPlanBtn').isVisible());
+
+      await ip.click('#mapPlanBtn');
+      await ip.waitForTimeout(700);
+      await ip.evaluate(() => document.getElementById('uiDialogOk')?.click());
+      await ip.waitForTimeout(3000);
+
+      check('plan-import-uploads-an-svg-map',
+        !!uploaded && /\.svg/.test(uploaded.url) && uploaded.body.includes('<svg')
+        && !!savedUrl && /\.svg/.test(savedUrl));
+      // 258 spots are drawn; 20 of them sit outside every zone the drawing
+      // names, and a spot without a zone can never take a car.
+      check('plan-import-saves-the-spots',
+        Array.isArray(savedSpots) && savedSpots.length === 238,
+        savedSpots ? String(savedSpots.length) : 'none');
+      check('plan-import-pins-land-inside-the-image',
+        Array.isArray(savedSpots) && savedSpots.every((sp) => sp.x >= 0 && sp.x <= 100 && sp.y >= 0 && sp.y <= 100));
+      // The drawing says MODERN CARS, the app says Modern. Unless they are
+      // reconciled, a car parked in Modern matches no pin at all.
+      const zones = [...new Set((savedSpots || []).map((sp) => sp.zone))];
+      check('plan-import-speaks-the-app-zone-names',
+        zones.includes('Modern') && zones.includes('Stance') && !zones.includes('MODERN CARS'),
+        zones.slice(0, 6).join(', '));
+      const freed = carPatches.find((c) => /"spot_no":null/.test(c.body.replace(/\s/g, '')));
+      check('plan-import-frees-a-car-whose-spot-is-gone',
+        !!freed && /id=in\./.test(freed.url) && /2/.test(freed.url.split('id=in.')[1] || ''),
+        freed ? freed.url.split('id=in.')[1] : 'no patch');
+      const note = await ip.textContent('#mapStatus');
+      check('plan-import-says-what-it-left-out', /20/.test(note || ''), (note || '').slice(0, 60));
+      await ip.waitForTimeout(1200);
+      const drawn = await ip.evaluate(() => ({
+        pins: document.querySelectorAll('#mapSpotLayer .map-spot').length,
+        w: document.getElementById('mapImage') ? document.getElementById('mapImage').naturalWidth : 0,
+      }));
+      check('plan-import-map-shows-the-drawing-and-its-pins',
+        drawn.pins === 238 && drawn.w > 0, JSON.stringify(drawn));
+    } catch (e) {
+      for (const n of ['plan-import-button-for-staff', 'plan-import-uploads-an-svg-map',
+        'plan-import-saves-the-spots', 'plan-import-pins-land-inside-the-image',
+        'plan-import-speaks-the-app-zone-names', 'plan-import-frees-a-car-whose-spot-is-gone',
+        'plan-import-says-what-it-left-out', 'plan-import-map-shows-the-drawing-and-its-pins']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`plan import checks: ${e.message}`);
+    }
+    check('plan-import-no-errors', ierrs.length === 0);
+    if (ierrs.length) console.log('  import errors:', ierrs.slice(0, 3));
+    await mctx2.close();
+  }
+
   // 5. Public pages (given out by QR at the event) must render standalone.
   // They talk to Supabase, which is unreachable here, so we only assert the
   // static shell renders and nothing throws before the network call.
