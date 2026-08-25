@@ -1956,6 +1956,10 @@
   background: var(--surface-solid);
 }
 .map-image-wrap img { width: 100%; height: auto; display: block; cursor: zoom-in; -webkit-user-drag: none; user-select: none; }
+/* A drawn plan is drawn, not shown: SVG in the page stays sharp at any zoom,
+   where a picture has a resolution and the gate zooms to eight times. */
+.map-image-wrap .map-plan { width: 100%; display: block; line-height: 0; }
+.map-image-wrap .map-plan svg { width: 100%; height: auto; display: block; }
 /* Zoomed in on a phone the plan is read through a letterbox, so the frame is
    allowed to grow — but only when it is smaller than that to begin with. */
 .map-viewport.is-zoomed { min-height: min(60vh, 520px); }
@@ -2003,17 +2007,68 @@
   cursor: pointer; touch-action: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
+.map-spot .ms-lab { display: flex; flex-direction: column; align-items: center; }
 .map-spot .ms-no { font-size: 10px; }
 .map-spot .ms-car { display: none; }
 /* An occupied spot leads with the car, because that is the question being
    asked of the map. The number stays, smaller, so the plan is still readable. */
-.map-spot.taken { background: rgba(59,130,246,0.92); border-color: rgba(255,255,255,0.75); }
+.map-spot:not(.is-car).taken { background: rgba(59,130,246,0.92); border-color: rgba(255,255,255,0.75); }
 .map-spot.taken .ms-no { font-size: 8px; opacity: .85; font-weight: 700; }
 .map-spot.taken .ms-car { display: block; font-size: 10px; white-space: nowrap; }
-.map-spot.here { background: rgba(16,185,129,0.94); }
+.map-spot:not(.is-car).here { background: rgba(16,185,129,0.94); }
 .map-spot:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .map-spot-layer.is-editing .map-spot { cursor: grab; }
 .map-spot-layer.is-editing .map-spot:active { cursor: grabbing; }
+
+/* ===== A PIN THAT KNOWS ITS BAY IS A CAR IN IT =====
+   On a drawn plan a spot carries the size and the heading of the bay it stands
+   for, so the mark can be the bay: a car of the right size, parked the right
+   way round. It grows with the drawing rather than against it, which is what
+   makes a row of them read as a row of parked cars instead of as beads on a
+   string. Spots dropped on a photo have no such thing and stay dots.
+
+   The pin itself is only the handle — the same rectangle as the bay, turned the
+   same way, so what you tap is the place the car stands. The cars are drawn
+   together on the deck below it. */
+.map-spot.is-car {
+  min-width: 0; min-height: 0; padding: 0;
+  border: 0; border-radius: 0; background: none; box-shadow: none;
+  transform: translate(-50%, -50%) rotate(var(--r, 0deg));
+}
+.map-cars {
+  position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+  /* Nothing here is aimed at: the pins above it take every tap, and hit-testing
+     a few hundred car outlines on the way to them is work for nothing. */
+  pointer-events: none; overflow: visible;
+}
+/* An empty bay is empty: the mark is the shape of the car that would fit in it,
+   drawn light enough that the bay's own number still reads through. Painted
+   solid it would say there is a car standing there, on two hundred bays at once
+   — and left as a bare outline it disappeared at anything short of full zoom. */
+.map-cars .cp-body {
+  fill: #64748b; fill-opacity: .2;
+  stroke: #64748b; stroke-opacity: .8; stroke-width: 3;
+}
+.map-cars .cp-glass { fill: none; }
+/* Taken: a car, and the map reads the way the ground does. The cabin is drawn
+   dark rather than pale — glass seen from above is the darkest part of a car,
+   and it is what makes the shape read as one at fifteen pixels across. */
+.map-cars .taken .cp-body {
+  fill: #2563eb; fill-opacity: 1;
+  stroke: rgba(255,255,255,0.85); stroke-opacity: 1;
+}
+.map-cars .here .cp-body { fill: #059669; }
+.map-cars .taken .cp-glass { fill: rgba(2,6,23,0.45); }
+/* The caption is painted on the car, at the car's own scale — a number on a
+   roof. The halo is what keeps it readable over a blue body, a green one and
+   the dark cabin between them alike. */
+.map-cars .cp-no {
+  font-size: 26px; font-weight: 800; fill: #fff;
+  paint-order: stroke; stroke: rgba(2,6,23,0.65); stroke-width: 3;
+}
+/* Placing spots is the one time the free ones are the subject, so there they
+   fill in: an outline half a pixel wide is not something you can aim at. */
+.map-cars.is-editing .cp-body { fill-opacity: .55; }
 
 /* Dense plans: at fit-width forty pins in a row are a smear, so they fall back
    to dots and the numbers come back as soon as there is room to read them.
@@ -2023,16 +2078,22 @@
    there to see, and two hundred solid dots bury the drawing they belong to.
    A taken one stays full strength, because "who is parked where" is the only
    question the overview is being asked. */
-.map-spot-layer.dense .map-spot {
+.map-spot-layer.dense .map-spot:not(.is-car) {
   min-width: 7px; min-height: 7px; padding: 0; border-radius: 50%; border-width: 1px;
   opacity: .45; box-shadow: none;
 }
-.map-spot-layer.dense .map-spot.taken { min-width: 11px; min-height: 11px; opacity: 1; }
+.map-spot-layer.dense .map-spot:not(.is-car).taken { min-width: 11px; min-height: 11px; opacity: 1; }
 /* Placing spots is the one time the free ones are the subject. */
-.map-spot-layer.dense.is-editing .map-spot { min-width: 11px; min-height: 11px; opacity: .9; }
-.map-spot-layer.dense .map-spot .ms-no,
-.map-spot-layer.dense .map-spot.taken .ms-no { display: none; }
-.map-spot-layer.dense .map-spot.taken .ms-car { display: none; }
+.map-spot-layer.dense.is-editing .map-spot:not(.is-car) { min-width: 11px; min-height: 11px; opacity: .9; }
+/* The row-start ghost writes its label straight into the pin, so it needs
+   naming here too — it is the one mark that has no caption box. */
+.map-spot-layer.dense .map-spot .ms-lab,
+.map-spot-layer.dense .map-spot > .ms-no { display: none; }
+/* A car keeps its shape all the way down — it is already bay-sized, so shrinking
+   it is the zoom's job. It only loses its caption, which below this is a couple
+   of pixels of grey: not read at that size, and smearing the car it is painted
+   on. */
+.map-cars.dense .cp-no { display: none; }
 
 /* The first end of a row being laid — a target, not a control. */
 .map-spot.ghost { pointer-events: none; background: rgba(217,70,239,0.9); border-style: dashed; }

@@ -16,6 +16,7 @@ import {
   statusKey, normPlateKey, fmtRelative, fmtDateTime,
   mergeById, maxWatermark, overlapFrom, backupAgeHours, gateBurstAction,
 } from '../utils.js';
+import { planSpots, itemsSvg, SPOT_W, SPOT_D } from '../plan-render.js';
 
 test('escape neutralises HTML metacharacters', () => {
   assert.equal(escape('<script>alert("x")</script>'),
@@ -218,4 +219,35 @@ test('gateBurstAction keeps the two expensive cases off the fast path', () => {
   // cars through.
   assert.equal(gateBurstAction('plecat', false), 'card');
   assert.equal(gateBurstAction('nonsense', false), 'card');
+});
+
+// The app draws a car on every bay of the venue plan, sized and turned to sit
+// in it. That only works while `planSpots` and the renderer agree on what the
+// angle of a bay means — and they are read by two different files, so nothing
+// complains when they drift. An earlier version reported the heading of the car
+// instead of the rotation of the bay, ninety degrees apart, which put every car
+// across the lines it was parked between.
+test('planSpots reports the angle the drawing actually uses', () => {
+  const plan = { items: [{ id: 'r1', t: 'row', zone: 'A', a: [0, 0], b: [10, 10], n: 2, start: 1 }] };
+  const spots = planSpots(plan);
+  assert.equal(spots.length, 2);
+  assert.equal(Math.round(spots[0].rot), 45);
+
+  // Not "45 is the right number" but "45 is what the bay is drawn at".
+  const svg = itemsSvg(plan, 10, { flat: true });
+  const turns = [...svg.matchAll(/rotate\((-?[\d.]+)\)/g)].map((m) => +m[1]);
+  assert.equal(turns.length, 2);
+  for (const a of turns) assert.equal(a, Math.round(spots[0].rot * 100) / 100);
+});
+
+test('planSpots reports the size of each bay, packing them when a row is full', () => {
+  // A ten-metre row of two bays: each gets its full 2.5 m.
+  const roomy = planSpots({ items: [{ id: 'r', t: 'row', a: [0, 0], b: [10, 0], n: 2, start: 1 }] });
+  assert.equal(roomy[0].sw, SPOT_W);
+  assert.equal(roomy[0].sd, SPOT_D);
+  // The same row asked for ten bays cannot give them 2.5 m each, so they narrow
+  // rather than overlap — and a car drawn on one has to narrow with it.
+  const packed = planSpots({ items: [{ id: 'r', t: 'row', a: [0, 0], b: [10, 0], n: 10, start: 1 }] });
+  assert.ok(packed[0].sw < SPOT_W, String(packed[0].sw));
+  assert.ok(packed[0].sw <= 1, String(packed[0].sw));
 });

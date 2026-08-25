@@ -114,11 +114,12 @@ veche în cache.
 
 ### `plan.html` — planul desenat al terenului
 
-Pagină separată (`/plan.html`), fără legătură cu harta din aplicație. Harta din
-`index.html` e o **poză** peste care se pun pini; asta e un **desen**: zone ca
-poligoane, rânduri de locuri descrise prin cele două capete și numărul de
-locuri, alei, repere și text — totul în **metri**, nu în procente dintr-o
-imagine.
+Pagină separată (`/plan.html`), care nu vorbește cu aplicația: aici se *desenează*
+un plan, iar aplicația îl poate lua ca hartă mai târziu, la cerere (vezi „Planul
+ca hartă a aplicației"). Harta din `index.html` a fost dintotdeauna o **poză**
+peste care se pun pini; asta e un **desen**: zone ca poligoane, rânduri de locuri
+descrise prin cele două capete și numărul de locuri, alei, repere și text —
+totul în **metri**, nu în procente dintr-o imagine.
 
 Poza intră doar ca machetă sub desen: o pui, o calibrezi cu unealta 📏 („bucata
 asta are 12 m"), trasezi peste ea, apoi o scoți. Nu intră în plan și nu se
@@ -181,9 +182,9 @@ Ce trebuie știut înainte de a o atinge:
   (`kultura.plan.v1`), macheta separat (`kultura.plan.underlay.v1`, best-effort:
   o poză prea mare depășește cota și atunci se pierde doar macheta, nu planul).
   Se mută între dispozitive prin export/import JSON.
-- **Nu împarte nimic cu `zone_map_url` / `zone_spots`.** Sunt două lucruri
-  diferite, intenționat. Dacă vreodată se leagă, legătura se face explicit,
-  prin JSON-ul exportat.
+- **Nu scrie în `zone_map_url` / `zone_spots`.** Legătura cu harta există, dar se
+  face în cealaltă direcție și explicit: aplicația citește JSON-ul planului
+  atunci când i se cere. Editorul nu știe nimic despre ea.
 - **Un singur fișier**, ca `vote.html` și `agenda.html`: HTML + CSS + JS inline.
   Sintaxa lui nu e prinsă de `node --check` din CI (verifică doar `*.js`), dar
   pagina e acoperită de `tests/smoke.mjs` (secțiunea `4r`) și de sweep-ul de
@@ -192,23 +193,30 @@ Ce trebuie știut înainte de a o atinge:
 ### Planul ca hartă a aplicației
 
 În secțiunea **Hartă**, un staff are butonul „Adu planul terenului". Apăsat o
-dată, `plans/plan-06.json` devine harta: planul e randat la 3600 px, urcat în
-bucket-ul `maps`, iar locurile lui intră în `zone_spots`.
+dată, `plans/plan-06.json` devine harta: calea lui intră în `zone_plan_url`, iar
+locurile lui intră în `zone_spots`. Aplicația citește planul la pornire și îl
+**desenează în pagină ca SVG** — nu se face nicio poză din el.
 
-**De ce nu SVG.** Un desen vectorial ar rămâne clar la mărirea de 8× de la
-poartă, și asta a fost prima variantă — dar bucket-ul `maps` acceptă doar
-`image/jpeg`, `image/png`, `image/webp`, `image/gif` și maximum 5 MB, iar
-încărcarea pica în producție cu „mime type image/svg+xml is not supported".
-Planul se rasterizează la **4800 px** (o boxă de 2,5 m are ~34 px în sursă,
-deci mărirea de 8× cade pe pixeli adevărați). SVG-ul trebuie să-și *declare*
-lățimea țintă: un browser îl rasterizează la mărimea lui intrinsecă, iar
-mărirea de după în canvas ar face exact blurul pe care încercam să-l evităm.
+**De ce nu o poză.** Harta se mărește de 8× la poartă, iar o imagine are o
+rezoluție: prima variantă rasteriza planul la 4800 px și tot se făcea pastă la
+capătul măririi. A doua încercare — SVG urcat ca fișier — pica în producție cu
+„mime type image/svg+xml is not supported", fiindcă bucket-ul `maps` acceptă
+doar `image/jpeg`, `image/png`, `image/webp`, `image/gif` și maximum 5 MB.
+Răspunsul n-a fost un format mai bun, ci să nu se mai facă niciun fișier: un
+desen randat în pagină n-are rezoluție și nu trece prin bucket.
 
-**Scara de calitate** (`fitMapBlob`) e comună planului desenat și hărții urcate
+**Grosimile sunt în metri**, nu în pixeli de ecran. Un bordur de doi metri arată
+de doi metri la orice mărire — dar atunci linia cea mai subțire dispare când te
+depărtezi, așa că `itemsSvg(plan, s, { metric: true })` îi pune un prag de vreun
+pixel *la scara pentru care desenează*. De-aia SVG-ul se regenerează când
+mărirea trece de o octavă (1×, 2×, 4×, 8×) și nu la fiecare pas: `view box`-ul nu
+se schimbă niciodată, deci procentele pinilor înseamnă același lucru la orice
+mărire.
+
+**Scara de calitate** (`fitMapBlob`) a rămas, dar acum e doar pentru harta urcată
 de om. Se renunță la calitate în ordinea în care doare cel mai puțin:
 
-1. **WebP fără pierderi** — 2,88 MB la 4800 px pentru plan. Aceiași pixeli ca
-   PNG-ul, cu un sfert mai mic.
+1. **WebP fără pierderi** — aceiași pixeli ca PNG-ul, cu un sfert mai mic.
 2. **PNG** — pentru browserele care nu scriu WebP (`toBlob` cu tip nesuportat
    întoarce PNG, așa spune specificația, deci treapta întâi devine singură a doua).
 3. **WebP 0,95**, apoi **JPEG 0,92**, apoi **JPEG 0,82**.
@@ -218,17 +226,52 @@ de om. Se renunță la calitate în ordinea în care doare cel mai puțin:
 
 Fără scara asta, harta urcată de om pica: o fotografie la 4096 px e ~17 MB ca
 PNG fără pierderi — exact ce producea calea aia înainte, și exact ce refuză
-bucket-ul.
-
-Mock-ul din `tests/smoke.mjs` cunoaște acum regulile bucket-ului (tipuri și
+bucket-ul. Mock-ul din `tests/smoke.mjs` cunoaște regulile bucket-ului (tipuri și
 limita de 5 MB) — pe cele vechi, care acceptau orice, eroarea a trecut până în
 producție.
 
 Aici se întâlnesc două feluri de a spune unde stă o mașină: planul e un desen în
-**metri**, harta e o imagine cu pini în **procente** din ea. Conversia și
+**metri**, harta e o suprafață cu pini în **procente** din ea. Conversia și
 randarea vin din același `view box` — de-aia cad pinii pe locuri. Restul
 aplicației nu se schimbă: check-in, „umple automat", zoom, toate merg mai
 departe pe locurile aduse.
+
+### Pinii sunt mașini
+
+Un loc adus de pe un desen nu știe doar *unde* e boxa lui, ci și **cât e** și
+**cum e întoarsă**: `zone_spots` primește `w`, `h` (procente din `view box`) și
+`r` (grade). Cu ele, pinul poate fi boxa — aceeași mărime, același unghi — iar
+pe ea se desenează o mașină văzută de sus. Un loc pus cu degetul pe o poză n-are
+nimic din astea și rămâne bulină, ca înainte.
+
+- **`planSpots` dă unghiul dreptunghiului**, nu direcția mașinii. Cele două sunt
+  la 90° distanță și le citesc două fișiere diferite, deci nimic nu se plânge
+  când se despart — o versiune de dinainte punea fiecare mașină de-a curmezișul
+  liniilor între care era parcată. `tests/unit.mjs` compară acum unghiul raportat
+  cu cel din desenul propriu-zis.
+- **Boxa liberă e goală.** Conturul mașinii care ar încăpea în ea, atât cât să
+  se vadă numărul boxei prin el. Plină, ar zice că e cineva acolo — pe două sute
+  de boxe deodată.
+- **Boxa ocupată e o mașină**: albastră dacă e așteptată, verde dacă a sosit.
+  Geamurile se desenează **închise la culoare**, fiindcă de sus geamul e partea
+  cea mai întunecată a unei mașini — și el e ce face forma să se citească drept
+  mașină la cincisprezece pixeli.
+- **Numărul se scrie pe portbagaj**, nu peste mijloc: peste cabină ar acoperi
+  exact detaliul de mai sus. Are `textLength` cât lățimea mașinii, fiindcă un
+  număr de înmatriculare e mai lung decât un număr de intrare și altfel iese
+  peste ambii vecini. Se scrie **la scara mașinii**, nu la mărime fixă pe ecran:
+  ținut fix, ajungea mai lat decât toată boxa.
+- **Toate mașinile pe o singură pânză.** `#mapCars` e un singur SVG sub pini, nu
+  câte unul în fiecare pin. Două sute treizeci și opt de documente mici costau
+  dublu la compozitor — 314 ms de `Layerize` pe un gest de deplasare față de
+  167 ms — și mai erau și testate la coliziune în drum spre butonul de deasupra
+  lor. Pânza n-are `pointer-events`; pinii de deasupra iau fiecare atingere.
+
+**Pinii pe un plan dens.** Harta a fost desenată pentru câteva zeci de locuri;
+planul are 238. Sub pragul la care un număr are loc, mașinile rămân mașini —
+sunt deja de mărimea boxei — dar își pierd numărul, care acolo e doar o pată de
+gri peste mașina pe care e scris. Pragul depinde de câte locuri sunt pe plan, nu
+de o cifră fixă: `1,8 × √(n/26)`, plafonat la 6×.
 
 **De ce n-au pinii sticlă mată.** `backdrop-filter` cere o suprafață de
 randare per element. Cu două sute de pini, compozitorul refăcea straturile la
@@ -241,16 +284,6 @@ O idee care a picat la măsurătoare: oprirea testării de coliziune pe pini în
 timpul deplasării. Economisea 25 ms de `HitTest`, dar selectorul descendent de
 care avea nevoie invalida stilul tuturor pinilor de două ori pe gest — plus
 50 ms. A fost scoasă.
-
-**Pinii pe un plan dens.** Harta a fost desenată pentru câteva zeci de locuri;
-planul are 238, iar pinii de dinainte acopereau exact desenul pentru care au
-fost aduși. Acum: pinul crește cu zoom-ul, dar mult mai încet decât planul
-(`zoom^0.12` — de opt ori planul înseamnă un sfert în plus la pin), iar sub
-pragul la care un număr are loc pinii sunt puncte. Pragul depinde de câte
-locuri sunt pe plan, nu de o cifră fixă: `1,8 × √(n/26)`, plafonat la 6×. Un
-loc liber se estompează la 45% — boxa e deja desenată pe plan, iar două sute de
-puncte pline îngroapă desenul; unul ocupat rămâne la putere maximă, fiindcă
-„cine unde stă" e singura întrebare pusă privirii de ansamblu.
 
 Trei lucruri pe care le spune explicit, în loc să le înghită:
 
@@ -380,7 +413,8 @@ Pozele rămase fără referință în DB se curăță cu **Setări → Curăță
 | `sms_welcome_enabled` / `_template` | SMS automat la sosire |
 | `sms_approved_enabled` / `_template` | SMS automat la aprobarea înscrierii |
 | `sms_reminder_enabled` / `_template` | Remindere înainte de eveniment |
-| `zone_map_url` | Harta zonelor |
+| `zone_map_url` | Harta zonelor, ca poză urcată |
+| `zone_plan_url` | Planul desenat care ține loc de hartă (`plans/*.json`). Are prioritate față de poză |
 | `public_base_url` | Adresa publică a aplicației. Fără ea, `{{confirmare}}` din mesaje rămâne gol |
 | `notify_prefer_telegram` | `1` = încearcă întâi Telegram, apoi SMS |
 

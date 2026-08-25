@@ -1901,7 +1901,10 @@ try {
           return J([]);
         }
         if (u.includes('zone_spots')) return J([{ value: JSON.stringify(SPOTS) }]);
-        if (u.includes('zone_map_url')) return J([{ value: 'https://map.test/plan.png' }]);
+        // Keyed, the way PostgREST answers `select('key,value')`: the map is
+        // asked for as one read over both keys, and a row without its key
+        // tells the app nothing about which map it just received.
+        if (u.includes('zone_map_url')) return J([{ key: 'zone_map_url', value: 'https://map.test/plan.png' }]);
         return J([]);
       }
       if (u.includes('/rest/v1/cars')) return J(/deleted_at=not\.is\.null/.test(u) ? [] : CARS);
@@ -2021,7 +2024,10 @@ try {
           return J([]);
         }
         if (u.includes('zone_spots')) return J([{ value: JSON.stringify(SPOTS) }]);
-        if (u.includes('zone_map_url')) return J([{ value: 'https://map.test/plan.png' }]);
+        // Keyed, the way PostgREST answers `select('key,value')`: the map is
+        // asked for as one read over both keys, and a row without its key
+        // tells the app nothing about which map it just received.
+        if (u.includes('zone_map_url')) return J([{ key: 'zone_map_url', value: 'https://map.test/plan.png' }]);
         return J([]);
       }
       if (u.includes('/rest/v1/cars')) {
@@ -2461,7 +2467,7 @@ try {
       { id: 1, entry_no: 11, brand: 'VW', model: 'Golf', owner: 'Ana', plate: 'P1', status: 'Sosit', zone: 'Stance', spot_no: 1, event_id: 6, deleted_at: null },
       { id: 2, entry_no: 12, brand: 'Mazda', model: 'RX7', owner: 'Ion', plate: 'P2', status: 'Invitat', zone: 'Stance', spot_no: 999, event_id: 6, deleted_at: null },
     ];
-    let savedSpots = null, savedUrl = null, uploaded = null;
+    let savedSpots = null, savedUrl = null, savedPlan = null, uploaded = null;
     const carPatches = [];
     const mctx2 = await browser.newContext({ viewport: { width: 1280, height: 950 } });
     await mctx2.route('**://*.supabase.co/**', (r) => {
@@ -2503,6 +2509,7 @@ try {
             const b = JSON.parse(r.request().postData() || '{}');
             if (b.key === 'zone_spots') savedSpots = JSON.parse(b.value);
             if (b.key === 'zone_map_url') savedUrl = b.value;
+            if (b.key === 'zone_plan_url') savedPlan = b.value;
           } catch (_) { /* the assertions below report it */ }
         }
         return J([]);
@@ -2548,10 +2555,13 @@ try {
       for (let i = 0; i < 80 && !savedSpots; i++) await ip.waitForTimeout(250);
       await ip.waitForTimeout(500);
 
-      check('plan-import-uploads-what-the-bucket-accepts',
-        !!uploaded && MAPS_BUCKET.types.includes(uploaded.type) && uploaded.bytes <= MAPS_BUCKET.max
-        && !!savedUrl && /\.(png|webp|jpg)$/.test(savedUrl),
-        uploaded ? `${uploaded.type} ${(uploaded.bytes / 1048576).toFixed(2)}MB` : 'nothing uploaded');
+      // No picture is made of the plan. A raster has a resolution and this map
+      // is read at 8x, which is where it turns to mush; what gets saved is
+      // where the drawing lives, and the page draws it as SVG. The bucket is
+      // still watched here, because "it uploads nothing" is the claim.
+      check('plan-import-keeps-the-plan-a-drawing',
+        savedPlan === 'plans/plan-06.json' && !uploaded,
+        `plan=${savedPlan} uploaded=${uploaded ? uploaded.type : 'none'}`);
       // 258 spots are drawn; 20 of them sit outside every zone the drawing
       // names, and a spot without a zone can never take a car.
       check('plan-import-saves-the-spots',
@@ -2559,6 +2569,14 @@ try {
         savedSpots ? String(savedSpots.length) : 'none');
       check('plan-import-pins-land-inside-the-image',
         Array.isArray(savedSpots) && savedSpots.every((sp) => sp.x >= 0 && sp.x <= 100 && sp.y >= 0 && sp.y <= 100));
+      // A pin that knows only where its bay is can be a dot and nothing else.
+      // The size and the heading are what let it be drawn as a car standing in
+      // the bay, so they have to survive the conversion into percentages.
+      check('plan-import-pins-carry-their-bay',
+        Array.isArray(savedSpots) && savedSpots.every((sp) =>
+          sp.w > 0 && sp.w < 5 && sp.h > 0 && sp.h < 5 && Number.isFinite(sp.r) && sp.r >= 0 && sp.r < 360)
+        && new Set(savedSpots.map((sp) => Math.round(sp.r))).size > 3,
+        JSON.stringify(savedSpots && savedSpots[0]));
       // The drawing says MODERN CARS, the app says Modern. Unless they are
       // reconciled, a car parked in Modern matches no pin at all.
       const zones = [...new Set((savedSpots || []).map((sp) => sp.zone))];
@@ -2572,17 +2590,50 @@ try {
       const note = await ip.textContent('#mapStatus');
       check('plan-import-says-what-it-left-out', /20/.test(note || ''), (note || '').slice(0, 60));
       await ip.waitForTimeout(1200);
-      const drawn = await ip.evaluate(() => ({
-        pins: document.querySelectorAll('#mapSpotLayer .map-spot').length,
-        w: document.getElementById('mapImage') ? document.getElementById('mapImage').naturalWidth : 0,
-      }));
+      const drawn = await ip.evaluate(() => {
+        const pin = document.querySelector('#mapSpotLayer .map-spot');
+        return {
+          pins: document.querySelectorAll('#mapSpotLayer .map-spot').length,
+          cars: document.querySelectorAll('#mapCars .cp').length,
+          deck: document.getElementById('mapCars')?.getAttribute('viewBox') || '',
+          hit: getComputedStyle(document.getElementById('mapCars')).pointerEvents,
+          shapes: document.querySelectorAll('#mapPlan svg *').length,
+          img: !!document.getElementById('mapImage'),
+          r: pin && pin.style.getPropertyValue('--r'),
+          w: pin && pin.style.width,
+        };
+      });
       check('plan-import-map-shows-the-drawing-and-its-pins',
-        drawn.pins === 238 && drawn.w > 0, JSON.stringify(drawn));
+        drawn.pins === 238 && drawn.shapes > 1000 && !drawn.img, JSON.stringify(drawn));
+      // Every pin is a car standing in its own bay, turned the way the bay is.
+      // The cars are drawn together on one deck under the pins, not one small
+      // document inside each: two hundred of those doubled the compositor's
+      // work per pan and were hit-tested on the way to the button over them.
+      check('plan-import-pins-are-cars-in-their-bays',
+        drawn.cars === 238 && /deg$/.test(drawn.r || '') && /%$/.test(drawn.w || '')
+        && /^[-\d.]+ [-\d.]+ [\d.]+ [\d.]+$/.test(drawn.deck) && drawn.hit === 'none',
+        JSON.stringify(drawn));
+      // The car is the bay, so it grows with the drawing rather than against
+      // it: at twice the zoom it is twice as wide. A pin held at a fixed size
+      // on screen would sit in a bay four times its width by the far end of the
+      // range, which is a dot on a plan again.
+      const grew = await ip.evaluate(() => {
+        const w = () => document.querySelector('#mapSpotLayer .map-spot.is-car')
+          .getBoundingClientRect().width;
+        const a = w();
+        document.getElementById('mapZoomIn').click();
+        document.getElementById('mapZoomIn').click();   // 1.5 x 1.5 = 2.25
+        return { a, b: w() };
+      });
+      check('plan-import-cars-grow-with-the-plan',
+        grew.b > grew.a * 2.1 && grew.b < grew.a * 2.4, JSON.stringify(grew));
     } catch (e) {
-      for (const n of ['plan-import-button-for-staff', 'plan-import-uploads-what-the-bucket-accepts',
+      for (const n of ['plan-import-button-for-staff', 'plan-import-keeps-the-plan-a-drawing',
         'plan-import-saves-the-spots', 'plan-import-pins-land-inside-the-image',
+        'plan-import-pins-carry-their-bay',
         'plan-import-speaks-the-app-zone-names', 'plan-import-frees-a-car-whose-spot-is-gone',
-        'plan-import-says-what-it-left-out', 'plan-import-map-shows-the-drawing-and-its-pins']) {
+        'plan-import-says-what-it-left-out', 'plan-import-map-shows-the-drawing-and-its-pins',
+        'plan-import-pins-are-cars-in-their-bays', 'plan-import-cars-grow-with-the-plan']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
       console.log(`plan import checks: ${e.message}`);
