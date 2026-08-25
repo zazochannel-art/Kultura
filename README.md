@@ -199,12 +199,26 @@ bucket-ul `maps`, iar locurile lui intră în `zone_spots`.
 poartă, și asta a fost prima variantă — dar bucket-ul `maps` acceptă doar
 `image/jpeg`, `image/png`, `image/webp`, `image/gif` și maximum 5 MB, iar
 încărcarea pica în producție cu „mime type image/svg+xml is not supported".
-Planul se rasterizează, în ordinea asta: **WebP fără pierderi** (2,06 MB la
-3600 px — aceiași pixeli ca PNG-ul, cu un sfert mai mic), PNG dacă browserul nu
-știe să scrie WebP (îl întoarce oricum, așa spune specificația), JPEG doar dacă
-nu încape altfel. SVG-ul trebuie să-și *declare* lățimea țintă: un browser îl
-rasterizează la mărimea lui intrinsecă, iar mărirea de după în canvas ar face
-exact blurul pe care încercam să-l evităm.
+Planul se rasterizează la **4800 px** (o boxă de 2,5 m are ~34 px în sursă,
+deci mărirea de 8× cade pe pixeli adevărați). SVG-ul trebuie să-și *declare*
+lățimea țintă: un browser îl rasterizează la mărimea lui intrinsecă, iar
+mărirea de după în canvas ar face exact blurul pe care încercam să-l evităm.
+
+**Scara de calitate** (`fitMapBlob`) e comună planului desenat și hărții urcate
+de om. Se renunță la calitate în ordinea în care doare cel mai puțin:
+
+1. **WebP fără pierderi** — 2,88 MB la 4800 px pentru plan. Aceiași pixeli ca
+   PNG-ul, cu un sfert mai mic.
+2. **PNG** — pentru browserele care nu scriu WebP (`toBlob` cu tip nesuportat
+   întoarce PNG, așa spune specificația, deci treapta întâi devine singură a doua).
+3. **WebP 0,95**, apoi **JPEG 0,92**, apoi **JPEG 0,82**.
+4. **Abia la urmă pixeli**: dacă nimic nu încape, imaginea scade cu un sfert și
+   scara se reia. O hartă puțin comprimată la mărime întreagă se citește; una
+   clară dar mică nu se poate mări.
+
+Fără scara asta, harta urcată de om pica: o fotografie la 4096 px e ~17 MB ca
+PNG fără pierderi — exact ce producea calea aia înainte, și exact ce refuză
+bucket-ul.
 
 Mock-ul din `tests/smoke.mjs` cunoaște acum regulile bucket-ului (tipuri și
 limita de 5 MB) — pe cele vechi, care acceptau orice, eroarea a trecut până în
