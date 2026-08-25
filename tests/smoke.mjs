@@ -2729,10 +2729,14 @@ try {
         const w = document.getElementById('mapImageWrap').getBoundingClientRect();
         const v = vp.getBoundingClientRect();
         return { frameH: Math.round(v.height), frameW: Math.round(v.width), screenH: innerHeight,
+          // Where the frame ends against the fold — the claim is that the map
+          // and everything above it are on one screen, not that the frame is
+          // under some share of the window.
+          bottom: Math.round(v.bottom),
           inside: w.width <= v.width + 2 && w.height <= v.height + 2 };
       });
       check('plan-import-fits-the-whole-plan-on-one-screen',
-        framed.frameH <= framed.screenH * 0.7 && framed.inside, JSON.stringify(framed));
+        framed.bottom <= framed.screenH && framed.inside, JSON.stringify(framed));
       // The frame takes the drawing's shape rather than the page's width: a
       // full-width frame holding a narrow plan is a field of nothing.
       check('plan-import-frame-takes-the-plans-shape',
