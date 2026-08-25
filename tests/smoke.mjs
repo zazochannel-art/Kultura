@@ -2104,6 +2104,19 @@ try {
       check('map-zoom-grows-pins-slower-than-the-plan',
         pin.b > pin.a * 1.02 && pin.b < pin.a * 1.15 && pin.a > 10, JSON.stringify(pin));
 
+      // Frosted glass costs a render surface per pin. On a plan with a couple
+      // hundred of them the compositor re-layerized the whole map on every
+      // frame of a pan — 155ms of Layerize per gesture against 78ms without,
+      // measured on a throttled phone. Nothing about the look says so, which is
+      // exactly why it needs a check rather than a comment.
+      const costly = await zp.evaluate(() => {
+        const s = getComputedStyle(document.querySelector('.map-spot'));
+        return { backdrop: s.backdropFilter, filter: s.filter };
+      });
+      check('map-pins-carry-no-backdrop-filter',
+        (costly.backdrop === 'none' || !costly.backdrop) && (costly.filter === 'none' || !costly.filter),
+        JSON.stringify(costly));
+
       const zoomed = await zp.evaluate(() => {
         const wrap = document.getElementById('mapImageWrap');
         return { t: wrap.style.transform, val: document.getElementById('mapZoomVal').textContent };
@@ -2268,6 +2281,7 @@ try {
       for (const n of ['spots-row-places-the-whole-rank', 'spots-row-ends-land-on-the-taps',
         'spots-row-spaced-evenly', 'spots-row-numbers-continue-the-zone',
         'map-zoom-scales-the-plan', 'map-zoom-grows-pins-slower-than-the-plan',
+        'map-pins-carry-no-backdrop-filter',
         'map-zoom-reset-returns-to-fit', 'map-pan-cannot-expose-a-void',
         'spots-placed-where-tapped-when-zoomed', 'spots-dense-plans-fall-back-to-dots',
         'spots-clearing-a-zone-frees-its-cars', 'car-zone-change-releases-the-spot',

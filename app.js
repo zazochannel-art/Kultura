@@ -582,6 +582,9 @@
           + `<button type="button" id="mapZoomReset" aria-label="${escape(t('map.zoom_reset'))}" title="${escape(t('map.zoom_reset'))}">100%</button>`
           + `</div>`
           + `</div>`;
+        // A rebuilt map brings new elements: what the old ones were showing
+        // says nothing about them.
+        _shownZoom = -1;
         applyMapTransform();
         // Opening the lightbox would swallow every tap meant for a spot, so it
         // moves to its own control while spots are being placed or read.
@@ -868,11 +871,18 @@
       const roomAt = Math.min(6, 1.8 * Math.sqrt(ZONE_SPOTS.length / 26));
       layer.classList.toggle('dense', ZONE_SPOTS.length > 24 && _mapZoom < roomAt);
     }
+    let _shownZoom = -1;
     function applyMapTransform() {
       const wrap = el('mapImageWrap');
       if (!wrap) return;
       clampMapPan();
       wrap.style.transform = `translate(${_mapPanX}px, ${_mapPanY}px) scale(${_mapZoom})`;
+      // Everything below depends on the zoom and nothing else, while this runs
+      // on every pointer move of a pan. Rewriting the label and re-deciding the
+      // pin size there is a style invalidation per move for a value that did
+      // not change — and with a few hundred pins in the layer that is not free.
+      if (_shownZoom === _mapZoom) return;
+      _shownZoom = _mapZoom;
       const val = el('mapZoomVal');
       if (val) val.textContent = Math.round(_mapZoom * 100) + '%';
       el('mapViewport')?.classList.toggle('is-zoomed', _mapZoom > 1.01);
