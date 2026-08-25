@@ -1576,12 +1576,50 @@
       return alias && PARKING_ZONES.includes(alias) ? alias : String(name).trim();
     }
 
-    // The `maps` bucket accepts jpeg/png/webp/gif and nothing over 5 MB. SVG was
-    // the obvious way to keep a drawing sharp at the gate's 8x zoom, and it is
-    // exactly what the bucket refuses — so the plan is rasterised here, wide
-    // enough that zooming still reads.
+    // The `maps` bucket accepts jpeg/png/webp/gif and nothing over 5 MB.
     const MAP_MAX_BYTES = 5 * 1024 * 1024;
-    async function rasterisePlan(svg, width) {
+
+    /**
+     * The best version of a picture that the bucket will actually take.
+     *
+     * Quality is given up in the order it hurts least. Lossless first, because
+     * a parking plan is hairlines and small text and that is exactly what lossy
+     * compression eats — WebP at quality 1 is lossless and lands well under
+     * PNG, and a browser that cannot write WebP returns a PNG instead, which is
+     * the fallback rather than a failure. Only then near-lossless, then JPEG.
+     * Pixels go last: a slightly compressed full-size map still reads, a sharp
+     * small one cannot be zoomed into.
+     *
+     * A photograph does not compress like a drawing — 4096px of it is 17 MB as
+     * PNG — so without this every photo map failed the upload outright.
+     */
+    async function fitMapBlob(canvas) {
+      const enc = (c, type, q) => new Promise((res) => c.toBlob(res, type, q));
+      let c = canvas;
+      for (let shrink = 0; shrink < 5; shrink++) {
+        for (const [type, q] of [['image/webp', 1], ['image/png', undefined],
+                                 ['image/webp', 0.95], ['image/jpeg', 0.92], ['image/jpeg', 0.82]]) {
+          const b = await enc(c, type, q);
+          if (b && b.size <= MAP_MAX_BYTES) return b;
+        }
+        const w = Math.round(c.width * 0.75);
+        if (w < 900) break;
+        const n = document.createElement('canvas');
+        n.width = w;
+        n.height = Math.round(c.height * 0.75);
+        const ctx = n.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(c, 0, 0, n.width, n.height);
+        c = n;
+      }
+      return null;
+    }
+
+    // SVG was the obvious way to keep a drawing sharp at the gate's 8x zoom, and
+    // it is exactly what the bucket refuses — so the plan is rasterised here,
+    // wide enough that leaning all the way in still reads.
+    async function rasterisePlan(svg) {
       // The SVG has to *declare* the target width: a browser rasterises it at
       // its intrinsic size, and scaling that up in the canvas would just blur
       // a drawing we could have rendered sharp.
@@ -1597,16 +1635,7 @@
         c.width = im.naturalWidth;
         c.height = im.naturalHeight;
         c.getContext('2d').drawImage(im, 0, 0);
-        // Lossless first: a plan is flat colour and hairlines, and lossy
-        // compression smears exactly those. WebP at quality 1 is lossless here
-        // and lands ~25% under PNG for the same pixels; a browser that cannot
-        // encode WebP returns a PNG instead (the spec says so), which is the
-        // fallback rather than a failure. JPEG is the last resort, for size.
-        for (const [type, q] of [['image/webp', 1], ['image/png', undefined], ['image/jpeg', 0.9]]) {
-          const b = await new Promise((res) => c.toBlob(res, type, q));
-          if (b && b.size <= MAP_MAX_BYTES) return b;
-        }
-        return null;
+        return await fitMapBlob(c);
       } finally {
         URL.revokeObjectURL(url);
       }
@@ -1635,15 +1664,15 @@
         name: plan.name || 'plan', n: spots.length, cars: parked,
       }))) return;
 
-      const doc = planSvgDoc(plan, { spotsWord: t('map.plan_spots_word'), width: 3600 });
+      // 4800px across a 350 m site is a bay about 34 px wide in the source, so
+      // the gate's 8x zoom still lands on real pixels. Lossless, and under the
+      // bucket's ceiling with room to spare.
+      const doc = planSvgDoc(plan, { spotsWord: t('map.plan_spots_word'), width: 4800 });
       const status0 = el('mapStatus');
       status0.style.display = 'block';
       status0.style.color = 'var(--text-dim)';
       status0.textContent = t('map.plan_rendering');
-      // 3600px across a 350 m site is a bay about 25 px wide — still readable
-      // at the gate's 8x zoom. Half that is the fallback when it will not fit.
-      const img = await rasterisePlan(doc.svg, 3600)
-        || await rasterisePlan(planSvgDoc(plan, { spotsWord: t('map.plan_spots_word'), width: 2000 }).svg, 2000);
+      const img = await rasterisePlan(doc.svg);
       if (!img) { showToast(t('map.plan_too_big'), 'error'); return; }
       if (!await uploadMapBlob(img)) return;
 
@@ -1773,12 +1802,13 @@
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(el('cropImage'), sxp, syp, swp, shp, 0, 0, canvas.width, canvas.height);
-      // PNG = lossless: parking maps (lines/text) stay perfectly sharp, even
-      // when zoomed. JPEG fallback only if PNG somehow fails.
-      let blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
-      if (!blob) blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+      // Lossless when it fits — a parking map is lines and text, and those are
+      // what lossy compression eats. A photograph at this size does not fit, so
+      // the same ladder that serves the drawn plan serves it here.
+      const blob = await fitMapBlob(canvas);
       closeModal(el('modal-map-crop'));
       if (blob) uploadMapBlob(blob);
+      else showToast(t('map.plan_too_big'), 'error');
     });
     el('mapDeleteBtn').addEventListener('click', async () => {
       if (!_mapUrl || !(await uiConfirm(t('map.confirm_delete')))) return;

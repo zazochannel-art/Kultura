@@ -12,6 +12,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
+import zlib from 'node:zlib';
 import { chromium } from 'playwright';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -24,6 +25,34 @@ const check = (name, cond) => { checks.push({ name, ok: !!cond }); };
 // A valid one-page 400x200 PDF, built rather than committed: the PDF branch of
 // the template picker needs something real to parse, and a binary fixture in
 // the tree would be one more thing nobody can read in a diff.
+// A PNG of pure noise at a given size — the worst case a map upload can hand
+// the encoder, and the only kind that reliably blows the bucket's 5 MB ceiling.
+function noisyPng(w, h) {
+  const raw = Buffer.alloc((w * 3 + 1) * h);
+  let o = 0, seed = 7;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) % 256;
+  for (let y = 0; y < h; y++) {
+    raw[o++] = 0;
+    for (let x = 0; x < w; x++) { raw[o++] = rnd(); raw[o++] = rnd(); raw[o++] = rnd(); }
+  }
+  const crc32 = (buf) => {
+    let c = ~0;
+    for (const b of buf) { c ^= b; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xEDB88320 & -(c & 1)); }
+    return ~c >>> 0;
+  };
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(body));
+    return Buffer.concat([len, body, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4);
+  ihdr[8] = 8; ihdr[9] = 2;
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+
 function tinyPdf() {
   const stream = '1 0 0 RG 6 w 20 20 m 380 180 l S 0 0 1 rg 40 40 120 60 re f';
   const objs = [
@@ -2500,7 +2529,10 @@ try {
       await ip.click('#mapPlanBtn');
       await ip.waitForTimeout(700);
       await ip.evaluate(() => document.getElementById('uiDialogOk')?.click());
-      await ip.waitForTimeout(3000);
+      // Rendering 4800px of plan and encoding it takes seconds on this machine
+      // and longer on a slow runner, so wait for the result rather than a clock.
+      for (let i = 0; i < 80 && !savedSpots; i++) await ip.waitForTimeout(250);
+      await ip.waitForTimeout(500);
 
       check('plan-import-uploads-what-the-bucket-accepts',
         !!uploaded && MAPS_BUCKET.types.includes(uploaded.type) && uploaded.bytes <= MAPS_BUCKET.max
@@ -2541,6 +2573,34 @@ try {
       }
       console.log(`plan import checks: ${e.message}`);
     }
+    // The map a person uploads goes through the same ceiling. A photograph is
+    // 17 MB as lossless PNG at full size, which is what this path produced
+    // before — and the bucket refuses it outright. Quality may drop; the upload
+    // may not simply fail.
+    try {
+      uploaded = null;
+      await ip.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await ip.waitForTimeout(2600);
+      await ip.evaluate(() => {
+        document.getElementById('splashScreen')?.remove();
+        document.querySelector('.tab[data-section="map"], .mtab[data-section="map"]')?.click();
+      });
+      await ip.waitForTimeout(400);
+      // 4.3 megapixels of noise: about 5.8 MB as lossless PNG, which is what the
+      // old path produced and the bucket refused.
+      await ip.setInputFiles('#mapFileInput', { name: 'teren.png', mimeType: 'image/png', buffer: noisyPng(2400, 1800) });
+      await ip.waitForSelector('#cropConfirm', { state: 'visible', timeout: 8000 });
+      await ip.waitForTimeout(600);
+      await ip.click('#cropConfirm');
+      for (let i = 0; i < 80 && !uploaded; i++) await ip.waitForTimeout(250);
+      check('map-upload-fits-the-bucket',
+        !!uploaded && MAPS_BUCKET.types.includes(uploaded.type) && uploaded.bytes <= MAPS_BUCKET.max,
+        uploaded ? `${uploaded.type} ${(uploaded.bytes / 1048576).toFixed(2)}MB` : 'rejected by the bucket');
+    } catch (e) {
+      if (!checks.some((c2) => c2.name === 'map-upload-fits-the-bucket')) check('map-upload-fits-the-bucket', false);
+      console.log(`map upload check: ${e.message}`);
+    }
+
     check('plan-import-no-errors', ierrs.length === 0);
     if (ierrs.length) console.log('  import errors:', ierrs.slice(0, 3));
     await mctx2.close();
