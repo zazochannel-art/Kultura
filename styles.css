@@ -1978,6 +1978,7 @@
 /* The viewport is the frame; the wrapper inside it is what moves. Border and
    clipping live out here so they do not scale with the plan. */
 .map-viewport {
+  --map-cap: min(68vh, 560px);
   position: relative;
   /* The frame keeps the plan's own proportions. It has to be told them: the
      wrapper is out of flow, so it cannot hand the frame a height — and if it
@@ -1988,6 +1989,18 @@
      wider than the screen. */
   width: 100%;
   aspect-ratio: 4 / 3;
+  /* And never taller than a screenful. A venue plan is about as tall as it is
+     wide, so on a laptop the frame filled the window and then some — you could
+     read the map or the controls under it, never both. Capped, the whole plan
+     is on one screen, which is the only view that answers "where is
+     everything".
+     The width is capped to match, or the frame keeps the full page width and
+     holds a narrow drawing in the middle of a field of nothing. On a phone
+     neither cap binds: the screen is narrower than the cap and the plan is
+     shorter than it, so the frame stays exactly what it was. */
+  max-height: var(--map-cap);
+  max-width: calc(var(--map-cap) * var(--map-ar, 1.333));
+  margin-inline: auto;
   border: 1px solid var(--border);
   border-radius: 20px;
   overflow: hidden;
@@ -2091,34 +2104,33 @@
      a few hundred car outlines on the way to them is work for nothing. */
   pointer-events: none; overflow: visible;
 }
-/* An empty bay is empty: the mark is the shape of the car that would fit in it,
-   drawn light enough that the bay's own number still reads through. Painted
-   solid it would say there is a car standing there, on two hundred bays at once
-   — and left as a bare outline it disappeared at anything short of full zoom. */
+/* An empty bay is empty: what stands in it is the drawing of a car — white
+   body, dark lines, the way a spec sheet draws one from above. Painting it
+   would say there is a car standing there, on two hundred bays at once. */
 .map-cars .cp-body {
-  fill: #64748b; fill-opacity: .2;
-  stroke: #64748b; stroke-opacity: .8; stroke-width: 3;
+  fill: #ffffff; fill-opacity: .55;
+  stroke: #1e293b; stroke-opacity: .85; stroke-width: 2;
+  stroke-linejoin: round;
 }
-.map-cars .cp-glass { fill: none; }
-/* Taken: a car, and the map reads the way the ground does. The cabin is drawn
-   dark rather than pale — glass seen from above is the darkest part of a car,
-   and it is what makes the shape read as one at fifteen pixels across. */
-.map-cars .taken .cp-body {
-  fill: #2563eb; fill-opacity: 1;
-  stroke: rgba(255,255,255,0.85); stroke-opacity: 1;
+.map-cars .cp-trim {
+  fill: none; stroke: #1e293b; stroke-opacity: .6; stroke-width: 1.6;
+  stroke-linejoin: round;
 }
-.map-cars .here .cp-body { fill: #059669; }
-.map-cars .taken .cp-glass { fill: rgba(2,6,23,0.45); }
-/* The caption is painted on the car, at the car's own scale — a number on a
-   roof. The halo is what keeps it readable over a blue body, a green one and
-   the dark cabin between them alike. */
+/* Taken: the car is painted in its zone's own colour — the same colour the
+   zone is drawn in underneath, so the map says which class is parked where
+   without a legend. Expected is that colour at half strength and arrived is
+   the full one: the difference reads at a glance and costs no second hue. */
+.map-cars .taken .cp-body { fill: var(--zone, #2563eb); fill-opacity: .55; }
+.map-cars .here .cp-body { fill-opacity: 1; }
+/* Dark ink with a white halo, because a zone colour can be anything from
+   #ff0000 to #96e1e1 and white text would vanish on half of them. */
 .map-cars .cp-no {
-  font-size: 26px; font-weight: 800; fill: #fff;
-  paint-order: stroke; stroke: rgba(2,6,23,0.65); stroke-width: 3;
+  font-size: 22px; font-weight: 800; fill: #0f172a;
+  paint-order: stroke; stroke: #ffffff; stroke-opacity: .9; stroke-width: 3.5;
 }
 /* Placing spots is the one time the free ones are the subject, so there they
-   fill in: an outline half a pixel wide is not something you can aim at. */
-.map-cars.is-editing .cp-body { fill-opacity: .55; }
+   darken: an outline half a pixel wide is not something you can aim at. */
+.map-cars.is-editing .cp-body { fill: #94a3b8; fill-opacity: .8; }
 
 /* Dense plans: at fit-width forty pins in a row are a smear, so they fall back
    to dots and the numbers come back as soon as there is room to read them.
