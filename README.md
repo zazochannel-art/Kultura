@@ -213,6 +213,42 @@ mărirea trece de o octavă (1×, 2×, 4×, 8×) și nu la fiecare pas: `view bo
 se schimbă niciodată, deci procentele pinilor înseamnă același lucru la orice
 mărire.
 
+**Zoom-ul e o dimensiune, nu un `transform`.** Asta e reparația de fond, și a
+venit dintr-un raport de pe iPhone: desen vectorial, imagine pastă. `transform:
+scale()` pe înveliș arăta corect în Chromium, care re-rasterizează desenul la
+scara la care ajunge afișat; WebKit nu — un strat promovat păstrează bitmap-ul cu
+care a fost pictat prima dată și îl întinde. Așa că înveliul se **așază** la
+lățimea mărită (`width: 759%`), iar `transform` doar deplasează. Nimic nu mai e
+scalat, deci n-are ce să se întindă, în niciun motor.
+
+Trei lucruri vin la pachet cu asta:
+
+- **Frame-ul are `aspect-ratio`.** Învelișul a ieșit din flux (altfel ar fi
+  împins rama să crească odată cu zoom-ul și rama n-ar mai fi ramă), deci nu mai
+  poate să-i dea o înălțime. Raportul vine din `view box`-ul planului, sau din
+  mărimea pozei când se încarcă. Lățimea e fixată la `100%`, fiindcă altfel
+  `min-height`-ul de la `is-zoomed` se întorcea ca o ramă mai lată decât ecranul.
+- **Dimensiunea se fixează la 140 ms după ce zoom-ul se oprește.** Un deget pe
+  „+" e o rafală de apăsări, un pinch e o rafală de cadre, iar fiecare
+  dimensiune fixată reașază câteva mii de forme. `transform` arată schimbarea pe
+  loc, dimensiunea vine când rafala se termină — deci răspunde imediat și e clar
+  acolo unde te oprești. Ridicatul degetelor de pe sticlă o fixează fără să mai
+  aștepte.
+- **`will-change: transform` doar cât ține gestul.** Lăsat permanent, e
+  instrucțiunea „refolosește bitmap-ul pe care îl ai" — cealaltă jumătate a
+  motivului pentru care planul ieșea neclar.
+
+Redesenarea SVG-ului la schimbarea de octavă merge tot cu dimensiunea fixată,
+niciodată cu gestul: era singurul lucru scump de pe apăsare — 124 ms din cele
+146 pe care le lua un pas de zoom pe un telefon lent, față de 4 când octava nu
+se schimba. Acum un pas costă ~5 ms în handler și ~60 ms până pe ecran, măsurat
+cu procesorul încetinit de patru ori.
+
+Fiindcă planul se așază la mărimea lui adevărată, un pin măsurat în pixeli are
+deja aceeași mărime pe ecran la orice zoom — de-aia `--pin-s` e acum
+`zoom^0,12` (creșterea mică de deasupra) și nu `zoom^-0,88` (contra-scalarea de
+care era nevoie cât timp totul era scalat).
+
 **Scara de calitate** (`fitMapBlob`) a rămas, dar acum e doar pentru harta urcată
 de om. Se renunță la calitate în ordinea în care doare cel mai puțin:
 
