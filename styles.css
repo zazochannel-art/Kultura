@@ -1963,11 +1963,13 @@
   transform-origin: 0 0;
   background: var(--surface-solid);
 }
-/* Only for the length of a gesture. Left on permanently, `will-change:
-   transform` tells the engine to keep the bitmap it already has and move it —
-   which is right for a pan and wrong for everything else: on WebKit it is what
-   turned a vector plan into mush the moment anything scaled it. */
-.map-viewport.gesturing .map-image-wrap { will-change: transform; }
+/* No `will-change: transform`, in either direction. Left on permanently it
+   tells the engine to keep the bitmap it already has and move it — on WebKit
+   that is what turned a vector plan into mush the moment anything scaled it.
+   Switched on for the length of a gesture instead, it changes the element's
+   layer in the middle of a touch sequence, which is a good way to lose the
+   sequence. The pan is a translation now; engines composite one of those
+   without being asked. */
 .map-image-wrap img { width: 100%; height: auto; display: block; cursor: zoom-in; -webkit-user-drag: none; user-select: none; }
 /* A drawn plan is drawn, not shown: SVG in the page stays sharp at any zoom,
    where a picture has a resolution and the gate zooms to eight times. */
