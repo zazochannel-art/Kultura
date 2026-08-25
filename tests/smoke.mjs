@@ -21,6 +21,27 @@ const BASE = `http://localhost:${PORT}`;
 const checks = [];
 const check = (name, cond) => { checks.push({ name, ok: !!cond }); };
 
+// A valid one-page 400x200 PDF, built rather than committed: the PDF branch of
+// the template picker needs something real to parse, and a binary fixture in
+// the tree would be one more thing nobody can read in a diff.
+function tinyPdf() {
+  const stream = '1 0 0 RG 6 w 20 20 m 380 180 l S 0 0 1 rg 40 40 120 60 re f';
+  const objs = [
+    '<</Type/Catalog/Pages 2 0 R>>',
+    '<</Type/Pages/Kids[3 0 R]/Count 1>>',
+    '<</Type/Page/Parent 2 0 R/MediaBox[0 0 400 200]/Contents 4 0 R/Resources<<>>>>',
+    `<</Length ${stream.length}>>\nstream\n${stream}\nendstream`,
+  ];
+  let out = '%PDF-1.4\n';
+  const off = [];
+  objs.forEach((o, i) => { off.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+  for (const o of off) out += String(o).padStart(10, '0') + ' 00000 n \n';
+  out += `trailer\n<</Size ${objs.length + 1}/Root 1 0 R>>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(out, 'latin1');
+}
+
 function startServer() {
   const srv = spawn('node', ['server.js'], { cwd: ROOT, env: { ...process.env, PORT }, stdio: 'ignore' });
   return srv;
@@ -453,7 +474,7 @@ try {
     const small = [];
     const overflowing = [];
     const stillVisible = [];
-    for (const name of ['index', 'register', 'vote', 'agenda', 'feedback', 'ticket', 'confirmed', 'privacy']) {
+    for (const name of ['index', 'register', 'vote', 'agenda', 'feedback', 'ticket', 'confirmed', 'privacy', 'plan']) {
       const mp = await mctx.newPage();
       try {
         await mp.goto(`${BASE}/${name}.html`, { waitUntil: 'domcontentloaded' });
@@ -499,7 +520,7 @@ try {
     // before that rule existed. Left as-is pending a call on it, not an
     // oversight; add it here the moment its viewport is cleaned up.
     const metas = [];
-    for (const name of ['index', 'register', 'vote', 'agenda', 'feedback']) {
+    for (const name of ['index', 'register', 'vote', 'agenda', 'feedback', 'plan']) {
       const mp = await mctx.newPage();
       await mp.goto(`${BASE}/${name}.html`, { waitUntil: 'domcontentloaded' });
       const v = await mp.evaluate(() =>
@@ -2227,6 +2248,157 @@ try {
     await zctx.close();
   }
 
+  // 4r. The plan editor (`plan.html`). It shares nothing with the zone map above:
+  // no Supabase, no ui_settings, no photo in the saved plan. The photo is a
+  // tracing template and the drawing is the deliverable, so what is checked here
+  // is that shapes can be drawn, a row re-spaces itself, and the plan outlives
+  // the photo it was traced from.
+  {
+    const pctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const pp = await pctx.newPage();
+    const perrs = [];
+    pp.on('pageerror', (e) => perrs.push(e.message));
+    try {
+      await pp.goto(`${BASE}/plan.html`, { waitUntil: 'domcontentloaded' });
+      await pp.evaluate(() => localStorage.clear());
+      await pp.reload({ waitUntil: 'domcontentloaded' });
+      await pp.waitForTimeout(400);
+      const box = await pp.locator('#stage').boundingBox();
+      const at = (fx, fy) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy });
+
+      // A zone: a click per corner, Enter closes it.
+      await pp.click('.tool[data-tool="zone"]');
+      for (const [fx, fy] of [[0.25, 0.2], [0.6, 0.2], [0.6, 0.5], [0.25, 0.5]]) {
+        const q = at(fx, fy);
+        await pp.mouse.click(q.x, q.y);
+        await pp.waitForTimeout(50);
+      }
+      await pp.keyboard.press('Enter');
+      await pp.waitForTimeout(200);
+      check('plan-zone-drawn', await pp.textContent('#sItems') === '1');
+      check('plan-zone-area-in-square-metres', (+(await pp.textContent('#sArea'))) > 0);
+
+      // A row: one drag gives both ends, and the count comes from the length.
+      await pp.click('.tool[data-tool="row"]');
+      const a = at(0.3, 0.7), b = at(0.75, 0.7);
+      await pp.mouse.move(a.x, a.y);
+      await pp.mouse.down();
+      await pp.mouse.move(b.x, b.y, { steps: 10 });
+      await pp.mouse.up();
+      await pp.waitForTimeout(700);
+      // "More than one spot" passes with the spacing broken. What the row
+      // promises is that its spots come from its length, so check that number.
+      const row = await pp.evaluate(() => {
+        const it = JSON.parse(localStorage.getItem('kultura.plan.v1') || '{}').items
+          .find((x) => x.t === 'row');
+        return it ? { len: Math.hypot(it.b[0] - it.a[0], it.b[1] - it.a[1]), n: it.n } : null;
+      });
+      check('plan-row-spots-follow-its-length',
+        !!row && row.n > 1 && (+(await pp.textContent('#sSpots'))) === Math.round(row.len / 2.5));
+
+      // Retuning the count must not steal the field being typed into.
+      await pp.fill('#pN', '12');
+      await pp.waitForTimeout(250);
+      check('plan-row-recount', await pp.textContent('#sSpots') === '12');
+      check('plan-panel-keeps-focus',
+        await pp.evaluate(() => document.activeElement && document.activeElement.id) === 'pN');
+
+      // A facing row continues the numbering rather than repeating it.
+      await pp.click('[data-act="rowdup"]');
+      await pp.waitForTimeout(250);
+      check('plan-parallel-row-continues-numbering',
+        await pp.textContent('#sSpots') === '24' && await pp.locator('#dupWarn').isHidden());
+
+      await pp.keyboard.press('Control+z');
+      await pp.waitForTimeout(200);
+      check('plan-undo', await pp.textContent('#sSpots') === '12');
+
+      // The plan is the drawing: it survives a reload, and it survives losing
+      // the photo it was traced from — which never entered the saved plan.
+      await pp.waitForTimeout(700);
+      await pp.reload({ waitUntil: 'domcontentloaded' });
+      await pp.waitForTimeout(500);
+      check('plan-persists-locally', await pp.textContent('#sItems') === '2');
+      check('plan-holds-no-photo',
+        !(await pp.evaluate(() => localStorage.getItem('kultura.plan.v1') || '')).includes('data:image'));
+      check('plan-never-touches-supabase',
+        !(await pp.evaluate(() => document.documentElement.innerHTML)).includes('supabase'));
+
+      // A plan kept beside the page opens from a link, so a venue plan can be
+      // handed round as a URL instead of a file.
+      await pp.evaluate(() => localStorage.clear());
+      await pp.goto(`${BASE}/plan.html?load=plans/plan-06.json`, { waitUntil: 'domcontentloaded' });
+      await pp.waitForTimeout(2500);
+      check('plan-load-param-opens-a-bundled-plan', (+(await pp.textContent('#sSpots'))) > 200,
+        await pp.textContent('#sSpots'));
+
+      // A plan traced from a drawing carries thousands of background shapes.
+      // They live on their own layer: locked, so clicks reach the plan through
+      // them, and redrawn only when they change — not on every frame of a drag.
+      const layers = await pp.evaluate(() => ({
+        scenery: document.getElementById('scenery').childElementCount,
+        live: document.getElementById('items').childElementCount,
+        pe: document.getElementById('scenery').getAttribute('pointer-events'),
+        bg: getComputedStyle(document.getElementById('stageWrap')).backgroundColor,
+      }));
+      check('plan-scenery-on-its-own-layer',
+        layers.scenery > 1000 && layers.live > 200 && layers.live < layers.scenery,
+        JSON.stringify(layers));
+      check('plan-scenery-locked-so-clicks-pass-through', layers.pe === 'none', layers.pe);
+      check('plan-paper-background', layers.bg !== 'rgba(0, 0, 0, 0)' && !/^rgb\(7, 8, 13\)/.test(layers.bg), layers.bg);
+      await pp.click('#sceneryBtn');
+      await pp.waitForTimeout(250);
+      check('plan-scenery-unlocks-on-demand',
+        await pp.evaluate(() => document.getElementById('scenery').getAttribute('pointer-events')) === 'auto');
+
+      // …but only from beside the page. A link is the one input a stranger
+      // controls, so the path must never climb out of the site.
+      const asked = [];
+      pp.on('request', (r) => asked.push(r.url()));
+      await pp.evaluate(() => localStorage.clear());
+      await pp.goto(`${BASE}/plan.html?load=../../etc/passwd`, { waitUntil: 'domcontentloaded' });
+      await pp.waitForTimeout(700);
+      check('plan-load-param-refuses-a-path-outside-the-site',
+        // The page's own URL carries the word too — it is the path that matters.
+        await pp.textContent('#sItems') === '0'
+        && !asked.some((u) => /passwd/.test(new URL(u).pathname)));
+
+      // The venue's own drawing usually arrives as a PDF, not a photo.
+      const pdf = tinyPdf();
+      await pp.goto(`${BASE}/plan.html`, { waitUntil: 'domcontentloaded' });
+      await pp.evaluate(() => localStorage.clear());
+      await pp.reload({ waitUntil: 'domcontentloaded' });
+      await pp.waitForTimeout(400);
+      await pp.setInputFiles('#uFile', { name: 'plan.pdf', mimeType: 'application/pdf', buffer: pdf });
+      await pp.waitForTimeout(3000);
+      const href = await pp.getAttribute('#uImg', 'href');
+      const aspect = await pp.evaluate(() => {
+        const im = document.getElementById('uImg');
+        return +im.getAttribute('width') / +im.getAttribute('height');
+      });
+      check('plan-pdf-becomes-the-template',
+        await pp.locator('#uImg').isVisible() && !!href && href.startsWith('data:image/')
+        && Math.abs(aspect - 2) < 0.02, 'aspect=' + aspect);
+      check('plan-pdf-stays-out-of-the-saved-plan',
+        !(await pp.evaluate(() => localStorage.getItem('kultura.plan.v1') || '')).includes('data:image'));
+    } catch (e) {
+      for (const n of ['plan-zone-drawn', 'plan-zone-area-in-square-metres',
+        'plan-row-spots-follow-its-length', 'plan-row-recount', 'plan-panel-keeps-focus',
+        'plan-parallel-row-continues-numbering', 'plan-undo', 'plan-persists-locally',
+        'plan-holds-no-photo', 'plan-never-touches-supabase',
+        'plan-load-param-opens-a-bundled-plan', 'plan-load-param-refuses-a-path-outside-the-site',
+        'plan-pdf-becomes-the-template', 'plan-pdf-stays-out-of-the-saved-plan',
+        'plan-scenery-on-its-own-layer', 'plan-scenery-locked-so-clicks-pass-through',
+        'plan-paper-background', 'plan-scenery-unlocks-on-demand']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`plan editor checks: ${e.message}`);
+    }
+    check('plan-no-errors', perrs.length === 0);
+    if (perrs.length) console.log('  plan.html errors:', perrs.slice(0, 3));
+    await pctx.close();
+  }
+
   // 5. Public pages (given out by QR at the event) must render standalone.
   // They talk to Supabase, which is unreachable here, so we only assert the
   // static shell renders and nothing throws before the network call.
@@ -2258,7 +2430,7 @@ try {
   const axePath = resolve(ROOT, 'node_modules/axe-core/axe.min.js');
   if (existsSync(axePath)) {
     const axeSrc = readFileSync(axePath, 'utf8');
-    for (const name of ['index', 'register', 'vote', 'agenda', 'feedback']) {
+    for (const name of ['index', 'register', 'vote', 'agenda', 'feedback', 'plan']) {
       const p = await ctx.newPage();
       try {
         await p.goto(`${BASE}/${name}.html`, { waitUntil: 'domcontentloaded' });

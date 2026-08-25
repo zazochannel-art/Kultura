@@ -97,6 +97,8 @@ veche în cache.
 | `styles.css` | Stiluri |
 | `sw.js` | Service worker (cache stale-while-revalidate) |
 | `server.js` | Server static pentru dezvoltare |
+| `plan.html` | Editor de plan al terenului. **De sine stătător** — vezi mai jos |
+| `plans/*.json` | Planuri gata făcute, deschise cu `plan.html?load=plans/x.json` |
 
 ### Pagini publice (se dau prin QR/link, nu necesită cont)
 
@@ -108,6 +110,78 @@ veche în cache.
 | `feedback.html` | Feedback post-eveniment (stele + comentariu) |
 | `confirm.html` | „Vii la eveniment?" — link personal semnat, trimis în memento |
 | `ticket.html` | Biletul participantului (QR de check-in) **și** butonul de conectare la Telegram |
+
+### `plan.html` — planul desenat al terenului
+
+Pagină separată (`/plan.html`), fără legătură cu harta din aplicație. Harta din
+`index.html` e o **poză** peste care se pun pini; asta e un **desen**: zone ca
+poligoane, rânduri de locuri descrise prin cele două capete și numărul de
+locuri, alei, repere și text — totul în **metri**, nu în procente dintr-o
+imagine.
+
+Poza intră doar ca machetă sub desen: o pui, o calibrezi cu unealta 📏 („bucata
+asta are 12 m"), trasezi peste ea, apoi o scoți. Nu intră în plan și nu se
+exportă. Acceptă și PDF — planul unui teren vine de la arhitect ca PDF, nu ca
+fotografie — randat cu `vendor/pdf.min.js`, încărcat abia când chiar alegi un PDF.
+
+Un plan gata făcut se deschide dintr-un link: `plan.html?load=plans/plan-06.json`.
+Calea trebuie să fie relativă și să se termine în `.json`; dacă pe dispozitiv
+există deja un desen, pagina întreabă înainte să-l înlocuiască.
+
+### `plans/plan-06.json` — terenul Kultura Fest
+
+Extras din PDF-ul de execuție al evenimentului, nu desenat de mână. **2 628 de
+obiecte**: tot desenul — asfalt, clădiri, alei, standuri, rândurile de parcare
+ale vizitatorilor — plus **258 de locuri**, fiecare exact acolo unde e desenată
+o mașină în plan, cu unghiul ei, grupate în 15 zone (STANCE, MODERN CARS, JDM,
+AUTOSPORT, AMERICA, EURO, RETRO, GREEN ZONE, EXPO, VIP, DRIFT, Technical,
+тех. парковка, FOOD COURT, CHILL). Culorile sunt cele din PDF.
+
+Ce **nu** intră: liniile mai scurte de 1,4 m (detaliul interior al simbolurilor
+și hașurile — 58 450 de trasee aruncate din 60 800) și conturul mașinilor, care
+e deja reprezentat de locuri. Fără filtrul ăsta planul ar avea 60 de mii de
+forme și n-ar mai fi editabil.
+
+Scara nu e ghicită: PDF-ul își poartă propriile etichete de suprafață
+(1 843,37 m², 1 091,66 m², 869,18 m², 262,70 m²), iar toate patru dau aceeași
+valoare — **0,7094 m/pt**. La scara aia simbolul mașinii măsoară 4,72 × 1,90 m,
+adică o mașină. Verificarea a fost vizuală: PDF-ul pus ca machetă la scara
+calculată, iar locurile cad peste mașinile desenate.
+
+Cele 20 de locuri fără zonă sunt mașini desenate în afara oricărei zone
+colorate din PDF; sunt păstrate ca locuri și numărate separat, nu inventate o
+zonă pentru ele.
+
+Ce se desenează: **zone** (poligoane cu suprafața în m²), **rânduri** de locuri
+descrise prin cele două capete și numărul de locuri, **locuri** singulare,
+**alei**, **repere** și **text**. La import mai apar două tipuri pe care nu le
+desenezi de mână, ci vin dintr-un plan: **suprafețe** (`area`) și **linii**
+(`line`) — fondul desenului.
+
+Fondul stă pe stratul lui (`#scenery`), din două motive care se văd imediat pe
+un plan de câteva mii de forme: e **blocat** (apeși prin el, deci muți planul și
+desenezi peste fără să-l agăți — se deblochează dintr-un buton), și se
+redesenează doar când se schimbă sau când se schimbă zoom-ul. O deplasare nu-l
+atinge. Grosimile de linie sunt în pixeli de ecran (`non-scaling-stroke`), ca un
+plan CAD: firul rămâne fir la orice mărire.
+
+**Fundalul** are două stări: întunecat (ca restul aplicației) și **hârtie** —
+alb, cu etichetele în tuș, ca planul de la arhitect. Alegerea stă în plan, deci
+se exportă cu el.
+
+Ce trebuie știut înainte de a o atinge:
+
+- **Nu vorbește cu Supabase.** Planul stă în `localStorage`
+  (`kultura.plan.v1`), macheta separat (`kultura.plan.underlay.v1`, best-effort:
+  o poză prea mare depășește cota și atunci se pierde doar macheta, nu planul).
+  Se mută între dispozitive prin export/import JSON.
+- **Nu împarte nimic cu `zone_map_url` / `zone_spots`.** Sunt două lucruri
+  diferite, intenționat. Dacă vreodată se leagă, legătura se face explicit,
+  prin JSON-ul exportat.
+- **Un singur fișier**, ca `vote.html` și `agenda.html`: HTML + CSS + JS inline.
+  Sintaxa lui nu e prinsă de `node --check` din CI (verifică doar `*.js`), dar
+  pagina e acoperită de `tests/smoke.mjs` (secțiunea `4r`) și de sweep-ul de
+  accesibilitate.
 
 ## Roluri și permisiuni
 
