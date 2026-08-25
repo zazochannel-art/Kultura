@@ -1944,6 +1944,15 @@
    clipping live out here so they do not scale with the plan. */
 .map-viewport {
   position: relative;
+  /* The frame keeps the plan's own proportions. It has to be told them: the
+     wrapper is out of flow, so it cannot hand the frame a height — and if it
+     could, the frame would grow with the zoom and stop being a frame. The
+     ratio is replaced with the real one as soon as the map is known.
+     The width is pinned so the ratio only ever decides the height: left to
+     itself, the taller frame `is-zoomed` asks for came back out as a frame
+     wider than the screen. */
+  width: 100%;
+  aspect-ratio: 4 / 3;
   border: 1px solid var(--border);
   border-radius: 20px;
   overflow: hidden;
@@ -1952,9 +1961,13 @@
 }
 .map-image-wrap {
   transform-origin: 0 0;
-  will-change: transform;
   background: var(--surface-solid);
 }
+/* Only for the length of a gesture. Left on permanently, `will-change:
+   transform` tells the engine to keep the bitmap it already has and move it —
+   which is right for a pan and wrong for everything else: on WebKit it is what
+   turned a vector plan into mush the moment anything scaled it. */
+.map-viewport.gesturing .map-image-wrap { will-change: transform; }
 .map-image-wrap img { width: 100%; height: auto; display: block; cursor: zoom-in; -webkit-user-drag: none; user-select: none; }
 /* A drawn plan is drawn, not shown: SVG in the page stays sharp at any zoom,
    where a picture has a resolution and the gate zooms to eight times. */
@@ -1984,7 +1997,7 @@
 /* ---- Numbered spots over the venue photo ---------------------------------
    Positions are percentages, so the wrapper must establish the coordinate
    space and the layer must match the image exactly. */
-.map-image-wrap { position: relative; }
+.map-image-wrap { position: absolute; top: 0; left: 0; width: 100%; }
 .map-spot-layer { position: absolute; inset: 0; pointer-events: none; }
 .map-spot-layer .map-spot { pointer-events: auto; }
 .map-spot-layer.is-editing { cursor: crosshair; }

@@ -22,6 +22,15 @@ const BASE = `http://localhost:${PORT}`;
 const checks = [];
 const check = (name, cond) => { checks.push({ name, ok: !!cond }); };
 
+// The map shows a zoom at once and commits its size a beat later — the size is
+// the sharp half, so every assertion about the map's geometry is about the
+// committed state. Wait for it rather than for a clock.
+// Best-effort: if the size never commits, the checks below should say so
+// themselves — one clear failure beats a section that falls over on a wait.
+const mapSettled = (page) => page.waitForFunction(
+  () => !/scale/.test(document.getElementById('mapImageWrap')?.style.transform || ''),
+  null, { timeout: 5000 }).catch(() => {});
+
 // A valid one-page 400x200 PDF, built rather than committed: the PDF branch of
 // the template picker needs something real to parse, and a binary fixture in
 // the tree would be one more thing nobody can read in a diff.
@@ -2101,12 +2110,13 @@ try {
       // in keeps spreading pins apart instead of packing them tighter. Measured
       // between two zoom levels that are both past the dense cutoff, or the
       // fallback's own size change would answer for the scale.
-      const pin = await zp.evaluate(() => {
-        const w = () => document.querySelector('.map-spot[data-spot-no="3"]').getBoundingClientRect().width;
-        const a = w();
-        document.getElementById('mapZoomIn').click();
-        return { a, b: w(), zoom: document.getElementById('mapZoomVal').textContent };
-      });
+      const pinWidth = () => zp.evaluate(() =>
+        document.querySelector('.map-spot[data-spot-no="3"]').getBoundingClientRect().width);
+      await mapSettled(zp);
+      const pinA = await pinWidth();
+      await zp.evaluate(() => document.getElementById('mapZoomIn').click());
+      await mapSettled(zp);
+      const pin = { a: pinA, b: await pinWidth(), zoom: await zp.textContent('#mapZoomVal') };
       check('map-zoom-grows-pins-slower-than-the-plan',
         pin.b > pin.a * 1.02 && pin.b < pin.a * 1.15 && pin.a > 10, JSON.stringify(pin));
 
@@ -2123,11 +2133,26 @@ try {
         (costly.backdrop === 'none' || !costly.backdrop) && (costly.filter === 'none' || !costly.filter),
         JSON.stringify(costly));
 
+      // Zoom is a size, not a transform. `transform: scale()` looked right in
+      // Chromium, which re-rasterises the drawing at the scale it is shown at;
+      // WebKit keeps the bitmap it first painted and stretches it, so on an
+      // iPhone a vector plan came out mush at the zoom the gate reads it at.
+      // What has to hold is that at rest nothing is being scaled: the wrapper
+      // is laid out at its zoomed width and the transform only ever pans.
+      await mapSettled(zp);
       const zoomed = await zp.evaluate(() => {
         const wrap = document.getElementById('mapImageWrap');
-        return { t: wrap.style.transform, val: document.getElementById('mapZoomVal').textContent };
+        const vp = document.getElementById('mapViewport');
+        return {
+          t: wrap.style.transform, w: wrap.style.width,
+          ratio: wrap.getBoundingClientRect().width / vp.clientWidth,
+          val: document.getElementById('mapZoomVal').textContent,
+        };
       });
-      check('map-zoom-scales-the-plan', /scale\(3\.375\)/.test(zoomed.t) && zoomed.val === '338%', JSON.stringify(zoomed));
+      check('map-zoom-lays-the-plan-out-larger',
+        Math.abs(zoomed.ratio - 3.375) < 0.02 && zoomed.val === '338%', JSON.stringify(zoomed));
+      check('map-zoom-never-stretches-what-it-drew',
+        !/scale/.test(zoomed.t) && /^translate\(/.test(zoomed.t), JSON.stringify(zoomed));
 
       // Dragging past the corner must stop at the corner: a plan that can be
       // pulled off its own frame leaves the reader looking at nothing.
@@ -2190,13 +2215,19 @@ try {
         JSON.stringify({ one, want }));
 
       await zp.evaluate(() => document.getElementById('mapZoomReset').click());
-      await zp.waitForTimeout(150);
-      const back = await zp.evaluate(() => ({
-        t: document.getElementById('mapImageWrap').style.transform,
-        val: document.getElementById('mapZoomVal').textContent,
-      }));
+      await mapSettled(zp);
+      const back = await zp.evaluate(() => {
+        const wrap = document.getElementById('mapImageWrap');
+        const vp = document.getElementById('mapViewport');
+        return {
+          t: wrap.style.transform,
+          ratio: wrap.getBoundingClientRect().width / vp.clientWidth,
+          val: document.getElementById('mapZoomVal').textContent,
+        };
+      });
       check('map-zoom-reset-returns-to-fit',
-        /scale\(1\)/.test(back.t) && /translate\(0px, 0px\)/.test(back.t) && back.val === '100%',
+        Math.abs(back.ratio - 1) < 0.02 && /translate\(0px, 0px\)/.test(back.t)
+        && !/scale/.test(back.t) && back.val === '100%',
         JSON.stringify(back));
 
       // A whole row from its two ends. This is the difference between laying a
@@ -2286,8 +2317,8 @@ try {
     } catch (e) {
       for (const n of ['spots-row-places-the-whole-rank', 'spots-row-ends-land-on-the-taps',
         'spots-row-spaced-evenly', 'spots-row-numbers-continue-the-zone',
-        'map-zoom-scales-the-plan', 'map-zoom-grows-pins-slower-than-the-plan',
-        'map-pins-carry-no-backdrop-filter',
+        'map-zoom-lays-the-plan-out-larger', 'map-zoom-never-stretches-what-it-drew',
+        'map-zoom-grows-pins-slower-than-the-plan', 'map-pins-carry-no-backdrop-filter',
         'map-zoom-reset-returns-to-fit', 'map-pan-cannot-expose-a-void',
         'spots-placed-where-tapped-when-zoomed', 'spots-dense-plans-fall-back-to-dots',
         'spots-clearing-a-zone-frees-its-cars', 'car-zone-change-releases-the-spot',
@@ -2627,13 +2658,31 @@ try {
       });
       check('plan-import-cars-grow-with-the-plan',
         grew.b > grew.a * 2.1 && grew.b < grew.a * 2.4, JSON.stringify(grew));
+      // And the drawing under them is laid out at that size rather than
+      // stretched to it. An SVG painted at fit-width and then scaled is a
+      // bitmap with extra steps — which is what a vector plan turned into on an
+      // iPhone, where the engine keeps the raster it first made.
+      await mapSettled(ip);
+      const sharp = await ip.evaluate(() => {
+        const wrap = document.getElementById('mapImageWrap');
+        const svg = document.querySelector('#mapPlan svg');
+        return {
+          zoom: document.getElementById('mapZoomVal').textContent,
+          svgPx: Math.round(svg.getBoundingClientRect().width),
+          framePx: document.getElementById('mapViewport').clientWidth,
+          t: wrap.style.transform,
+        };
+      });
+      check('plan-import-draws-the-plan-at-the-zoomed-size',
+        sharp.svgPx > sharp.framePx * 2.1 && !/scale/.test(sharp.t), JSON.stringify(sharp));
     } catch (e) {
       for (const n of ['plan-import-button-for-staff', 'plan-import-keeps-the-plan-a-drawing',
         'plan-import-saves-the-spots', 'plan-import-pins-land-inside-the-image',
         'plan-import-pins-carry-their-bay',
         'plan-import-speaks-the-app-zone-names', 'plan-import-frees-a-car-whose-spot-is-gone',
         'plan-import-says-what-it-left-out', 'plan-import-map-shows-the-drawing-and-its-pins',
-        'plan-import-pins-are-cars-in-their-bays', 'plan-import-cars-grow-with-the-plan']) {
+        'plan-import-pins-are-cars-in-their-bays', 'plan-import-cars-grow-with-the-plan',
+        'plan-import-draws-the-plan-at-the-zoomed-size']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
       console.log(`plan import checks: ${e.message}`);

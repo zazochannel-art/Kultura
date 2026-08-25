@@ -605,12 +605,20 @@
           + `</div>`
           + `</div>`;
         // A rebuilt map brings new elements: what the old ones were showing
-        // says nothing about them.
+        // says nothing about them, and the size the last wrapper was laid out
+        // at says nothing about this one.
         _shownZoom = -1;
+        _mapLaidAt = 0;
+        _mapMeasuredAt = -1;
+        // After the plan is drawn: the frame's proportions are the drawing's,
+        // and until it is rendered nothing knows what those are.
         if (_plan) renderPlanVector();
+        setMapFrameRatio();
         applyMapTransform();
         // Opening the lightbox would swallow every tap meant for a spot, so it
         // moves to its own control while spots are being placed or read.
+        // A photo only knows its shape once it has arrived.
+        if (el('mapImage')) el('mapImage').onload = setMapFrameRatio;
         if (el('mapImage')) el('mapImage').onclick = (e) => {
           if (_spotEdit || ZONE_SPOTS.length || _mapZoom > 1.01 || _mapPanMoved) return;
           e.preventDefault(); openLightbox(_mapUrl);
@@ -929,7 +937,9 @@
     function renderPlanVector() {
       const host = el('mapPlan');
       if (!host || !_plan) return;
-      const css = host.clientWidth || el('mapViewport')?.clientWidth || 360;
+      // The frame's width, not the host's: the host is laid out at the zoomed
+      // width now, and taking it would count the zoom twice.
+      const css = el('mapViewport')?.clientWidth || host.clientWidth || 360;
       const dpr = Math.min(3, window.devicePixelRatio || 1);
       // Banded, because regenerating a few thousand shapes on every zoom step
       // would cost more than the sharpness is worth.
@@ -981,16 +991,55 @@
     let _mapZoom = 1, _mapPanX = 0, _mapPanY = 0, _mapPanMoved = false;
     const MAP_ZOOM_MAX = 8;
 
-    // The plan's size before any zoom. `offsetWidth`/`offsetHeight` round to
-    // whole pixels, and at 8x half a pixel becomes a visible strip of frame
-    // beside the map — so measure it properly, and only when the width changes.
+    // The frame's proportions, from whatever the map turns out to be. Without
+    // them it would have none: the wrapper inside it is out of flow.
+    function setMapFrameRatio() {
+      const vp = el('mapViewport');
+      if (!vp) return;
+      const img = el('mapImage');
+      const r = _planView ? [_planView.w, _planView.h]
+        : (img && img.naturalWidth ? [img.naturalWidth, img.naturalHeight] : null);
+      if (r) vp.style.aspectRatio = r[0] + ' / ' + r[1];
+    }
+
+    /**
+     * Zoom is a size, not a transform.
+     *
+     * `transform: scale()` on the wrapper was cheap and looked right in
+     * Chromium, which re-rasterises the drawing at the scale it ends up shown
+     * at. WebKit does not: a promoted layer keeps the bitmap it was first
+     * painted with and stretches it. On an iPhone the plan therefore turned to
+     * mush at exactly the zoom the gate reads it at — vector source, blurred
+     * output. Laying the wrapper out at its zoomed width instead paints the
+     * SVG at that width in every engine, because nothing is being scaled.
+     *
+     * A pinch is the exception. Re-laying out a few thousand shapes per frame
+     * is not a gesture, it is a slideshow — so while the fingers are down the
+     * transform takes the difference and the size is committed when they lift.
+     * `_mapLaidAt` is the zoom the layout is currently built for; the residual
+     * is what the transform still has to make up, and at rest it is exactly 1.
+     */
+    let _mapLaidAt = 0;
+    function layoutMapZoom(wrap) {
+      if (Math.abs(_mapLaidAt - _mapZoom) < 1e-4) return;
+      _mapLaidAt = _mapZoom;
+      wrap.style.width = (100 * _mapZoom) + '%';
+    }
+
+    // The plan's size before any zoom. Measured with the zoom divided back out,
+    // because the wrapper is laid out at the zoomed width now. `offsetWidth`
+    // rounds to whole pixels, and at 8x half a pixel is a visible strip of
+    // frame beside the map — so measure it properly, and only when the frame
+    // itself changes size.
     let _mapContentW = 0, _mapContentH = 0, _mapMeasuredAt = -1;
     function mapContentSize(wrap) {
-      if (_mapMeasuredAt !== wrap.offsetWidth || !_mapContentH) {
+      const frame = wrap.parentElement ? wrap.parentElement.clientWidth : 0;
+      if (_mapMeasuredAt !== frame || !_mapContentH) {
         const cs = getComputedStyle(wrap);
-        _mapContentW = parseFloat(cs.width) || wrap.offsetWidth;
-        _mapContentH = parseFloat(cs.height) || wrap.offsetHeight;
-        _mapMeasuredAt = wrap.offsetWidth;
+        const laid = _mapLaidAt || 1;
+        _mapContentW = ((parseFloat(cs.width) || wrap.offsetWidth) / laid) || 0;
+        _mapContentH = ((parseFloat(cs.height) || wrap.offsetHeight) / laid) || 0;
+        _mapMeasuredAt = frame;
       }
       return { w: _mapContentW, h: _mapContentH };
     }
@@ -1015,7 +1064,10 @@
       // slower than the plan does. Across the whole range the plan grows eight
       // times and the pin about a quarter — enough to feel like it followed you
       // in, little enough that a bay is still wider than the pin sitting on it.
-      layer.style.setProperty('--pin-s', String(Math.pow(_mapZoom, -0.88)));
+      // The plan is laid out at its zoomed size, so a pin measured in pixels is
+      // already the same size on screen at every zoom. This is the little bit
+      // of growth on top: eight times the plan, about a quarter more pin.
+      layer.style.setProperty('--pin-s', String(Math.pow(_mapZoom, 0.12)));
       // Until a number has room it is a dot, and how much zoom that takes
       // depends on how many spots share the plan: forty pins on a photo and two
       // hundred and thirty on a venue plan are not the same picture.
@@ -1026,19 +1078,41 @@
       // same question: is there room to read one yet.
       el('mapCars')?.classList.toggle('dense', dense);
     }
+    // Committing the size a beat after the zoom settles rather than on every
+    // step. Leaning on the + button is a burst of taps and a pinch is a burst of
+    // frames; each committed size re-lays out a few thousand shapes, which is
+    // about a fifth of a second on a slow phone. The transform shows the change
+    // at once and the size follows when the burst stops — so it responds
+    // immediately and is sharp wherever you land.
+    let _zoomSettle = 0;
+    function settleMapZoom() {
+      clearTimeout(_zoomSettle);
+      _zoomSettle = setTimeout(() => { _zoomSettle = 0; applyMapTransform(); }, 140);
+    }
+
     let _shownZoom = -1;
-    function applyMapTransform() {
+    // `live` keeps the layout where it is and lets the transform carry the
+    // change. Everything else commits the size, which is what keeps it sharp.
+    function applyMapTransform(live) {
       const wrap = el('mapImageWrap');
       if (!wrap) return;
+      if (!live) layoutMapZoom(wrap);
       clampMapPan();
-      wrap.style.transform = `translate(${_mapPanX}px, ${_mapPanY}px) scale(${_mapZoom})`;
+      const k = _mapZoom / (_mapLaidAt || 1);
+      wrap.style.transform = `translate(${_mapPanX}px, ${_mapPanY}px)`
+        + (Math.abs(k - 1) < 1e-4 ? '' : ` scale(${k})`);
+      // Rebuilding the drawing rides with the committed size, never with the
+      // gesture. It is the one expensive thing here — a few thousand shapes
+      // written out again because the hairline floor belongs to the scale being
+      // drawn for — and on the tap itself it was the whole delay: 124ms of the
+      // 146 a zoom step took on a slow phone, against 4 when the band held.
+      if (!live && _plan) renderPlanVector();
       // Everything below depends on the zoom and nothing else, while this runs
       // on every pointer move of a pan. Rewriting the label and re-deciding the
       // pin size there is a style invalidation per move for a value that did
       // not change — and with a few hundred pins in the layer that is not free.
       if (_shownZoom === _mapZoom) return;
       _shownZoom = _mapZoom;
-      if (_plan) renderPlanVector();
       const val = el('mapZoomVal');
       if (val) val.textContent = Math.round(_mapZoom * 100) + '%';
       el('mapViewport')?.classList.toggle('is-zoomed', _mapZoom > 1.01);
@@ -1058,9 +1132,14 @@
       _mapPanX = ax - (ax - _mapPanX) * (z1 / z0);
       _mapPanY = ay - (ay - _mapPanY) * (z1 / z0);
       _mapZoom = z1;
+      applyMapTransform(true);
+      settleMapZoom();
+    }
+    function resetMapZoom() {
+      clearTimeout(_zoomSettle); _zoomSettle = 0;
+      _mapZoom = 1; _mapPanX = 0; _mapPanY = 0;
       applyMapTransform();
     }
-    function resetMapZoom() { _mapZoom = 1; _mapPanX = 0; _mapPanY = 0; applyMapTransform(); }
 
     el('mapContainer')?.addEventListener('click', (e) => {
       const b = e.target.closest?.('.map-zoom button');
@@ -1085,6 +1164,11 @@
       const down = (e) => {
         const vp = el('mapViewport');
         if (!vp || !vp.contains(e.target) || e.target.closest('.map-zoom')) return;
+        // Promote the wrapper for the length of the gesture only. Left on
+        // permanently, `will-change: transform` is a standing instruction to
+        // reuse the bitmap — which is the other half of why the plan came out
+        // blurred once anything scaled it.
+        vp.classList.add('gesturing');
         // Cleared on every touch, not only when a pan starts: otherwise the
         // last drag before zooming back out keeps swallowing the next tap.
         _mapPanMoved = false;
@@ -1119,13 +1203,18 @@
         if (!_mapPanMoved && Math.hypot(dx, dy) < 6) return;
         _mapPanMoved = true;
         _mapPanX = pan.px + dx; _mapPanY = pan.py + dy;
-        applyMapTransform();
+        applyMapTransform(true);
         e.preventDefault();
       };
       const up = (e) => {
         pts.delete(e.pointerId);
+        const wasPinch = pts.size < 2 && pinch;
         if (pts.size < 2) pinch = null;
-        if (!pts.size) pan = null;
+        if (!pts.size) { pan = null; el('mapViewport')?.classList.remove('gesturing'); }
+        // The pinch left the size where it started and the difference in the
+        // transform. Commit it now rather than waiting out the settle: the
+        // fingers are off the glass, which is when the picture is looked at.
+        if (wasPinch) { clearTimeout(_zoomSettle); _zoomSettle = 0; applyMapTransform(); }
       };
       document.addEventListener('pointerdown', down);
       document.addEventListener('pointermove', move, { passive: false });
