@@ -350,6 +350,28 @@ Trei lucruri pe care le spune explicit, în loc să le înghită:
   planul nou, `spot_no` i se pune pe `null` și numărul lor apare în interfață.
   Un număr de loc care nu duce nicăieri e mai rău decât niciun număr.
 
+### „Cine stă pe locul ăsta?"
+
+Apasă un loc liber și dialogul întreabă care mașină merge acolo. Era un `select`
+nativ: pe telefon, o rotiță derulată orbește peste o sută de nume. Acum e o
+listă pe care o cauți și o atingi (`uiChoose` → `.ui-pick`):
+
+- **Atingerea unui rând e răspunsul.** Butonul de confirmare e ascuns pentru
+  forma asta de dialog — după ce ai ales un nume, ar pune aceeași întrebare de
+  două ori. Rămâne doar „Anulează".
+- **Două rânduri, nu unul.** Sus mașina (`#200 · VW Golf`), dedesubt cine e și
+  cu ce număr (`Ana Pop · B100XYZ · Stance`). Primul e ce vezi pe asfalt, al
+  doilea e cum verifici că e chiar aia.
+- **Căutarea prinde și ce nu e pe ecran.** Numărul de înmatriculare e cel mai
+  rapid de tastat când mașina e în fața ta și cel mai greu de citit dintr-o
+  listă, deci intră în `search` fără să fie linia principală.
+- **Se desenează cel mult 40 de rânduri**, iar nota de dedesubt spune câte au
+  mai rămas. Patru sute de rânduri sunt un dialog lent și oricum necitibil, iar
+  nota e și îndemnul de a mai scrie o literă.
+- **Câmpul de căutare nu primește focus la deschidere.** Pe telefon, tastatura
+  ar acoperi exact lista pentru care ai deschis dialogul. E la o atingere
+  distanță, adică fix atunci când lista e prea lungă ca s-o citești.
+
 ## Roluri și permisiuni
 
 Rolul e în `profiles.role`. Ierarhia din `app.js`:

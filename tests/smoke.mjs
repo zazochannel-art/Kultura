@@ -2755,6 +2755,143 @@ try {
     await mctx2.close();
   }
 
+  // 4t. Choosing which car goes on a spot.
+  //
+  // A native select is a spinner scrolled blind: on a phone it hides the list
+  // behind a wheel, and by fifty cars the name you want is somewhere in it. The
+  // dialog is a list you can search and tap instead — and a tap is the answer,
+  // because a confirm button after picking a name asks the same question twice.
+  {
+    const NAMES = ['Ana Pop', 'Ion Rusu', 'Maria Ciobanu', 'Vlad Ene', 'Dan Marin', 'Elena Popa'];
+    const MAKES = [['VW', 'Golf'], ['Mazda', 'RX-7'], ['BMW', 'E36'], ['Audi', 'S4']];
+    const CARS = [
+      // Already on a spot: it must not be offered for another one.
+      { id: 1, entry_no: 11, brand: 'Porsche', model: '911', owner: 'Radu Toma', plate: 'PLACED1',
+        status: 'Sosit', zone: 'Stance', spot_no: 1, event_id: 6, deleted_at: null },
+    ];
+    for (let i = 0; i < 50; i++) {
+      const m = MAKES[i % MAKES.length];
+      CARS.push({ id: 100 + i, entry_no: 200 + i, brand: m[0], model: m[1],
+        owner: NAMES[i % NAMES.length], plate: 'B' + (100 + i) + 'XYZ', status: 'Invitat',
+        zone: 'Stance', spot_no: null, event_id: 6, deleted_at: null });
+    }
+    const SPOTS = [
+      { zone: 'Stance', no: 1, x: 25, y: 40 },
+      { zone: 'Stance', no: 2, x: 60, y: 40 },
+    ];
+    const carPatches = [];
+    const actx = await browser.newContext({ viewport: { width: 430, height: 900 } });
+    await actx.route('**://*.supabase.co/**', (r) => {
+      const u = r.request().url(), m = r.request().method();
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      if (u.includes('/rest/v1/ui_settings')) {
+        if (m === 'POST') return J([]);
+        if (u.includes('zone_spots')) return J([{ value: JSON.stringify(SPOTS) }]);
+        if (u.includes('zone_map_url')) return J([{ key: 'zone_map_url', value: 'https://map.test/plan.png' }]);
+        return J([]);
+      }
+      if (u.includes('/rest/v1/cars')) {
+        if (m === 'PATCH') { carPatches.push({ url: u, body: r.request().postData() || '' }); return J([]); }
+        return J(/deleted_at=not\.is\.null/.test(u) ? [] : CARS);
+      }
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString() }]);
+      if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+      if (u.includes('/rest/v1/')) return J([]);
+      if (u.includes('/functions/v1/')) return J({});
+      return r.abort();
+    });
+    await actx.route('**://map.test/**', (r) => r.fulfill({
+      status: 200, contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><rect width="900" height="600" fill="#2b3245"/></svg>',
+    }));
+    const ap = await actx.newPage();
+    const aerrs = [];
+    ap.on('pageerror', (e) => aerrs.push(e.message));
+    try {
+      await ap.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await ap.evaluate(() => localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      })));
+      await ap.reload({ waitUntil: 'domcontentloaded' });
+      await ap.waitForTimeout(2400);
+      await ap.evaluate(() => {
+        document.getElementById('splashScreen')?.remove();
+        document.querySelector('.tab[data-section="map"], .mtab[data-section="map"]')?.click();
+      });
+      await ap.waitForSelector('.map-spot[data-spot-no="2"]', { state: 'attached', timeout: 8000 });
+      await ap.evaluate(() => document.querySelector('.map-spot[data-spot-no="2"]').click());
+      await ap.waitForSelector('#uiDialogPick .ui-pick-row', { timeout: 5000 });
+
+      const open = await ap.evaluate(() => ({
+        rows: document.querySelectorAll('.ui-pick-row').length,
+        note: document.getElementById('uiDialogPickNote').textContent,
+        text: document.getElementById('uiDialogPickList').textContent,
+        ok: getComputedStyle(document.getElementById('uiDialogOk')).display,
+        cancel: getComputedStyle(document.getElementById('uiDialogCancel')).display,
+      }));
+      // A car that already has a spot cannot be put on a second one.
+      check('assign-offers-only-cars-without-a-spot',
+        open.rows > 0 && !/PLACED1|Porsche/.test(open.text), JSON.stringify({ rows: open.rows }));
+      // Forty rows is a list; four hundred is a scroll bar. The rest are behind
+      // the search box, and the note is what says so instead of leaving the
+      // reader to guess the list is all there is.
+      check('assign-caps-the-rows-and-says-how-many-more',
+        open.rows === 40 && /\b10\b/.test(open.note), JSON.stringify({ rows: open.rows, note: open.note }));
+      // Picking a name is the answer; a confirm button would ask it twice.
+      check('assign-has-no-confirm-button', open.ok === 'none' && open.cancel !== 'none',
+        JSON.stringify({ ok: open.ok, cancel: open.cancel }));
+
+      await ap.fill('#uiDialogPickSearch', 'vlad');
+      await ap.waitForTimeout(200);
+      const byName = await ap.evaluate(() => ({
+        rows: document.querySelectorAll('.ui-pick-row').length,
+        text: document.getElementById('uiDialogPickList').textContent,
+      }));
+      check('assign-search-narrows-the-list',
+        byName.rows > 0 && byName.rows < 40 && /Vlad Ene/.test(byName.text) && !/Ana Pop/.test(byName.text),
+        JSON.stringify({ rows: byName.rows }));
+
+      // The plate is the fastest thing to type with the car in front of you and
+      // the slowest to read off a list, so it is searchable without being the
+      // line you read.
+      await ap.fill('#uiDialogPickSearch', 'B137XYZ');
+      await ap.waitForTimeout(200);
+      const byPlate = await ap.evaluate(() => ({
+        rows: document.querySelectorAll('.ui-pick-row').length,
+        main: document.querySelector('.ui-pick-main')?.textContent || '',
+        sub: document.querySelector('.ui-pick-sub')?.textContent || '',
+      }));
+      check('assign-search-matches-a-plate',
+        byPlate.rows === 1 && /B137XYZ/.test(byPlate.sub) && !/B137XYZ/.test(byPlate.main),
+        JSON.stringify(byPlate));
+
+      await ap.click('.ui-pick-row');
+      await ap.waitForTimeout(600);
+      const wrote = carPatches.find((c) => /"spot_no":2/.test(c.body.replace(/\s/g, '')));
+      check('assign-a-tap-puts-the-car-on-the-spot',
+        !!wrote && /id=eq\.137/.test(wrote.url) && /"zone":"Stance"/.test(wrote.body.replace(/\s/g, '')),
+        wrote ? wrote.url.split('?')[1] + ' ' + wrote.body : 'no patch');
+      check('assign-closes-after-the-tap',
+        !(await ap.evaluate(() => document.getElementById('uiDialog').classList.contains('show'))));
+    } catch (e) {
+      for (const n of ['assign-offers-only-cars-without-a-spot', 'assign-caps-the-rows-and-says-how-many-more',
+        'assign-has-no-confirm-button', 'assign-search-narrows-the-list', 'assign-search-matches-a-plate',
+        'assign-a-tap-puts-the-car-on-the-spot', 'assign-closes-after-the-tap']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`assign dialog checks: ${e.message}`);
+    }
+    check('assign-dialog-no-errors', aerrs.length === 0);
+    if (aerrs.length) console.log('  assign errors:', aerrs.slice(0, 3));
+    await actx.close();
+  }
+
   // 5. Public pages (given out by QR at the event) must render standalone.
   // They talk to Supabase, which is unreachable here, so we only assert the
   // static shell renders and nothing throws before the network call.

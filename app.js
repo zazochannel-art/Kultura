@@ -1429,12 +1429,21 @@
       const rest = cars.filter(c => !inZone.includes(c));
       const pool = inZone.concat(rest);
       if (!pool.length) { showToast(t('spots.nobody_free'), 'error'); return; }
-      const label = (c) => [c.entry_no ? '#' + c.entry_no : '',
-        [c.brand, c.model].filter(Boolean).join(' ') || c.plate || '—',
-        c.owner].filter(Boolean).join(' · ');
+      // Two lines rather than one run-on: the car is what you are looking at on
+      // the tarmac, the owner and the plate are how you check you got the right
+      // one. The plate is searchable without being on screen — it is the
+      // fastest thing to type when the car is standing in front of you, and the
+      // slowest to read off a list.
       const pick = await uiChoose(
         t('spots.assign_title', { zone, n: no }),
-        pool.slice(0, 60).map(c => ({ value: String(c.id), label: label(c) })));
+        pool.map(c => ({
+          value: String(c.id),
+          label: [c.entry_no ? '#' + c.entry_no : '',
+            [c.brand, c.model].filter(Boolean).join(' ') || c.plate || '—'].filter(Boolean).join(' · '),
+          sub: [c.owner, c.plate, c.zone].filter(Boolean).join(' · '),
+          search: [c.entry_no, c.brand, c.model, c.plate, c.owner, c.zone].filter(Boolean).join(' '),
+        })),
+        { placeholder: t('spots.assign_search') });
       if (!pick) return;
       if (await setCarSpot(pick, zone, no)) showToast(t('spots.assigned', { zone, n: no }));
     }
@@ -9149,7 +9158,7 @@
     }
     let _dialogInput = false;
     let _dialogSelect = false;
-    function uiDialog({ title = '', message = '', okLabel = 'OK', cancelLabel = null, danger = false, input = false, inputValue = '', inputPlaceholder = '', choices = null }) {
+    function uiDialog({ title = '', message = '', okLabel = 'OK', cancelLabel = null, danger = false, input = false, inputValue = '', inputPlaceholder = '', choices = null, pickPlaceholder = '' }) {
       return new Promise((resolve) => {
         // A dialog opened over another one settles the previous as cancelled.
         if (_dialogResolve) _dialogClose(input ? null : false);
@@ -9164,22 +9173,25 @@
           inp.style.display = input ? 'block' : 'none';
           if (input) { inp.value = inputValue || ''; inp.placeholder = inputPlaceholder || ''; }
         }
-        const sel = el('uiDialogSelect');
-        if (sel) {
-          sel.style.display = choices ? 'block' : 'none';
-          if (choices) {
-            sel.innerHTML = choices.map((c) =>
-              `<option value="${escape(String(c.value))}">${escape(c.label)}</option>`).join('');
-          }
+        const pick = el('uiDialogPick');
+        if (pick) {
+          pick.style.display = choices ? 'block' : 'none';
+          if (choices) buildPick(choices, pickPlaceholder);
         }
         const ok = el('uiDialogOk');
         const cancel = el('uiDialogCancel');
         ok.textContent = okLabel;
         ok.className = 'ui-dialog-btn ' + (danger ? 'danger' : 'primary');
+        // Picking a row is the answer, so there is nothing left to confirm.
+        ok.style.display = choices ? 'none' : 'inline-block';
         cancel.style.display = cancelLabel ? 'inline-block' : 'none';
         if (cancelLabel) cancel.textContent = cancelLabel;
         el('uiDialog').classList.add('show');
-        if (input && inp) inp.focus(); else if (choices && sel) sel.focus(); else ok.focus();
+        if (input && inp) inp.focus();
+        // Not the search box: on a phone, focusing it throws the keyboard up
+        // over the list you came here to read. It is one tap away when the list
+        // is too long to scan, which is the only time it is wanted.
+        else if (!choices) ok.focus();
       });
     }
     // Text-input dialog: resolves the entered string, or null on cancel.
@@ -9192,9 +9204,7 @@
       });
     }
     el('uiDialogOk').addEventListener('click', () => _dialogClose(
-      _dialogInput ? (el('uiDialogInput')?.value ?? '')
-        : _dialogSelect ? (el('uiDialogSelect')?.value ?? null)
-          : true));
+      _dialogInput ? (el('uiDialogInput')?.value ?? '') : true));
     el('uiDialogCancel').addEventListener('click', () => _dialogClose(false));
     el('uiDialog').addEventListener('click', (e) => { if (e.target === el('uiDialog')) _dialogClose(false); });
     document.addEventListener('keydown', (e) => {
@@ -9214,13 +9224,66 @@
     }
 
     // Pick-one dialog: resolves the chosen value, or false on cancel.
+    /**
+     * The searchable list inside the dialog.
+     *
+     * A choice is `{ value, label, sub, search }`: `label` is the line you read,
+     * `sub` the quieter one under it, `search` everything worth typing at it —
+     * a plate is not on screen but it is the fastest thing to type when a car
+     * is standing in front of you.
+     *
+     * Only the first `PICK_ROWS` matches are put in the DOM. Four hundred rows
+     * is a slow dialog and an unreadable one; the note underneath says how many
+     * more there are, which is also the nudge to type another letter.
+     */
+    const PICK_ROWS = 40;
+    let _pickChoices = [];
+    function pickRows(q) {
+      const k = q.trim().toLowerCase();
+      const hit = k
+        ? _pickChoices.filter((c) => (c.search || c.label || '').toLowerCase().includes(k))
+        : _pickChoices;
+      const list = el('uiDialogPickList'), note = el('uiDialogPickNote');
+      if (!list) return;
+      list.innerHTML = hit.slice(0, PICK_ROWS).map((c, i) =>
+        `<button type="button" class="ui-pick-row${i ? '' : ' on'}" role="option"`
+        + ` data-pick="${escape(String(c.value))}">`
+        + `<span class="ui-pick-main">${escape(c.label)}</span>`
+        + (c.sub ? `<span class="ui-pick-sub">${escape(c.sub)}</span>` : '')
+        + `</button>`).join('');
+      if (note) {
+        note.textContent = !hit.length ? t('pick.none')
+          : hit.length > PICK_ROWS ? t('pick.more', { n: hit.length - PICK_ROWS }) : '';
+      }
+    }
+    function buildPick(choices, placeholder) {
+      _pickChoices = choices;
+      const box = el('uiDialogPickSearch');
+      if (box) { box.value = ''; box.placeholder = placeholder || t('pick.search'); }
+      pickRows('');
+      el('uiDialogPickList')?.scrollTo?.(0, 0);
+    }
+    // Tapping a row is the answer. Typing narrows the list; Enter takes the
+    // first row still standing, which is what a search box is for.
+    el('uiDialogPickList')?.addEventListener('click', (e) => {
+      const row = e.target.closest?.('.ui-pick-row');
+      if (row) _dialogClose(row.dataset.pick);
+    });
+    el('uiDialogPickSearch')?.addEventListener('input', (e) => pickRows(e.target.value));
+    el('uiDialogPickSearch')?.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const first = el('uiDialogPickList')?.querySelector('.ui-pick-row');
+      if (first) _dialogClose(first.dataset.pick);
+    });
+
     function uiChoose(message, choices, opts = {}) {
       if (!choices || !choices.length) return Promise.resolve(false);
       return uiDialog({
         title: opts.title || '', message,
         okLabel: opts.okLabel || t('common.confirm'),
         cancelLabel: opts.cancelLabel || t('common.cancel'),
-        danger: false, choices,
+        danger: false, choices, pickPlaceholder: opts.placeholder || '',
       });
     }
 
