@@ -241,6 +241,8 @@ export default {
   "map.plan_import": "Bring in the venue plan",
   "map.plan_what": "bringing in the plan",
   "map.plan_missing": "Could not find the venue plan.",
+  "map.plan_rendering": "Preparing the plan...",
+  "map.plan_too_big": "The plan does not fit the map's 5 MB limit.",
   "map.plan_empty": "The plan has no spots drawn on it.",
   "map.plan_spots_word": "spots",
   "map.plan_confirm": "Use “{name}” as the map? It comes with {n} numbered spots and replaces the current map and spots ({cars} cars are on spots).",

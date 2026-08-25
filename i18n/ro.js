@@ -244,6 +244,8 @@ export default {
   "map.plan_import": "Adu planul terenului",
   "map.plan_what": "aducerea planului",
   "map.plan_missing": "Nu am găsit planul terenului.",
+  "map.plan_rendering": "Se pregătește planul...",
+  "map.plan_too_big": "Planul nu încape în limita de 5 MB a hărții.",
   "map.plan_empty": "Planul nu are niciun loc desenat.",
   "map.plan_spots_word": "locuri",
   "map.plan_confirm": "Pui „{name}\" ca hartă? Vine cu {n} de locuri gata numerotate și înlocuiește harta și locurile de acum ({cars} mașini sunt pe locuri).",

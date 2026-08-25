@@ -2399,6 +2399,10 @@ try {
     await pctx.close();
   }
 
+  // What `storage.buckets` really says about `maps`, so the stand-in refuses
+  // what production refuses: SVG among them, and anything over 5 MB.
+  const MAPS_BUCKET = { max: 5 * 1024 * 1024, types: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] };
+
   // 4s. The drawn plan becoming the app's map.
   //
   // Two ways of saying where a car goes meet here: the plan is a drawing in
@@ -2419,15 +2423,33 @@ try {
       const u = r.request().url(), m = r.request().method();
       const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
       if (u.includes('/storage/v1/object/public/maps/')) {
-        // supabase-js posts the file inside a multipart envelope; storage serves
-        // back the part, not the envelope, so the stand-in unwraps it too.
-        const body = (uploaded && uploaded.body) || '';
-        const a = body.indexOf('<svg'), b = body.lastIndexOf('</svg>');
+        // What the map renders does not depend on the bytes, and a raster
+        // cannot survive Playwright's string body, so the stand-in serves a
+        // picture of the right shape rather than the one just uploaded.
         return r.fulfill({ status: 200, contentType: 'image/svg+xml',
-          body: a >= 0 && b > a ? body.slice(a, b + 6) : '<svg xmlns="http://www.w3.org/2000/svg"/>' });
+          body: '<svg xmlns="http://www.w3.org/2000/svg" width="3600" height="4210"'
+            + ' viewBox="0 0 3600 4210"><rect width="3600" height="4210" fill="#f4f3ee"/></svg>' });
       }
       if (u.includes('/storage/v1/object/maps/')) {
-        if (m === 'POST' || m === 'PUT') { uploaded = { url: u, body: r.request().postData() || '' }; return J({ Key: 'maps/x' }); }
+        if (m === 'POST' || m === 'PUT') {
+          const body = r.request().postData() || '';
+          const bytes = (r.request().postDataBuffer() || Buffer.from(body)).length;
+          const type = (body.match(/Content-Type:\s*([\w/+.-]+)/i) || [])[1] || '';
+          // The real bucket's rules, because a mock that accepts everything is
+          // how "mime type image/svg+xml is not supported" reached production.
+          if (!MAPS_BUCKET.types.includes(type)) {
+            return r.fulfill({ status: 415, contentType: 'application/json',
+              body: JSON.stringify({ statusCode: '415', error: 'InvalidMimeType',
+                message: `mime type ${type} is not supported` }) });
+          }
+          if (bytes > MAPS_BUCKET.max) {
+            return r.fulfill({ status: 413, contentType: 'application/json',
+              body: JSON.stringify({ statusCode: '413', error: 'Payload too large',
+                message: 'The object exceeded the maximum allowed size' }) });
+          }
+          uploaded = { url: u, type, bytes };
+          return J({ Key: 'maps/x' });
+        }
         return J({});
       }
       if (u.includes('/rest/v1/ui_settings')) {
@@ -2478,9 +2500,10 @@ try {
       await ip.evaluate(() => document.getElementById('uiDialogOk')?.click());
       await ip.waitForTimeout(3000);
 
-      check('plan-import-uploads-an-svg-map',
-        !!uploaded && /\.svg/.test(uploaded.url) && uploaded.body.includes('<svg')
-        && !!savedUrl && /\.svg/.test(savedUrl));
+      check('plan-import-uploads-what-the-bucket-accepts',
+        !!uploaded && MAPS_BUCKET.types.includes(uploaded.type) && uploaded.bytes <= MAPS_BUCKET.max
+        && !!savedUrl && /\.(png|webp|jpg)$/.test(savedUrl),
+        uploaded ? `${uploaded.type} ${(uploaded.bytes / 1048576).toFixed(2)}MB` : 'nothing uploaded');
       // 258 spots are drawn; 20 of them sit outside every zone the drawing
       // names, and a spot without a zone can never take a car.
       check('plan-import-saves-the-spots',
@@ -2508,7 +2531,7 @@ try {
       check('plan-import-map-shows-the-drawing-and-its-pins',
         drawn.pins === 238 && drawn.w > 0, JSON.stringify(drawn));
     } catch (e) {
-      for (const n of ['plan-import-button-for-staff', 'plan-import-uploads-an-svg-map',
+      for (const n of ['plan-import-button-for-staff', 'plan-import-uploads-what-the-bucket-accepts',
         'plan-import-saves-the-spots', 'plan-import-pins-land-inside-the-image',
         'plan-import-speaks-the-app-zone-names', 'plan-import-frees-a-car-whose-spot-is-gone',
         'plan-import-says-what-it-left-out', 'plan-import-map-shows-the-drawing-and-its-pins']) {

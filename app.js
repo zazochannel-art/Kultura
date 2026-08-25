@@ -1525,7 +1525,7 @@
       status.style.color = 'var(--text-dim)';
       status.textContent = t('map.uploading');
       try {
-        const ext = blob.type === 'image/svg+xml' ? 'svg' : blob.type === 'image/png' ? 'png' : 'jpg';
+        const ext = { 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }[blob.type] || 'jpg';
         const path = `zone-map-${Date.now()}.${ext}`;
         const { error: upErr } = await supa.storage.from('maps')
           .upload(path, blob, { contentType: blob.type || 'image/jpeg' });
@@ -1570,6 +1570,42 @@
       return alias && PARKING_ZONES.includes(alias) ? alias : String(name).trim();
     }
 
+    // The `maps` bucket accepts jpeg/png/webp/gif and nothing over 5 MB. SVG was
+    // the obvious way to keep a drawing sharp at the gate's 8x zoom, and it is
+    // exactly what the bucket refuses — so the plan is rasterised here, wide
+    // enough that zooming still reads.
+    const MAP_MAX_BYTES = 5 * 1024 * 1024;
+    async function rasterisePlan(svg, width) {
+      // The SVG has to *declare* the target width: a browser rasterises it at
+      // its intrinsic size, and scaling that up in the canvas would just blur
+      // a drawing we could have rendered sharp.
+      const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+      try {
+        const im = new Image();
+        await new Promise((res, rej) => {
+          im.onload = res;
+          im.onerror = () => rej(new Error('render'));
+          im.src = url;
+        });
+        const c = document.createElement('canvas');
+        c.width = im.naturalWidth;
+        c.height = im.naturalHeight;
+        c.getContext('2d').drawImage(im, 0, 0);
+        // Lossless first: a plan is flat colour and hairlines, and lossy
+        // compression smears exactly those. WebP at quality 1 is lossless here
+        // and lands ~25% under PNG for the same pixels; a browser that cannot
+        // encode WebP returns a PNG instead (the spec says so), which is the
+        // fallback rather than a failure. JPEG is the last resort, for size.
+        for (const [type, q] of [['image/webp', 1], ['image/png', undefined], ['image/jpeg', 0.9]]) {
+          const b = await new Promise((res) => c.toBlob(res, type, q));
+          if (b && b.size <= MAP_MAX_BYTES) return b;
+        }
+        return null;
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    }
+
     async function importVenuePlan() {
       if (!roleAtLeast('staff')) return;
       if (!requireOnline(t('map.plan_what'))) return;
@@ -1593,10 +1629,17 @@
         name: plan.name || 'plan', n: spots.length, cars: parked,
       }))) return;
 
-      const doc = planSvgDoc(plan, { spotsWord: t('map.plan_spots_word') });
-      // SVG, not a photo: the map zooms to 8x at the gate, and a drawing that
-      // stays sharp there is the whole point of having drawn it.
-      if (!await uploadMapBlob(new Blob([doc.svg], { type: 'image/svg+xml' }))) return;
+      const doc = planSvgDoc(plan, { spotsWord: t('map.plan_spots_word'), width: 3600 });
+      const status0 = el('mapStatus');
+      status0.style.display = 'block';
+      status0.style.color = 'var(--text-dim)';
+      status0.textContent = t('map.plan_rendering');
+      // 3600px across a 350 m site is a bay about 25 px wide — still readable
+      // at the gate's 8x zoom. Half that is the fallback when it will not fit.
+      const img = await rasterisePlan(doc.svg, 3600)
+        || await rasterisePlan(planSvgDoc(plan, { spotsWord: t('map.plan_spots_word'), width: 2000 }).svg, 2000);
+      if (!img) { showToast(t('map.plan_too_big'), 'error'); return; }
+      if (!await uploadMapBlob(img)) return;
 
       const pct = (v, a, len) => Math.min(100, Math.max(0, ((v - a) / len) * 100));
       const next = spots.map(sp => ({
