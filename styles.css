@@ -1986,35 +1986,48 @@
 .map-spot-layer.is-editing { cursor: crosshair; }
 
 .map-spot {
-  /* Counter-scaled against the map's zoom: the pin keeps its size on screen
-     while the plan grows under it, so zooming spreads pins apart instead of
-     inflating them into one another. */
+  /* Scaled against the map's zoom, but not one for one: the plan grows eight
+     times and the pin under twice, so zooming spreads pins apart instead of
+     inflating them into one another — and a pin at rest stays small enough to
+     read the drawing through. */
   position: absolute; transform: translate(-50%, -50%) scale(var(--pin-s, 1));
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  min-width: 34px; min-height: 34px; padding: 3px 5px;
-  border-radius: 9px; border: 1.5px solid rgba(255,255,255,0.5);
+  min-width: 24px; min-height: 24px; padding: 2px 4px;
+  border-radius: 7px; border: 1.25px solid rgba(255,255,255,0.5);
   background: rgba(15,23,42,0.72); backdrop-filter: blur(3px);
-  color: #fff; font-size: 11px; font-weight: 800; line-height: 1.1;
+  color: #fff; font-size: 10px; font-weight: 800; line-height: 1.1;
   cursor: pointer; touch-action: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
-.map-spot .ms-no { font-size: 12px; }
+.map-spot .ms-no { font-size: 10px; }
 .map-spot .ms-car { display: none; }
 /* An occupied spot leads with the car, because that is the question being
    asked of the map. The number stays, smaller, so the plan is still readable. */
 .map-spot.taken { background: rgba(59,130,246,0.92); border-color: rgba(255,255,255,0.75); }
-.map-spot.taken .ms-no { font-size: 9px; opacity: .85; font-weight: 700; }
-.map-spot.taken .ms-car { display: block; font-size: 12px; white-space: nowrap; }
+.map-spot.taken .ms-no { font-size: 8px; opacity: .85; font-weight: 700; }
+.map-spot.taken .ms-car { display: block; font-size: 10px; white-space: nowrap; }
 .map-spot.here { background: rgba(16,185,129,0.94); }
 .map-spot:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .map-spot-layer.is-editing .map-spot { cursor: grab; }
 .map-spot-layer.is-editing .map-spot:active { cursor: grabbing; }
 
 /* Dense plans: at fit-width forty pins in a row are a smear, so they fall back
-   to dots and the cars come back as soon as there is room to read them. */
-.map-spot-layer.dense .map-spot { min-width: 15px; min-height: 15px; padding: 0; border-radius: 50%; border-width: 1px; }
-.map-spot-layer.dense .map-spot .ms-no { font-size: 8px; }
-.map-spot-layer.dense .map-spot.taken .ms-no { font-size: 8px; opacity: 1; }
+   to dots and the numbers come back as soon as there is room to read them.
+   Nothing is written inside the dot — a number that small is a grey smudge
+   that hides the bay it is pointing at.
+   A free spot fades almost out of the way: on a drawn plan the bay is already
+   there to see, and two hundred solid dots bury the drawing they belong to.
+   A taken one stays full strength, because "who is parked where" is the only
+   question the overview is being asked. */
+.map-spot-layer.dense .map-spot {
+  min-width: 7px; min-height: 7px; padding: 0; border-radius: 50%; border-width: 1px;
+  opacity: .45; box-shadow: none;
+}
+.map-spot-layer.dense .map-spot.taken { min-width: 11px; min-height: 11px; opacity: 1; }
+/* Placing spots is the one time the free ones are the subject. */
+.map-spot-layer.dense.is-editing .map-spot { min-width: 11px; min-height: 11px; opacity: .9; }
+.map-spot-layer.dense .map-spot .ms-no,
+.map-spot-layer.dense .map-spot.taken .ms-no { display: none; }
 .map-spot-layer.dense .map-spot.taken .ms-car { display: none; }
 
 /* The first end of a row being laid — a target, not a control. */
