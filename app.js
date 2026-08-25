@@ -609,7 +609,7 @@
         // at says nothing about this one.
         _shownZoom = -1;
         _mapLaidAt = 0;
-        _mapMeasuredAt = -1;
+        _mapFrame = null;
         // After the plan is drawn: the frame's proportions are the drawing's,
         // and until it is rendered nothing knows what those are.
         if (_plan) renderPlanVector();
@@ -776,6 +776,9 @@
                 sp.w = Math.min(100, +s.w);
                 sp.h = Math.min(100, +s.h);
               }
+              // A colour goes into a style attribute, so it is checked rather
+              // than trusted: the table is editable and this is markup.
+              if (/^#[0-9a-f]{3,8}$/i.test(String(s.c || ''))) sp.c = String(s.c);
               return sp;
             });
         }
@@ -813,13 +816,19 @@
     // the car: a plate is longer than an entry number, and left to itself it
     // hangs out over both neighbours. It carries the counter-rotation because
     // the bay is turned, and a number read sideways is not read.
-    const CAR_BODY = 'M25 6c8 0 14 7 15 16 1 12 1 30 1 42 0 16-3 30-16 30S9 80 9 64'
-      + 'c0-12 0-30 1-42C11 13 17 6 25 6Z';
-    const CAR_GLASS = 'M15 34c0-5 20-5 20 0l1 29c0 6-22 6-22 0Z';
+    const CAR_BODY = 'M25 5C31 5 36 7 37.5 12C39.5 18 40.5 28 40.5 42L40.5 70'
+      + 'C40.5 82 39.5 89 37.5 92C36 94.5 31 95 25 95C19 95 14 94.5 12.5 92'
+      + 'C10.5 89 9.5 82 9.5 70L9.5 42C9.5 28 10.5 18 12.5 12C14 7 19 5 25 5Z';
+    // Windscreen, roof and rear window as one run of lines, plus the mirrors.
+    // None of it is legible at fifteen pixels; all of it is what makes the
+    // shape a car rather than a lozenge once somebody leans in.
+    const CAR_TRIM = 'M19 30L31 30L33.5 38L16.5 38Z'
+      + 'M15.5 38L34.5 38L34.5 64L15.5 64Z'
+      + 'M15.5 64L34.5 64L32 72L18 72Z'
+      + 'M9.5 33L6.5 34.5L6.5 36.5L9.5 37Z'
+      + 'M40.5 33L43.5 34.5L43.5 36.5L40.5 37Z';
     const r3 = (v) => Math.round(v * 1000) / 1000;
 
-    // Where a car stands on the deck. The scale is the smaller of the two, so a
-    // bay narrowed to fit its row gets a smaller car and not a squashed one.
     function carTransform(sp) {
       const v = _planView;
       const cx = v.x + (sp.x / 100) * v.w, cy = v.y + (sp.y / 100) * v.h;
@@ -829,12 +838,17 @@
     }
     function carSvg(sp, i, kind, label) {
       const r = sp.r || 0;
-      return '<g class="cp ' + kind + '" data-i="' + i + '" transform="' + carTransform(sp) + '">'
+      // An empty bay is the drawing of a car and nothing else — white body,
+      // dark lines. A taken one is painted in its zone's own colour, which is
+      // the colour the zone is drawn in on the plan underneath it.
+      const paint = kind === 'free' || !sp.c ? '' : ' style="--zone:' + escape(sp.c) + '"';
+      return '<g class="cp ' + kind + '" data-i="' + i + '"' + paint
+        + ' transform="' + carTransform(sp) + '">'
         + '<path class="cp-body" d="' + CAR_BODY + '"/>'
-        + '<path class="cp-glass" d="' + CAR_GLASS + '"/>'
+        + '<path class="cp-trim" d="' + CAR_TRIM + '"/>'
         + (label
-          ? '<text class="cp-no" x="25" y="79" text-anchor="middle" textLength="32"'
-            + ' lengthAdjust="spacingAndGlyphs" transform="rotate(' + r3(-r) + ' 25 70)">'
+          ? '<text class="cp-no" x="25" y="88" text-anchor="middle" textLength="30"'
+            + ' lengthAdjust="spacingAndGlyphs" transform="rotate(' + r3(-r) + ' 25 82)">'
             + escape(label) + '</text>'
           : '')
         + '</g>';
@@ -855,12 +869,10 @@
         // A bay is a spot that came off a drawing: it knows its size and which
         // way it faces, which is what it takes to draw a car standing in it.
         const bay = !!(_planView && sp.w > 0 && sp.h > 0);
+        const here = !!car && statusKey(car.status) === 'sosit';
         const cls = ['map-spot'];
         if (bay) cls.push('is-car');
-        if (car) {
-          cls.push('taken');
-          if (statusKey(car.status) === 'sosit') cls.push('here');
-        }
+        if (car) { cls.push('taken'); if (here) cls.push('here'); }
         const label = car
           ? (car.entry_no ? '#' + car.entry_no : (car.plate || '•'))
           : String(sp.no);
@@ -887,7 +899,9 @@
         // already drawn on the plan underneath, in the right place and at the
         // right size, and an empty bay has nothing to say at all.
         if (bay) {
-          cars.push(carSvg(sp, i, car ? (cls.includes('here') ? 'here' : 'taken') : 'free',
+          // `here` is a kind of `taken`, never an alternative to it: written as
+          // one or the other, an arrived car came out painted like an empty bay.
+          cars.push(carSvg(sp, i, car ? (here ? 'taken here' : 'taken') : 'free',
             car ? label : ''));
         }
       });
@@ -937,9 +951,9 @@
     function renderPlanVector() {
       const host = el('mapPlan');
       if (!host || !_plan) return;
-      // The frame's width, not the host's: the host is laid out at the zoomed
-      // width now, and taking it would count the zoom twice.
-      const css = el('mapViewport')?.clientWidth || host.clientWidth || 360;
+      // The width the drawing has at fit, not the host's: the host is laid out
+      // at the zoomed width now, and taking it would count the zoom twice.
+      const css = mapContentSize().w || el('mapViewport')?.clientWidth || 360;
       const dpr = Math.min(3, window.devicePixelRatio || 1);
       // Banded, because regenerating a few thousand shapes on every zoom step
       // would cost more than the sharpness is worth.
@@ -999,8 +1013,26 @@
       const img = el('mapImage');
       const r = _planView ? [_planView.w, _planView.h]
         : (img && img.naturalWidth ? [img.naturalWidth, img.naturalHeight] : null);
-      if (r) vp.style.aspectRatio = r[0] + ' / ' + r[1];
+      if (!r) return;
+      _mapAspect = r[0] / r[1];
+      vp.style.aspectRatio = r[0] + ' / ' + r[1];
+      // The frame's width cap is the height cap times this, so the frame ends
+      // up the shape of the drawing instead of a wide box with it in the middle.
+      vp.style.setProperty('--map-ar', _mapAspect.toFixed(4));
+      // The frame's shape decided the fit, so both have to be worked out again.
+      _mapFrame = null;
+      _mapLaidAt = 0;
     }
+
+    // A window that changes shape changes the fit. Everything downstream of the
+    // frame's size is cached, so all of it is dropped here — including the
+    // drawing, whose hairline floor belongs to the width it is drawn for.
+    addEventListener('resize', () => {
+      if (!el('mapImageWrap')) return;
+      _mapFrame = null; _mapLaidAt = 0; _planScale = 0; _shownZoom = -1;
+      if (_plan) renderPlanVector();
+      applyMapTransform();
+    });
 
     /**
      * Zoom is a size, not a transform.
@@ -1022,38 +1054,46 @@
     let _mapLaidAt = 0;
     function layoutMapZoom(wrap) {
       if (Math.abs(_mapLaidAt - _mapZoom) < 1e-4) return;
+      const base = mapContentSize();
+      if (!base.w) return;          // the frame has no size yet; nothing to lay out
       _mapLaidAt = _mapZoom;
-      wrap.style.width = (100 * _mapZoom) + '%';
+      wrap.style.width = Math.round(base.w * _mapZoom) + 'px';
     }
 
-    // The plan's size before any zoom. Measured with the zoom divided back out,
-    // because the wrapper is laid out at the zoomed width now. `offsetWidth`
-    // rounds to whole pixels, and at 8x half a pixel is a visible strip of
-    // frame beside the map — so measure it properly, and only when the frame
-    // itself changes size.
-    let _mapContentW = 0, _mapContentH = 0, _mapMeasuredAt = -1;
-    function mapContentSize(wrap) {
-      const frame = wrap.parentElement ? wrap.parentElement.clientWidth : 0;
-      if (_mapMeasuredAt !== frame || !_mapContentH) {
-        const cs = getComputedStyle(wrap);
-        const laid = _mapLaidAt || 1;
-        _mapContentW = ((parseFloat(cs.width) || wrap.offsetWidth) / laid) || 0;
-        _mapContentH = ((parseFloat(cs.height) || wrap.offsetHeight) / laid) || 0;
-        _mapMeasuredAt = frame;
-      }
-      return { w: _mapContentW, h: _mapContentH };
+    // The frame's own size, and the shape of what it shows. Both are read
+    // rarely and cached: `clampMapPan` runs on every pointer move of a pan, and
+    // a layout read per move is a layout per move.
+    let _mapFrame = null, _mapAspect = 0;
+    function mapFrameSize() {
+      const vp = el('mapViewport');
+      if (!vp) return { w: 0, h: 0 };
+      if (!_mapFrame) _mapFrame = { w: vp.clientWidth, h: vp.clientHeight };
+      return _mapFrame;
+    }
+    // The plan at fit: the largest it can be while fitting inside the frame
+    // whole. Computed rather than measured — the wrapper is laid out at the
+    // zoomed size now, so measuring it would fold the zoom back in.
+    //
+    // It fits rather than filling the width, because the frame is allowed to be
+    // shorter than the drawing is tall. On a laptop a plan as tall as it is
+    // wide filled the window and then some; capped, the whole of it is on one
+    // screen, which is the only view that answers "where is everything".
+    function mapContentSize() {
+      const f = mapFrameSize();
+      if (!_mapAspect || !f.w || !f.h) return { w: 0, h: 0 };
+      const w = Math.min(f.w, f.h * _mapAspect);
+      return { w, h: w / _mapAspect };
     }
     function clampMapPan() {
-      const vp = el('mapViewport'), wrap = el('mapImageWrap');
-      if (!vp || !wrap) return;
-      // Measure the wrapper, not the frame: zoomed in, the frame grows taller
-      // than the plan is at rest, and the two sizes stop agreeing.
-      const size = mapContentSize(wrap);
+      const f = mapFrameSize();
+      const size = mapContentSize();
+      if (!size.w) return;
       const cw = size.w * _mapZoom, ch = size.h * _mapZoom;
-      // The plan always covers the frame: panning can never expose a void
-      // beside it, which would leave the reader unsure where the map went.
-      _mapPanX = Math.min(0, Math.max(Math.min(0, vp.clientWidth - cw), _mapPanX));
-      _mapPanY = Math.min(0, Math.max(Math.min(0, vp.clientHeight - ch), _mapPanY));
+      // Smaller than the frame on an axis: centred there. Pinned to zero
+      // instead, the plan sat against one edge with a band of empty frame
+      // beside it, which reads as the map having slid away.
+      _mapPanX = cw <= f.w ? (f.w - cw) / 2 : Math.min(0, Math.max(f.w - cw, _mapPanX));
+      _mapPanY = ch <= f.h ? (f.h - ch) / 2 : Math.min(0, Math.max(f.h - ch, _mapPanY));
     }
     // Pins keep their size on screen while the plan grows underneath them, so
     // zooming spreads them apart instead of inflating them into each other.
@@ -1341,9 +1381,34 @@
       ]));
     });
 
+    // The nearest pin to a point, within reach.
+    //
+    // At fit-width a bay is four pixels across on a laptop and under three on a
+    // phone: drawn exactly right, and impossible to hit. Aiming near one is the
+    // same intent as landing on it — and the nearest centre is an unambiguous
+    // answer, where "whichever element is on top" is not.
+    const TAP_REACH = 22;
+    function pinNear(x, y) {
+      const layer = el('mapSpotLayer');
+      if (!layer) return null;
+      let best = null, bestD = TAP_REACH * TAP_REACH;
+      for (const pin of layer.children) {
+        const r = pin.getBoundingClientRect();
+        if (!r.width) continue;
+        const dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
+        const d = dx * dx + dy * dy;
+        if (d < bestD) { bestD = d; best = pin; }
+      }
+      return best;
+    }
+
     // A spot: while editing it is a handle, otherwise it is the car on it.
     el('mapContainer')?.addEventListener('click', async (e) => {
-      const pin = e.target.closest('.map-spot');
+      // Not while placing: there a tap on the plan puts a spot down, and
+      // snapping it to the nearest existing one would take that away.
+      const pin = e.target.closest('.map-spot')
+        || (!_spotEdit && !_spotRow && el('mapImageWrap')?.contains(e.target)
+          ? pinNear(e.clientX, e.clientY) : null);
       if (!pin || _spotRow) return;
       // A pan that happens to end over a pin is still a pan: without this,
       // dragging across a full zone opens whichever car you let go on.
@@ -1922,6 +1987,12 @@
       }
       const spots = planSpots(plan);
       if (!spots.length) { showToast(t('map.plan_empty'), 'error'); return; }
+      // The colour a zone is drawn in, by name: a car standing in it is painted
+      // the same colour, so the map answers "which class is parked where"
+      // without a legend.
+      const zoneInk = new Map(plan.items
+        .filter(it => it.t === 'zone' && it.name && it.color)
+        .map(it => [it.name.trim().toLowerCase(), it.color]));
 
       // Replacing the map replaces every pin on it, and a pin can have a car.
       // Say how many before doing it, not after.
@@ -1967,6 +2038,7 @@
         r: Math.round((((sp.rot % 360) + 360) % 360) * 100) / 100,
         w: Math.round(sp.sw / doc.view.w * 1e5) / 1e3,
         h: Math.round(sp.sd / doc.view.h * 1e5) / 1e3,
+        c: zoneInk.get(String(sp.zone || '').trim().toLowerCase()) || '',
       })).filter(sp => sp.zone);
       // A spot the drawing gives no zone to cannot be used here: a car carries a
       // zone, and a pin with none could never be filled. They stay visible in

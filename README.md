@@ -350,6 +350,39 @@ Trei lucruri pe care le spune explicit, în loc să le înghită:
   planul nou, `spot_no` i se pune pe `null` și numărul lor apare în interfață.
   Un număr de loc care nu duce nicăieri e mai rău decât niciun număr.
 
+### Mașinile de pe hartă
+
+Un loc desenat poartă și culoarea zonei lui (`c` în `zone_spots`, luată din
+poligonul zonei din plan). Cu ea:
+
+- **Boxa liberă e desenul unei mașini și atât** — caroserie albă, linii închise,
+  cum se desenează o mașină de sus pe o fișă tehnică. Vopsită, ar zice că stă
+  cineva acolo, pe două sute de boxe deodată.
+- **Boxa ocupată e vopsită în culoarea zonei ei** — aceeași culoare cu care e
+  desenată zona dedesubt, deci harta spune ce clasă unde stă, fără legendă.
+  Așteptată e culoarea la jumătate, sosită e culoarea plină: diferența se vede
+  dintr-o privire și nu costă a doua nuanță.
+- `here` e **un fel de** `taken`, niciodată o alternativă la el. Scrise ca una
+  sau alta, mașinile sosite ieșeau nevopsite ca boxele goale.
+- Numărul se scrie cu cerneală închisă și halou alb, fiindcă o culoare de zonă
+  poate fi orice de la `#ff0000` la `#96e1e1`, iar textul alb dispare pe
+  jumătate dintre ele.
+
+**Rama e cât planul, nu cât pagina.** Un plan de teren e cam la fel de înalt pe
+cât e de lat, deci lăsată liberă rama umplea fereastra și încă puțin — puteai
+citi harta sau butoanele de sub ea, niciodată amândouă. Acum e plafonată la
+`min(68vh, 560px)` pe înălțime și la aceeași valoare ori proporția desenului pe
+lățime, iar desenul **încape** înăuntru în loc să umple lățimea. Pe telefon
+niciun plafon nu prinde: ecranul e mai îngust decât plafonul și planul mai
+scund, deci rama rămâne exact cum era.
+
+**Un tap lângă o boxă o alege pe ea.** La lățime întreagă o boxă are patru
+pixeli pe un laptop și sub trei pe telefon: desenată exact, și imposibil de
+nimerit. Dacă atingerea n-a căzut pe niciun pin, se ia pinul cu centrul cel mai
+apropiat, în limita a 22px — „cel mai aproape" e un răspuns fără ambiguitate,
+unde „elementul de deasupra" nu e. Nu se aplică în modul de așezare, unde un tap
+pe plan pune un loc nou.
+
 ### „Cine stă pe locul ăsta?"
 
 Apasă un loc liber și dialogul întreabă care mașină merge acolo. Era un `select`

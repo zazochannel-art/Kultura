@@ -2253,15 +2253,23 @@ try {
       const back = await zp.evaluate(() => {
         const wrap = document.getElementById('mapImageWrap');
         const vp = document.getElementById('mapViewport');
+        const w = wrap.getBoundingClientRect(), v = vp.getBoundingClientRect();
+        const cs = getComputedStyle(vp);
+        const x0 = v.left + (parseFloat(cs.borderLeftWidth) || 0);
+        const y0 = v.top + (parseFloat(cs.borderTopWidth) || 0);
         return {
-          t: wrap.style.transform,
-          ratio: wrap.getBoundingClientRect().width / vp.clientWidth,
-          val: document.getElementById('mapZoomVal').textContent,
+          t: wrap.style.transform, val: document.getElementById('mapZoomVal').textContent,
+          // Slack left over on each side, which is what "fits and is centred"
+          // means: the same at both ends, and never negative.
+          slackX: [w.left - x0, (x0 + vp.clientWidth) - w.right],
+          slackY: [w.top - y0, (y0 + vp.clientHeight) - w.bottom],
         };
       });
       check('map-zoom-reset-returns-to-fit',
-        Math.abs(back.ratio - 1) < 0.02 && /translate\(0px, 0px\)/.test(back.t)
-        && !/scale/.test(back.t) && back.val === '100%',
+        back.val === '100%' && !/scale/.test(back.t)
+        && back.slackX.every((v2) => v2 > -1) && back.slackY.every((v2) => v2 > -1)
+        && Math.abs(back.slackX[0] - back.slackX[1]) < 2
+        && Math.abs(back.slackY[0] - back.slackY[1]) < 2,
         JSON.stringify(back));
 
       // A whole row from its two ends. This is the difference between laying a
@@ -2710,6 +2718,50 @@ try {
       });
       check('plan-import-draws-the-plan-at-the-zoomed-size',
         sharp.svgPx > sharp.framePx * 2.1 && !/scale/.test(sharp.t), JSON.stringify(sharp));
+
+      await ip.evaluate(() => document.getElementById('mapZoomReset').click());
+      await mapSettled(ip);
+      // The whole plan on one screen. A venue plan is about as tall as it is
+      // wide, so left to itself the frame filled the window and then some —
+      // map or controls, never both.
+      const framed = await ip.evaluate(() => {
+        const vp = document.getElementById('mapViewport');
+        const w = document.getElementById('mapImageWrap').getBoundingClientRect();
+        const v = vp.getBoundingClientRect();
+        return { frameH: Math.round(v.height), frameW: Math.round(v.width), screenH: innerHeight,
+          inside: w.width <= v.width + 2 && w.height <= v.height + 2 };
+      });
+      check('plan-import-fits-the-whole-plan-on-one-screen',
+        framed.frameH <= framed.screenH * 0.7 && framed.inside, JSON.stringify(framed));
+      // The frame takes the drawing's shape rather than the page's width: a
+      // full-width frame holding a narrow plan is a field of nothing.
+      check('plan-import-frame-takes-the-plans-shape',
+        Math.abs(framed.frameW / framed.frameH - 401.064 / 441.864) < 0.05,
+        JSON.stringify(framed));
+
+      // A car standing in a zone is painted that zone's own colour — the same
+      // colour the zone is drawn in underneath it. STANCE is #e89b00 on this
+      // plan, and car #11 is on Stance#1.
+      const ink = await ip.evaluate(() => {
+        const g = document.querySelector('#mapCars .cp.taken');
+        const free = document.querySelector('#mapCars .cp.free .cp-body');
+        return {
+          zone: (g && g.style.getPropertyValue('--zone').trim()) || '',
+          takenFill: (g && getComputedStyle(g.querySelector('.cp-body')).fill) || '',
+          freeFill: (free && getComputedStyle(free).fill) || '',
+          // An arrived car is a taken one too — written as one or the other,
+          // it came out painted like an empty bay.
+          arrived: document.querySelectorAll('#mapCars .cp.taken.here').length,
+        };
+      });
+      ink.saved = ((savedSpots || []).find((sp) => sp.zone === 'Stance') || {}).c || '';
+      check('plan-import-paints-a-car-in-its-zone-colour',
+        ink.saved.toLowerCase() === '#e89b00' && ink.zone.toLowerCase() === '#e89b00'
+        && /232, 155, 0/.test(ink.takenFill) && ink.arrived === 1, JSON.stringify(ink));
+      // An empty bay is the drawing of a car and nothing else: white body, dark
+      // lines. Painted, it would say somebody is standing there.
+      check('plan-import-leaves-an-empty-bay-uncoloured',
+        /255, 255, 255/.test(ink.freeFill || ''), JSON.stringify(ink));
     } catch (e) {
       for (const n of ['plan-import-button-for-staff', 'plan-import-keeps-the-plan-a-drawing',
         'plan-import-saves-the-spots', 'plan-import-pins-land-inside-the-image',
@@ -2717,7 +2769,9 @@ try {
         'plan-import-speaks-the-app-zone-names', 'plan-import-frees-a-car-whose-spot-is-gone',
         'plan-import-says-what-it-left-out', 'plan-import-map-shows-the-drawing-and-its-pins',
         'plan-import-pins-are-cars-in-their-bays', 'plan-import-cars-grow-with-the-plan',
-        'plan-import-draws-the-plan-at-the-zoomed-size']) {
+        'plan-import-draws-the-plan-at-the-zoomed-size',
+        'plan-import-fits-the-whole-plan-on-one-screen', 'plan-import-frame-takes-the-plans-shape',
+        'plan-import-paints-a-car-in-its-zone-colour', 'plan-import-leaves-an-empty-bay-uncoloured']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
       console.log(`plan import checks: ${e.message}`);
@@ -2829,6 +2883,7 @@ try {
       await ap.waitForSelector('#uiDialogPick .ui-pick-row', { timeout: 5000 });
 
       const open = await ap.evaluate(() => ({
+        title: document.getElementById('uiDialogMessage').textContent,
         rows: document.querySelectorAll('.ui-pick-row').length,
         note: document.getElementById('uiDialogPickNote').textContent,
         text: document.getElementById('uiDialogPickList').textContent,
@@ -2871,6 +2926,30 @@ try {
         byPlate.rows === 1 && /B137XYZ/.test(byPlate.sub) && !/B137XYZ/.test(byPlate.main),
         JSON.stringify(byPlate));
 
+      // Aiming near a bay is the same intent as landing on one. At fit-width a
+      // bay is four pixels across on a laptop and under three on a phone: drawn
+      // exactly right, and impossible to hit — which is what "some of them
+      // can't be used" turned out to mean.
+      await ap.evaluate(() => document.getElementById('uiDialogCancel').click());
+      await ap.waitForTimeout(200);
+      const near = await ap.evaluate(() => {
+        const r = document.querySelector('.map-spot[data-spot-no="2"]').getBoundingClientRect();
+        return { x: Math.round(r.left + r.width / 2) + 14, y: Math.round(r.top + r.height / 2) - 9 };
+      });
+      const onNothing = await ap.evaluate(([x, y]) =>
+        !document.elementFromPoint(x, y)?.closest('.map-spot'), [near.x, near.y]);
+      await ap.mouse.click(near.x, near.y);
+      await ap.waitForTimeout(500);
+      const beside = await ap.evaluate(() => ({
+        shown: document.getElementById('uiDialog').classList.contains('show'),
+        title: document.getElementById('uiDialogMessage').textContent,
+      }));
+      check('map-a-tap-beside-a-bay-still-picks-it',
+        onNothing && beside.shown && beside.title === open.title,
+        JSON.stringify({ onNothing, beside, wanted: open.title }));
+
+      await ap.fill('#uiDialogPickSearch', 'B137XYZ');
+      await ap.waitForTimeout(200);
       await ap.click('.ui-pick-row');
       await ap.waitForTimeout(600);
       const wrote = carPatches.find((c) => /"spot_no":2/.test(c.body.replace(/\s/g, '')));
@@ -2882,6 +2961,7 @@ try {
     } catch (e) {
       for (const n of ['assign-offers-only-cars-without-a-spot', 'assign-caps-the-rows-and-says-how-many-more',
         'assign-has-no-confirm-button', 'assign-search-narrows-the-list', 'assign-search-matches-a-plate',
+        'map-a-tap-beside-a-bay-still-picks-it',
         'assign-a-tap-puts-the-car-on-the-spot', 'assign-closes-after-the-tap']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
