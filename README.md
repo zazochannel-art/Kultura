@@ -230,6 +230,18 @@ randarea vin din același `view box` — de-aia cad pinii pe locuri. Restul
 aplicației nu se schimbă: check-in, „umple automat", zoom, toate merg mai
 departe pe locurile aduse.
 
+**De ce n-au pinii sticlă mată.** `backdrop-filter` cere o suprafață de
+randare per element. Cu două sute de pini, compozitorul refăcea straturile la
+fiecare cadru de deplasare: 155 ms de `Layerize` pe un gest, față de 78 ms fără
+— măsurat pe un telefon simulat cu procesorul încetinit de patru ori. Fundalul
+puțin mai opac ține aceeași lizibilitate pe gratis. Nimic din felul cum arată
+nu spune asta, de-aia are o verificare, nu un comentariu.
+
+O idee care a picat la măsurătoare: oprirea testării de coliziune pe pini în
+timpul deplasării. Economisea 25 ms de `HitTest`, dar selectorul descendent de
+care avea nevoie invalida stilul tuturor pinilor de două ori pe gest — plus
+50 ms. A fost scoasă.
+
 **Pinii pe un plan dens.** Harta a fost desenată pentru câteva zeci de locuri;
 planul are 238, iar pinii de dinainte acopereau exact desenul pentru care au
 fost aduși. Acum: pinul crește cu zoom-ul, dar mult mai încet decât planul

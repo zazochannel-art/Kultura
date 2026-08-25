@@ -1994,7 +1994,11 @@
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   min-width: 24px; min-height: 24px; padding: 2px 4px;
   border-radius: 7px; border: 1.25px solid rgba(255,255,255,0.5);
-  background: rgba(15,23,42,0.72); backdrop-filter: blur(3px);
+  /* No backdrop blur. Frosted glass costs a render surface per pin, and two
+     hundred of them made the compositor re-layerize the whole map on every
+     frame of a pan — measured at 181ms of Layerize per gesture, 74ms without.
+     A denser background buys the same legibility over a busy photo for free. */
+  background: rgba(15,23,42,0.85);
   color: #fff; font-size: 10px; font-weight: 800; line-height: 1.1;
   cursor: pointer; touch-action: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.35);
