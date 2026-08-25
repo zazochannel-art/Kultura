@@ -2061,17 +2061,19 @@ try {
         !tools.before.row && !tools.before.clear && tools.during.row && tools.during.clear,
         JSON.stringify(tools));
 
-      // A pin keeps its size on screen while the plan grows under it, so
-      // zooming spreads pins apart instead of inflating them into each other.
-      // Measured between two zoom levels that are both past the dense cutoff,
-      // or the fallback's own size change would answer for the counter-scale.
+      // A pin grows with the zoom, but nowhere near as fast as the plan: one
+      // step multiplies the plan by 1.5 and the pin by about 1.05, so leaning
+      // in keeps spreading pins apart instead of packing them tighter. Measured
+      // between two zoom levels that are both past the dense cutoff, or the
+      // fallback's own size change would answer for the scale.
       const pin = await zp.evaluate(() => {
         const w = () => document.querySelector('.map-spot[data-spot-no="3"]').getBoundingClientRect().width;
         const a = w();
         document.getElementById('mapZoomIn').click();
         return { a, b: w(), zoom: document.getElementById('mapZoomVal').textContent };
       });
-      check('map-zoom-keeps-pins-legible', Math.abs(pin.a - pin.b) < 1.5 && pin.a > 10, JSON.stringify(pin));
+      check('map-zoom-grows-pins-slower-than-the-plan',
+        pin.b > pin.a * 1.02 && pin.b < pin.a * 1.15 && pin.a > 10, JSON.stringify(pin));
 
       const zoomed = await zp.evaluate(() => {
         const wrap = document.getElementById('mapImageWrap');
@@ -2236,7 +2238,7 @@ try {
     } catch (e) {
       for (const n of ['spots-row-places-the-whole-rank', 'spots-row-ends-land-on-the-taps',
         'spots-row-spaced-evenly', 'spots-row-numbers-continue-the-zone',
-        'map-zoom-scales-the-plan', 'map-zoom-keeps-pins-legible',
+        'map-zoom-scales-the-plan', 'map-zoom-grows-pins-slower-than-the-plan',
         'map-zoom-reset-returns-to-fit', 'map-pan-cannot-expose-a-void',
         'spots-placed-where-tapped-when-zoomed', 'spots-dense-plans-fall-back-to-dots',
         'spots-clearing-a-zone-frees-its-cars', 'car-zone-change-releases-the-spot',

@@ -857,10 +857,16 @@
     function renderSpotDensity() {
       const layer = el('mapSpotLayer');
       if (!layer) return;
-      layer.style.setProperty('--pin-s', String(1 / _mapZoom));
-      // Forty pins on one row is a smear at fit-width. Until there is room for
-      // them the plan shows dots; the cars appear as soon as they can be read.
-      layer.classList.toggle('dense', ZONE_SPOTS.length > 24 && _mapZoom < 1.8);
+      // Not a straight counter-scale: the pin grows with the zoom, only far
+      // slower than the plan does. Across the whole range the plan grows eight
+      // times and the pin about a quarter — enough to feel like it followed you
+      // in, little enough that a bay is still wider than the pin sitting on it.
+      layer.style.setProperty('--pin-s', String(Math.pow(_mapZoom, -0.88)));
+      // Until a number has room it is a dot, and how much zoom that takes
+      // depends on how many spots share the plan: forty pins on a photo and two
+      // hundred and thirty on a venue plan are not the same picture.
+      const roomAt = Math.min(6, 1.8 * Math.sqrt(ZONE_SPOTS.length / 26));
+      layer.classList.toggle('dense', ZONE_SPOTS.length > 24 && _mapZoom < roomAt);
     }
     function applyMapTransform() {
       const wrap = el('mapImageWrap');

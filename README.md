@@ -216,6 +216,16 @@ randarea vin din același `view box` — de-aia cad pinii pe locuri. Restul
 aplicației nu se schimbă: check-in, „umple automat", zoom, toate merg mai
 departe pe locurile aduse.
 
+**Pinii pe un plan dens.** Harta a fost desenată pentru câteva zeci de locuri;
+planul are 238, iar pinii de dinainte acopereau exact desenul pentru care au
+fost aduși. Acum: pinul crește cu zoom-ul, dar mult mai încet decât planul
+(`zoom^0.12` — de opt ori planul înseamnă un sfert în plus la pin), iar sub
+pragul la care un număr are loc pinii sunt puncte. Pragul depinde de câte
+locuri sunt pe plan, nu de o cifră fixă: `1,8 × √(n/26)`, plafonat la 6×. Un
+loc liber se estompează la 45% — boxa e deja desenată pe plan, iar două sute de
+puncte pline îngroapă desenul; unul ocupat rămâne la putere maximă, fiindcă
+„cine unde stă" e singura întrebare pusă privirii de ansamblu.
+
 Trei lucruri pe care le spune explicit, în loc să le înghită:
 
 - **numele zonelor.** Desenul zice `MODERN CARS`, aplicația zice `Modern`.
