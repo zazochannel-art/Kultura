@@ -10,7 +10,7 @@
     import { haptic, confettiBurst, successCheck, auroraPulse } from './effects.js';
     // The venue plan drawn in plan.html. Same module the editor uses, so the
     // map the app shows and the plan somebody drew can never disagree.
-    import { planSpots, planSvgDoc } from './plan-render.js';
+    import { planSpots, planSvgDoc, SPOT_W, SPOT_D } from './plan-render.js';
 
     const SUPABASE_URL = 'https://knphmxxokowwkruimdus.supabase.co';
     const SUPABASE_ANON = 'sb_publishable_9b7WSJF4UlfF1JIdCDjWqQ_dxOTpqSW';
@@ -549,9 +549,28 @@
 
     // ----- ZONE MAP -----
     let _mapUrl = null;
+    // When the map is a drawn plan, this is the plan itself. It is rendered as
+    // SVG in the page rather than as a picture: a raster has a resolution and
+    // the gate zooms to 8x, which is where it turns to mush. A drawing has none.
+    let _plan = null, _planUrl = null;
     async function loadMap() {
-      const { data } = await supa.from('ui_settings').select('value').eq('key', 'zone_map_url').maybeSingle();
-      _mapUrl = data?.value || null;
+      const { data } = await supa.from('ui_settings')
+        .select('key,value').in('key', ['zone_map_url', 'zone_plan_url']);
+      const byKey = Object.fromEntries((data || []).map(r => [r.key, r.value]));
+      _mapUrl = byKey.zone_map_url || null;
+      _planUrl = byKey.zone_plan_url || null;
+      _plan = null;
+      if (_planUrl) {
+        // Same guard as the editor's: the path is ours, relative, and a plan.
+        try {
+          if (!/^[\w./-]+\.json$/.test(_planUrl) || _planUrl.includes('..') || _planUrl.startsWith('/')) throw new Error('path');
+          const r = await fetch(_planUrl, { cache: 'no-cache' });
+          if (!r.ok) throw new Error(String(r.status));
+          _plan = await r.json();
+        } catch (_) {
+          _plan = null;   // the picture, if there is one, is the fallback
+        }
+      }
       renderMap();
     }
     function renderMap() {
@@ -559,20 +578,23 @@
       const actions = el('mapActions');
       if (actions) actions.style.display = staff ? 'flex' : 'none';
       const delBtn = el('mapDeleteBtn');
-      if (delBtn) delBtn.style.display = (staff && _mapUrl) ? 'inline-flex' : 'none';
+      if (delBtn) delBtn.style.display = (staff && (_plan || _mapUrl)) ? 'inline-flex' : 'none';
       const uploadLabel = el('mapUploadBtn').querySelector('span');
-      if (uploadLabel) uploadLabel.textContent = _mapUrl ? t('map.replace') : t('map.upload');
+      if (uploadLabel) uploadLabel.textContent = (_plan || _mapUrl) ? t('map.replace') : t('map.upload');
 
       const container = el('mapContainer');
       if (!container) return;
-      if (_mapUrl) {
+      if (_plan || _mapUrl) {
         // The spot layer sits inside the same wrapper as the image so both scale
         // together — percentages only mean anything against the rendered photo.
         // The viewport clips; the wrapper inside it is what zooms and pans, so
         // the image and its spots move as one piece.
         container.innerHTML = `<div class="map-viewport" id="mapViewport">`
           + `<div class="map-image-wrap" id="mapImageWrap">`
-          + `<img src="${escape(_mapUrl)}" alt="${escape(t('map.title'))}" id="mapImage" draggable="false">`
+          + (_plan
+            ? `<div class="map-plan" id="mapPlan" role="img" aria-label="${escape(t('map.title'))}"></div>`
+              + `<svg class="map-cars" id="mapCars" aria-hidden="true" preserveAspectRatio="xMidYMid meet"></svg>`
+            : `<img src="${escape(_mapUrl)}" alt="${escape(t('map.title'))}" id="mapImage" draggable="false">`)
           + `<div class="map-spot-layer" id="mapSpotLayer"></div>`
           + `</div>`
           + `<div class="map-zoom">`
@@ -585,10 +607,11 @@
         // A rebuilt map brings new elements: what the old ones were showing
         // says nothing about them.
         _shownZoom = -1;
+        if (_plan) renderPlanVector();
         applyMapTransform();
         // Opening the lightbox would swallow every tap meant for a spot, so it
         // moves to its own control while spots are being placed or read.
-        el('mapImage').onclick = (e) => {
+        if (el('mapImage')) el('mapImage').onclick = (e) => {
           if (_spotEdit || ZONE_SPOTS.length || _mapZoom > 1.01 || _mapPanMoved) return;
           e.preventDefault(); openLightbox(_mapUrl);
         };
@@ -727,14 +750,26 @@
         if (Array.isArray(arr)) {
           ZONE_SPOTS = arr
             .filter(s => s && s.zone && Number.isFinite(+s.no))
-            .map(s => ({
-              zone: String(s.zone).trim(),
-              no: Math.max(1, parseInt(s.no, 10) || 1),
-              // Clamp on read as well as write: a bad value in the table must
-              // not put a pin outside the image where nobody can grab it.
-              x: Math.min(100, Math.max(0, Number(s.x) || 0)),
-              y: Math.min(100, Math.max(0, Number(s.y) || 0)),
-            }));
+            .map(s => {
+              const sp = {
+                zone: String(s.zone).trim(),
+                no: Math.max(1, parseInt(s.no, 10) || 1),
+                // Clamp on read as well as write: a bad value in the table must
+                // not put a pin outside the image where nobody can grab it.
+                x: Math.min(100, Math.max(0, Number(s.x) || 0)),
+                y: Math.min(100, Math.max(0, Number(s.y) || 0)),
+              };
+              // A spot that came from a drawing knows the bay it stands for:
+              // how big it is and which way it faces. That is what lets the pin
+              // be drawn as a car parked in it rather than a dot near it. A spot
+              // dropped on a photo has none of it, and stays a dot.
+              if (Number.isFinite(+s.r)) sp.r = ((+s.r % 360) + 360) % 360;
+              if (+s.w > 0 && +s.h > 0) {
+                sp.w = Math.min(100, +s.w);
+                sp.h = Math.min(100, +s.h);
+              }
+              return sp;
+            });
         }
       } catch (_) {}
       try { renderMapSpots(); } catch (_) {}
@@ -750,17 +785,70 @@
       return true;
     }
 
+    // A car seen from above, drawn inside its bay: the local box is one bay —
+    // 2.5 by 5 metres — and the car in it is the 2 by 4.4 that actually fits
+    // there, which is why a parked car never touches the lines it stands
+    // between.
+    //
+    // Every car is drawn on one shared SVG under the pins rather than one SVG
+    // inside each pin. Two hundred and thirty-eight little documents cost the
+    // compositor twice the work of the same shapes on a single one — 314ms of
+    // Layerize per pan against 167ms, measured on a throttled phone — and every
+    // one of them was hit-tested on the way to the button wrapping it.
+    //
+    // The caption is drawn in the same box, so it is the size of the car it
+    // names. Held at a fixed size on screen instead, it came out wider than the
+    // whole bay: a number twice the length of the car it belonged to, over a
+    // plan that draws two hundred more. It sits on the boot rather than across
+    // the middle, because a number over the cabin takes away the one detail
+    // that makes the shape read as a car at all, and it is set to the width of
+    // the car: a plate is longer than an entry number, and left to itself it
+    // hangs out over both neighbours. It carries the counter-rotation because
+    // the bay is turned, and a number read sideways is not read.
+    const CAR_BODY = 'M25 6c8 0 14 7 15 16 1 12 1 30 1 42 0 16-3 30-16 30S9 80 9 64'
+      + 'c0-12 0-30 1-42C11 13 17 6 25 6Z';
+    const CAR_GLASS = 'M15 34c0-5 20-5 20 0l1 29c0 6-22 6-22 0Z';
+    const r3 = (v) => Math.round(v * 1000) / 1000;
+
+    // Where a car stands on the deck. The scale is the smaller of the two, so a
+    // bay narrowed to fit its row gets a smaller car and not a squashed one.
+    function carTransform(sp) {
+      const v = _planView;
+      const cx = v.x + (sp.x / 100) * v.w, cy = v.y + (sp.y / 100) * v.h;
+      const k = Math.min((sp.w / 100) * v.w / 50, (sp.h / 100) * v.h / 100);
+      return 'translate(' + r3(cx) + ' ' + r3(cy) + ') rotate(' + r3(sp.r || 0)
+        + ') scale(' + k.toFixed(5) + ') translate(-25 -50)';
+    }
+    function carSvg(sp, i, kind, label) {
+      const r = sp.r || 0;
+      return '<g class="cp ' + kind + '" data-i="' + i + '" transform="' + carTransform(sp) + '">'
+        + '<path class="cp-body" d="' + CAR_BODY + '"/>'
+        + '<path class="cp-glass" d="' + CAR_GLASS + '"/>'
+        + (label
+          ? '<text class="cp-no" x="25" y="79" text-anchor="middle" textLength="32"'
+            + ' lengthAdjust="spacingAndGlyphs" transform="rotate(' + r3(-r) + ' 25 70)">'
+            + escape(label) + '</text>'
+          : '')
+        + '</g>';
+    }
+
     // Draw the spots over the map photo. Occupied ones carry the car so the plan
     // can be read at a glance — which is the whole point of putting it on the
     // picture instead of in a list.
     function renderMapSpots() {
       const layer = el('mapSpotLayer');
       if (!layer) return;
-      if (!_mapUrl) { layer.innerHTML = ''; return; }
+      if (!_plan && !_mapUrl) { layer.innerHTML = ''; return; }
       layer.classList.toggle('is-editing', _spotEdit);
-      layer.innerHTML = ZONE_SPOTS.map((sp) => {
+      const deck = el('mapCars');
+      const pins = [], cars = [];
+      ZONE_SPOTS.forEach((sp, i) => {
         const car = carOnSpot(sp.zone, sp.no);
+        // A bay is a spot that came off a drawing: it knows its size and which
+        // way it faces, which is what it takes to draw a car standing in it.
+        const bay = !!(_planView && sp.w > 0 && sp.h > 0);
         const cls = ['map-spot'];
+        if (bay) cls.push('is-car');
         if (car) {
           cls.push('taken');
           if (statusKey(car.status) === 'sosit') cls.push('here');
@@ -774,14 +862,34 @@
           ? [car.entry_no ? '#' + car.entry_no : '', [car.brand, car.model].filter(Boolean).join(' '), car.plate, car.owner]
               .filter(Boolean).join(' · ')
           : t('spots.free');
-        return `<button type="button" class="${cls.join(' ')}"
-          style="left:${sp.x}%; top:${sp.y}%"
-          data-spot-zone="${escape(sp.zone)}" data-spot-no="${sp.no}"
+        // A pin on a bay is the bay: same size, same heading, so what you tap is
+        // the place the car stands and not a circle floating near it. The car
+        // itself is drawn on the deck below, at the same size and angle.
+        const box = bay
+          ? `left:${sp.x}%; top:${sp.y}%; width:${sp.w}%; height:${sp.h}%; --r:${sp.r || 0}deg`
+          : `left:${sp.x}%; top:${sp.y}%`;
+        pins.push(`<button type="button" class="${cls.join(' ')}"
+          style="${box}"
+          data-spot-zone="${escape(sp.zone)}" data-spot-no="${sp.no}" data-spot-i="${i}"
           title="${escape(sp.zone + ' · ' + t('spots.spot_n', { n: sp.no }) + ' — ' + who)}">
-          <span class="ms-no">${escape(String(sp.no))}</span>
-          <span class="ms-car">${escape(label)}</span>
-        </button>`;
-      }).join('');
+          ${bay ? '' : `<span class="ms-lab"><span class="ms-no">${escape(String(sp.no))}</span>`
+            + `<span class="ms-car">${escape(label)}</span></span>`}
+        </button>`);
+        // A car pin says who is in it and nothing else: the bay's own number is
+        // already drawn on the plan underneath, in the right place and at the
+        // right size, and an empty bay has nothing to say at all.
+        if (bay) {
+          cars.push(carSvg(sp, i, car ? (cls.includes('here') ? 'here' : 'taken') : 'free',
+            car ? label : ''));
+        }
+      });
+      layer.innerHTML = pins.join('');
+      if (deck) {
+        const v = _planView;
+        deck.setAttribute('viewBox', `${r3(v.x)} ${r3(v.y)} ${r3(v.w)} ${r3(v.h)}`);
+        deck.classList.toggle('is-editing', _spotEdit);
+        deck.innerHTML = cars.join('');
+      }
       // The first end of a row being laid, so you can see what you are aiming at.
       if (_spotEdit && _spotRow && _rowFrom) {
         layer.insertAdjacentHTML('beforeend',
@@ -790,7 +898,7 @@
       }
       renderSpotDensity();
       const bar = el('mapSpotBar');
-      if (bar) bar.hidden = !(roleAtLeast('staff') && _mapUrl);
+      if (bar) bar.hidden = !(roleAtLeast('staff') && (_plan || _mapUrl));
       for (const id of ['spotRowBtn', 'spotClearBtn']) {
         const b = el(id); if (b) b.hidden = !_spotEdit;
       }
@@ -805,6 +913,49 @@
         const taken = ZONE_SPOTS.filter(sp => carOnSpot(sp.zone, sp.no)).length;
         info.textContent = total ? t('spots.summary', { taken, total }) : t('spots.none_yet');
       }
+    }
+
+    /**
+     * Draw the plan into the map, as SVG.
+     *
+     * The markup is regenerated whenever the zoom changes band, and that is not
+     * wasteful: line widths in the drawing are given in metres and rendered as
+     * screen pixels, so the only way a kerb stays a kerb at 8x — instead of a
+     * black slab or nothing at all — is to compute them for the scale actually
+     * on screen. The view box never changes, so the spot percentages laid over
+     * it keep meaning the same thing at every zoom.
+     */
+    let _planScale = 0;
+    function renderPlanVector() {
+      const host = el('mapPlan');
+      if (!host || !_plan) return;
+      const css = host.clientWidth || el('mapViewport')?.clientWidth || 360;
+      const dpr = Math.min(3, window.devicePixelRatio || 1);
+      // Banded, because regenerating a few thousand shapes on every zoom step
+      // would cost more than the sharpness is worth.
+      const band = Math.min(8, Math.pow(2, Math.round(Math.log2(Math.max(1, _mapZoom)))));
+      if (_planScale === band && host.firstChild) return;
+      _planScale = band;
+      const doc = planSvgDoc(_plan, { width: Math.round(css * dpr * band), chrome: false, metric: true });
+      host.innerHTML = doc.svg;
+      const svg = host.firstElementChild;
+      if (svg) {
+        svg.removeAttribute('width');
+        svg.removeAttribute('height');
+        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+      }
+      _planView = doc.view;
+    }
+    let _planView = null;
+
+    // A parking bay as a share of the drawing. A percent of the width and a
+    // percent of the height are the same number of metres here, because the
+    // plan is drawn at the aspect ratio of its own view box — so a bay written
+    // this way keeps its proportions at every zoom and on every screen.
+    function bayPct(sw, sd) {
+      if (!_planView) return null;
+      const r = (v) => Math.round(v * 1000) / 1000;
+      return { w: r(sw / _planView.w * 100), h: r(sd / _planView.h * 100) };
     }
 
     // Where a pointer landed, as a percentage of the photo. Clamped, because a
@@ -869,7 +1020,11 @@
       // depends on how many spots share the plan: forty pins on a photo and two
       // hundred and thirty on a venue plan are not the same picture.
       const roomAt = Math.min(6, 1.8 * Math.sqrt(ZONE_SPOTS.length / 26));
-      layer.classList.toggle('dense', ZONE_SPOTS.length > 24 && _mapZoom < roomAt);
+      const dense = ZONE_SPOTS.length > 24 && _mapZoom < roomAt;
+      layer.classList.toggle('dense', dense);
+      // The cars are drawn on their own layer, and their captions answer to the
+      // same question: is there room to read one yet.
+      el('mapCars')?.classList.toggle('dense', dense);
     }
     let _shownZoom = -1;
     function applyMapTransform() {
@@ -883,6 +1038,7 @@
       // not change — and with a few hundred pins in the layer that is not free.
       if (_shownZoom === _mapZoom) return;
       _shownZoom = _mapZoom;
+      if (_plan) renderPlanVector();
       const val = el('mapZoomVal');
       if (val) val.textContent = Math.round(_mapZoom * 100) + '%';
       el('mapViewport')?.classList.toggle('is-zoomed', _mapZoom > 1.01);
@@ -997,6 +1153,13 @@
       const n = parseInt(String(raw).trim(), 10);
       if (!Number.isFinite(n) || n < 2 || n > 120) { showToast(t('spots.row_count_bad'), 'error'); return; }
       const nums = allocSpotNumbers(zone, n);
+      const bay = bayPct(SPOT_W, SPOT_D);
+      // The row's heading, taken on the drawing rather than on the percentages:
+      // one percent across and one percent down are the same distance in metres
+      // but not the same number, and an angle read off the numbers would lean.
+      const r = bay
+        ? Math.atan2((b.y - a.y) * _planView.h, (b.x - a.x) * _planView.w) * 180 / Math.PI
+        : 0;
       const add = [];
       for (let i = 0; i < n; i++) {
         const k = i / (n - 1);
@@ -1004,6 +1167,7 @@
           zone, no: nums[i],
           x: Math.min(100, Math.max(0, a.x + (b.x - a.x) * k)),
           y: Math.min(100, Math.max(0, a.y + (b.y - a.y) * k)),
+          ...(bay ? { r: Math.round(r * 100) / 100, ...bay } : {}),
         });
       }
       if (await saveZoneSpots(ZONE_SPOTS.concat(add))) showToast(t('spots.row_done', { n, zone }));
@@ -1073,7 +1237,8 @@
         return;
       }
       await saveZoneSpots(ZONE_SPOTS.concat([
-        { zone: _spotEditZone, no: allocSpotNumbers(_spotEditZone, 1)[0], x: at.x, y: at.y },
+        { zone: _spotEditZone, no: allocSpotNumbers(_spotEditZone, 1)[0], x: at.x, y: at.y,
+          ...(bayPct(SPOT_W, SPOT_D) || {}) },
       ]));
     });
 
@@ -1104,7 +1269,9 @@
         if (!_spotEdit || _spotRow || !roleAtLeast('staff')) return;
         const pin = e.target.closest('.map-spot');
         if (!pin) return;
-        dragging = { zone: pin.dataset.spotZone, no: Number(pin.dataset.spotNo), pin, moved: false };
+        dragging = { zone: pin.dataset.spotZone, no: Number(pin.dataset.spotNo), pin, moved: false,
+                     car: el('mapCars')?.querySelector(`[data-i="${Number(pin.dataset.spotI)}"]`) || null,
+                     spot: ZONE_SPOTS[Number(pin.dataset.spotI)] || null };
         pin.setPointerCapture?.(e.pointerId);
       };
       const move = (e) => {
@@ -1114,6 +1281,11 @@
         dragging.moved = true;
         dragging.pin.style.left = at.x + '%';
         dragging.pin.style.top = at.y + '%';
+        // The pin is the handle; the car is what you are actually looking at.
+        // Leaving it behind until the drop makes the drag look like it failed.
+        if (dragging.car && dragging.spot) {
+          dragging.car.setAttribute('transform', carTransform({ ...dragging.spot, x: at.x, y: at.y }));
+        }
         dragging.at = at;
       };
       const end = async () => {
@@ -1626,30 +1798,6 @@
       return null;
     }
 
-    // SVG was the obvious way to keep a drawing sharp at the gate's 8x zoom, and
-    // it is exactly what the bucket refuses — so the plan is rasterised here,
-    // wide enough that leaning all the way in still reads.
-    async function rasterisePlan(svg) {
-      // The SVG has to *declare* the target width: a browser rasterises it at
-      // its intrinsic size, and scaling that up in the canvas would just blur
-      // a drawing we could have rendered sharp.
-      const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-      try {
-        const im = new Image();
-        await new Promise((res, rej) => {
-          im.onload = res;
-          im.onerror = () => rej(new Error('render'));
-          im.src = url;
-        });
-        const c = document.createElement('canvas');
-        c.width = im.naturalWidth;
-        c.height = im.naturalHeight;
-        c.getContext('2d').drawImage(im, 0, 0);
-        return await fitMapBlob(c);
-      } finally {
-        URL.revokeObjectURL(url);
-      }
-    }
 
     async function importVenuePlan() {
       if (!roleAtLeast('staff')) return;
@@ -1674,17 +1822,30 @@
         name: plan.name || 'plan', n: spots.length, cars: parked,
       }))) return;
 
-      // 4800px across a 350 m site is a bay about 34 px wide in the source, so
-      // the gate's 8x zoom still lands on real pixels. Lossless, and under the
-      // bucket's ceiling with room to spare.
-      const doc = planSvgDoc(plan, { spotsWord: t('map.plan_spots_word'), width: 4800 });
+      // No picture is made of it. The plan is drawn in the page as SVG, which
+      // is sharp at any zoom and costs a fetch of the JSON instead of three
+      // megabytes of raster — so what gets saved is where the plan lives.
+      const doc = planSvgDoc(plan, { chrome: false });
       const status0 = el('mapStatus');
       status0.style.display = 'block';
       status0.style.color = 'var(--text-dim)';
       status0.textContent = t('map.plan_rendering');
-      const img = await rasterisePlan(doc.svg);
-      if (!img) { showToast(t('map.plan_too_big'), 'error'); return; }
-      if (!await uploadMapBlob(img)) return;
+      const { error: planErr } = await supa.from('ui_settings').upsert(
+        { key: 'zone_plan_url', value: PLAN_URL, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+      if (planErr) { uiAlert(t('common.error') + ': ' + planErr.message); return; }
+      // A picture that was the map until now is not the map any more.
+      if (_mapUrl) {
+        const prevPath = _mapUrl.split('/maps/')[1];
+        await supa.from('ui_settings').delete().eq('key', 'zone_map_url');
+        if (prevPath) supa.storage.from('maps').remove([decodeURIComponent(prevPath)]);
+        _mapUrl = null;
+      }
+      _planUrl = PLAN_URL;
+      _plan = plan;
+      _shownZoom = -1;
+      _planScale = 0;
+      renderMap();
+      status0.style.display = 'none';
 
       const pct = (v, a, len) => Math.min(100, Math.max(0, ((v - a) / len) * 100));
       const next = spots.map(sp => ({
@@ -1692,6 +1853,12 @@
         no: sp.no,
         x: Math.round(pct(sp.x, doc.view.x, doc.view.w) * 100) / 100,
         y: Math.round(pct(sp.y, doc.view.y, doc.view.h) * 100) / 100,
+        // The bay, not only its middle. Without its size and its heading a pin
+        // can only be a dot; with them it is a car parked between the lines the
+        // drawing already put there.
+        r: Math.round((((sp.rot % 360) + 360) % 360) * 100) / 100,
+        w: Math.round(sp.sw / doc.view.w * 1e5) / 1e3,
+        h: Math.round(sp.sd / doc.view.h * 1e5) / 1e3,
       })).filter(sp => sp.zone);
       // A spot the drawing gives no zone to cannot be used here: a car carries a
       // zone, and a pin with none could never be filled. They stay visible in
@@ -1821,12 +1988,13 @@
       else showToast(t('map.plan_too_big'), 'error');
     });
     el('mapDeleteBtn').addEventListener('click', async () => {
-      if (!_mapUrl || !(await uiConfirm(t('map.confirm_delete')))) return;
+      if ((!_mapUrl && !_plan) || !(await uiConfirm(t('map.confirm_delete')))) return;
       const prevPath = (_mapUrl || '').split('/maps/')[1];
-      const { error } = await supa.from('ui_settings').delete().eq('key', 'zone_map_url');
+      const { error } = await supa.from('ui_settings').delete().in('key', ['zone_map_url', 'zone_plan_url']);
       if (error) return uiAlert('Eroare: ' + error.message);
       if (prevPath) supa.storage.from('maps').remove([decodeURIComponent(prevPath)]);
       _mapUrl = null;
+      _plan = null; _planUrl = null; _planScale = 0;
       renderMap();
       showToast(t('map.deleted'));
     });

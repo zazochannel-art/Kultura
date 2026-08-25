@@ -95,12 +95,16 @@ export function spotCount(plan) {
 
 // Every spot on the plan, in metres. Rows are expanded here, so a caller never
 // has to know that a row is stored as two ends and a count.
+//
+// `rot` is the bay rectangle's own rotation — the same angle `spotSvg` draws it
+// at — so anything laid on top of a spot lines up with the bay under it rather
+// than sitting across it.
 export function planSpots(plan) {
   const out = [];
   for (const it of plan.items) {
     if (it.t === 'row') {
       for (const s of rowSpots(it)) {
-        out.push({ zone: it.zone || '', no: s.no, x: s.cx, y: s.cy, rot: s.ang - 90, sw: s.w, sd: s.d, color: it.color });
+        out.push({ zone: it.zone || '', no: s.no, x: s.cx, y: s.cy, rot: s.ang, sw: s.w, sd: s.d, color: it.color });
       }
     } else if (it.t === 'spot') {
       out.push({ zone: it.zone || '', no: it.no, x: it.x, y: it.y, rot: it.rot || 0,
@@ -149,11 +153,21 @@ function spotSvg(cx, cy, ang, w, d, label, color, textFill) {
  * ('live') on separate layers; without it a drag would redraw a few thousand
  * shapes. `opts.sel` is the id drawn as selected, `opts.flat` drops selection
  * entirely (exports have no selection).
+ *
+ * `opts.metric` draws the imported line work at its real width in metres
+ * instead of pinning it to screen pixels. A drawing shown at one size wants
+ * hairlines that never vanish; one you zoom into wants a two-metre kerb to look
+ * two metres wide at every zoom. The floor keeps the thinnest line visible at
+ * whatever scale is being drawn for.
  */
 export function itemsSvg(plan, s, opts) {
   const o = opts || {};
   const px = 1 / s;
   const K = inkOf(plan);
+  // Screen-pixel strokes, or real ones with a floor of about one pixel.
+  const hair = o.metric
+    ? (w) => ' stroke-width="' + Math.max(0.8 / s, w || 0.05) + '"'
+    : (w) => ' stroke-width="' + Math.max(0.7, (w || 0.05) * s) + '" vector-effect="non-scaling-stroke"';
   let out = '';
   for (const it of plan.items) {
     if (o.only === 'scenery' && !isScenery(it)) continue;
@@ -166,8 +180,7 @@ export function itemsSvg(plan, s, opts) {
       out += '<polygon data-id="' + it.id + '" points="'
         + it.pts.map((q) => q[0] + ',' + q[1]).join(' ') + '" fill="' + col
         + '" fill-opacity="' + (it.o == null ? 1 : it.o) + '"'
-        + (it.s ? ' stroke="' + it.s + '" stroke-width="' + Math.max(0.7, (it.w || 0.05) * s)
-          + '" vector-effect="non-scaling-stroke"' : ' stroke="none"')
+        + (it.s ? ' stroke="' + it.s + '"' + hair(it.w) : ' stroke="none"')
         + (on ? ' stroke="#f8589c" stroke-width="2.5" vector-effect="non-scaling-stroke"' : '')
         + '/>';
       continue;
@@ -175,8 +188,8 @@ export function itemsSvg(plan, s, opts) {
     if (it.t === 'line') {
       out += '<polyline data-id="' + it.id + '" points="'
         + it.pts.map((q) => q[0] + ',' + q[1]).join(' ') + '" fill="none" stroke="'
-        + (on ? '#f8589c' : col) + '" stroke-width="' + Math.max(0.7, (it.w || 0.05) * s)
-        + '" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>';
+        + (on ? '#f8589c' : col) + '"' + hair(it.w)
+        + ' stroke-linecap="round" stroke-linejoin="round"/>';
       continue;
     }
     if (it.t === 'zone') {
@@ -283,7 +296,7 @@ export function planSvgDoc(plan, opts) {
     + '" font-family="Inter, Helvetica, Arial, sans-serif">'
     + '<rect x="' + round(vx, 2) + '" y="' + round(vy, 2) + '" width="' + round(vw, 2) + '" height="'
     + round(vh, 2) + '" fill="' + K.bg + '"/>'
-    + itemsSvg(plan, s, { flat: true });
+    + itemsSvg(plan, s, { flat: true, metric: o.metric });
   if (o.chrome !== false) {
     let bar = 1;
     for (const m of [1, 2, 5, 10, 20, 50, 100, 200, 500]) { bar = m; if (m > vw / 8) break; }
