@@ -192,9 +192,23 @@ Ce trebuie știut înainte de a o atinge:
 ### Planul ca hartă a aplicației
 
 În secțiunea **Hartă**, un staff are butonul „Adu planul terenului". Apăsat o
-dată, `plans/plan-06.json` devine harta: planul e randat ca **SVG** (harta se
-mărește până la 8× la poartă, iar un desen rămâne clar acolo unde o poză se
-împăstează), urcat în bucket-ul `maps`, iar locurile lui intră în `zone_spots`.
+dată, `plans/plan-06.json` devine harta: planul e randat la 3600 px, urcat în
+bucket-ul `maps`, iar locurile lui intră în `zone_spots`.
+
+**De ce nu SVG.** Un desen vectorial ar rămâne clar la mărirea de 8× de la
+poartă, și asta a fost prima variantă — dar bucket-ul `maps` acceptă doar
+`image/jpeg`, `image/png`, `image/webp`, `image/gif` și maximum 5 MB, iar
+încărcarea pica în producție cu „mime type image/svg+xml is not supported".
+Planul se rasterizează, în ordinea asta: **WebP fără pierderi** (2,06 MB la
+3600 px — aceiași pixeli ca PNG-ul, cu un sfert mai mic), PNG dacă browserul nu
+știe să scrie WebP (îl întoarce oricum, așa spune specificația), JPEG doar dacă
+nu încape altfel. SVG-ul trebuie să-și *declare* lățimea țintă: un browser îl
+rasterizează la mărimea lui intrinsecă, iar mărirea de după în canvas ar face
+exact blurul pe care încercam să-l evităm.
+
+Mock-ul din `tests/smoke.mjs` cunoaște acum regulile bucket-ului (tipuri și
+limita de 5 MB) — pe cele vechi, care acceptau orice, eroarea a trecut până în
+producție.
 
 Aici se întâlnesc două feluri de a spune unde stă o mașină: planul e un desen în
 **metri**, harta e o imagine cu pini în **procente** din ea. Conversia și
