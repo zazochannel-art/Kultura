@@ -3,13 +3,16 @@
 // served from cache immediately (instant startup), while a fresh copy is
 // fetched in the background and used on the next load. Bump the cache version
 // to force a clean refresh after a deploy.
-const CACHE = 'kultura-v127';
+const CACHE = 'kultura-v128';
 const PRECACHE = [
   './',
   './index.html',
   './styles.css',
   './app.js',
   './utils.js',
+  // The plan renderer: the map section needs it the moment somebody brings the
+  // venue plan in, which is exactly when there is no signal at the gate.
+  './plan-render.js',
   './effects.js',
   './i18n.js',
   // Romanian ships with the shell; the other packs are fetched on demand, so
