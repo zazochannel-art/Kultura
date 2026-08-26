@@ -598,6 +598,13 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
               <span data-i18n="map.edit_spots">Redactează</span>
             </button>
+            <!-- Deleting is a button, not a side effect of touching a bay:
+                 every tap used to open "are you sure", which made picking one
+                 up to move or turn it a dialog you dismissed first. -->
+            <button class="add-btn quiet" id="spotDelBtn" style="display:none;" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <span data-i18n="spots.del">Șterge locul</span>
+            </button>
             <button class="add-btn" id="mapDeleteBtn" style="background: var(--surface-elev); color: var(--red); border: 1px solid rgba(239,68,68,0.35); display:none;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
             </button>

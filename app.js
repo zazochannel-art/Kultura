@@ -583,7 +583,7 @@
       if (editBtn) editBtn.style.display = (staff && (_plan || _mapUrl)) ? 'inline-flex' : 'none';
       // A map that is gone cannot be edited, and a mode left on over an empty
       // frame is a crosshair cursor with nothing under it.
-      if (_spotEdit && !(_plan || _mapUrl)) { _spotEdit = false; _spotRow = false; _rowFrom = null; _spotAdd = false; }
+      if (_spotEdit && !(_plan || _mapUrl)) { _spotEdit = false; _spotRow = false; _rowFrom = null; _spotAdd = false; _spotPick = null; }
       const uploadLabel = el('mapUploadBtn').querySelector('span');
       if (uploadLabel) uploadLabel.textContent = (_plan || _mapUrl) ? t('map.replace') : t('map.upload');
 
@@ -726,6 +726,8 @@
     let _spotRow = false;           // laying a whole row instead of one spot
     let _rowFrom = null;            // first end of the row being laid
     let _spotAdd = false;           // armed to drop the next tap as a spot
+    let _spotPick = null;           // the bay picked up for turning or deleting
+    let _spotDragged = false;       // a drag just ended; its click is not a tap
     let _parkCar = null;            // a car chosen, waiting for a place to be tapped
 
     const spotKey = (zone, no) => (zone || '').trim().toLowerCase() + '#' + no;
@@ -947,6 +949,7 @@
         const here = !!car && statusKey(car.status) === 'sosit';
         const cls = ['map-spot'];
         if (bay) cls.push('is-car');
+        if (_spotEdit && _spotPick === spotKey(sp.zone, sp.no)) cls.push('picked');
         if (car) { cls.push('taken'); if (here) cls.push('here'); }
         const label = car
           ? (car.entry_no ? '#' + car.entry_no : (car.plate || '•'))
@@ -993,6 +996,21 @@
           `<span class="map-spot ghost" style="left:${_rowFrom.x}%; top:${_rowFrom.y}%" aria-hidden="true">`
           + `<span class="ms-no">${escape(t('spots.row_a'))}</span></span>`);
       }
+      // The ring around the picked bay: grab it anywhere and drag to turn the
+      // bay. It is sized in the bay's own percentages, so it hugs the car at
+      // every zoom instead of being a fixed circle that swallows it at one end
+      // and disappears inside it at the other.
+      if (_spotEdit && _spotPick) {
+        const pi = ZONE_SPOTS.findIndex(sp => spotKey(sp.zone, sp.no) === _spotPick);
+        const ps = pi >= 0 ? ZONE_SPOTS[pi] : null;
+        if (ps && ps.w > 0 && ps.h > 0) {
+          layer.insertAdjacentHTML('beforeend',
+            `<div class="map-rot" data-rot-i="${pi}" title="${escape(t('spots.rotate'))}"`
+            + ` style="left:${ps.x}%; top:${ps.y}%; width:${ps.w * 1.75}%;`
+            + ` height:${ps.h * 1.3}%; --r:${ps.r || 0}deg">`
+            + `<span class="mr-h mr-a">\u21bb</span><span class="mr-h mr-b">\u21bb</span></div>`);
+        }
+      }
       renderSpotDensity();
       const bar = el('mapSpotBar');
       if (bar) bar.hidden = !(roleAtLeast('staff') && (_plan || _mapUrl));
@@ -1011,6 +1029,13 @@
       if (addBtn) {
         addBtn.classList.toggle('active', _spotAdd);
         addBtn.textContent = t(_spotAdd ? 'spots.add_cancel' : 'spots.add');
+      }
+      // Deleting lives at the top with the other map actions, and is dead until
+      // a bay is picked: a button that can only mean one thing, or nothing.
+      const del = el('spotDelBtn');
+      if (del) {
+        del.style.display = _spotEdit && roleAtLeast('staff') ? 'inline-flex' : 'none';
+        del.disabled = !_spotPick;
       }
       const zoneSel = el('spotZone');
       if (zoneSel && zoneSel.options.length !== PARKING_ZONES.length + 1) {
@@ -1035,8 +1060,11 @@
       if (hint) {
         const c = _parkCar && activeCars().find(x => String(x.id) === String(_parkCar));
         hint.hidden = !_spotEdit && !ZONE_SPOTS.length;
+        const pk = _spotPick && ZONE_SPOTS.find(sp => spotKey(sp.zone, sp.no) === _spotPick);
         hint.textContent = _spotEdit
-          ? (_spotAdd ? t('spots.add_where', { zone: _spotEditZone }) : t('spots.edit_hint'))
+          ? (_spotAdd ? t('spots.add_where', { zone: _spotEditZone })
+            : pk ? t('spots.picked', { zone: pk.zone, n: pk.no, deg: Math.round(pk.r || 0) })
+              : t('spots.edit_hint'))
           : c ? t('spots.park_where', { car: carChoice(c).label })
             : t('spots.tap_hint');
       }
@@ -1345,7 +1373,8 @@
         // Nothing to pan at fit-width, and claiming the gesture there would
         // swallow the tap that places a spot.
         if (_mapZoom <= 1.01) return;
-        if (_spotEdit && e.target.closest('.map-spot')) return;  // that is the pin's drag
+        // Those are the pin's drag and the ring's turn, not a pan of the plan.
+        if (_spotEdit && e.target.closest('.map-spot, .map-rot')) return;
         pan = { x: e.clientX, y: e.clientY, px: _mapPanX, py: _mapPanY };
       };
       const move = (e) => {
@@ -1469,6 +1498,7 @@
       _spotEdit = !!on;
       if (_spotEdit) _parkCar = null;   // two modes over one map is one too many
       if (!_spotEdit) { setRowMode(false); _spotAdd = false; }
+      _spotPick = null;
       if (_spotEdit) showToast(t('spots.place_hint'));
       renderMapSpots();
     }
@@ -1505,6 +1535,99 @@
     }
     el('spotAddBtn')?.addEventListener('click', startAddingSpots);
 
+    // ----- DELETING, AND TURNING ------------------------------------------
+    // Both act on the bay that is picked, so both are one deliberate thing you
+    // do to a chosen target rather than something a stray tap can trigger.
+    el('spotDelBtn')?.addEventListener('click', async () => {
+      if (!_spotEdit || !roleAtLeast('staff')) return;
+      const key = _spotPick;
+      if (!key) { showToast(t('spots.pick_first'), 'error'); return; }
+      const sp = ZONE_SPOTS.find(x => spotKey(x.zone, x.no) === key);
+      if (!sp) { _spotPick = null; renderMapSpots(); return; }
+      const car = carOnSpot(sp.zone, sp.no);
+      // Only the consequential half asks. Deleting an empty bay is a drawing
+      // correction; deleting one with somebody on it takes their place away,
+      // and that is not something to discover afterwards.
+      if (car && !await uiConfirm(t('spots.remove_car_confirm',
+        { zone: sp.zone, n: sp.no, car: carChoice(car).label }))) return;
+      if (car) {
+        // Free the car first: a spot number pointing at a bay that no longer
+        // exists keeps showing on the car's card as a place to go.
+        if (!requireOnline(t('spots.what'))) return;
+        const { error } = await supa.from('cars').update({ spot_no: null }).eq('id', car.id);
+        if (error) { uiAlert(writeErrorText(error)); return; }
+        const row = (state.cars || []).find(c => String(c.id) === String(car.id));
+        if (row) row.spot_no = null;
+      }
+      _spotPick = null;
+      if (await saveZoneSpots(ZONE_SPOTS.filter(x => spotKey(x.zone, x.no) !== key))) {
+        if (car) renderCars();
+        showToast(t('spots.removed', { zone: sp.zone, n: sp.no }));
+      } else renderMapSpots();
+    });
+
+    // Turning a bay by its ring. The angle is taken as a delta from where the
+    // ring was grabbed, not as "point at my finger": the whole ring is the
+    // handle, so an absolute angle would snap the bay round on first contact.
+    (function spotTurn() {
+      let turning = null;
+      const angleAt = (e, cx, cy) =>
+        Math.atan2(e.clientX - cx, -(e.clientY - cy)) * 180 / Math.PI;
+      const start = (e) => {
+        if (!_spotEdit || !roleAtLeast('staff')) return;
+        const ring = e.target.closest?.('.map-rot');
+        if (!ring) return;
+        const i = Number(ring.dataset.rotI);
+        const sp = ZONE_SPOTS[i];
+        if (!sp) return;
+        const box = ring.getBoundingClientRect();
+        const cx = box.left + box.width / 2, cy = box.top + box.height / 2;
+        const r0 = sp.r || 0;
+        turning = { sp, ring, cx, cy, from: angleAt(e, cx, cy), r0, r: r0,
+          pin: el('mapSpotLayer')?.querySelector(`.map-spot[data-spot-i="${i}"]`) || null,
+          car: el('mapCars')?.querySelector(`[data-i="${i}"]`) || null };
+        ring.setPointerCapture?.(e.pointerId);
+        e.preventDefault();
+      };
+      const move = (e) => {
+        if (!turning) return;
+        const d = angleAt(e, turning.cx, turning.cy) - turning.from;
+        const r = ((Math.round(turning.r0 + d) % 360) + 360) % 360;
+        turning.r = r;
+        _spotDragged = true;
+        turning.ring.style.setProperty('--r', r + 'deg');
+        if (turning.pin) turning.pin.style.setProperty('--r', r + 'deg');
+        if (turning.car) turning.car.setAttribute('transform', carTransform({ ...turning.sp, r }));
+        const hint = el('mapSpotHint');
+        if (hint) {
+          hint.textContent = t('spots.picked',
+            { zone: turning.sp.zone, n: turning.sp.no, deg: r });
+        }
+      };
+      const end = async () => {
+        const d = turning; turning = null;
+        if (!d || d.r === d.r0) return;
+        const key = spotKey(d.sp.zone, d.sp.no);
+        await saveZoneSpots(ZONE_SPOTS.map(sp =>
+          spotKey(sp.zone, sp.no) === key ? { ...sp, r: d.r } : sp));
+      };
+      document.addEventListener('pointerdown', start);
+      document.addEventListener('pointermove', move);
+      document.addEventListener('pointerup', end);
+      document.addEventListener('pointercancel', end);
+    })();
+
+    // A drag ends with a click. Left alone, letting go after moving or turning a
+    // bay counted as a tap on the plan and put the bay straight back down — and
+    // before that, it opened the delete confirm on the bay you had just moved.
+    // Capture phase on the container, so neither tap handler below ever runs.
+    el('mapContainer')?.addEventListener('click', (e) => {
+      if (!_spotDragged) return;
+      _spotDragged = false;
+      e.stopPropagation();
+      e.preventDefault();
+    }, true);
+
     // Placing: a tap on the photo drops the next number of the chosen zone.
     el('mapContainer')?.addEventListener('click', async (e) => {
       if (!_spotEdit || !roleAtLeast('staff')) return;
@@ -1515,7 +1638,12 @@
       if (!_spotRow && e.target.closest('.map-spot')) return;   // handled below
       // Without an arm a stray tap while dragging the plan around dropped a
       // bay; now nothing lands on the map unless a tool asked for it.
-      if (!_spotRow && !_spotAdd) return;
+      if (!_spotRow && !_spotAdd) {
+        // Nothing armed: the tap landed on the plan, away from any bay, which
+        // is how you put down the one you were holding.
+        if (_spotPick) { _spotPick = null; renderMapSpots(); }
+        return;
+      }
       if (!_spotEditZone) { showToast(t('spots.pick_zone_first'), 'error'); return; }
       const at = mapPointPct(e);
       if (!at) return;
@@ -1574,8 +1702,11 @@
       if (_parkCar) { await parkHere(zone, no); return; }
       if (_spotEdit) {
         if (!roleAtLeast('staff')) return;
-        if (!await uiConfirm(t('spots.remove_confirm', { zone, n: no }))) return;
-        await saveZoneSpots(ZONE_SPOTS.filter(sp => spotKey(sp.zone, sp.no) !== spotKey(zone, no)));
+        // A tap picks the bay up; it does not destroy it. Deleting is the
+        // button at the top, and turning is the ring this puts around it.
+        const k = spotKey(zone, no);
+        _spotPick = _spotPick === k ? null : k;
+        renderMapSpots();
         return;
       }
       const car = carOnSpot(zone, no);
@@ -1600,6 +1731,7 @@
         const at = mapPointPct(e);
         if (!at) return;
         dragging.moved = true;
+        _spotDragged = true;
         dragging.pin.style.left = at.x + '%';
         dragging.pin.style.top = at.y + '%';
         // The pin is the handle; the car is what you are actually looking at.
