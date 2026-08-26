@@ -611,8 +611,12 @@
           <select id="spotZone" class="map-spot-zone" hidden></select>
           <button type="button" class="btn ghost small" id="spotRowBtn" data-i18n="spots.row" hidden>Rând întreg</button>
           <button type="button" class="btn ghost small" id="spotClearBtn" data-i18n="spots.clear_zone" hidden>Golește zona</button>
+          <button type="button" class="btn ghost small" id="spotParkBtn" data-i18n="spots.park">Parchează o mașină</button>
           <button type="button" class="btn ghost small" id="spotAutoBtn" data-i18n="spots.autofill">Umple automat</button>
           <span class="map-spot-info" id="mapSpotInfo"></span>
+          <!-- Tapping a bay has always opened the picker; nothing on screen
+               said so, so nobody found it. -->
+          <span class="map-spot-info" id="mapSpotHint"></span>
         </div>
         <div id="mapContainer">
           <div class="map-empty" id="mapEmpty">

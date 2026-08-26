@@ -2856,6 +2856,9 @@ try {
     const SPOTS = [
       { zone: 'Stance', no: 1, x: 25, y: 40 },
       { zone: 'Stance', no: 2, x: 60, y: 40 },
+      // A third, because the two flows below each fill one and the last
+      // assertion needs a bay that is still free.
+      { zone: 'Stance', no: 3, x: 45, y: 70 },
     ];
     const carPatches = [];
     const actx = await browser.newContext({ viewport: { width: 430, height: 900 } });
@@ -2972,20 +2975,64 @@ try {
         onNothing && beside.shown && beside.title === open.title,
         JSON.stringify({ onNothing, beside, wanted: open.title }));
 
+      // The other direction, and the one with a button on it: choose the car
+      // first, then tap where it goes. Tapping a bay has always opened the
+      // picker, but nothing on screen said so and a bay is four pixels wide —
+      // so the flow existed and nobody could find it.
+      await ap.evaluate(() => document.getElementById('uiDialogCancel').click());
+      await ap.waitForTimeout(200);
+      const hint = await ap.evaluate(() => ({
+        text: document.getElementById('mapSpotHint').textContent,
+        shown: !document.getElementById('mapSpotHint').hidden,
+        btn: document.getElementById('spotParkBtn').textContent,
+      }));
+      check('map-says-a-spot-can-be-tapped', hint.shown && hint.text.length > 10,
+        JSON.stringify(hint));
+
+      await ap.click('#spotParkBtn');
+      await ap.waitForSelector('#uiDialogPick .ui-pick-row', { timeout: 5000 });
       await ap.fill('#uiDialogPickSearch', 'B137XYZ');
       await ap.waitForTimeout(200);
       await ap.click('.ui-pick-row');
+      await ap.waitForTimeout(400);
+      const waiting = await ap.evaluate(() => ({
+        hint: document.getElementById('mapSpotHint').textContent,
+        btn: document.getElementById('spotParkBtn').textContent,
+        active: document.getElementById('spotParkBtn').classList.contains('active'),
+      }));
+      check('park-flow-says-which-car-it-is-holding',
+        /#237/.test(waiting.hint) && waiting.active && waiting.btn !== hint.btn,
+        JSON.stringify(waiting));
+
+      await ap.evaluate(() => document.querySelector('.map-spot[data-spot-no="2"]').click());
       await ap.waitForTimeout(600);
-      const wrote = carPatches.find((c) => /"spot_no":2/.test(c.body.replace(/\s/g, '')));
+      const parked = carPatches.find((c) => /"spot_no":2/.test(c.body.replace(/\s/g, '')));
+      check('park-flow-puts-the-chosen-car-on-the-tapped-spot',
+        !!parked && /id=eq\.137/.test(parked.url), parked ? parked.url.split('?')[1] : 'no patch');
+      check('park-flow-ends-after-the-tap',
+        await ap.evaluate(() => !document.getElementById('spotParkBtn').classList.contains('active')));
+
+      // And the original direction still works: tap a bay, pick a car. On the
+      // third bay, because the two flows above took the other two.
+      carPatches.length = 0;
+      await ap.evaluate(() => document.querySelector('.map-spot[data-spot-no="3"]').click());
+      await ap.waitForSelector('#uiDialogPick .ui-pick-row', { timeout: 5000 });
+      await ap.fill('#uiDialogPickSearch', 'B142XYZ');
+      await ap.waitForTimeout(200);
+      await ap.click('.ui-pick-row');
+      await ap.waitForTimeout(600);
+      const wrote = carPatches.find((c) => /"spot_no":3/.test(c.body.replace(/\s/g, '')));
       check('assign-a-tap-puts-the-car-on-the-spot',
-        !!wrote && /id=eq\.137/.test(wrote.url) && /"zone":"Stance"/.test(wrote.body.replace(/\s/g, '')),
+        !!wrote && /id=eq\.142/.test(wrote.url) && /"zone":"Stance"/.test(wrote.body.replace(/\s/g, '')),
         wrote ? wrote.url.split('?')[1] + ' ' + wrote.body : 'no patch');
       check('assign-closes-after-the-tap',
         !(await ap.evaluate(() => document.getElementById('uiDialog').classList.contains('show'))));
     } catch (e) {
       for (const n of ['assign-offers-only-cars-without-a-spot', 'assign-caps-the-rows-and-says-how-many-more',
         'assign-has-no-confirm-button', 'assign-search-narrows-the-list', 'assign-search-matches-a-plate',
-        'map-a-tap-beside-a-bay-still-picks-it',
+        'map-a-tap-beside-a-bay-still-picks-it', 'map-says-a-spot-can-be-tapped',
+        'park-flow-says-which-car-it-is-holding',
+        'park-flow-puts-the-chosen-car-on-the-tapped-spot', 'park-flow-ends-after-the-tap',
         'assign-a-tap-puts-the-car-on-the-spot', 'assign-closes-after-the-tap']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }

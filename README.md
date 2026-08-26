@@ -405,6 +405,23 @@ fundal inline bate orice clasă, iar starea apăsată ieșise cerneală închis�
 buton închis. O hartă ștearsă stinge modul — un cursor de cruce peste o ramă
 goală n-are ce să însemne.
 
+### Parcarea unei mașini, din ambele capete
+
+Apăsarea unei boxe deschide dialogul „cine stă aici" de la început — dar nimic
+de pe ecran n-o spunea, iar la lățime întreagă o boxă are patru pixeli, deci
+n-o găsea nimeni nici din greșeală. Acum sunt două căi spre același loc:
+
+- **De la boxă.** O linie sub hartă spune că boxele se pot apăsa. Apeși una
+  liberă, alegi mașina.
+- **De la mașină.** Butonul **„Parchează o mașină"** deschide aceeași listă
+  căutabilă, apoi harta așteaptă: bara scrie „Acum apasă locul unde parchezi
+  #200 · VW Golf", iar butonul devine ieșirea din mod. O boxă cu cineva pe ea nu
+  e un răspuns, deci o spune și rămâne în mod, în loc să arunce ce făceai.
+
+Cele două moduri nu stau aprinse odată — pornirea redactării stinge parcarea.
+Lista de mașini și felul rândului (`unplacedCars`, `carChoice`) sunt aceleași în
+ambele direcții: o singură definiție a ce înseamnă „o mașină de ales".
+
 ### „Cine stă pe locul ăsta?"
 
 Apasă un loc liber și dialogul întreabă care mașină merge acolo. Era un `select`
