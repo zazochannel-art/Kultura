@@ -368,15 +368,20 @@ poligonul zonei din plan). Cu ea:
   poate fi orice de la `#ff0000` la `#96e1e1`, iar textul alb dispare pe
   jumătate dintre ele.
 
-**Rama e cât planul, nu cât pagina.** Un plan de teren e cam la fel de înalt pe
-cât e de lat, deci lăsată liberă rama umplea fereastra și încă puțin — puteai
-citi harta sau butoanele de sub ea, niciodată amândouă. Acum e plafonată la
-`min(72vh, 720px)` pe înălțime și la aceeași valoare ori proporția desenului pe
-lățime, iar desenul **încape** înăuntru în loc să umple lățimea. Plafonul e cel
-mai mare care ține marginea de jos a ramei deasupra pliului la 1280×800, cea mai
-strâmtă fereastră de laptop pe care merită socotit — prima încercare, la 560px,
-a ieșit mult mai mică decât trebuia. Pe telefon niciun plafon nu prinde: ecranul
-e mai îngust decât plafonul și planul mai scund, deci rama rămâne exact cum era.
+**Rama e cât coloana pe lățime și cât un ecran pe înălțime.** Un plan de teren e
+cam la fel de înalt pe cât e de lat, deci lăsată liberă rama umplea fereastra și
+încă puțin — puteai citi harta sau butoanele de sub ea, niciodată amândouă.
+Înălțimea e plafonată la `min(72vh, 800px)`, cel mai mare plafon care ține
+marginea de jos a ramei deasupra pliului la 1280×800, cea mai strâmtă fereastră
+de laptop pe care merită socotit.
+
+Lățimea **nu** e plafonată. Tăiată pe forma desenului arăta ordonat și nu dădea
+nimic înapoi; la lățime întreagă surplusul e loc de mișcare după ce te apropii,
+adică jumătatea hărții care chiar se folosește. Desenul încape întreg înăuntru și
+stă centrat, iar rama primește hârtia desenului — altfel planul plutește ca o
+insulă palidă într-o cutie întunecată, iar benzile de lângă el arată a ceva care
+n-a reușit să se încarce. Pe telefon plafonul nu prinde deloc: planul e mai scund
+decât el, deci rama rămâne exact cum era.
 
 **Un tap lângă o boxă o alege pe ea.** La lățime întreagă o boxă are patru
 pixeli pe un laptop și sub trei pe telefon: desenată exact, și imposibil de

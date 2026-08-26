@@ -2691,6 +2691,8 @@ try {
       // it: at twice the zoom it is twice as wide. A pin held at a fixed size
       // on screen would sit in a bay four times its width by the far end of the
       // range, which is a dot on a plan again.
+      const fitPx = await ip.evaluate(() =>
+        Math.round(document.querySelector('#mapPlan svg').getBoundingClientRect().width));
       const grew = await ip.evaluate(() => {
         const w = () => document.querySelector('#mapSpotLayer .map-spot.is-car')
           .getBoundingClientRect().width;
@@ -2712,12 +2714,14 @@ try {
         return {
           zoom: document.getElementById('mapZoomVal').textContent,
           svgPx: Math.round(svg.getBoundingClientRect().width),
-          framePx: document.getElementById('mapViewport').clientWidth,
           t: wrap.style.transform,
         };
       });
+      // Against its own size at fit, not against the frame: the frame is wider
+      // than the drawing now, and comparing to it would measure the wrong box.
       check('plan-import-draws-the-plan-at-the-zoomed-size',
-        sharp.svgPx > sharp.framePx * 2.1 && !/scale/.test(sharp.t), JSON.stringify(sharp));
+        sharp.svgPx > fitPx * 2.1 && sharp.svgPx < fitPx * 2.4 && !/scale/.test(sharp.t),
+        JSON.stringify({ ...sharp, fitPx }));
 
       await ip.evaluate(() => document.getElementById('mapZoomReset').click());
       await mapSettled(ip);
@@ -2733,14 +2737,19 @@ try {
           // and everything above it are on one screen, not that the frame is
           // under some share of the window.
           bottom: Math.round(v.bottom),
+          columnW: Math.round(document.getElementById('mapContainer').getBoundingClientRect().width),
+          slackX: [Math.round(w.left - v.left), Math.round(v.right - w.right)],
           inside: w.width <= v.width + 2 && w.height <= v.height + 2 };
       });
       check('plan-import-fits-the-whole-plan-on-one-screen',
         framed.bottom <= framed.screenH && framed.inside, JSON.stringify(framed));
-      // The frame takes the drawing's shape rather than the page's width: a
-      // full-width frame holding a narrow plan is a field of nothing.
-      check('plan-import-frame-takes-the-plans-shape',
-        Math.abs(framed.frameW / framed.frameH - 401.064 / 441.864) < 0.05,
+      // The frame takes the width it is given; the drawing sits centred inside
+      // it, whole. Trimmed to the drawing's own shape the frame looked tidy and
+      // gave nothing back — at full width the extra is room to move around in
+      // once you lean in.
+      check('plan-import-frame-fills-the-column-and-centres-the-plan',
+        framed.frameW >= framed.columnW - 2 && framed.inside
+        && Math.abs(framed.slackX[0] - framed.slackX[1]) < 2,
         JSON.stringify(framed));
 
       // A car standing in a zone is painted that zone's own colour — the same
@@ -2774,7 +2783,8 @@ try {
         'plan-import-says-what-it-left-out', 'plan-import-map-shows-the-drawing-and-its-pins',
         'plan-import-pins-are-cars-in-their-bays', 'plan-import-cars-grow-with-the-plan',
         'plan-import-draws-the-plan-at-the-zoomed-size',
-        'plan-import-fits-the-whole-plan-on-one-screen', 'plan-import-frame-takes-the-plans-shape',
+        'plan-import-fits-the-whole-plan-on-one-screen',
+        'plan-import-frame-fills-the-column-and-centres-the-plan',
         'plan-import-paints-a-car-in-its-zone-colour', 'plan-import-leaves-an-empty-bay-uncoloured']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }

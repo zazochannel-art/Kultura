@@ -10,7 +10,7 @@
     import { haptic, confettiBurst, successCheck, auroraPulse } from './effects.js';
     // The venue plan drawn in plan.html. Same module the editor uses, so the
     // map the app shows and the plan somebody drew can never disagree.
-    import { planSpots, planSvgDoc, SPOT_W, SPOT_D } from './plan-render.js';
+    import { planSpots, planSvgDoc, inkOf, SPOT_W, SPOT_D } from './plan-render.js';
 
     const SUPABASE_URL = 'https://knphmxxokowwkruimdus.supabase.co';
     const SUPABASE_ANON = 'sb_publishable_9b7WSJF4UlfF1JIdCDjWqQ_dxOTpqSW';
@@ -1016,6 +1016,14 @@
       if (!r) return;
       _mapAspect = r[0] / r[1];
       vp.style.aspectRatio = r[0] + ' / ' + r[1];
+      // The frame is wider than the drawing, so it is given the drawing's own
+      // paper: otherwise the plan floats as a pale island in a dark box, and
+      // the bands beside it read as something failing to load. The wrapper gets
+      // the same, or the join between the two shows as a seam.
+      const paper = _plan ? inkOf(_plan).bg : '';
+      vp.style.background = paper;
+      const wrap = el('mapImageWrap');
+      if (wrap) wrap.style.background = paper;
       // The frame's width cap is the height cap times this, so the frame ends
       // up the shape of the drawing instead of a wide box with it in the middle.
       vp.style.setProperty('--map-ar', _mapAspect.toFixed(4));
