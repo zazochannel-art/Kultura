@@ -1976,15 +1976,27 @@ try {
       check('spots-free-stay-free', !/taken/.test(view.three.cls) && view.three.no === '3', JSON.stringify(view.three));
       check('spots-summary-counts-occupancy', /2/.test(view.info) && /3/.test(view.info), view.info);
 
-      // Placing: turn on editing, pick a zone, tap the photo. That order and
-      // not the other way round — the zone picker is one of the mode's tools
-      // and is not on screen until the mode is.
+      // Placing: turn on editing, pick a zone, arm the add button, tap the
+      // photo. That order and not the other way round — the zone picker is one
+      // of the mode's tools and is not on screen until the mode is.
       await mp.evaluate(() => document.getElementById('mapEditBtn').click());
       await mp.selectOption('#spotZone', 'Retro');
-      const box = await mp.evaluate(() => {
+      const wrapBox = () => mp.evaluate(() => {
         const r = document.getElementById('mapImageWrap').getBoundingClientRect();
         return { x: r.x, y: r.y, w: r.width, h: r.height };
       });
+      // An unarmed tap is scenery: editing alone must not drop a bay wherever
+      // a finger lands while dragging the plan around.
+      const idle = await wrapBox();
+      await mp.mouse.click(idle.x + idle.w * 0.6, idle.y + idle.h * 0.6);
+      await mp.waitForTimeout(400);
+      check('spots-tap-does-nothing-until-the-add-button-is-pressed',
+        !(saved || []).some((sp) => sp.zone === 'Retro'), JSON.stringify(saved));
+      // Measured again after arming: the bar's hint line changes length there,
+      // and a bar one line taller moves the map under the coordinates.
+      await mp.evaluate(() => document.getElementById('spotAddBtn').click());
+      await mp.waitForTimeout(200);
+      const box = await wrapBox();
       await mp.mouse.click(box.x + box.w * 0.4, box.y + box.h * 0.8);
       await mp.waitForTimeout(600);
       const added = (saved || []).find((sp) => sp.zone === 'Retro');
@@ -1997,7 +2009,8 @@ try {
       for (const n of ['spots-drawn-on-the-map', 'spots-positioned-by-percent',
         'spots-occupied-show-the-car', 'spots-keep-the-number-when-taken',
         'spots-arrived-marked-apart', 'spots-free-stay-free',
-        'spots-summary-counts-occupancy', 'spots-placing-writes-config',
+        'spots-summary-counts-occupancy',
+        'spots-tap-does-nothing-until-the-add-button-is-pressed', 'spots-placing-writes-config',
         'spots-numbered-per-zone', 'spots-placed-where-tapped']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
@@ -2013,8 +2026,12 @@ try {
   // time and read by zooming in. Both halves are what make the map usable at
   // all, which is why they are checked against a dense fixture, not three pins.
   {
+    // `c` and `r` are what a plan import writes: the zone's ink and the angle
+    // the bay is drawn at. Inert without `w`/`h` (these render as dots), and
+    // exactly what a bay added by hand later has to inherit.
     const SPOTS = Array.from({ length: 26 }, (_, i) => ({
       zone: 'Stance', no: i + 1, x: 10 + (80 * i) / 25, y: 12 + (74 * i) / 25,
+      r: 42, c: '#ff8800',
     }));
     const CARS = [
       { id: 1, entry_no: 11, brand: 'VW', model: 'Golf', owner: 'Ana', plate: 'P1', status: 'Sosit', zone: 'Stance', spot_no: 1, event_id: 6, deleted_at: null },
@@ -2098,15 +2115,17 @@ try {
           return !!b && getComputedStyle(b).display !== 'none';
         };
         const lab = () => document.querySelector('#mapEditBtn span').textContent;
-        const before = { row: vis('spotRowBtn'), clear: vis('spotClearBtn'), zone: vis('spotZone'), lab: lab() };
+        const before = { row: vis('spotRowBtn'), clear: vis('spotClearBtn'), zone: vis('spotZone'),
+          add: vis('spotAddBtn'), lab: lab() };
         document.getElementById('mapEditBtn').click();
-        const during = { row: vis('spotRowBtn'), clear: vis('spotClearBtn'), zone: vis('spotZone'), lab: lab() };
+        const during = { row: vis('spotRowBtn'), clear: vis('spotClearBtn'), zone: vis('spotZone'),
+          add: vis('spotAddBtn'), lab: lab() };
         document.getElementById('mapEditBtn').click();
         return { before, during, after: lab() };
       });
       check('spots-row-tools-only-while-placing',
-        !tools.before.row && !tools.before.clear && !tools.before.zone
-        && tools.during.row && tools.during.clear && tools.during.zone,
+        !tools.before.row && !tools.before.clear && !tools.before.zone && !tools.before.add
+        && tools.during.row && tools.during.clear && tools.during.zone && tools.during.add,
         JSON.stringify(tools));
       // The button that turns editing on is at the top of the section, with the
       // map's other actions, and says which way it is pointing.
@@ -2242,7 +2261,23 @@ try {
       // percentage written down has to be the point under the finger — not the
       // point it would have been at fit-width.
       await zp.evaluate(() => document.getElementById('mapEditBtn').click());
-      await zp.selectOption('#spotZone', 'Euro');
+      // The whole flow the way it reads on screen: press the button, answer
+      // which zone, then tap. No zone is chosen yet, so the button asks.
+      await zp.evaluate(() => document.getElementById('spotAddBtn').click());
+      await zp.waitForSelector('#uiDialogPick .ui-pick-row', { timeout: 5000 });
+      await zp.fill('#uiDialogPickSearch', 'Euro');
+      await zp.waitForTimeout(200);
+      await zp.click('.ui-pick-row');
+      await zp.waitForTimeout(300);
+      const armed = await zp.evaluate(() => ({
+        zone: document.getElementById('spotZone').value,
+        hint: document.getElementById('mapSpotHint').textContent,
+        shown: !document.getElementById('mapSpotHint').hidden,
+        on: document.getElementById('spotAddBtn').classList.contains('active'),
+      }));
+      check('spot-add-button-asks-the-zone-then-arms',
+        armed.on && armed.zone === 'Euro' && armed.shown && /Euro/.test(armed.hint),
+        JSON.stringify(armed));
       const geo = await zp.evaluate(() => {
         const w = document.getElementById('mapImageWrap').getBoundingClientRect();
         const v = document.getElementById('mapViewport').getBoundingClientRect();
@@ -2313,6 +2348,29 @@ try {
       check('spots-row-numbers-continue-the-zone',
         row.length === 5 && row[0].no === 27 && row[4].no === 31, JSON.stringify(row.map((r2) => r2.no)));
 
+      // A bay added by hand takes the zone's ink and its neighbour's heading.
+      // Without them a car parked on it comes out the fallback blue, and the
+      // bay itself sits square to the page inside a rank drawn on the diagonal.
+      await zp.evaluate(() => document.getElementById('spotAddBtn').click());
+      await zp.waitForTimeout(250);
+      const solo = await zp.evaluate(() => {
+        const r2 = document.getElementById('mapImageWrap').getBoundingClientRect();
+        return { x: r2.x, y: r2.y, w: r2.width, h: r2.height };
+      });
+      // Well clear of both ranks: the diagonal the fixture lays and the row
+      // placed above. A tap that lands on a pin is a delete, not a place.
+      await zp.mouse.click(solo.x + solo.w * 0.75, solo.y + solo.h * 0.30);
+      await zp.waitForTimeout(700);
+      const mine = (saved || []).filter((sp) => sp.zone === 'Stance');
+      const fresh = mine.find((sp) => sp.no === 32);
+      const nearest = mine.filter((sp) => sp.no !== 32).map((sp) => ({ r: sp.r,
+        d: Math.hypot(sp.x - (fresh ? fresh.x : 0), sp.y - (fresh ? fresh.y : 0)) }))
+        .sort((a, b) => a.d - b.d)[0];
+      check('spot-added-takes-the-zones-ink', !!fresh && fresh.c === '#ff8800',
+        JSON.stringify(fresh || null));
+      check('spot-added-points-the-way-its-neighbour-does',
+        !!fresh && !!nearest && fresh.r === nearest.r, JSON.stringify({ fresh, nearest }));
+
       // Moving a car to another zone: the spot number belongs to the zone it
       // was given in, so it cannot travel. Kept, it would either point at a
       // spot the new zone does not have or collide with the car already there,
@@ -2373,7 +2431,9 @@ try {
         'map-zoom-grows-pins-slower-than-the-plan', 'map-pins-carry-no-backdrop-filter',
         'map-zoom-reset-returns-to-fit', 'map-pan-cannot-expose-a-void',
         'map-pan-survives-a-finger-that-never-lifts',
+        'spot-add-button-asks-the-zone-then-arms',
         'spots-placed-where-tapped-when-zoomed', 'spots-dense-plans-fall-back-to-dots',
+        'spot-added-takes-the-zones-ink', 'spot-added-points-the-way-its-neighbour-does',
         'spots-clearing-a-zone-frees-its-cars', 'car-zone-change-releases-the-spot',
         'car-zone-change-never-writes-null-zone', 'spots-row-tools-only-while-placing']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);

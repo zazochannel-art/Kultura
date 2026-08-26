@@ -609,6 +609,10 @@
              it. -->
         <div class="map-spot-bar" id="mapSpotBar" hidden>
           <select id="spotZone" class="map-spot-zone" hidden></select>
+          <!-- Placing a spot used to be a bare tap on the map with a zone
+               chosen: nothing on screen said so, and it fired on stray taps.
+               The button is both the thing you look for and the arm. -->
+          <button type="button" class="btn ghost small" id="spotAddBtn" data-i18n="spots.add" hidden>Adaugă un loc</button>
           <button type="button" class="btn ghost small" id="spotRowBtn" data-i18n="spots.row" hidden>Rând întreg</button>
           <button type="button" class="btn ghost small" id="spotClearBtn" data-i18n="spots.clear_zone" hidden>Golește zona</button>
           <button type="button" class="btn ghost small" id="spotParkBtn" data-i18n="spots.park">Parchează o mașină</button>

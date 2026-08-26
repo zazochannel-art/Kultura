@@ -388,17 +388,34 @@ pixeli pe un laptop și sub trei pe telefon: desenată exact, și imposibil de
 nimerit. Dacă atingerea n-a căzut pe niciun pin, se ia pinul cu centrul cel mai
 apropiat, în limita a 22px — „cel mai aproape" e un răspuns fără ambiguitate,
 unde „elementul de deasupra" nu e. Nu se aplică în modul de așezare, unde un tap
-pe plan pune un loc nou.
+pe plan pune un loc nou — și acolo doar cu unealta armată (vezi mai jos).
 
 ### Redactarea locurilor e un mod
 
 Butonul **Redactează** stă sus, cu celelalte acțiuni ale hărții, nu în mijlocul
 barei de sub ea. Apăsat, devine „Gata" și se colorează, iar uneltele modului
-apar dedesubt: alegerea zonei, „Rând întreg", „Golește zona". În afara modului
-nu se văd — sunt controale fără nimic pe care să acționeze.
+apar dedesubt: **„Adaugă un loc"**, „Rând întreg", „Golește zona" și selectorul
+de zonă. În afara modului nu se văd — sunt controale fără nimic pe care să
+acționeze.
 
 Ordinea contează și în teste: **întâi modul, apoi zona.** Selectorul de zonă e
 una dintre uneltele modului, deci nu e pe ecran până nu e modul.
+
+**Un loc nou se adaugă cu butonul, nu cu un tap.** Așezarea era un tap gol pe
+hartă, cu o zonă aleasă dintr-un `<select>` — două lucruri pe care nu le vedea
+nimeni, și un tap rătăcit în timp ce trăgeai planul lăsa o boxă în urmă. Acum
+„Adaugă un loc" e și lucrul pe care îl cauți, și armarea: întreabă o dată zona
+(aceeași listă căutabilă ca la parcare, cu câte locuri are fiecare), apoi bara
+scrie unde să apeși și fiecare tap lasă o boxă, până apeși „Gata cu adăugatul".
+Zona se cere o singură dată — reînarmarea n-o mai întreabă, selectorul de lângă
+buton o schimbă. „Rând întreg" și „Adaugă un loc" nu stau armate odată: un
+singur tap, un singur înțeles.
+
+Boxa nouă **moștenește de la vecina ei**: culoarea zonei (`c`, altfel o mașină
+parcată pe ea ieșea albastrul implicit într-o zonă galbenă) și unghiul boxei
+celei mai apropiate din aceeași zonă — un rând desenat pe diagonală n-are ce
+face cu o boxă pusă drept. Distanța se măsoară pe desen, nu pe procente: un
+procent pe orizontală și unul pe verticală nu sunt aceeași lungime.
 
 Stilul butonului stă în CSS (`.add-btn.quiet`), nu într-un atribut `style`: un
 fundal inline bate orice clasă, iar starea apăsată ieșise cerneală închisă pe

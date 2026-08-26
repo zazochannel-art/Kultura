@@ -2179,6 +2179,11 @@
    row tool below it does. */
 .add-btn.quiet.active { background: var(--brand); color: #1a0410; border-color: transparent; }
 .map-spot-info { font-size: 12px; color: var(--text-dim); }
+/* The hint is a sentence, and a sentence that sometimes fits beside the buttons
+   and sometimes does not makes the bar one row taller and back — which moves
+   the map about 23px right when a finger is coming down on it. Its own row,
+   always, so arming a tool never shifts what you are aiming at. */
+#mapSpotHint { flex: 1 0 100%; }
 
 /* ============ MAP CROP EDITOR ============ */
 .cropper {
