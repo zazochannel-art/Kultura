@@ -846,19 +846,61 @@
     // the middle, because a number over the cabin takes away the one detail
     // that makes the shape read as a car at all, and it is set to the width of
     // the car: a plate is longer than an entry number, and left to itself it
-    // hangs out over both neighbours. It carries the counter-rotation because
-    // the bay is turned, and a number read sideways is not read.
-    const CAR_BODY = 'M25 5C31 5 36 7 37.5 12C39.5 18 40.5 28 40.5 42L40.5 70'
-      + 'C40.5 82 39.5 89 37.5 92C36 94.5 31 95 25 95C19 95 14 94.5 12.5 92'
-      + 'C10.5 89 9.5 82 9.5 70L9.5 42C9.5 28 10.5 18 12.5 12C14 7 19 5 25 5Z';
-    // Windscreen, roof and rear window as one run of lines, plus the mirrors.
-    // None of it is legible at fifteen pixels; all of it is what makes the
-    // shape a car rather than a lozenge once somebody leans in.
-    const CAR_TRIM = 'M19 30L31 30L33.5 38L16.5 38Z'
-      + 'M15.5 38L34.5 38L34.5 64L15.5 64Z'
-      + 'M15.5 64L34.5 64L32 72L18 72Z'
-      + 'M9.5 33L6.5 34.5L6.5 36.5L9.5 37Z'
-      + 'M40.5 33L43.5 34.5L43.5 36.5L40.5 37Z';
+    // hangs out over both neighbours — half the width of the bay, which also
+    // keeps it clear of the tail lights at either corner. It carries the
+    // counter-rotation because the bay is turned, and a number read sideways is
+    // not read.
+    // The body, drawn to a Golf's proportions: 34 units across of the 50-unit
+    // bay is 1.7 m in a 2.5 m box, and 88 of 100 is 4.4 m in a 5 m one — the
+    // car that actually fits between the lines, which is why a parked one never
+    // touches them. The nose is narrower than the doors and the tail narrower
+    // still; a lozenge of even width reads as a pill from above, not a car.
+    // The mirrors are subpaths of the same fill rather than lines of their own,
+    // because on a real car they are body panels — the nubs they replace read
+    // as two specks stuck to the flank.
+    const CAR_BODY = 'M25 6C29.6 6 33.6 6.7 35.6 8C38.6 9.9 41.1 13.2 41.6 17.6'
+      + 'C41.9 20.6 42 23.6 42 27L42 71C42 76.4 41.8 81.2 41 85.2'
+      + 'C40.4 88.8 39 91.8 36.6 92.9C34.2 94 30.2 94.4 25 94.4'
+      + 'C19.8 94.4 15.8 94 13.4 92.9C11 91.8 9.6 88.8 9 85.2'
+      + 'C8.2 81.2 8 76.4 8 71L8 27C8 23.6 8.1 20.6 8.4 17.6'
+      + 'C8.9 13.2 11.4 9.9 14.4 8C16.4 6.7 20.4 6 25 6Z'
+      + 'M41.6 39.6C43 38.6 44.9 38.2 45.8 39C46.6 39.8 46.2 41.3 44.6 42.4'
+      + 'C43.6 43.1 42.6 43.5 41.8 43.6Z'
+      + 'M8.4 39.6C7 38.6 5.1 38.2 4.2 39C3.4 39.8 3.8 41.3 5.4 42.4'
+      + 'C6.4 43.1 7.4 43.5 8.2 43.6Z';
+    // Everything drawn as a line and not a panel: windscreen, roof and rear
+    // glass; the bonnet with the headlights swept back off the bumper; the four
+    // door shuts of a five-door; the tyres showing past the arches; the badge
+    // on the nose. None of it is legible at fifteen pixels — all of it is what
+    // makes the shape a car rather than a lozenge once somebody leans in, and
+    // the nose details are what say which way the car is pointing.
+    const CAR_TRIM = 'M13 39.4L37 39.4L35 50L35 72L34 83.4L16 83.4L15 72L15 50Z'
+      + 'M15 50L35 50M15 72L35 72'
+      + 'M11 39.4L39 39.4M11.5 83.4L38.5 83.4'
+      + 'M11.2 18.4C11.7 14.6 13.7 11.7 16.4 10.1C18.7 8.8 21.7 8.3 25 8.3'
+      + 'C28.3 8.3 31.3 8.8 33.6 10.1C36.3 11.7 38.3 14.6 38.8 18.4'
+      + 'M39.2 19.6C38.6 16.6 37 14.4 34.6 12.9C33.2 13.9 32.2 15.2 31.6 16.6'
+      + 'C34.6 17.2 37.2 18.2 39.2 19.6Z'
+      + 'M10.8 19.6C11.4 16.6 13 14.4 15.4 12.9C16.8 13.9 17.8 15.2 18.4 16.6'
+      + 'C15.4 17.2 12.8 18.2 10.8 19.6Z'
+      + 'M38.9 19.8C39.2 24 39.3 32 39.2 39.4'
+      + 'M11.1 19.8C10.8 24 10.7 32 10.8 39.4'
+      + 'M35 47.5L41.5 47.5M15 47.5L8.5 47.5'
+      + 'M35 65L41.4 65M15 65L8.6 65'
+      + 'M34.4 79L41.2 79M15.6 79L8.8 79'
+      + 'M42 19.8C43 20.1 43.4 21.2 43.4 24.3C43.4 27.4 43 28.5 42 28.8'
+      + 'M8 19.8C7 20.1 6.6 21.2 6.6 24.3C6.6 27.4 7 28.5 8 28.8'
+      + 'M42 73.7C43 74 43.4 75.1 43.4 78.2C43.4 81.3 43 82.4 42 82.7'
+      + 'M8 73.7C7 74 6.6 75.1 6.6 78.2C6.6 81.3 7 82.4 8 82.7'
+      + 'M26.5 11.6A1.5 1.5 0 1 1 23.5 11.6A1.5 1.5 0 1 1 26.5 11.6Z';
+    // The tail lights, and the only thing on the car with a colour of its own.
+    // At a glance they are two red specks; leaned in, they are the difference
+    // between a car facing the aisle and one facing the fence — which is the
+    // question somebody standing on the asphalt is actually asking.
+    const CAR_LAMP = 'M38.3 84.2C39.5 84.4 40.4 84.8 40.9 85.3'
+      + 'C40.6 88.3 40 90.5 39.2 91.8C38.5 90 38.2 87 38.3 84.2Z'
+      + 'M11.7 84.2C10.5 84.4 9.6 84.8 9.1 85.3'
+      + 'C9.4 88.3 10 90.5 10.8 91.8C11.5 90 11.8 87 11.7 84.2Z';
     const r3 = (v) => Math.round(v * 1000) / 1000;
 
     function carTransform(sp) {
@@ -878,8 +920,9 @@
         + ' transform="' + carTransform(sp) + '">'
         + '<path class="cp-body" d="' + CAR_BODY + '"/>'
         + '<path class="cp-trim" d="' + CAR_TRIM + '"/>'
+        + '<path class="cp-lamp" d="' + CAR_LAMP + '"/>'
         + (label
-          ? '<text class="cp-no" x="25" y="88" text-anchor="middle" textLength="30"'
+          ? '<text class="cp-no" x="25" y="88" text-anchor="middle" textLength="25"'
             + ' lengthAdjust="spacingAndGlyphs" transform="rotate(' + r3(-r) + ' 25 82)">'
             + escape(label) + '</text>'
           : '')
