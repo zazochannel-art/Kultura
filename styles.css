@@ -2170,6 +2170,14 @@
   background: var(--fill-1); border: 1px solid var(--border); color: var(--text);
 }
 .map-spot-bar .btn.active { background: var(--brand); color: #1a0410; border-color: transparent; }
+/* A map action that is not the primary one: same shape, quieter, so the eye
+   lands on "Înlocuiește" first. Written here rather than inline, because an
+   inline background outranks any class — which is how the pressed state below
+   came out as dark ink on a dark button. */
+.add-btn.quiet { background: var(--surface-elev); border: 1px solid var(--border); }
+/* The editing mode is on: the button that turned it on says so, the way the
+   row tool below it does. */
+.add-btn.quiet.active { background: var(--brand); color: #1a0410; border-color: transparent; }
 .map-spot-info { font-size: 12px; color: var(--text-dim); }
 
 /* ============ MAP CROP EDITOR ============ */

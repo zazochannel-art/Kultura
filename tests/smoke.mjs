@@ -1976,9 +1976,11 @@ try {
       check('spots-free-stay-free', !/taken/.test(view.three.cls) && view.three.no === '3', JSON.stringify(view.three));
       check('spots-summary-counts-occupancy', /2/.test(view.info) && /3/.test(view.info), view.info);
 
-      // Placing: pick a zone, turn on edit, tap the photo.
+      // Placing: turn on editing, pick a zone, tap the photo. That order and
+      // not the other way round — the zone picker is one of the mode's tools
+      // and is not on screen until the mode is.
+      await mp.evaluate(() => document.getElementById('mapEditBtn').click());
       await mp.selectOption('#spotZone', 'Retro');
-      await mp.evaluate(() => document.getElementById('spotEditBtn').click());
       const box = await mp.evaluate(() => {
         const r = document.getElementById('mapImageWrap').getBoundingClientRect();
         return { x: r.x, y: r.y, w: r.width, h: r.height };
@@ -2095,14 +2097,21 @@ try {
           const b = document.getElementById(id);
           return !!b && getComputedStyle(b).display !== 'none';
         };
-        const before = { row: vis('spotRowBtn'), clear: vis('spotClearBtn') };
-        document.getElementById('spotEditBtn').click();
-        const during = { row: vis('spotRowBtn'), clear: vis('spotClearBtn') };
-        document.getElementById('spotEditBtn').click();
-        return { before, during };
+        const lab = () => document.querySelector('#mapEditBtn span').textContent;
+        const before = { row: vis('spotRowBtn'), clear: vis('spotClearBtn'), zone: vis('spotZone'), lab: lab() };
+        document.getElementById('mapEditBtn').click();
+        const during = { row: vis('spotRowBtn'), clear: vis('spotClearBtn'), zone: vis('spotZone'), lab: lab() };
+        document.getElementById('mapEditBtn').click();
+        return { before, during, after: lab() };
       });
       check('spots-row-tools-only-while-placing',
-        !tools.before.row && !tools.before.clear && tools.during.row && tools.during.clear,
+        !tools.before.row && !tools.before.clear && !tools.before.zone
+        && tools.during.row && tools.during.clear && tools.during.zone,
+        JSON.stringify(tools));
+      // The button that turns editing on is at the top of the section, with the
+      // map's other actions, and says which way it is pointing.
+      check('spots-edit-button-lives-with-the-map-actions',
+        tools.before.lab !== tools.during.lab && tools.after === tools.before.lab,
         JSON.stringify(tools));
 
       // A pin grows with the zoom, but nowhere near as fast as the plan: one
@@ -2232,8 +2241,8 @@ try {
       // Placing while zoomed in is the normal case on a dense plan, so the
       // percentage written down has to be the point under the finger — not the
       // point it would have been at fit-width.
+      await zp.evaluate(() => document.getElementById('mapEditBtn').click());
       await zp.selectOption('#spotZone', 'Euro');
-      await zp.evaluate(() => document.getElementById('spotEditBtn').click());
       const geo = await zp.evaluate(() => {
         const w = document.getElementById('mapImageWrap').getBoundingClientRect();
         const v = document.getElementById('mapViewport').getBoundingClientRect();
@@ -2360,6 +2369,7 @@ try {
       for (const n of ['spots-row-places-the-whole-rank', 'spots-row-ends-land-on-the-taps',
         'spots-row-spaced-evenly', 'spots-row-numbers-continue-the-zone',
         'map-zoom-lays-the-plan-out-larger', 'map-zoom-never-stretches-what-it-drew',
+        'spots-edit-button-lives-with-the-map-actions',
         'map-zoom-grows-pins-slower-than-the-plan', 'map-pins-carry-no-backdrop-filter',
         'map-zoom-reset-returns-to-fit', 'map-pan-cannot-expose-a-void',
         'map-pan-survives-a-finger-that-never-lifts',

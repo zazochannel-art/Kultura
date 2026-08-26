@@ -390,6 +390,21 @@ apropiat, în limita a 22px — „cel mai aproape" e un răspuns fără ambigui
 unde „elementul de deasupra" nu e. Nu se aplică în modul de așezare, unde un tap
 pe plan pune un loc nou.
 
+### Redactarea locurilor e un mod
+
+Butonul **Redactează** stă sus, cu celelalte acțiuni ale hărții, nu în mijlocul
+barei de sub ea. Apăsat, devine „Gata" și se colorează, iar uneltele modului
+apar dedesubt: alegerea zonei, „Rând întreg", „Golește zona". În afara modului
+nu se văd — sunt controale fără nimic pe care să acționeze.
+
+Ordinea contează și în teste: **întâi modul, apoi zona.** Selectorul de zonă e
+una dintre uneltele modului, deci nu e pe ecran până nu e modul.
+
+Stilul butonului stă în CSS (`.add-btn.quiet`), nu într-un atribut `style`: un
+fundal inline bate orice clasă, iar starea apăsată ieșise cerneală închisă pe
+buton închis. O hartă ștearsă stinge modul — un cursor de cruce peste o ramă
+goală n-are ce să însemne.
+
 ### „Cine stă pe locul ăsta?"
 
 Apasă un loc liber și dialogul întreabă care mașină merge acolo. Era un `select`

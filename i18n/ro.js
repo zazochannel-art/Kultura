@@ -246,6 +246,7 @@ export default {
   "map.sub": "Planul de parcare cu toate zonele",
   "map.upload": "Încarcă harta",
   "map.plan_import": "Adu planul terenului",
+  "map.edit_spots": "Redactează",
   "map.plan_what": "aducerea planului",
   "map.plan_missing": "Nu am găsit planul terenului.",
   "map.plan_rendering": "Se pregătește planul...",
