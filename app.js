@@ -583,7 +583,7 @@
       if (editBtn) editBtn.style.display = (staff && (_plan || _mapUrl)) ? 'inline-flex' : 'none';
       // A map that is gone cannot be edited, and a mode left on over an empty
       // frame is a crosshair cursor with nothing under it.
-      if (_spotEdit && !(_plan || _mapUrl)) { _spotEdit = false; _spotRow = false; _rowFrom = null; }
+      if (_spotEdit && !(_plan || _mapUrl)) { _spotEdit = false; _spotRow = false; _rowFrom = null; _spotAdd = false; }
       const uploadLabel = el('mapUploadBtn').querySelector('span');
       if (uploadLabel) uploadLabel.textContent = (_plan || _mapUrl) ? t('map.replace') : t('map.upload');
 
@@ -725,9 +725,35 @@
     let _spotEditZone = '';         // which zone new spots belong to
     let _spotRow = false;           // laying a whole row instead of one spot
     let _rowFrom = null;            // first end of the row being laid
+    let _spotAdd = false;           // armed to drop the next tap as a spot
     let _parkCar = null;            // a car chosen, waiting for a place to be tapped
 
     const spotKey = (zone, no) => (zone || '').trim().toLowerCase() + '#' + no;
+    // The ink a zone's bays are drawn in, taken from the bays it already has.
+    // It arrived with the plan; a bay added by hand afterwards has to inherit
+    // it, or a car parked on it comes out the fallback blue in a yellow zone.
+    function zoneInk(zone) {
+      const mine = spotsOfZone(zone).find(sp => sp.c);
+      return mine ? mine.c : '';
+    }
+
+    // The bay of the same zone nearest a point on the plan. Bays in a rank all
+    // point the same way, so a new one dropped beside them takes its heading
+    // from its neighbour — added on its own it would sit square to the page in
+    // a row drawn on the diagonal. Distance is measured on the drawing, not on
+    // the percentages: one percent across and one down are not the same length.
+    function neighbourSpot(zone, at) {
+      const v = _planView;
+      const ax = v ? v.w : 1, ay = v ? v.h : 1;
+      let best = null, bestD = Infinity;
+      for (const sp of spotsOfZone(zone)) {
+        const dx = (sp.x - at.x) * ax, dy = (sp.y - at.y) * ay;
+        const d = dx * dx + dy * dy;
+        if (d < bestD) { bestD = d; best = sp; }
+      }
+      return best;
+    }
+
     function spotsOfZone(zone) {
       const k = (zone || '').trim().toLowerCase();
       return ZONE_SPOTS.filter(s => s.zone.trim().toLowerCase() === k)
@@ -935,8 +961,13 @@
       }
       // The zone picker and the row tools belong to editing: outside it they are
       // controls with nothing to act on.
-      for (const id of ['spotRowBtn', 'spotClearBtn', 'spotZone']) {
+      for (const id of ['spotAddBtn', 'spotRowBtn', 'spotClearBtn', 'spotZone']) {
         const b = el(id); if (b) b.hidden = !_spotEdit;
+      }
+      const addBtn = el('spotAddBtn');
+      if (addBtn) {
+        addBtn.classList.toggle('active', _spotAdd);
+        addBtn.textContent = t(_spotAdd ? 'spots.add_cancel' : 'spots.add');
       }
       const zoneSel = el('spotZone');
       if (zoneSel && zoneSel.options.length !== PARKING_ZONES.length + 1) {
@@ -960,9 +991,11 @@
       const hint = el('mapSpotHint');
       if (hint) {
         const c = _parkCar && activeCars().find(x => String(x.id) === String(_parkCar));
-        hint.hidden = _spotEdit || !ZONE_SPOTS.length;
-        hint.textContent = c ? t('spots.park_where', { car: carChoice(c).label })
-          : t('spots.tap_hint');
+        hint.hidden = !_spotEdit && !ZONE_SPOTS.length;
+        hint.textContent = _spotEdit
+          ? (_spotAdd ? t('spots.add_where', { zone: _spotEditZone }) : t('spots.edit_hint'))
+          : c ? t('spots.park_where', { car: carChoice(c).label })
+            : t('spots.tap_hint');
       }
     }
 
@@ -1315,6 +1348,7 @@
     // and how many slots sit between, and the app spaces them out.
     function setRowMode(on) {
       _spotRow = on;
+      if (on) _spotAdd = false;   // only one of them can hold the next tap
       if (!on) _rowFrom = null;
       const b = el('spotRowBtn');
       if (b) { b.classList.toggle('active', on); b.textContent = t(on ? 'spots.row_cancel' : 'spots.row'); }
@@ -1330,6 +1364,7 @@
       if (!Number.isFinite(n) || n < 2 || n > 120) { showToast(t('spots.row_count_bad'), 'error'); return; }
       const nums = allocSpotNumbers(zone, n);
       const bay = bayPct(SPOT_W, SPOT_D);
+      const ink = zoneInk(zone);
       // The row's heading, taken on the drawing rather than on the percentages:
       // one percent across and one percent down are the same distance in metres
       // but not the same number, and an angle read off the numbers would lean.
@@ -1344,6 +1379,7 @@
           x: Math.min(100, Math.max(0, a.x + (b.x - a.x) * k)),
           y: Math.min(100, Math.max(0, a.y + (b.y - a.y) * k)),
           ...(bay ? { r: Math.round(r * 100) / 100, ...bay } : {}),
+          ...(ink ? { c: ink } : {}),
         });
       }
       if (await saveZoneSpots(ZONE_SPOTS.concat(add))) showToast(t('spots.row_done', { n, zone }));
@@ -1389,13 +1425,42 @@
     function setSpotEdit(on) {
       _spotEdit = !!on;
       if (_spotEdit) _parkCar = null;   // two modes over one map is one too many
-      if (!_spotEdit) setRowMode(false);
+      if (!_spotEdit) { setRowMode(false); _spotAdd = false; }
       if (_spotEdit) showToast(t('spots.place_hint'));
       renderMapSpots();
     }
     el('mapEditBtn')?.addEventListener('click', () => setSpotEdit(!_spotEdit));
 
     el('spotZone')?.addEventListener('change', (e) => { _spotEditZone = e.target.value || ''; });
+
+    // ----- ADDING ONE SPOT --------------------------------------------------
+    // Adding used to be a bare tap with a zone set on a dropdown: two things
+    // nobody saw, and a stray tap while dragging the plan left a bay behind.
+    // The button is the thing you look for and the arm at the same time, and it
+    // stays armed — a plan is drawn a handful of bays at a time, and re-arming
+    // between each one would be the same tax the dropdown was.
+    async function startAddingSpots() {
+      if (!roleAtLeast('staff')) return;
+      if (_spotAdd) { _spotAdd = false; renderMapSpots(); return; }
+      // The zone is asked once, not on every re-arm: the dropdown beside the
+      // button is there to change it.
+      let zone = _spotEditZone;
+      if (!zone) {
+        zone = await uiChoose(t('spots.add_zone_q'), PARKING_ZONES.map(z => ({
+          value: z, label: z, sub: t('spots.summary_zone', { n: spotsOfZone(z).length }), search: z,
+        })), { placeholder: t('spots.pick_zone') });
+        if (!zone) return;
+        _spotEditZone = zone;
+        // The dropdown still drives the row and clear tools, so it has to agree.
+        const sel = el('spotZone');
+        if (sel) sel.value = zone;
+      }
+      setRowMode(false);
+      _spotAdd = true;
+      renderMapSpots();
+      showToast(t('spots.add_where', { zone }));
+    }
+    el('spotAddBtn')?.addEventListener('click', startAddingSpots);
 
     // Placing: a tap on the photo drops the next number of the chosen zone.
     el('mapContainer')?.addEventListener('click', async (e) => {
@@ -1405,6 +1470,9 @@
       // In row mode a pin is just scenery: both ends of the row are points on
       // the photo, and a dense zone leaves nowhere else to aim.
       if (!_spotRow && e.target.closest('.map-spot')) return;   // handled below
+      // Without an arm a stray tap while dragging the plan around dropped a
+      // bay; now nothing lands on the map unless a tool asked for it.
+      if (!_spotRow && !_spotAdd) return;
       if (!_spotEditZone) { showToast(t('spots.pick_zone_first'), 'error'); return; }
       const at = mapPointPct(e);
       if (!at) return;
@@ -1415,10 +1483,15 @@
         await placeSpotRow(from, at);
         return;
       }
-      await saveZoneSpots(ZONE_SPOTS.concat([
-        { zone: _spotEditZone, no: allocSpotNumbers(_spotEditZone, 1)[0], x: at.x, y: at.y,
-          ...(bayPct(SPOT_W, SPOT_D) || {}) },
-      ]));
+      const no = allocSpotNumbers(_spotEditZone, 1)[0];
+      const near = neighbourSpot(_spotEditZone, at);
+      const ink = zoneInk(_spotEditZone);
+      if (await saveZoneSpots(ZONE_SPOTS.concat([
+        { zone: _spotEditZone, no, x: at.x, y: at.y,
+          ...(bayPct(SPOT_W, SPOT_D) || {}),
+          ...(near && Number.isFinite(+near.r) ? { r: +near.r } : {}),
+          ...(ink ? { c: ink } : {}) },
+      ]))) showToast(t('spots.added', { zone: _spotEditZone, n: no }));
     });
 
     // The nearest pin to a point, within reach.
