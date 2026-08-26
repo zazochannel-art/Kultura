@@ -305,10 +305,26 @@ nimic din astea și rămâne bulină, ca înainte.
 - **Boxa liberă e goală.** Conturul mașinii care ar încăpea în ea, atât cât să
   se vadă numărul boxei prin el. Plină, ar zice că e cineva acolo — pe două sute
   de boxe deodată.
-- **Boxa ocupată e o mașină**: albastră dacă e așteptată, verde dacă a sosit.
-  Geamurile se desenează **închise la culoare**, fiindcă de sus geamul e partea
-  cea mai întunecată a unei mașini — și el e ce face forma să se citească drept
-  mașină la cincisprezece pixeli.
+- **Boxa ocupată e o mașină**, vopsită în culoarea zonei ei (vezi mai jos).
+- **Desenul e un Golf V văzut de sus**, la cotele lui: 875 mm de consolă față,
+  2578 de ampatament și 751 spate, deci roțile din față cad la 21% din lungime și
+  cele din spate la 82%, iar restul — parbriz, plafon, lunetă, hayon — e agățat
+  de ele. Ghicite, reperele astea aduc cabina în față și lucrul iese a dubiță.
+  Caroseria are 34 de unități din cele 50 ale boxei (1,7 m într-o cutie de
+  2,5 m) și 88 din 100 (4,4 m din 5), adică mașina care chiar încape între linii.
+  Deasupra ei: cusătura barei față cu farurile măturate de pe ea, cusătura
+  capotă-aripă, cele patru rosturi de portieră ale unui cinci-uși, anvelopele
+  ieșind de sub aripi, oglinzile ca panouri de caroserie (conturate în loc de
+  umplute, ieșeau două pete plutitoare) și emblema pe bot. Nimic din toate astea
+  nu se citește la cincisprezece pixeli; toate sunt ce face forma o mașină și nu
+  o pastilă când cineva se apropie.
+- **Stopurile își păstrează roșul** peste orice culoare de zonă. La distanță
+  sunt două puncte; de aproape sunt diferența dintre o mașină cu botul spre alee
+  și una cu botul în gard — întrebarea pe care și-o pune cineva de pe asfalt.
+- **Detaliul e gratis.** Desenul are de patru ori mai multe linii decât cel
+  dinainte, dar pânza e un singur strat, iar `Layerize` — partea scumpă a unei
+  deplasări — ține de numărul de straturi, nu de lungimea traseelor: 383 ms pe
+  gest față de 471 ms înainte, cu procesorul încetinit de patru ori.
 - **Numărul se scrie pe portbagaj**, nu peste mijloc: peste cabină ar acoperi
   exact detaliul de mai sus. Are `textLength` cât lățimea mașinii, fiindcă un
   număr de înmatriculare e mai lung decât un număr de intrare și altfel iese

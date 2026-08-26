@@ -2835,6 +2835,15 @@ try {
           // An arrived car is a taken one too — written as one or the other,
           // it came out painted like an empty bay.
           arrived: document.querySelectorAll('#mapCars .cp.taken.here').length,
+          // The tail lights: the one part of the drawing that keeps its own
+          // colour on a car painted any zone colour, and the only thing that
+          // says which way a car is facing once somebody leans in.
+          lamps: document.querySelectorAll('#mapCars .cp .cp-lamp').length,
+          // Guarded: without it a car drawn with no lamps throws inside the
+          // evaluate and takes the whole section down, instead of failing the
+          // one check that is about lamps.
+          lampFill: (g && g.querySelector('.cp-lamp')
+            && getComputedStyle(g.querySelector('.cp-lamp')).fill) || '',
         };
       });
       ink.saved = ((savedSpots || []).find((sp) => sp.zone === 'Stance') || {}).c || '';
@@ -2845,9 +2854,14 @@ try {
       // lines. Painted, it would say somebody is standing there.
       check('plan-import-leaves-an-empty-bay-uncoloured',
         /255, 255, 255/.test(ink.freeFill || ''), JSON.stringify(ink));
+      // Every car carries them, and they stay red over the zone's own paint —
+      // read off the same taken car whose body came back the zone colour above.
+      check('plan-import-draws-tail-lights-on-every-car',
+        ink.lamps === 238 && /211, 58, 44/.test(ink.lampFill), JSON.stringify(ink));
     } catch (e) {
       for (const n of ['plan-import-button-for-staff', 'plan-import-keeps-the-plan-a-drawing',
         'plan-import-saves-the-spots', 'plan-import-pins-land-inside-the-image',
+        'plan-import-draws-tail-lights-on-every-car',
         'plan-import-pins-carry-their-bay',
         'plan-import-speaks-the-app-zone-names', 'plan-import-frees-a-car-whose-spot-is-gone',
         'plan-import-says-what-it-left-out', 'plan-import-map-shows-the-drawing-and-its-pins',

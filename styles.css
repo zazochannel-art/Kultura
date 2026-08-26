@@ -2112,7 +2112,13 @@
 }
 .map-cars .cp-trim {
   fill: none; stroke: #1e293b; stroke-opacity: .6; stroke-width: 1.6;
-  stroke-linejoin: round;
+  stroke-linejoin: round; stroke-linecap: round;
+}
+/* The tail lights keep their own red on a car painted any zone colour: they
+   are the one part of the drawing that answers "which way is it facing". */
+.map-cars .cp-lamp {
+  fill: #d33a2c; fill-opacity: .85;
+  stroke: #1e293b; stroke-opacity: .5; stroke-width: 1.2; stroke-linejoin: round;
 }
 /* Taken: the car is painted in its zone's own colour — the same colour the
    zone is drawn in underneath, so the map says which class is parked where
