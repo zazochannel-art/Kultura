@@ -2080,6 +2080,41 @@
 .map-spot:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .map-spot-layer.is-editing .map-spot { cursor: grab; }
 .map-spot-layer.is-editing .map-spot:active { cursor: grabbing; }
+/* The bay you are holding. Two hundred outlines look alike from above, so the
+   one being worked on says so before anything is done to it. */
+.map-spot.picked { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* ===== THE RING THAT TURNS A BAY =====
+   Sized in the bay's own percentages rather than in pixels, so it hugs the car
+   at every zoom: a fixed circle swallows the bay at fit-width and disappears
+   inside it at 8x. The whole frame is the handle — the arrows are there to say
+   so, not to be aimed at. */
+.map-rot {
+  position: absolute; transform: translate(-50%, -50%) rotate(var(--r, 0deg));
+  min-width: 38px; min-height: 30px;
+  border: 2px dashed var(--brand); border-radius: 10px;
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  /* The frame is affordance, not target: solid, it covered the bay it framed
+     and dragging to move turned the bay instead. Only the two arrows take a
+     pointer, so the bay underneath stays draggable. */
+  pointer-events: none;
+}
+.map-rot .mr-h {
+  position: absolute; left: 50%; width: 22px; height: 22px; margin-left: -11px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: var(--brand); color: #1a0410;
+  font-size: 15px; font-weight: 800; line-height: 1;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+  pointer-events: auto; cursor: grab;
+  /* Or the browser pans the map out from under the finger mid-turn. */
+  touch-action: none;
+}
+.map-rot .mr-h:active { cursor: grabbing; }
+/* A 22px badge is what you see; this is what you can hit, which on a phone is
+   the number that matters. */
+.map-rot .mr-h::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; }
+.map-rot .mr-a { top: -11px; }
+.map-rot .mr-b { bottom: -11px; }
 
 /* ===== A PIN THAT KNOWS ITS BAY IS A CAR IN IT =====
    On a drawn plan a spot carries the size and the heading of the bay it stands

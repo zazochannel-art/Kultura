@@ -2858,6 +2858,122 @@ try {
       // read off the same taken car whose body came back the zone colour above.
       check('plan-import-draws-tail-lights-on-every-car',
         ink.lamps === 238 && /211, 58, 44/.test(ink.lampFill), JSON.stringify(ink));
+
+      // ----- PICKING A BAY UP, TURNING IT, PUTTING IT DOWN -----------------
+      // A tap used to open "are you sure you want to delete this", which made
+      // touching a bay to move or turn it a dialog you dismissed first. Now a
+      // tap picks it up and deleting is a button of its own at the top.
+      await ip.evaluate(() => document.getElementById('mapEditBtn').click());
+      await ip.waitForTimeout(300);
+      const armed = await ip.evaluate(() => {
+        const d = document.getElementById('spotDelBtn');
+        return { shown: getComputedStyle(d).display !== 'none', off: d.disabled };
+      });
+      // Zoomed in, because a bay is four pixels across at fit-width and the
+      // ring's handles are what this is about.
+      for (let i = 0; i < 6; i++) { await ip.click('#mapZoomIn'); await ip.waitForTimeout(90); }
+      await mapSettled(ip);
+      await ip.waitForTimeout(400);
+      const bay = await ip.evaluate(() => {
+        const vp = document.getElementById('mapViewport').getBoundingClientRect();
+        for (const pin of document.querySelectorAll('.map-spot')) {
+          const r = pin.getBoundingClientRect();
+          if (pin.classList.contains('taken')) continue;
+          if (r.left > vp.left + 150 && r.right < vp.right - 150
+              && r.top > vp.top + 150 && r.bottom < vp.bottom - 150) {
+            pin.click();
+            return { zone: pin.dataset.spotZone, no: +pin.dataset.spotNo,
+                     x: r.left + r.width / 2, y: r.top + r.height / 2 };
+          }
+        }
+        return null;
+      });
+      await ip.waitForTimeout(400);
+      const held = await ip.evaluate(() => ({
+        dialog: document.getElementById('uiDialog').classList.contains('show'),
+        picked: document.querySelectorAll('.map-spot.picked').length,
+        rings: document.querySelectorAll('.map-rot').length,
+        handles: document.querySelectorAll('.map-rot .mr-h').length,
+        del: document.getElementById('spotDelBtn').disabled,
+        // The frame must not take the pointer: solid, it covered the bay and
+        // dragging to move turned it instead.
+        atCentre: (() => {
+          const r = document.querySelector('.map-rot')?.getBoundingClientRect();
+          if (!r) return '';
+          const t = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          return t ? t.className || t.tagName : '';
+        })(),
+      }));
+      check('spot-tap-picks-a-bay-instead-of-deleting-it',
+        !!bay && armed.shown && armed.off && !held.dialog && held.picked === 1 && !held.del,
+        JSON.stringify({ bay, armed, held }));
+      check('spot-picked-bay-gets-a-ring-with-two-handles',
+        held.rings === 1 && held.handles === 2 && /map-spot/.test(held.atCentre),
+        JSON.stringify(held));
+
+      const wasR = (savedSpots || []).find((sp) => sp.zone === bay.zone && sp.no === bay.no);
+      const grip = await ip.evaluate(() => {
+        const h = document.querySelector('.map-rot .mr-h').getBoundingClientRect();
+        const r = document.querySelector('.map-rot').getBoundingClientRect();
+        return { hx: h.left + h.width / 2, hy: h.top + h.height / 2,
+                 cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+      });
+      savedSpots = null;
+      await ip.mouse.move(grip.hx, grip.hy);
+      await ip.mouse.down();
+      await ip.mouse.move(grip.cx + 70, grip.cy, { steps: 8 });
+      await ip.mouse.move(grip.cx, grip.cy - 90, { steps: 8 });   // point it due north
+      await ip.mouse.up();
+      await ip.waitForTimeout(900);
+      const turned = (savedSpots || []).find((sp) => sp.zone === bay.zone && sp.no === bay.no);
+      // Due north is 0°, and the bay it started at was not.
+      check('spot-ring-turns-the-bay-and-writes-the-angle',
+        !!turned && Math.round(turned.r || 0) === 0 && Math.round((wasR || {}).r || 0) !== 0,
+        JSON.stringify({ was: wasR && wasR.r, now: turned && turned.r }));
+      // Dragging the bay itself still moves it: the ring frame must not take the
+      // pointer, and the drag must survive its own ending. A drag ends with a
+      // click, and that click lands on the bay — which, unswallowed, toggles it
+      // straight back down, so a move and a deselect happen in one gesture.
+      //
+      // This asks *which* bay is still held rather than how many are: on a
+      // plan with 238 of them, picking up a neighbour instead looks exactly
+      // like holding on when all you count is elements.
+      savedSpots = null;
+      const grab = await ip.evaluate(() => {
+        const b2 = document.querySelector('.map-spot.picked').getBoundingClientRect();
+        return { x: b2.left + b2.width / 2, y: b2.top + b2.height / 2 };
+      });
+      await ip.mouse.move(grab.x, grab.y);
+      await ip.mouse.down();
+      await ip.mouse.move(grab.x + 52, grab.y + 34, { steps: 8 });
+      await ip.mouse.up();
+      await ip.waitForTimeout(900);
+      const held2 = await ip.evaluate(() => {
+        const pins = document.querySelectorAll('.map-spot.picked');
+        return { n: pins.length, rings: document.querySelectorAll('.map-rot').length,
+          zone: pins[0]?.dataset.spotZone || '', no: +(pins[0]?.dataset.spotNo || 0) };
+      });
+      const movedTo = (savedSpots || []).find((sp) => sp.zone === bay.zone && sp.no === bay.no);
+      check('spot-drag-moves-the-picked-bay-and-keeps-holding-it',
+        !!movedTo && !!turned && (movedTo.x !== turned.x || movedTo.y !== turned.y)
+        && held2.n === 1 && held2.rings === 1
+        && held2.zone === bay.zone && held2.no === bay.no,
+        JSON.stringify({ movedTo, turned, held2, bay }));
+
+      savedSpots = null;
+      await ip.evaluate(() => document.getElementById('spotDelBtn').click());
+      await ip.waitForTimeout(900);
+      const gone = await ip.evaluate(() => ({
+        dialog: document.getElementById('uiDialog').classList.contains('show'),
+        rings: document.querySelectorAll('.map-rot').length,
+        del: document.getElementById('spotDelBtn').disabled,
+      }));
+      // An empty bay is a drawing correction, so it goes without a dialog.
+      check('spot-delete-button-removes-the-picked-bay',
+        !gone.dialog && Array.isArray(savedSpots)
+        && !savedSpots.some((sp) => sp.zone === bay.zone && sp.no === bay.no)
+        && gone.rings === 0 && gone.del,
+        JSON.stringify({ gone, left: (savedSpots || []).length }));
     } catch (e) {
       for (const n of ['plan-import-button-for-staff', 'plan-import-keeps-the-plan-a-drawing',
         'plan-import-saves-the-spots', 'plan-import-pins-land-inside-the-image',
@@ -2869,7 +2985,11 @@ try {
         'plan-import-draws-the-plan-at-the-zoomed-size',
         'plan-import-fits-the-whole-plan-on-one-screen',
         'plan-import-frame-fills-the-column-and-centres-the-plan',
-        'plan-import-paints-a-car-in-its-zone-colour', 'plan-import-leaves-an-empty-bay-uncoloured']) {
+        'plan-import-paints-a-car-in-its-zone-colour', 'plan-import-leaves-an-empty-bay-uncoloured',
+        'spot-tap-picks-a-bay-instead-of-deleting-it', 'spot-picked-bay-gets-a-ring-with-two-handles',
+        'spot-ring-turns-the-bay-and-writes-the-angle',
+        'spot-drag-moves-the-picked-bay-and-keeps-holding-it',
+        'spot-delete-button-removes-the-picked-bay']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
       console.log(`plan import checks: ${e.message}`);

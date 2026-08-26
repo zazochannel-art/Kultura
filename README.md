@@ -427,6 +427,31 @@ Zona se cere o singură dată — reînarmarea n-o mai întreabă, selectorul de
 buton o schimbă. „Rând întreg" și „Adaugă un loc" nu stau armate odată: un
 singur tap, un singur înțeles.
 
+**O apăsare ia boxa în mână, nu o șterge.** Înainte, orice atingere deschidea
+„sigur ștergi?", deci ca s-o muți sau s-o întorci începeai prin a închide un
+dialog. Acum apăsarea o alege — se conturează, bara scrie ce e și la câte grade
+stă — iar ștergerea e butonul **„Șterge locul"** de sus, mort până alegi ceva.
+Apeși din nou boxa, sau planul pe lângă ea, și o pui jos.
+
+Ștergerea nu întreabă decât când merită: o boxă goală e o corectură de desen, pe
+când una cu cineva pe ea îi ia locul — atunci se cere confirmarea și se spune
+cine stă acolo, iar mașinii i se pune `spot_no` pe `null`. Fără asta, numărul
+locului rămânea pe fișa ei, arătând spre o boxă care nu mai există.
+
+**Inelul care rotește.** În jurul boxei alese apare un cadru cu două săgeți,
+măsurat în procentele boxei și nu în pixeli: un cerc de mărime fixă înghite boxa
+la lățime întreagă și dispare în ea la 8×. Cadrul e semn, nu țintă — doar cele
+două săgeți primesc pointer-ul, fiindcă plin, acoperea exact boxa pe care o
+încadra și tragerea de mutat o rotea în loc s-o mute.
+
+Unghiul se ia ca **diferență** față de locul de unde ai apucat, nu ca „arată
+spre degetul meu": altfel boxa sărea într-o poziție nouă la prima atingere.
+
+Și un lucru care se vede doar când lipsește: **o tragere se termină cu un
+click.** Nelăsat în urmă, el conta drept apăsare pe plan și punea boxa jos exact
+când terminai de rotit-o. E înghițit în faza de captură pe `#mapContainer`, deci
+niciunul dintre cele două handler-e de apăsare nu-l vede.
+
 Boxa nouă **moștenește de la vecina ei**: culoarea zonei (`c`, altfel o mașină
 parcată pe ea ieșea albastrul implicit într-o zonă galbenă) și unghiul boxei
 celei mai apropiate din aceeași zonă — un rând desenat pe diagonală n-are ce
