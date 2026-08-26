@@ -243,6 +243,7 @@ export default {
   "map.sub": "План парковки со всеми зонами",
   "map.upload": "Загрузить карту",
   "map.plan_import": "Загрузить план площадки",
+  "map.edit_spots": "Редактировать",
   "map.plan_what": "загрузка плана",
   "map.plan_missing": "Не удалось найти план площадки.",
   "map.plan_rendering": "Готовим план...",

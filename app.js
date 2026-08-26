@@ -579,6 +579,11 @@
       if (actions) actions.style.display = staff ? 'flex' : 'none';
       const delBtn = el('mapDeleteBtn');
       if (delBtn) delBtn.style.display = (staff && (_plan || _mapUrl)) ? 'inline-flex' : 'none';
+      const editBtn = el('mapEditBtn');
+      if (editBtn) editBtn.style.display = (staff && (_plan || _mapUrl)) ? 'inline-flex' : 'none';
+      // A map that is gone cannot be edited, and a mode left on over an empty
+      // frame is a crosshair cursor with nothing under it.
+      if (_spotEdit && !(_plan || _mapUrl)) { _spotEdit = false; _spotRow = false; _rowFrom = null; }
       const uploadLabel = el('mapUploadBtn').querySelector('span');
       if (uploadLabel) uploadLabel.textContent = (_plan || _mapUrl) ? t('map.replace') : t('map.upload');
 
@@ -921,7 +926,15 @@
       renderSpotDensity();
       const bar = el('mapSpotBar');
       if (bar) bar.hidden = !(roleAtLeast('staff') && (_plan || _mapUrl));
-      for (const id of ['spotRowBtn', 'spotClearBtn']) {
+      const edit = el('mapEditBtn');
+      if (edit) {
+        edit.classList.toggle('active', _spotEdit);
+        const lab = edit.querySelector('span');
+        if (lab) lab.textContent = t(_spotEdit ? 'spots.place_done' : 'map.edit_spots');
+      }
+      // The zone picker and the row tools belong to editing: outside it they are
+      // controls with nothing to act on.
+      for (const id of ['spotRowBtn', 'spotClearBtn', 'spotZone']) {
         const b = el(id); if (b) b.hidden = !_spotEdit;
       }
       const zoneSel = el('spotZone');
@@ -1354,14 +1367,16 @@
       }
     });
 
-    el('spotEditBtn')?.addEventListener('click', () => {
-      _spotEdit = !_spotEdit;
-      const b = el('spotEditBtn');
-      if (b) { b.textContent = t(_spotEdit ? 'spots.place_done' : 'spots.place'); b.classList.toggle('active', _spotEdit); }
+    // Editing the spots is a mode, entered from the top of the section where
+    // the map's other actions are. One place holds the state; the button's
+    // label and the tools under it are both drawn from it in `renderMapSpots`.
+    function setSpotEdit(on) {
+      _spotEdit = !!on;
       if (!_spotEdit) setRowMode(false);
       if (_spotEdit) showToast(t('spots.place_hint'));
       renderMapSpots();
-    });
+    }
+    el('mapEditBtn')?.addEventListener('click', () => setSpotEdit(!_spotEdit));
 
     el('spotZone')?.addEventListener('change', (e) => { _spotEditZone = e.target.value || ''; });
 

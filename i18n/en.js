@@ -243,6 +243,7 @@ export default {
   "map.sub": "Parking layout with all zones",
   "map.upload": "Upload map",
   "map.plan_import": "Bring in the venue plan",
+  "map.edit_spots": "Edit spots",
   "map.plan_what": "bringing in the plan",
   "map.plan_missing": "Could not find the venue plan.",
   "map.plan_rendering": "Preparing the plan...",
