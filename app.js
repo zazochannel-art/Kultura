@@ -725,6 +725,7 @@
     let _spotEditZone = '';         // which zone new spots belong to
     let _spotRow = false;           // laying a whole row instead of one spot
     let _rowFrom = null;            // first end of the row being laid
+    let _parkCar = null;            // a car chosen, waiting for a place to be tapped
 
     const spotKey = (zone, no) => (zone || '').trim().toLowerCase() + '#' + no;
     function spotsOfZone(zone) {
@@ -947,6 +948,21 @@
         const total = ZONE_SPOTS.length;
         const taken = ZONE_SPOTS.filter(sp => carOnSpot(sp.zone, sp.no)).length;
         info.textContent = total ? t('spots.summary', { taken, total }) : t('spots.none_yet');
+      }
+      const park = el('spotParkBtn');
+      if (park) {
+        park.hidden = _spotEdit || !ZONE_SPOTS.length;
+        park.classList.toggle('active', !!_parkCar);
+        park.textContent = t(_parkCar ? 'spots.park_cancel' : 'spots.park');
+      }
+      // The one line that says a bay can be tapped at all. Replaced by what the
+      // map is waiting for once a car has been chosen.
+      const hint = el('mapSpotHint');
+      if (hint) {
+        const c = _parkCar && activeCars().find(x => String(x.id) === String(_parkCar));
+        hint.hidden = _spotEdit || !ZONE_SPOTS.length;
+        hint.textContent = c ? t('spots.park_where', { car: carChoice(c).label })
+          : t('spots.tap_hint');
       }
     }
 
@@ -1372,6 +1388,7 @@
     // label and the tools under it are both drawn from it in `renderMapSpots`.
     function setSpotEdit(on) {
       _spotEdit = !!on;
+      if (_spotEdit) _parkCar = null;   // two modes over one map is one too many
       if (!_spotEdit) setRowMode(false);
       if (_spotEdit) showToast(t('spots.place_hint'));
       renderMapSpots();
@@ -1438,6 +1455,7 @@
       if (_mapPanMoved) return;
       e.stopPropagation();
       const zone = pin.dataset.spotZone, no = Number(pin.dataset.spotNo);
+      if (_parkCar) { await parkHere(zone, no); return; }
       if (_spotEdit) {
         if (!roleAtLeast('staff')) return;
         if (!await uiConfirm(t('spots.remove_confirm', { zone, n: no }))) return;
@@ -1509,29 +1527,65 @@
       return true;
     }
 
-    async function assignCarToSpot(zone, no) {
-      // Offer the zone's own cars first — usually the answer — then anyone
-      // unplaced, because the point of the map is to place the unplaced.
+    // Every car still waiting for a place, the ones from `zone` first: that is
+    // usually the answer, and the point of the map is to place the unplaced.
+    function unplacedCars(zone) {
       const cars = activeCars().filter(c => c.spot_no == null);
-      const inZone = cars.filter(c => (c.zone || '').trim().toLowerCase() === zone.trim().toLowerCase());
-      const rest = cars.filter(c => !inZone.includes(c));
-      const pool = inZone.concat(rest);
+      if (!zone) return cars;
+      const k = zone.trim().toLowerCase();
+      const inZone = cars.filter(c => (c.zone || '').trim().toLowerCase() === k);
+      return inZone.concat(cars.filter(c => !inZone.includes(c)));
+    }
+    // A car as the picker shows it: what you see on the tarmac on top, how you
+    // check it is the right one underneath, and the plate searchable without
+    // being on screen — fastest to type, slowest to read off a list.
+    const carChoice = (c) => ({
+      value: String(c.id),
+      label: [c.entry_no ? '#' + c.entry_no : '',
+        [c.brand, c.model].filter(Boolean).join(' ') || c.plate || '—'].filter(Boolean).join(' · '),
+      sub: [c.owner, c.plate, c.zone].filter(Boolean).join(' · '),
+      search: [c.entry_no, c.brand, c.model, c.plate, c.owner, c.zone].filter(Boolean).join(' '),
+    });
+
+    /**
+     * Parking a car, starting from the car.
+     *
+     * Tapping a bay has always opened the picker, but nothing on screen said
+     * so — and at fit-width a bay is four pixels across, so nobody found it by
+     * accident either. This is the same thing from the other end: press the
+     * button, choose the car, then tap where it goes. The bar says which car it
+     * is waiting for, and the button turns into the way out.
+     */
+    async function startParking() {
+      if (!roleAtLeast('staff')) return;
+      if (_parkCar) { _parkCar = null; renderMapSpots(); return; }
+      const pool = unplacedCars('');
       if (!pool.length) { showToast(t('spots.nobody_free'), 'error'); return; }
-      // Two lines rather than one run-on: the car is what you are looking at on
-      // the tarmac, the owner and the plate are how you check you got the right
-      // one. The plate is searchable without being on screen — it is the
-      // fastest thing to type when the car is standing in front of you, and the
-      // slowest to read off a list.
+      const pick = await uiChoose(t('spots.park_which'), pool.map(carChoice),
+        { placeholder: t('spots.assign_search') });
+      if (!pick) return;
+      _parkCar = pick;
+      renderMapSpots();
+      const c = activeCars().find(x => String(x.id) === String(pick));
+      showToast(t('spots.park_where', { car: c ? carChoice(c).label : '' }));
+    }
+    // The tap that finishes it. A bay with somebody on it is not an answer, so
+    // it says so and stays in the mode rather than dropping what you were doing.
+    async function parkHere(zone, no) {
+      if (carOnSpot(zone, no)) { showToast(t('spots.park_taken'), 'error'); return; }
+      const id = _parkCar;
+      _parkCar = null;
+      if (await setCarSpot(id, zone, no)) showToast(t('spots.assigned', { zone, n: no }));
+      else renderMapSpots();
+    }
+    el('spotParkBtn')?.addEventListener('click', startParking);
+
+    async function assignCarToSpot(zone, no) {
+      const pool = unplacedCars(zone);
+      if (!pool.length) { showToast(t('spots.nobody_free'), 'error'); return; }
       const pick = await uiChoose(
         t('spots.assign_title', { zone, n: no }),
-        pool.map(c => ({
-          value: String(c.id),
-          label: [c.entry_no ? '#' + c.entry_no : '',
-            [c.brand, c.model].filter(Boolean).join(' ') || c.plate || '—'].filter(Boolean).join(' · '),
-          sub: [c.owner, c.plate, c.zone].filter(Boolean).join(' · '),
-          search: [c.entry_no, c.brand, c.model, c.plate, c.owner, c.zone].filter(Boolean).join(' '),
-        })),
-        { placeholder: t('spots.assign_search') });
+        pool.map(carChoice), { placeholder: t('spots.assign_search') });
       if (!pick) return;
       if (await setCarSpot(pick, zone, no)) showToast(t('spots.assigned', { zone, n: no }));
     }
