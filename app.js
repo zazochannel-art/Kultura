@@ -5,7 +5,7 @@
       escape, reduceMotion as _reduceMotion, normalizePhone, telegramLink,
       nameHue, avatarBg, twoInitials, hexToRgba, downscaleImage,
       statusKey, normPlateKey, fmtDateTime, fmtRelative, mergeById, maxWatermark, overlapFrom, backupAgeHours,
-      gateBurstAction
+      gateBurstAction, planDrawingOk
     } from './utils.js';
     import { haptic, confettiBurst, successCheck, auroraPulse } from './effects.js';
     // The venue plan drawn in plan.html. Same module the editor uses, so the
@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v126';
+    const APP_VERSION = 'v145';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -553,17 +553,99 @@
     // SVG in the page rather than as a picture: a raster has a resolution and
     // the gate zooms to 8x, which is where it turns to mush. A drawing has none.
     let _plan = null, _planUrl = null;
-    async function loadMap() {
-      const { data } = await supa.from('ui_settings')
-        .select('key,value').in('key', ['zone_map_url', 'zone_plan_url']);
-      const byKey = Object.fromEntries((data || []).map(r => [r.key, r.value]));
-      _mapUrl = byKey.zone_map_url || null;
-      _planUrl = byKey.zone_plan_url || null;
-      _plan = null;
-      if (_planUrl) {
-        // Same guard as the editor's: the path is ours, relative, and a plan.
+
+    // A plan is a drawing plus the bays laid out on it. It used to be one
+    // drawing named by a constant in this file and one bay list in ui_settings,
+    // which meant a venue had exactly one layout: preparing the next event
+    // erased the one before it, and a new drawing needed a deploy. Now a plan
+    // is a row, and an event is laid out on one of them.
+    let ZONE_PLANS = [];        // the library, without the bays: id, name, where
+    let _planId = null;         // the plan the active event is laid out on
+    let _planName = '';
+
+    // Record the choice on the event in memory as well as in the table. Looked
+    // up again by id rather than through a reference taken earlier: a dialog and
+    // a write are two awaits, and a refresh landing in between replaces every
+    // row in `state.events`. Mutating the object we were holding would then
+    // change something nothing renders from — the table right, the screen wrong
+    // until the next reload.
+    function setEventPlanLocally(eventId, planId) {
+      const row = (state.events || []).find(e => String(e.id) === String(eventId));
+      if (row) row.plan_id = planId;
+    }
+    function activeEventPlanId() {
+      const ev = (state.events || []).find(e => String(e.id) === String(state.activeEventId));
+      return ev && ev.plan_id != null ? ev.plan_id : null;
+    }
+    // Where a drawing may come from: our own plans bucket, or a file shipped
+    // with the app. The rule itself lives in utils.js, where it is tested.
+    const PLANS_PREFIX = SUPABASE_URL + '/storage/v1/object/public/plans/';
+
+    // Bays as they come out of storage. Clamped on read as well as on write: a
+    // bad row must not put a bay outside the drawing, where nobody can reach it.
+    function normaliseSpots(raw) {
+      let arr = raw;
+      if (typeof arr === 'string') { try { arr = JSON.parse(arr); } catch (_) { arr = null; } }
+      if (!Array.isArray(arr)) return [];
+      return arr
+        .filter(s => s && s.zone && Number.isFinite(+s.no))
+        .map(s => {
+          const sp = {
+            zone: String(s.zone).trim(),
+            no: Math.max(1, parseInt(s.no, 10) || 1),
+            x: Math.min(100, Math.max(0, Number(s.x) || 0)),
+            y: Math.min(100, Math.max(0, Number(s.y) || 0)),
+          };
+          // A bay that came from a drawing knows how big it is and which way it
+          // faces. That is what lets the pin be a car parked in it rather than a
+          // dot near it. One dropped on a photo has none of that, and stays a dot.
+          if (Number.isFinite(+s.r)) sp.r = ((+s.r % 360) + 360) % 360;
+          if (+s.w > 0 && +s.h > 0) {
+            sp.w = Math.min(100, +s.w);
+            sp.h = Math.min(100, +s.h);
+          }
+          // A colour goes into a style attribute, so it is checked rather than
+          // trusted: the row is editable and this is markup.
+          if (/^#[0-9a-f]{3,8}$/i.test(String(s.c || ''))) sp.c = String(s.c);
+          return sp;
+        });
+    }
+
+    async function loadPlanLibrary() {
+      try {
+        const { data } = await supa.from('zone_plans')
+          .select('id,name,plan_path,map_url,updated_at')
+          .order('updated_at', { ascending: false });
+        ZONE_PLANS = Array.isArray(data) ? data : [];
+      } catch (_) { ZONE_PLANS = []; }
+      try { renderPlanList(); } catch (_) {}
+    }
+
+    // The active event's plan: drawing and bays in one read, because they are
+    // one thing. Bays without their drawing are numbers floating on nothing.
+    async function loadActivePlan() {
+      const id = activeEventPlanId();
+      _planId = id;
+      _planName = '';
+      _mapUrl = null; _planUrl = null; _plan = null;
+      ZONE_SPOTS = [];
+      if (id != null) {
         try {
-          if (!/^[\w./-]+\.json$/.test(_planUrl) || _planUrl.includes('..') || _planUrl.startsWith('/')) throw new Error('path');
+          const { data } = await supa.from('zone_plans')
+            .select('id,name,plan_path,map_url,spots').eq('id', id).maybeSingle();
+          if (data) {
+            _planName = data.name || '';
+            _mapUrl = data.map_url || null;
+            _planUrl = data.plan_path || null;
+            ZONE_SPOTS = normaliseSpots(data.spots);
+          } else {
+            _planId = null;   // the row is gone; the event points at nothing
+          }
+        } catch (_) { /* the empty map says so */ }
+      }
+      if (_planUrl) {
+        try {
+          if (!planDrawingOk(_planUrl, PLANS_PREFIX)) throw new Error('path');
           const r = await fetch(_planUrl, { cache: 'no-cache' });
           if (!r.ok) throw new Error(String(r.status));
           _plan = await r.json();
@@ -571,7 +653,18 @@
           _plan = null;   // the picture, if there is one, is the fallback
         }
       }
+      // A different drawing is a different size: what the last one was laid out
+      // at says nothing about this one, and a stale scale draws it at the wrong
+      // one — cars included, since they are drawn against the same view.
+      _shownZoom = -1;
+      _planScale = 0;
       renderMap();
+      try { renderMapSpots(); } catch (_) {}
+      try { renderPlanList(); } catch (_) {}
+    }
+    async function loadMap() {
+      await loadPlanLibrary();
+      await loadActivePlan();
     }
     function renderMap() {
       const staff = roleAtLeast('staff');
@@ -630,11 +723,12 @@
         };
         try { renderMapSpots(); } catch (_) {}
       } else {
+        const others = ZONE_PLANS.length;
         container.innerHTML = `
           <div class="map-empty">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
-            <p>${escape(t('map.empty'))}</p>
-            <p class="map-empty-hint">${escape(t('map.empty_hint'))}</p>
+            <p>${escape(others ? t('plans.none_for_event') : t('map.empty'))}</p>
+            <p class="map-empty-hint">${escape(others && staff ? t('plans.pick_hint', { n: others }) : t('map.empty_hint'))}</p>
           </div>`;
       }
       renderZoneCfg();
@@ -784,47 +878,17 @@
       return null;
     }
 
-    async function loadZoneSpots() {
-      try {
-        const { data } = await supa.from('ui_settings').select('value').eq('key', 'zone_spots').maybeSingle();
-        let arr = null;
-        if (data && data.value) { try { arr = typeof data.value === 'string' ? JSON.parse(data.value) : data.value; } catch (_) {} }
-        if (Array.isArray(arr)) {
-          ZONE_SPOTS = arr
-            .filter(s => s && s.zone && Number.isFinite(+s.no))
-            .map(s => {
-              const sp = {
-                zone: String(s.zone).trim(),
-                no: Math.max(1, parseInt(s.no, 10) || 1),
-                // Clamp on read as well as write: a bad value in the table must
-                // not put a pin outside the image where nobody can grab it.
-                x: Math.min(100, Math.max(0, Number(s.x) || 0)),
-                y: Math.min(100, Math.max(0, Number(s.y) || 0)),
-              };
-              // A spot that came from a drawing knows the bay it stands for:
-              // how big it is and which way it faces. That is what lets the pin
-              // be drawn as a car parked in it rather than a dot near it. A spot
-              // dropped on a photo has none of it, and stays a dot.
-              if (Number.isFinite(+s.r)) sp.r = ((+s.r % 360) + 360) % 360;
-              if (+s.w > 0 && +s.h > 0) {
-                sp.w = Math.min(100, +s.w);
-                sp.h = Math.min(100, +s.h);
-              }
-              // A colour goes into a style attribute, so it is checked rather
-              // than trusted: the table is editable and this is markup.
-              if (/^#[0-9a-f]{3,8}$/i.test(String(s.c || ''))) sp.c = String(s.c);
-              return sp;
-            });
-        }
-      } catch (_) {}
-      try { renderMapSpots(); } catch (_) {}
-    }
+    // The bays are part of the plan, so loading them is loading it.
+    async function loadZoneSpots() { await loadActivePlan(); }
+
     async function saveZoneSpots(next) {
+      // Bays belong to a plan. Without one there is nothing to write them to,
+      // and silently dropping the edit would look like the app forgetting.
+      if (_planId == null) { showToast(t('plans.none_for_event'), 'error'); return false; }
       ZONE_SPOTS = next;
-      const { error } = await supa.from('ui_settings').upsert(
-        { key: 'zone_spots', value: JSON.stringify(next), updated_at: new Date().toISOString() },
-        { onConflict: 'key' }
-      );
+      const { error } = await supa.from('zone_plans')
+        .update({ spots: next, updated_at: new Date().toISOString() })
+        .eq('id', _planId);
       if (error) { uiAlert(t('common.error') + ': ' + error.message); return false; }
       renderMapSpots();
       return true;
@@ -2046,7 +2110,151 @@
       if (b) b.addEventListener('pointerdown', onDown);
     })();
     el('mapUploadBtn').addEventListener('click', () => el('mapFileInput').click());
-    el('mapPlanBtn')?.addEventListener('click', importVenuePlan);
+    // ----- THE PLAN LIBRARY -----
+    // A plan is picked for the event being looked at, not for the app: that is
+    // what lets two events on the same field keep two different layouts.
+    function renderPlanList() {
+      const list = el('plansList');
+      if (!list) return;
+      const usedBy = new Map();
+      for (const ev of (state.events || [])) {
+        if (ev.plan_id == null) continue;
+        if (!usedBy.has(ev.plan_id)) usedBy.set(ev.plan_id, []);
+        usedBy.get(ev.plan_id).push(ev.title || ('#' + ev.id));
+      }
+      if (!ZONE_PLANS.length) {
+        list.innerHTML = `<p class="dept-empty">${escape(t('plans.empty'))}</p>`;
+        return;
+      }
+      list.innerHTML = ZONE_PLANS.map(pl => {
+        const here = String(pl.id) === String(_planId);
+        const on = usedBy.get(pl.id) || [];
+        return `<div class="plan-row${here ? ' is-here' : ''}">
+          <div class="plan-main">
+            <span class="plan-name">${escape(pl.name || '—')}</span>
+            ${on.length ? `<span class="plan-where">${escape(t('plans.used_by', { list: on.join(', ') }))}</span>` : ''}
+          </div>
+          <div class="plan-btns">
+            ${here
+              ? `<span class="plan-badge">${escape(t('plans.in_use'))}</span>`
+              : `<button type="button" class="btn ghost small" data-plan-use="${pl.id}">${escape(t('plans.use'))}</button>`}
+            <button type="button" class="btn ghost small" data-plan-copy="${pl.id}">${escape(t('plans.copy'))}</button>
+            <button type="button" class="btn ghost small" data-plan-rename="${pl.id}">${escape(t('common.rename'))}</button>
+            <button type="button" class="btn ghost small danger" data-plan-del="${pl.id}">${escape(t('common.delete'))}</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    el('mapPlansBtn')?.addEventListener('click', async () => {
+      if (!roleAtLeast('staff')) return;
+      await loadPlanLibrary();
+      renderPlanList();
+      openModal('plans');
+    });
+    el('plansCloseBtn')?.addEventListener('click', () => closeModal(el('modal-plans')));
+    el('planImportBtn')?.addEventListener('click', () => el('planFileInput')?.click());
+    el('planFileInput')?.addEventListener('change', async (e) => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = '';           // the same file twice must still be a change
+      await importPlanFile(f);
+    });
+    el('planBundledBtn')?.addEventListener('click', importBundledPlan);
+
+    // Giving the event a different plan moves every car off the bays of the old
+    // one that the new one does not have. Said before it happens.
+    async function usePlanForEvent(id) {
+      if (!roleAtLeast('staff') || !requireOnline(t('map.plan_what'))) return;
+      const ev = (state.events || []).find(e => String(e.id) === String(state.activeEventId));
+      if (!ev) { showToast(t('plans.no_event'), 'error'); return; }
+      const pl = ZONE_PLANS.find(x => String(x.id) === String(id));
+      if (!pl) return;
+      const parked = activeCars().filter(c => c.spot_no != null).length;
+      if (!await uiConfirm(t('plans.use_confirm', {
+        name: pl.name || '?', event: ev.title || ('#' + ev.id), cars: parked,
+      }))) return;
+      const { error } = await supa.from('events').update({ plan_id: pl.id }).eq('id', ev.id);
+      if (error) { uiAlert(t('common.error') + ': ' + error.message); return; }
+      setEventPlanLocally(ev.id, pl.id);
+      await loadActivePlan();
+      await freeOrphanSpots(ZONE_SPOTS);
+      renderPlanList();
+      showToast(t('plans.now_using', { name: pl.name || '?' }));
+    }
+
+    // A copy is a variant: same drawing, same bays, its own name. Editing it
+    // leaves the original alone, which is the point of having one.
+    async function duplicatePlan(id) {
+      if (!roleAtLeast('staff') || !requireOnline(t('map.plan_what'))) return;
+      const pl = ZONE_PLANS.find(x => String(x.id) === String(id));
+      if (!pl) return;
+      const name = (await uiPrompt(t('plans.copy_q'), {
+        value: t('plans.copy_name', { name: pl.name || 'Plan' }),
+      }) || '').trim();
+      if (!name) return;
+      // The bays are fetched rather than kept in the library: the list is loaded
+      // without them so opening it does not pull a copy of every layout.
+      const { data, error } = await supa.from('zone_plans').select('spots').eq('id', pl.id).maybeSingle();
+      if (error || !data) { uiAlert(t('common.error') + ': ' + (error ? error.message : '?')); return; }
+      const { error: insErr } = await supa.from('zone_plans').insert({
+        name, plan_path: pl.plan_path, map_url: pl.map_url, spots: data.spots || [],
+      });
+      if (insErr) { uiAlert(t('common.error') + ': ' + insErr.message); return; }
+      await loadPlanLibrary();
+      renderPlanList();
+      showToast(t('plans.copied', { name }));
+    }
+
+    async function renamePlan(id) {
+      if (!roleAtLeast('staff') || !requireOnline(t('map.plan_what'))) return;
+      const pl = ZONE_PLANS.find(x => String(x.id) === String(id));
+      if (!pl) return;
+      const name = (await uiPrompt(t('plans.name_q'), { value: pl.name || '' }) || '').trim();
+      if (!name || name === pl.name) return;
+      const { error } = await supa.from('zone_plans')
+        .update({ name, updated_at: new Date().toISOString() }).eq('id', pl.id);
+      if (error) { uiAlert(t('common.error') + ': ' + error.message); return; }
+      pl.name = name;
+      if (String(pl.id) === String(_planId)) _planName = name;
+      renderPlanList();
+    }
+
+    async function deletePlan(id) {
+      if (!roleAtLeast('staff') || !requireOnline(t('map.plan_what'))) return;
+      const pl = ZONE_PLANS.find(x => String(x.id) === String(id));
+      if (!pl) return;
+      const on = (state.events || []).filter(e => String(e.plan_id) === String(pl.id));
+      if (!await uiConfirm(t('plans.del_confirm', {
+        name: pl.name || '?', events: on.length,
+      }))) return;
+      const { error } = await supa.from('zone_plans').delete().eq('id', pl.id);
+      if (error) { uiAlert(t('common.error') + ': ' + error.message); return; }
+      // The events that used it lose their layout — the column drops to null on
+      // its own — so their rows here have to follow, or the app keeps drawing a
+      // plan that is not there.
+      for (const e of on) setEventPlanLocally(e.id, null);
+      // A drawing of ours that no plan points at any more is a file nobody can
+      // reach; the app's own bundled plan is not ours to remove.
+      const path = String(pl.plan_path || '');
+      if (path.startsWith(PLANS_PREFIX)) {
+        const rest = path.slice(PLANS_PREFIX.length);
+        const stillUsed = ZONE_PLANS.some(x => String(x.id) !== String(pl.id) && x.plan_path === path);
+        if (rest && !stillUsed) supa.storage.from('plans').remove([decodeURIComponent(rest)]);
+      }
+      await loadPlanLibrary();
+      if (String(pl.id) === String(_planId)) await loadActivePlan();
+      renderPlanList();
+      showToast(t('plans.deleted', { name: pl.name || '?' }));
+    }
+
+    el('plansList')?.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-plan-use], button[data-plan-copy], button[data-plan-rename], button[data-plan-del]');
+      if (!b) return;
+      if (b.dataset.planUse) usePlanForEvent(b.dataset.planUse);
+      else if (b.dataset.planCopy) duplicatePlan(b.dataset.planCopy);
+      else if (b.dataset.planRename) renamePlan(b.dataset.planRename);
+      else if (b.dataset.planDel) deletePlan(b.dataset.planDel);
+    });
     // Lazy-load the vendored pdf.js only when a PDF is actually chosen.
     let _pdfjsLoading = null;
     function ensurePdfJs() {
@@ -2297,21 +2505,17 @@
     }
 
 
-    async function importVenuePlan() {
-      if (!roleAtLeast('staff')) return;
-      if (!requireOnline(t('map.plan_what'))) return;
+    // Turn a drawing into a plan of this venue: read the bays out of it, write
+    // them down with the drawing they came from, and give the result to the
+    // event being looked at. `source` is where the drawing lives — a file in
+    // our plans bucket, or one shipped with the app.
+    async function adoptPlan(plan, source, name) {
+      if (!roleAtLeast('staff')) return false;
       const status = el('mapStatus');
-      let plan;
-      try {
-        const res = await fetch(PLAN_URL, { cache: 'no-cache' });
-        if (!res.ok) throw new Error(String(res.status));
-        plan = await res.json();
-      } catch (_) {
-        showToast(t('map.plan_missing'), 'error');
-        return;
-      }
       const spots = planSpots(plan);
-      if (!spots.length) { showToast(t('map.plan_empty'), 'error'); return; }
+      if (!spots.length) { showToast(t('map.plan_empty'), 'error'); return false; }
+      const ev = (state.events || []).find(e => String(e.id) === String(state.activeEventId));
+      if (!ev) { showToast(t('plans.no_event'), 'error'); return false; }
       // The colour a zone is drawn in, by name: a car standing in it is painted
       // the same colour, so the map answers "which class is parked where"
       // without a legend.
@@ -2319,37 +2523,20 @@
         .filter(it => it.t === 'zone' && it.name && it.color)
         .map(it => [it.name.trim().toLowerCase(), it.color]));
 
-      // Replacing the map replaces every pin on it, and a pin can have a car.
-      // Say how many before doing it, not after.
+      // Giving the event a new plan takes every car off the old one. Say how
+      // many before doing it, not after.
       const parked = activeCars().filter(c => c.spot_no != null).length;
       if (!await uiConfirm(t('map.plan_confirm', {
-        name: plan.name || 'plan', n: spots.length, cars: parked,
-      }))) return;
+        name: name || plan.name || 'plan', n: spots.length, cars: parked,
+      }))) return false;
 
       // No picture is made of it. The plan is drawn in the page as SVG, which
       // is sharp at any zoom and costs a fetch of the JSON instead of three
-      // megabytes of raster — so what gets saved is where the plan lives.
+      // megabytes of raster — so what gets saved is where the drawing lives.
       const doc = planSvgDoc(plan, { chrome: false });
-      const status0 = el('mapStatus');
-      status0.style.display = 'block';
-      status0.style.color = 'var(--text-dim)';
-      status0.textContent = t('map.plan_rendering');
-      const { error: planErr } = await supa.from('ui_settings').upsert(
-        { key: 'zone_plan_url', value: PLAN_URL, updated_at: new Date().toISOString() }, { onConflict: 'key' });
-      if (planErr) { uiAlert(t('common.error') + ': ' + planErr.message); return; }
-      // A picture that was the map until now is not the map any more.
-      if (_mapUrl) {
-        const prevPath = _mapUrl.split('/maps/')[1];
-        await supa.from('ui_settings').delete().eq('key', 'zone_map_url');
-        if (prevPath) supa.storage.from('maps').remove([decodeURIComponent(prevPath)]);
-        _mapUrl = null;
-      }
-      _planUrl = PLAN_URL;
-      _plan = plan;
-      _shownZoom = -1;
-      _planScale = 0;
-      renderMap();
-      status0.style.display = 'none';
+      status.style.display = 'block';
+      status.style.color = 'var(--text-dim)';
+      status.textContent = t('map.plan_rendering');
 
       const pct = (v, a, len) => Math.min(100, Math.max(0, ((v - a) / len) * 100));
       const next = spots.map(sp => ({
@@ -2365,35 +2552,35 @@
         h: Math.round(sp.sd / doc.view.h * 1e5) / 1e3,
         c: zoneInk.get(String(sp.zone || '').trim().toLowerCase()) || '',
       })).filter(sp => sp.zone);
-      // A spot the drawing gives no zone to cannot be used here: a car carries a
-      // zone, and a pin with none could never be filled. They stay visible in
+      // A bay the drawing gives no zone to cannot be used here: a car carries a
+      // zone, and a bay with none could never be filled. They stay visible in
       // the drawing itself, and the count below says how many they were.
       const zoneless = spots.length - next.length;
-      if (!await saveZoneSpots(next)) return;
 
-      // A car pointing at a spot that no longer exists would keep showing a
-      // place to go that isn't on the plan any more.
-      const live = new Set(next.map(sp => sp.zone.trim().toLowerCase() + '#' + sp.no));
-      const orphans = activeCars().filter(c =>
-        c.spot_no != null && !live.has((c.zone || '').trim().toLowerCase() + '#' + c.spot_no));
-      if (orphans.length) {
-        const { error } = await supa.from('cars').update({ spot_no: null }).in('id', orphans.map(c => c.id));
-        if (error) { uiAlert(t('common.error') + ': ' + error.message); return; }
-        for (const c of orphans) {
-          const row = (state.cars || []).find(x => String(x.id) === String(c.id));
-          if (row) row.spot_no = null;
-        }
-        renderCars();
-      }
+      // The plan is a row of its own, and the event is pointed at it. Written in
+      // that order: an event pointing at a plan that failed to save would show
+      // an empty map with no way back to the one it had.
+      const { data: row, error: insErr } = await supa.from('zone_plans')
+        .insert({ name: name || plan.name || 'Plan', plan_path: source, spots: next })
+        .select('id').single();
+      status.style.display = 'none';
+      if (insErr || !row) { uiAlert(t('common.error') + ': ' + (insErr ? insErr.message : '?')); return false; }
+      const { error: evErr } = await supa.from('events').update({ plan_id: row.id }).eq('id', ev.id);
+      if (evErr) { uiAlert(t('common.error') + ': ' + evErr.message); return false; }
+      setEventPlanLocally(ev.id, row.id);
 
-      // Zones the drawing has and the app does not: their spots are on the map
+      await freeOrphanSpots(next);
+
+      await loadPlanLibrary();
+      await loadActivePlan();
+
+      // Zones the drawing has and the app does not: their bays are on the map
       // but no car can ever be assigned to them, so say so rather than let
       // somebody discover it at the gate.
       const unknown = [...new Set(next.map(sp => sp.zone)
-        .filter(z => !PARKING_ZONES.some(p => p.toLowerCase() === z.toLowerCase())))];
+        .filter(z => !PARKING_ZONES.some(pz => pz.toLowerCase() === z.toLowerCase())))];
       showToast(t('map.plan_done', { n: next.length }));
       const notes = [
-        orphans.length ? t('map.plan_freed', { n: orphans.length }) : '',
         zoneless ? t('map.plan_no_zone', { n: zoneless }) : '',
         unknown.length ? t('map.plan_unknown_zones', { list: unknown.join(', ') }) : '',
       ].filter(Boolean);
@@ -2402,6 +2589,76 @@
         status.style.color = 'var(--text-dim)';
         status.textContent = notes.join(' ');
       }
+      return true;
+    }
+
+    // A car pointing at a bay that is not on the plan any more would keep
+    // showing a place to go that no longer exists.
+    async function freeOrphanSpots(spots) {
+      const live = new Set(spots.map(sp => sp.zone.trim().toLowerCase() + '#' + sp.no));
+      const orphans = activeCars().filter(c =>
+        c.spot_no != null && !live.has((c.zone || '').trim().toLowerCase() + '#' + c.spot_no));
+      if (!orphans.length) return 0;
+      const { error } = await supa.from('cars').update({ spot_no: null }).in('id', orphans.map(c => c.id));
+      if (error) { uiAlert(t('common.error') + ': ' + error.message); return 0; }
+      for (const c of orphans) {
+        const row = (state.cars || []).find(x => String(x.id) === String(c.id));
+        if (row) row.spot_no = null;
+      }
+      renderCars();
+      showToast(t('map.plan_freed', { n: orphans.length }));
+      return orphans.length;
+    }
+
+    // The drawing that ships with the app, kept as a way in for a venue that
+    // has not had a plan drawn for it yet.
+    async function importBundledPlan() {
+      if (!requireOnline(t('map.plan_what'))) return;
+      let plan;
+      try {
+        const res = await fetch(PLAN_URL, { cache: 'no-cache' });
+        if (!res.ok) throw new Error(String(res.status));
+        plan = await res.json();
+      } catch (_) {
+        showToast(t('map.plan_missing'), 'error');
+        return;
+      }
+      if (await adoptPlan(plan, PLAN_URL, plan.name || t('plans.bundled'))) closeModal(el('modal-plans'));
+    }
+
+    // A plan drawn in the editor arrives here as the JSON it exported. It is
+    // read in this browser first: an unreadable file must fail before anything
+    // is uploaded, not after.
+    async function importPlanFile(file) {
+      if (!roleAtLeast('staff')) return;
+      if (!requireOnline(t('map.plan_what'))) return;
+      if (!file) return;
+      if (file.size > 10 * 1024 * 1024) { showToast(t('plans.too_big'), 'error'); return; }
+      let plan;
+      try {
+        plan = JSON.parse(await file.text());
+      } catch (_) { showToast(t('plans.bad_file'), 'error'); return; }
+      if (!plan || !Array.isArray(plan.items)) { showToast(t('plans.bad_file'), 'error'); return; }
+
+      const status = el('mapStatus');
+      status.style.display = 'block';
+      status.style.color = 'var(--text-dim)';
+      status.textContent = t('plans.uploading');
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`;
+      const { error: upErr } = await supa.storage.from('plans')
+        .upload(path, new Blob([JSON.stringify(plan)], { type: 'application/json' }),
+          { contentType: 'application/json' });
+      status.style.display = 'none';
+      if (upErr) { uiAlert(t('common.error') + ': ' + upErr.message); return; }
+      const url = supa.storage.from('plans').getPublicUrl(path).data.publicUrl;
+
+      const name = (await uiPrompt(t('plans.name_q'), {
+        value: plan.name || file.name.replace(/\.json$/i, ''),
+      }) || '').trim();
+      if (!name) { supa.storage.from('plans').remove([path]); return; }
+      // A drawing whose plan was never adopted is a file nobody can reach.
+      if (!await adoptPlan(plan, url, name)) supa.storage.from('plans').remove([path]);
+      else closeModal(el('modal-plans'));
     }
 
     // ----- MAP CROP EDITOR -----
@@ -2492,16 +2749,20 @@
       if (blob) uploadMapBlob(blob);
       else showToast(t('map.plan_too_big'), 'error');
     });
+    // Taking the map off this event, not out of the app: the plan stays in the
+    // library with its bays, ready to be given back or given to another event.
+    // Throwing one away for good is a separate act, and it lives with the list.
     el('mapDeleteBtn').addEventListener('click', async () => {
-      if ((!_mapUrl && !_plan) || !(await uiConfirm(t('map.confirm_delete')))) return;
-      const prevPath = (_mapUrl || '').split('/maps/')[1];
-      const { error } = await supa.from('ui_settings').delete().in('key', ['zone_map_url', 'zone_plan_url']);
+      if (!_planId || !(await uiConfirm(t('plans.detach_confirm', { name: _planName || '?' })))) return;
+      if (!requireOnline(t('map.plan_what'))) return;
+      const ev = (state.events || []).find(e => String(e.id) === String(state.activeEventId));
+      if (!ev) return;
+      const { error } = await supa.from('events').update({ plan_id: null }).eq('id', ev.id);
       if (error) return uiAlert('Eroare: ' + error.message);
-      if (prevPath) supa.storage.from('maps').remove([decodeURIComponent(prevPath)]);
-      _mapUrl = null;
-      _plan = null; _planUrl = null; _planScale = 0;
-      renderMap();
-      showToast(t('map.deleted'));
+      setEventPlanLocally(ev.id, null);
+      _planScale = 0;
+      await loadActivePlan();
+      showToast(t('plans.detached'));
     });
 
     document.querySelectorAll('#logoutBtn, #headerLogoutBtn, #gateLogoutBtn').forEach(btn => {
@@ -4665,6 +4926,8 @@
       try { renderTasks(); } catch (_) {}
       try { renderMyTasks(); } catch (_) {}
       try { renderZones(); } catch (_) {}
+      // The plan belongs to the event, so moving between events moves the map.
+      try { loadActivePlan(); } catch (_) {}
       try { renderTeam(); } catch (_) {}
       try { renderAgenda(); } catch (_) {}
       try { renderRegQueue(); } catch (_) {}
@@ -4797,7 +5060,7 @@
     const AGENDA_FP_FIELDS = ['id','event_id','title','at_time','notes','updated_at'];
     const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','telegram','email','city','category','year','social_links','transport_info','modifications','photos','status','created_at'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
-    const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','cover_url','starts_at','days_left','archived'];
+    const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','cover_url','starts_at','days_left','archived','plan_id'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
 
     function makeFp(list, fields) {
