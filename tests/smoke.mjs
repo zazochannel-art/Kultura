@@ -3231,6 +3231,28 @@ try {
         shown: !document.getElementById('mapSpotHint').hidden,
         btn: document.getElementById('spotParkBtn').textContent,
       }));
+      // Every control beside the title has to be on the screen at phone width.
+      // The row does not scroll and nothing says it is cut: a button pushed
+      // past the edge is simply not there, and the feature behind it cannot be
+      // found. Adding a fourth one to that row is exactly how this happened.
+      const bar = await ap.evaluate(() => {
+        const row = document.getElementById('mapActions');
+        if (!row || getComputedStyle(row).display === 'none') return null;
+        return {
+          w: window.innerWidth,
+          buttons: [...row.querySelectorAll('button')]
+            .filter((b) => getComputedStyle(b).display !== 'none')
+            .map((b) => {
+              const r = b.getBoundingClientRect();
+              return { id: b.id, left: Math.round(r.left), right: Math.round(r.right) };
+            }),
+        };
+      });
+      check('map-actions-all-fit-the-screen',
+        !!bar && bar.buttons.length >= 3
+        && bar.buttons.every((b) => b.left >= 0 && b.right <= bar.w),
+        JSON.stringify(bar));
+
       check('map-says-a-spot-can-be-tapped', hint.shown && hint.text.length > 10,
         JSON.stringify(hint));
 
@@ -3276,6 +3298,7 @@ try {
       for (const n of ['assign-offers-only-cars-without-a-spot', 'assign-caps-the-rows-and-says-how-many-more',
         'assign-has-no-confirm-button', 'assign-search-narrows-the-list', 'assign-search-matches-a-plate',
         'map-a-tap-beside-a-bay-still-picks-it', 'map-says-a-spot-can-be-tapped',
+        'map-actions-all-fit-the-screen',
         'park-flow-says-which-car-it-is-holding',
         'park-flow-puts-the-chosen-car-on-the-tapped-spot', 'park-flow-ends-after-the-tap',
         'assign-a-tap-puts-the-car-on-the-spot', 'assign-closes-after-the-tap']) {
