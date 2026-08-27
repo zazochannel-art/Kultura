@@ -418,7 +418,14 @@
     .section-title {
       display: flex; justify-content: space-between; align-items: baseline;
       margin-bottom: 14px;
+      /* The actions beside a title were one button; the map's are now four.
+         On one unwrapping row they run past the screen edge and across the
+         title — the last of them simply are not there to be pressed. */
+      flex-wrap: wrap; gap: 10px;
     }
+    /* The title text is what yields: it wraps, the buttons keep their size. */
+    .section-title > div:first-child { flex: 1 1 12rem; min-width: 0; }
+    #mapActions { flex-wrap: wrap; }
     .section-title h2 { font-size: 18px; font-weight: 900; letter-spacing: -0.3px; }
     .section-title p { color: var(--text-dim); font-size: 12px; }
 
