@@ -306,25 +306,32 @@ nimic din astea și rămâne bulină, ca înainte.
   se vadă numărul boxei prin el. Plină, ar zice că e cineva acolo — pe două sute
   de boxe deodată.
 - **Boxa ocupată e o mașină**, vopsită în culoarea zonei ei (vezi mai jos).
-- **Desenul e un Golf V văzut de sus**, la cotele lui: 875 mm de consolă față,
-  2578 de ampatament și 751 spate, deci roțile din față cad la 21% din lungime și
-  cele din spate la 82%, iar restul — parbriz, plafon, lunetă, hayon — e agățat
-  de ele. Ghicite, reperele astea aduc cabina în față și lucrul iese a dubiță.
-  Caroseria are 34 de unități din cele 50 ale boxei (1,7 m într-o cutie de
-  2,5 m) și 88 din 100 (4,4 m din 5), adică mașina care chiar încape între linii.
-  Deasupra ei: cusătura barei față cu farurile măturate de pe ea, cusătura
-  capotă-aripă, cele patru rosturi de portieră ale unui cinci-uși, anvelopele
-  ieșind de sub aripi, oglinzile ca panouri de caroserie (conturate în loc de
-  umplute, ieșeau două pete plutitoare) și emblema pe bot. Nimic din toate astea
-  nu se citește la cincisprezece pixeli; toate sunt ce face forma o mașină și nu
-  o pastilă când cineva se apropie.
+- **Desenul e poza, vectorizată.** Patru încercări desenate de mână s-au
+  apropiat și niciuna n-a ajuns, așa că referința (`docs/car-top.jpg`) e sursa
+  de adevăr: `scripts/trace-car.py` îi separă pixelii în trei — linia neagră,
+  stâlpii gri, stopurile roșii — le urmărește conturul ca poligoane închise, le
+  simplifică (Douglas-Peucker) și le scrie ca patru trasee. Silueta se ia din
+  desen, nu se desenează a doua oară: umple golurile din cerneală și păstrează
+  conturul exterior, deci nu se poate despărți de el.
+  Sunt **date generate** — se editează scriptul sau poza, niciodată numerele.
+- **O singură definiție, folosită de 238 de ori.** Traseele au 17 KB. Scrise în
+  fiecare mașină, sunt patru megaocteți de markup pentru același desen; ca o
+  intrare în `<defs>` sunt 17 KB o dată, iar fiecare mașină e un `<use>`. Puntea
+  a scăzut de la 450 KB la 75 KB — mai mică decât cu desenul de mână pe care
+  l-a înlocuit, deși are de zece ori mai multă linie.
+  Costul e ~460 ms pe gest de deplasare față de 383, cu procesorul încetinit de
+  patru ori: `Layerize` nu se mișcă (ține de numărul de straturi, nu de
+  trasee), `HitTest` urcă de la 52 la 86 ms.
+- **Vopseaua trece granița `<use>`-ului, selectorul nu.** `.taken .cp-body` nu
+  se potrivește niciodată înăuntrul unui shadow tree. Proprietățile
+  personalizate se moștenesc prin el, deci culoarea e o pereche `--paint` /
+  `--paint-op` pusă pe grupul mașinii și citită de un `style` inline din
+  definiție. Boxa liberă nu poartă nimic și ia albul punții; în modul de
+  așezare nicio mașină nu poartă vopsea, ca regula unică de pe
+  `.map-cars.is-editing` să le facă gri pe toate.
 - **Stopurile își păstrează roșul** peste orice culoare de zonă. La distanță
   sunt două puncte; de aproape sunt diferența dintre o mașină cu botul spre alee
   și una cu botul în gard — întrebarea pe care și-o pune cineva de pe asfalt.
-- **Detaliul e gratis.** Desenul are de patru ori mai multe linii decât cel
-  dinainte, dar pânza e un singur strat, iar `Layerize` — partea scumpă a unei
-  deplasări — ține de numărul de straturi, nu de lungimea traseelor: 383 ms pe
-  gest față de 471 ms înainte, cu procesorul încetinit de patru ori.
 - **Numărul se scrie pe portbagaj**, nu peste mijloc: peste cabină ar acoperi
   exact detaliul de mai sus. Are `textLength` cât lățimea mașinii, fiindcă un
   număr de înmatriculare e mai lung decât un număr de intrare și altfel iese

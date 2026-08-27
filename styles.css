@@ -2137,30 +2137,12 @@
      a few hundred car outlines on the way to them is work for nothing. */
   pointer-events: none; overflow: visible;
 }
-/* An empty bay is empty: what stands in it is the drawing of a car — white
-   body, dark lines, the way a spec sheet draws one from above. Painting it
-   would say there is a car standing there, on two hundred bays at once. */
-.map-cars .cp-body {
-  fill: #ffffff; fill-opacity: .55;
-  stroke: #1e293b; stroke-opacity: .85; stroke-width: 2;
-  stroke-linejoin: round;
-}
-.map-cars .cp-trim {
-  fill: none; stroke: #1e293b; stroke-opacity: .6; stroke-width: 1.6;
-  stroke-linejoin: round; stroke-linecap: round;
-}
-/* The tail lights keep their own red on a car painted any zone colour: they
-   are the one part of the drawing that answers "which way is it facing". */
-.map-cars .cp-lamp {
-  fill: #d33a2c; fill-opacity: .85;
-  stroke: #1e293b; stroke-opacity: .5; stroke-width: 1.2; stroke-linejoin: round;
-}
-/* Taken: the car is painted in its zone's own colour — the same colour the
-   zone is drawn in underneath, so the map says which class is parked where
-   without a legend. Expected is that colour at half strength and arrived is
-   the full one: the difference reads at a glance and costs no second hue. */
-.map-cars .taken .cp-body { fill: var(--zone, #2563eb); fill-opacity: .55; }
-.map-cars .here .cp-body { fill-opacity: 1; }
+/* The car's paint. Everything else about the drawing is fixed in the `<defs>`
+   entry; only this changes per car, and it has to reach across the `<use>`
+   boundary — where a descendant selector does not, but an inherited custom
+   property does. An empty bay keeps the default white: painted, it would say
+   somebody is standing there, on two hundred bays at once. */
+.map-cars { --paint: #ffffff; --paint-op: .55; }
 /* Dark ink with a white halo, because a zone colour can be anything from
    #ff0000 to #96e1e1 and white text would vanish on half of them. */
 .map-cars .cp-no {
@@ -2168,8 +2150,9 @@
   paint-order: stroke; stroke: #ffffff; stroke-opacity: .9; stroke-width: 3.5;
 }
 /* Placing spots is the one time the free ones are the subject, so there they
-   darken: an outline half a pixel wide is not something you can aim at. */
-.map-cars.is-editing .cp-body { fill: #94a3b8; fill-opacity: .8; }
+   all go the same grey — and no car carries paint of its own, or it would win
+   over this and stay coloured. */
+.map-cars.is-editing { --paint: #94a3b8; --paint-op: .8; }
 
 /* Dense plans: at fit-width forty pins in a row are a smear, so they fall back
    to dots and the numbers come back as soon as there is room to read them.

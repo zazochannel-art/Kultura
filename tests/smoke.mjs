@@ -2610,6 +2610,11 @@ try {
     const CARS = [
       { id: 1, entry_no: 11, brand: 'VW', model: 'Golf', owner: 'Ana', plate: 'P1', status: 'Sosit', zone: 'Stance', spot_no: 1, event_id: 6, deleted_at: null },
       { id: 2, entry_no: 12, brand: 'Mazda', model: 'RX7', owner: 'Ion', plate: 'P2', status: 'Invitat', zone: 'Stance', spot_no: 999, event_id: 6, deleted_at: null },
+      // Expected, on a bay that does exist: the zone colour is drawn at half
+      // strength for a car still on its way and at full for one that has
+      // arrived, and with only the arrived one here the difference went
+      // untested — an arrived car once came out unpainted and nothing caught it.
+      { id: 3, entry_no: 13, brand: 'BMW', model: 'E30', owner: 'Dan', plate: 'P3', status: 'Invitat', zone: 'Stance', spot_no: 2, event_id: 6, deleted_at: null },
     ];
     let savedSpots = null, savedUrl = null, savedPlan = null, uploaded = null;
     const carPatches = [];
@@ -2825,39 +2830,59 @@ try {
       // A car standing in a zone is painted that zone's own colour — the same
       // colour the zone is drawn in underneath it. STANCE is #e89b00 on this
       // plan, and car #11 is on Stance#1.
-      const ink = await ip.evaluate(() => {
-        const g = document.querySelector('#mapCars .cp.taken');
-        const free = document.querySelector('#mapCars .cp.free .cp-body');
+      //
+      // Read off the car's own group, not off a path inside it: the artwork is
+      // one `<defs>` entry instanced by `<use>`, and a selector cannot reach
+      // into that shadow tree. The paint crosses as an inherited custom
+      // property, so the property is what there is to check.
+      // Named by index, not by "the first taken one": which car that is depends
+      // on where the plan puts it, and the claim here is about Stance#1.
+      const stanceI = (savedSpots || []).findIndex((sp) => sp.zone === 'Stance' && sp.no === 1);
+      const ink = await ip.evaluate((si) => {
+        const g = document.querySelector(`#mapCars .cp[data-i="${si}"]`);
+        const here = document.querySelector('#mapCars .cp.taken.here');
+        const plain = document.querySelector('#mapCars .cp.taken:not(.here)');
+        const free = document.querySelector('#mapCars .cp.free');
+        const art = document.getElementById('carart');
+        const styleOf = (el2) => (el2 && el2.getAttribute('style')) || '';
         return {
-          zone: (g && g.style.getPropertyValue('--zone').trim()) || '',
-          takenFill: (g && getComputedStyle(g.querySelector('.cp-body')).fill) || '',
-          freeFill: (free && getComputedStyle(free).fill) || '',
-          // An arrived car is a taken one too — written as one or the other,
-          // it came out painted like an empty bay.
+          paint: (g && g.style.getPropertyValue('--paint').trim()) || '',
+          // Expected is the zone colour at half strength; arrived is the same
+          // colour at full. Written as one or the other rather than as two
+          // strengths of the same thing, an arrived car came out unpainted.
+          op: (plain && plain.style.getPropertyValue('--paint-op').trim()) || '',
+          hereOp: (here && here.style.getPropertyValue('--paint-op').trim()) || '',
           arrived: document.querySelectorAll('#mapCars .cp.taken.here').length,
-          // The tail lights: the one part of the drawing that keeps its own
-          // colour on a car painted any zone colour, and the only thing that
-          // says which way a car is facing once somebody leans in.
-          lamps: document.querySelectorAll('#mapCars .cp .cp-lamp').length,
-          // Guarded: without it a car drawn with no lamps throws inside the
-          // evaluate and takes the whole section down, instead of failing the
-          // one check that is about lamps.
-          lampFill: (g && g.querySelector('.cp-lamp')
-            && getComputedStyle(g.querySelector('.cp-lamp')).fill) || '',
+          taken: document.querySelectorAll('#mapCars .cp.taken').length,
+          // An empty bay carries no paint at all: it takes the deck's white.
+          freePaint: (free && free.style.getPropertyValue('--paint').trim()) || '',
+          freeFill: free ? getComputedStyle(free).getPropertyValue('--paint').trim() : '',
+          // One definition, instanced once per car — the whole reason the deck
+          // can afford a traced drawing at all.
+          defs: document.querySelectorAll('#mapCars defs #carart').length,
+          uses: document.querySelectorAll('#mapCars .cp > use').length,
+          // The tail lights live in that definition and keep their own red over
+          // any zone colour: the one thing that says which way a car faces.
+          lampFill: art ? styleOf(art.children[2]) : '',
+          lampLen: art && art.children[2] ? art.children[2].getAttribute('d').length : 0,
         };
-      });
+      }, stanceI);
       ink.saved = ((savedSpots || []).find((sp) => sp.zone === 'Stance') || {}).c || '';
       check('plan-import-paints-a-car-in-its-zone-colour',
-        ink.saved.toLowerCase() === '#e89b00' && ink.zone.toLowerCase() === '#e89b00'
-        && /232, 155, 0/.test(ink.takenFill) && ink.arrived === 1, JSON.stringify(ink));
+        stanceI >= 0 && ink.saved.toLowerCase() === '#e89b00'
+        && ink.paint.toLowerCase() === '#e89b00'
+        && ink.op === '0.55' && ink.hereOp === '1'
+        && ink.arrived === 1 && ink.taken === 2, JSON.stringify({ ink, stanceI }));
       // An empty bay is the drawing of a car and nothing else: white body, dark
       // lines. Painted, it would say somebody is standing there.
       check('plan-import-leaves-an-empty-bay-uncoloured',
-        /255, 255, 255/.test(ink.freeFill || ''), JSON.stringify(ink));
-      // Every car carries them, and they stay red over the zone's own paint —
-      // read off the same taken car whose body came back the zone colour above.
+        ink.freePaint === '' && /#ffffff/i.test(ink.freeFill), JSON.stringify(ink));
+      // The artwork is defined once and used 238 times. Inlined per car it is
+      // four megabytes of markup for one drawing.
+      check('plan-import-draws-each-car-from-one-definition',
+        ink.defs === 1 && ink.uses === 238, JSON.stringify(ink));
       check('plan-import-draws-tail-lights-on-every-car',
-        ink.lamps === 238 && /211, 58, 44/.test(ink.lampFill), JSON.stringify(ink));
+        /#d33a2c/i.test(ink.lampFill) && ink.lampLen > 200, JSON.stringify(ink));
 
       // ----- PICKING A BAY UP, TURNING IT, PUTTING IT DOWN -----------------
       // A tap used to open "are you sure you want to delete this", which made
@@ -2978,6 +3003,7 @@ try {
       for (const n of ['plan-import-button-for-staff', 'plan-import-keeps-the-plan-a-drawing',
         'plan-import-saves-the-spots', 'plan-import-pins-land-inside-the-image',
         'plan-import-draws-tail-lights-on-every-car',
+        'plan-import-draws-each-car-from-one-definition',
         'plan-import-pins-carry-their-bay',
         'plan-import-speaks-the-app-zone-names', 'plan-import-frees-a-car-whose-spot-is-gone',
         'plan-import-says-what-it-left-out', 'plan-import-map-shows-the-drawing-and-its-pins',
