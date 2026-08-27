@@ -132,6 +132,24 @@ async function main() {
     check(`anon-cannot-insert-${table}`, r.status >= 400, `status ${r.status}`);
   }
 
+  // A plan is a site layout, not participant data — but it is still behind the
+  // door, and the client depends on the table and the column existing at all.
+  // A missing table answers 404 and a missing column 400: both would leave the
+  // map blank in a way no fixture can reproduce.
+  {
+    const r = await rest('zone_plans?select=id&limit=1');
+    check('zone-plans-table-exists', r.status !== 404, `status ${r.status}`);
+    check('anon-cannot-read-zone_plans',
+      r.status !== 200 || (Array.isArray(r.body) && r.body.length === 0),
+      `status ${r.status}, ${Array.isArray(r.body) ? r.body.length : '?'} rows`);
+    const w = await rest('zone_plans', { method: 'POST', body: JSON.stringify({ name: 'x' }) });
+    check('anon-cannot-insert-zone_plans', w.status >= 400, `status ${w.status}`);
+    // The column the whole feature turns on: an event says which plan it uses.
+    // Selecting a column that does not exist is a 400, not an empty list.
+    const c = await rest('events?select=plan_id&limit=1');
+    check('events-have-a-plan-column', c.status !== 400, `status ${c.status}`);
+  }
+
   // Participant data must not be readable without signing in.
   for (const table of ['cars', 'car_registrations', 'profiles', 'activity_log']) {
     const r = await rest(`${table}?select=id&limit=1`);

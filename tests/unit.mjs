@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import {
   escape, normalizePhone, telegramLink, twoInitials, hexToRgba,
   statusKey, normPlateKey, fmtRelative, fmtDateTime,
-  mergeById, maxWatermark, overlapFrom, backupAgeHours, gateBurstAction,
+  mergeById, maxWatermark, overlapFrom, backupAgeHours, gateBurstAction, planDrawingOk
 } from '../utils.js';
 import { planSpots, itemsSvg, SPOT_W, SPOT_D } from '../plan-render.js';
 
@@ -250,4 +250,31 @@ test('planSpots reports the size of each bay, packing them when a row is full', 
   const packed = planSpots({ items: [{ id: 'r', t: 'row', a: [0, 0], b: [10, 0], n: 10, start: 1 }] });
   assert.ok(packed[0].sw < SPOT_W, String(packed[0].sw));
   assert.ok(packed[0].sw <= 1, String(packed[0].sw));
+});
+
+// The plan a map is drawn from is fetched by the app, from an address kept in a
+// row anyone with staff rights can edit. So the address is checked against what
+// is ours, not against what looks wrong.
+test('a plan drawing is fetched only from our own two sources', () => {
+  const bucket = 'https://knphmxxokowwkruimdus.supabase.co/storage/v1/object/public/plans/';
+
+  // Ours: shipped with the app, or uploaded to our bucket.
+  assert.equal(planDrawingOk('plans/plan-06.json', bucket), true);
+  assert.equal(planDrawingOk(bucket + '1756-abc.json', bucket), true);
+
+  // Somebody else's host, however plausible the path.
+  assert.equal(planDrawingOk('https://evil.example/plans/plan-06.json', bucket), false);
+  assert.equal(planDrawingOk('//evil.example/plan.json', bucket), false);
+  // A near miss on our own host is still not our bucket.
+  assert.equal(planDrawingOk('https://knphmxxokowwkruimdus.supabase.co/storage/v1/object/public/backups/x.json', bucket), false);
+
+  // Climbing out, on either branch.
+  assert.equal(planDrawingOk('../secrets.json', bucket), false);
+  assert.equal(planDrawingOk(bucket + '../../backups/dump.json', bucket), false);
+
+  // Absolute paths and anything that is not a plan file.
+  assert.equal(planDrawingOk('/etc/passwd.json', bucket), false);
+  assert.equal(planDrawingOk('plans/plan-06.js', bucket), false);
+  assert.equal(planDrawingOk('', bucket), false);
+  assert.equal(planDrawingOk(null, bucket), false);
 });

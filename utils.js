@@ -199,3 +199,18 @@ export function gateBurstAction(statusKey, isBlocked) {
   if (statusKey === 'invitat' || !statusKey) return 'checkin';
   return 'card';
 }
+
+
+// Whether a plan's drawing may be fetched from this address. Two sources are
+// ours and no others: a file in our own plans bucket, and one shipped with the
+// app. Everything else is somebody else's JSON, and the app would be the one
+// fetching it — so the check is a whitelist, not a blacklist.
+//
+// `..` is refused outright, before either branch: a bucket URL is still a URL,
+// and a relative path that climbs is not the path it looks like.
+export function planDrawingOk(url, bucketPrefix) {
+  const u = String(url || '');
+  if (!u || u.includes('..')) return false;
+  if (bucketPrefix && u.startsWith(bucketPrefix)) return true;
+  return /^[\w./-]+\.json$/.test(u) && !u.startsWith('/');
+}

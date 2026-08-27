@@ -20,7 +20,10 @@ const PORT = process.env.PORT || 8199;
 const BASE = `http://localhost:${PORT}`;
 
 const checks = [];
-const check = (name, cond) => { checks.push({ name, ok: !!cond }); };
+// Nearly every check here already passes what it saw as a third argument, and
+// the harness used to drop it — so a failure printed a name and nothing else,
+// and finding out why meant re-running the whole suite with a print statement.
+const check = (name, cond, detail) => { checks.push({ name, ok: !!cond, detail }); };
 
 // The map shows a zoom at once and commits its size a beat later — the size is
 // the sharp half, so every assertion about the map's geometry is about the
@@ -1351,7 +1354,7 @@ try {
       const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
       if (u.includes('/rest/v1/car_registrations')) return J(REGS);
       if (u.includes('/rest/v1/cars')) return J(/deleted_at=not\.is\.null/.test(u) ? [] : CARS);
-      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString() }]);
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString(), plan_id: 1 }]);
       if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
       if (u.includes('/rest/v1/')) return J([]);
       if (u.includes('/functions/v1/')) return J({});
@@ -1901,23 +1904,19 @@ try {
     await mctx.route('**://*.supabase.co/**', (r) => {
       const u = r.request().url(), m = r.request().method();
       const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
-      if (u.includes('/rest/v1/ui_settings')) {
-        if (m === 'POST') {
-          try {
-            const b = JSON.parse(r.request().postData() || '{}');
-            if (b.key === 'zone_spots') saved = JSON.parse(b.value);
-          } catch (_) { /* the assertion below reports it */ }
+      // The bays live on the event's plan, which is one row read whole.
+      if (u.includes('/rest/v1/zone_plans')) {
+        if (m === 'PATCH') {
+          try { saved = JSON.parse(r.request().postData() || '{}').spots; }
+          catch (_) { /* the assertion below reports it */ }
           return J([]);
         }
-        if (u.includes('zone_spots')) return J([{ value: JSON.stringify(SPOTS) }]);
-        // Keyed, the way PostgREST answers `select('key,value')`: the map is
-        // asked for as one read over both keys, and a row without its key
-        // tells the app nothing about which map it just received.
-        if (u.includes('zone_map_url')) return J([{ key: 'zone_map_url', value: 'https://map.test/plan.png' }]);
-        return J([]);
+        const row = { id: 1, name: 'Plan', plan_path: null, map_url: 'https://map.test/plan.png', updated_at: '2026-08-27T10:00:00Z' };
+        return J([/id=eq\./.test(u) ? { ...row, spots: SPOTS } : row]);
       }
+      if (u.includes('/rest/v1/ui_settings')) return J([]);
       if (u.includes('/rest/v1/cars')) return J(/deleted_at=not\.is\.null/.test(u) ? [] : CARS);
-      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString() }]);
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString(), plan_id: 1 }]);
       if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
       if (u.includes('/rest/v1/')) return J([]);
       if (u.includes('/functions/v1/')) return J({});
@@ -2043,26 +2042,22 @@ try {
     await zctx.route('**://*.supabase.co/**', (r) => {
       const u = r.request().url(), m = r.request().method();
       const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
-      if (u.includes('/rest/v1/ui_settings')) {
-        if (m === 'POST') {
-          try {
-            const b = JSON.parse(r.request().postData() || '{}');
-            if (b.key === 'zone_spots') saved = JSON.parse(b.value);
-          } catch (_) { /* the assertions below report it */ }
+      // The bays live on the event's plan, which is one row read whole.
+      if (u.includes('/rest/v1/zone_plans')) {
+        if (m === 'PATCH') {
+          try { saved = JSON.parse(r.request().postData() || '{}').spots; }
+          catch (_) { /* the assertions below report it */ }
           return J([]);
         }
-        if (u.includes('zone_spots')) return J([{ value: JSON.stringify(SPOTS) }]);
-        // Keyed, the way PostgREST answers `select('key,value')`: the map is
-        // asked for as one read over both keys, and a row without its key
-        // tells the app nothing about which map it just received.
-        if (u.includes('zone_map_url')) return J([{ key: 'zone_map_url', value: 'https://map.test/plan.png' }]);
-        return J([]);
+        const row = { id: 1, name: 'Plan', plan_path: null, map_url: 'https://map.test/plan.png', updated_at: '2026-08-27T10:00:00Z' };
+        return J([/id=eq\./.test(u) ? { ...row, spots: SPOTS } : row]);
       }
+      if (u.includes('/rest/v1/ui_settings')) return J([]);
       if (u.includes('/rest/v1/cars')) {
         if (m === 'PATCH') { carPatches.push({ url: u, body: r.request().postData() || '' }); return J([]); }
         return J(/deleted_at=not\.is\.null/.test(u) ? [] : CARS);
       }
-      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString() }]);
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString(), plan_id: 1 }]);
       if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
       if (u.includes('/rest/v1/')) return J([]);
       if (u.includes('/functions/v1/')) return J({});
@@ -2618,6 +2613,8 @@ try {
     ];
     let savedSpots = null, savedUrl = null, savedPlan = null, uploaded = null;
     const carPatches = [];
+    let madePlan = null;
+    const EV = { id: 6, title: 'Ev', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString(), plan_id: null };
     const mctx2 = await browser.newContext({ viewport: { width: 1280, height: 950 } });
     await mctx2.route('**://*.supabase.co/**', (r) => {
       const u = r.request().url(), m = r.request().method();
@@ -2652,22 +2649,47 @@ try {
         }
         return J({});
       }
-      if (u.includes('/rest/v1/ui_settings')) {
+      // Importing writes a plan row and points the event at it. The row is kept
+      // here so the reload that follows finds the plan that was just made —
+      // otherwise the map would go blank at the moment of success.
+      if (u.includes('/rest/v1/zone_plans')) {
         if (m === 'POST') {
           try {
             const b = JSON.parse(r.request().postData() || '{}');
-            if (b.key === 'zone_spots') savedSpots = JSON.parse(b.value);
-            if (b.key === 'zone_map_url') savedUrl = b.value;
-            if (b.key === 'zone_plan_url') savedPlan = b.value;
+            savedSpots = b.spots; savedPlan = b.plan_path; savedUrl = b.map_url || null;
+            madePlan = { id: 7, name: b.name, plan_path: b.plan_path, map_url: b.map_url || null, spots: b.spots, updated_at: new Date().toISOString() };
           } catch (_) { /* the assertions below report it */ }
+          // `.single()` asks for the object, so PostgREST answers with the
+          // object — a list of one here is an array where an id is read.
+          return J({ id: 7 });
         }
-        return J([]);
+        if (m === 'PATCH') {
+          // Editing a bay writes the plan's row, and the checks below read the
+          // bays back out of it the same way the app would.
+          try {
+            const b = JSON.parse(r.request().postData() || '{}');
+            if (b.spots) { savedSpots = b.spots; if (madePlan) madePlan.spots = b.spots; }
+          } catch (_) { /* the assertions below report it */ }
+          return J([]);
+        }
+        if (m !== 'GET') return J([]);
+        if (!madePlan) return J([]);
+        const { spots, ...light } = madePlan;
+        return J([/id=eq\./.test(u) ? madePlan : light]);
       }
+      if (u.includes('/rest/v1/ui_settings')) return J([]);
       if (u.includes('/rest/v1/cars')) {
         if (m === 'PATCH') { carPatches.push({ url: u, body: r.request().postData() || '' }); return J([]); }
         return J(/deleted_at=not\.is\.null/.test(u) ? [] : CARS);
       }
-      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString() }]);
+      if (u.includes('/rest/v1/events')) {
+        if (m === 'PATCH') {
+          try { EV.plan_id = JSON.parse(r.request().postData() || '{}').plan_id; }
+          catch (_) { /* the assertions below report it */ }
+          return J([]);
+        }
+        return J([EV]);
+      }
       if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
       if (u.includes('/rest/v1/')) return J([]);
       if (u.includes('/functions/v1/')) return J({});
@@ -2694,9 +2716,11 @@ try {
         document.querySelector('.tab[data-section="map"], .mtab[data-section="map"]')?.click();
       });
       await ip.waitForTimeout(500);
-      check('plan-import-button-for-staff', await ip.locator('#mapPlanBtn').isVisible());
+      check('plan-import-button-for-staff', await ip.locator('#mapPlansBtn').isVisible());
 
-      await ip.click('#mapPlanBtn');
+      await ip.click('#mapPlansBtn');
+      await ip.waitForTimeout(500);
+      await ip.click('#planBundledBtn');
       await ip.waitForTimeout(700);
       await ip.evaluate(() => document.getElementById('uiDialogOk')?.click());
       // Rendering 4800px of plan and encoding it takes seconds on this machine
@@ -3085,17 +3109,18 @@ try {
     await actx.route('**://*.supabase.co/**', (r) => {
       const u = r.request().url(), m = r.request().method();
       const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
-      if (u.includes('/rest/v1/ui_settings')) {
-        if (m === 'POST') return J([]);
-        if (u.includes('zone_spots')) return J([{ value: JSON.stringify(SPOTS) }]);
-        if (u.includes('zone_map_url')) return J([{ key: 'zone_map_url', value: 'https://map.test/plan.png' }]);
-        return J([]);
+      // The bays live on the event's plan, which is one row read whole.
+      if (u.includes('/rest/v1/zone_plans')) {
+        if (m !== 'GET') return J([]);
+        const row = { id: 1, name: 'Plan', plan_path: null, map_url: 'https://map.test/plan.png', updated_at: '2026-08-27T10:00:00Z' };
+        return J([/id=eq\./.test(u) ? { ...row, spots: SPOTS } : row]);
       }
+      if (u.includes('/rest/v1/ui_settings')) return J([]);
       if (u.includes('/rest/v1/cars')) {
         if (m === 'PATCH') { carPatches.push({ url: u, body: r.request().postData() || '' }); return J([]); }
         return J(/deleted_at=not\.is\.null/.test(u) ? [] : CARS);
       }
-      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString() }]);
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString(), plan_id: 1 }]);
       if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
       if (u.includes('/rest/v1/')) return J([]);
       if (u.includes('/functions/v1/')) return J({});
@@ -3263,6 +3288,239 @@ try {
     await actx.close();
   }
 
+  // 4r. A plan per event.
+  //
+  // The venue had one layout: one drawing named by a constant in the client and
+  // one bay list in ui_settings. Two events on the same field meant preparing
+  // the second erased the first, and a new drawing meant a deploy. A plan is
+  // now a row, and an event is laid out on one of them.
+  {
+    const SPOTS_A = [
+      { zone: 'Retro', no: 1, x: 20, y: 30 },
+      { zone: 'Retro', no: 2, x: 40, y: 30 },
+      { zone: 'Retro', no: 3, x: 60, y: 30 },
+    ];
+    const SPOTS_B = [{ zone: 'JDM', no: 1, x: 50, y: 60 }];
+    let PLANS = [
+      { id: 1, name: 'Plan A', plan_path: null, map_url: 'https://map.test/a.png', spots: SPOTS_A, updated_at: '2026-08-27T10:00:00Z' },
+      { id: 2, name: 'Plan B', plan_path: null, map_url: 'https://map.test/b.png', spots: SPOTS_B, updated_at: '2026-08-27T09:00:00Z' },
+    ];
+    const EVENTS = [
+      { id: 6, title: 'Kultura', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString(), plan_id: 1 },
+      { id: 3, title: 'Retro Expo', status: 'Planificat', starts_at: null, plan_id: 2 },
+    ];
+    // Parked on Retro 1, which is a bay Plan A has and Plan B does not.
+    const CARS = [
+      { id: 1, entry_no: 11, brand: 'VW', model: 'Golf', owner: 'Ana', plate: 'P1', status: 'Sosit', zone: 'Retro', spot_no: 1, event_id: 6, deleted_at: null },
+    ];
+    const wrote = [];        // every write, in order, so the shape can be read
+    let planPost = null;
+    const pctx = await browser.newContext({ viewport: { width: 1280, height: 950 } });
+    await pctx.route('**://*.supabase.co/**', (r) => {
+      const u = r.request().url(), m = r.request().method();
+      const body = r.request().postData() || '';
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      if (u.includes('/rest/v1/zone_plans')) {
+        if (m === 'GET') {
+          const idm = /id=eq\.(\d+)/.exec(u);
+          if (idm) { const pl = PLANS.find((x) => String(x.id) === idm[1]); return J(pl ? [pl] : []); }
+          return J(PLANS.map(({ id, name, plan_path, map_url, updated_at }) => ({ id, name, plan_path, map_url, updated_at })));
+        }
+        wrote.push({ what: 'zone_plans', m, url: u, body });
+        if (m === 'PATCH') {
+          const idm = /id=eq\.(\d+)/.exec(u);
+          const pl = PLANS.find((x) => String(x.id) === idm[1]);
+          if (pl) { try { Object.assign(pl, JSON.parse(body)); } catch (_) { /* asserted below */ } }
+          return J([]);
+        }
+        if (m === 'POST') {
+          try { planPost = JSON.parse(body); } catch (_) { /* asserted below */ }
+          const row = { id: 99, updated_at: new Date().toISOString(), ...(planPost || {}) };
+          PLANS = [row].concat(PLANS);
+          return J({ id: row.id });
+        }
+        if (m === 'DELETE') { const idm = /id=eq\.(\d+)/.exec(u); PLANS = PLANS.filter((x) => String(x.id) !== idm[1]); return J([]); }
+      }
+      if (u.includes('/rest/v1/events')) {
+        if (m === 'PATCH') {
+          wrote.push({ what: 'events', m, url: u, body });
+          const idm = /id=eq\.(\d+)/.exec(u);
+          const e = EVENTS.find((x) => String(x.id) === idm[1]);
+          if (e) { try { Object.assign(e, JSON.parse(body)); } catch (_) { /* asserted below */ } }
+          return J([]);
+        }
+        return J(EVENTS);
+      }
+      if (u.includes('/rest/v1/cars')) {
+        if (m === 'PATCH') { wrote.push({ what: 'cars', m, url: u, body }); return J([]); }
+        return J(/deleted_at=not\.is\.null/.test(u) ? [] : CARS);
+      }
+      if (u.includes('/rest/v1/ui_settings')) { wrote.push({ what: 'ui_settings', m, url: u, body }); return J([]); }
+      if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+      if (u.includes('/rest/v1/')) return J([]);
+      if (u.includes('/functions/v1/')) return J({});
+      return r.abort();
+    });
+    await pctx.route('**://map.test/**', (r) => r.fulfill({
+      status: 200, contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><rect width="900" height="600" fill="#2b3245"/></svg>',
+    }));
+    const pp = await pctx.newPage();
+    try {
+      await pp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await pp.evaluate(() => localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      })));
+      await pp.reload({ waitUntil: 'domcontentloaded' });
+      await pp.waitForTimeout(2600);
+      await pp.evaluate(() => {
+        document.getElementById('splashScreen')?.remove();
+        document.querySelector('.tab[data-section="map"], .mtab[data-section="map"]')?.click();
+      });
+      await pp.waitForSelector('.map-spot', { state: 'attached', timeout: 8000 });
+
+      // The event is on Plan A, so the map shows Plan A's three bays — not the
+      // other plan's one, and not both together.
+      const drawn = await pp.evaluate(() => ({
+        pins: document.querySelectorAll('.map-spot').length,
+        zones: [...new Set([...document.querySelectorAll('.map-spot')].map((e2) => e2.dataset.spotZone))],
+      }));
+      check('plans-event-draws-its-own-layout', drawn.pins === 3 && drawn.zones.join() === 'Retro', JSON.stringify(drawn));
+
+      await pp.evaluate(() => document.getElementById('mapPlansBtn').click());
+      await pp.waitForSelector('.plan-row', { timeout: 6000 });
+      const rows = await pp.evaluate(() => [...document.querySelectorAll('.plan-row')].map((r2) => ({
+        name: r2.querySelector('.plan-name')?.textContent || '',
+        here: r2.classList.contains('is-here'),
+        where: r2.querySelector('.plan-where')?.textContent || '',
+        canUse: !!r2.querySelector('button[data-plan-use]'),
+      })));
+      // The plan in use is marked where it stands, and cannot be picked again.
+      check('plans-library-marks-the-one-in-use',
+        rows.length === 2 && rows[0].here && !rows[0].canUse && !rows[1].here && rows[1].canUse,
+        JSON.stringify(rows));
+      // Which events sit on which plan, so a plan is never edited by mistake.
+      check('plans-library-names-the-events-on-each',
+        /Kultura/.test(rows[0].where) && /Retro Expo/.test(rows[1].where), JSON.stringify(rows.map((r2) => r2.where)));
+
+      wrote.length = 0;
+      await pp.evaluate(() => document.querySelector('button[data-plan-use="2"]')?.click());
+      await pp.waitForTimeout(500);
+      await pp.evaluate(() => document.getElementById('uiDialogOk')?.click());
+      await pp.waitForTimeout(900);
+
+      const after = await pp.evaluate(() => ({
+        pins: document.querySelectorAll('.map-spot').length,
+        zones: [...new Set([...document.querySelectorAll('.map-spot')].map((e2) => e2.dataset.spotZone))],
+        marked: [...document.querySelectorAll('.plan-row')].map((r2) =>
+          (r2.querySelector('.plan-name')?.textContent || '') + (r2.classList.contains('is-here') ? '*' : '')),
+        dialog: document.getElementById('uiDialog')?.className || '',
+        toast: document.querySelector('.toast')?.textContent || '',
+      }));
+      check('plans-switching-changes-the-map', after.pins === 1 && after.zones.join() === 'JDM', JSON.stringify(after));
+
+      // The choice is recorded on the event. Writing it on the plan instead
+      // would make one layout follow whoever opened it last.
+      const evWrite = wrote.find((w) => w.what === 'events' && /"plan_id":2/.test(w.body));
+      check('plans-switch-writes-the-event-not-the-plan',
+        !!evWrite && /id=eq\.6/.test(evWrite.url) && !wrote.some((w) => w.what === 'zone_plans' && w.m === 'PATCH'),
+        JSON.stringify(wrote.map((w) => w.what + ' ' + w.m)));
+
+      // The car stood on Retro 1, a bay the new plan does not have. Left alone
+      // it would keep showing a place to go that is not on the map.
+      const freed = wrote.find((w) => w.what === 'cars' && /"spot_no":null/.test(w.body.replace(/\s/g, '')));
+      check('plans-switch-frees-cars-off-missing-bays', !!freed, JSON.stringify(wrote.filter((w) => w.what === 'cars')));
+
+      // Duplicating: the copy carries the bays, under its own name.
+      wrote.length = 0; planPost = null;
+      await pp.evaluate(() => document.getElementById('mapPlansBtn').click());
+      await pp.waitForSelector('.plan-row', { timeout: 6000 });
+      await pp.evaluate(() => document.querySelector('button[data-plan-copy="1"]')?.click());
+      await pp.waitForTimeout(500);
+      await pp.fill('#uiDialogInput', 'Plan A varianta 2');
+      await pp.evaluate(() => document.getElementById('uiDialogOk')?.click());
+      await pp.waitForTimeout(900);
+      check('plans-duplicate-copies-the-bays',
+        !!planPost && planPost.name === 'Plan A varianta 2'
+        && Array.isArray(planPost.spots) && planPost.spots.length === 3,
+        JSON.stringify(planPost && { name: planPost.name, spots: (planPost.spots || []).length }));
+
+      // Taking the map off an event leaves the plan where it is: the event
+      // loses its layout, the library does not lose a row.
+      wrote.length = 0;
+      await pp.evaluate(() => document.getElementById('plansCloseBtn')?.click());
+      await pp.waitForTimeout(300);
+      await pp.evaluate(() => document.getElementById('mapDeleteBtn')?.click());
+      await pp.waitForTimeout(500);
+      await pp.evaluate(() => document.getElementById('uiDialogOk')?.click());
+      await pp.waitForTimeout(900);
+      check('plans-detach-keeps-the-plan',
+        wrote.some((w) => w.what === 'events' && /"plan_id":null/.test(w.body))
+        && !wrote.some((w) => w.what === 'zone_plans' && w.m === 'DELETE'),
+        JSON.stringify(wrote.map((w) => w.what + ' ' + w.m + ' ' + w.body.slice(0, 40))));
+
+      // And an event with no plan says which emptiness it is: there are plans
+      // saved, this event just is not on one.
+      const empty = await pp.evaluate(() => ({
+        text: (document.querySelector('.map-empty')?.innerText || ''),
+        pins: document.querySelectorAll('.map-spot').length,
+      }));
+      check('plans-event-without-a-plan-says-so',
+        empty.pins === 0 && /plan/i.test(empty.text) && !/Nicio hartă/i.test(empty.text),
+        JSON.stringify(empty));
+
+      // Bays are part of the plan, so laying one writes the plan's row — never
+      // the single global setting the app used to keep them all in.
+      wrote.length = 0;
+      await pp.evaluate(() => document.getElementById('mapPlansBtn').click());
+      await pp.waitForSelector('.plan-row', { timeout: 6000 });
+      await pp.evaluate(() => document.querySelector('button[data-plan-use="1"]')?.click());
+      await pp.waitForTimeout(500);
+      await pp.evaluate(() => document.getElementById('uiDialogOk')?.click());
+      await pp.waitForTimeout(900);
+      wrote.length = 0;
+      // The same way it reads on screen: close the list, enter editing, press
+      // add, answer which zone, then tap the plan. The list has to go first —
+      // a real tap lands on whatever is in front, and that would be its backdrop.
+      await pp.evaluate(() => document.getElementById('plansCloseBtn')?.click());
+      await pp.waitForTimeout(300);
+      await pp.evaluate(() => document.getElementById('mapEditBtn')?.click());
+      await pp.waitForTimeout(300);
+      await pp.evaluate(() => document.getElementById('spotAddBtn')?.click());
+      await pp.waitForSelector('#uiDialogPick .ui-pick-row', { timeout: 5000 });
+      await pp.fill('#uiDialogPickSearch', 'Euro');
+      await pp.waitForTimeout(200);
+      await pp.click('.ui-pick-row');
+      await pp.waitForTimeout(300);
+      const box = await pp.evaluate(() => {
+        const r2 = document.getElementById('mapImageWrap').getBoundingClientRect();
+        return { x: r2.x, y: r2.y, w: r2.width, h: r2.height };
+      });
+      await pp.mouse.click(box.x + box.w * 0.3, box.y + box.h * 0.7);
+      await pp.waitForTimeout(900);
+      const bayWrite = wrote.find((w) => w.what === 'zone_plans' && w.m === 'PATCH');
+      check('plans-bays-are-saved-onto-the-plan',
+        !!bayWrite && /"spots"/.test(bayWrite.body) && !wrote.some((w) => w.what === 'ui_settings' && w.m === 'POST'),
+        JSON.stringify(wrote.map((w) => w.what + ' ' + w.m)));
+    } catch (e) {
+      for (const n of ['plans-event-draws-its-own-layout', 'plans-library-marks-the-one-in-use',
+        'plans-library-names-the-events-on-each', 'plans-switching-changes-the-map',
+        'plans-switch-writes-the-event-not-the-plan', 'plans-switch-frees-cars-off-missing-bays',
+        'plans-bays-are-saved-onto-the-plan', 'plans-duplicate-copies-the-bays',
+        'plans-detach-keeps-the-plan', 'plans-event-without-a-plan-says-so']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`plan library checks: ${e.message}`);
+    }
+    await pctx.close();
+  }
+
   // 5. Public pages (given out by QR at the event) must render standalone.
   // They talk to Supabase, which is unreachable here, so we only assert the
   // static shell renders and nothing throws before the network call.
@@ -3349,6 +3607,9 @@ try {
 }
 
 const failed = checks.filter(c => !c.ok);
-for (const c of checks) console.log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.name}`);
+for (const c of checks) {
+  const why = (!c.ok && c.detail != null && String(c.detail) !== '') ? `  — ${String(c.detail).slice(0, 300)}` : '';
+  console.log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.name}${why}`);
+}
 console.log(`\n${checks.length - failed.length}/${checks.length} passed`);
 process.exit(failed.length ? 1 : 0);

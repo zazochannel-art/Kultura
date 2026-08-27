@@ -954,6 +954,36 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     nu cu null — altfel baza refuză scrierea, iar opțiunea goală din selectorul
     de zonă devine un mesaj de eroare. Verificat pe producție: `23502`.
 
+48. **Planul e o înregistrare, nu o constantă.** Desenul terenului era numit de
+    o constantă în `app.js`, iar boxele stăteau într-un singur rând din
+    `ui_settings`. Din asta ieșeau două limite care nu se vedeau ca limite: un
+    teren avea exact un aranjament, deci pregătirea evenimentului următor îl
+    ștergea pe cel dinainte, iar un desen nou cerea un deploy. Acum un plan e un
+    rând în `zone_plans` — nume, desen, boxe — și se aduce dintr-un fișier.
+49. **Ce plan folosește un eveniment se scrie pe eveniment.** `events.plan_id`,
+    nu `zone_plans.event_id`: un plan e un obiect de bibliotecă, se dublează și
+    poate sta nefolosit. Ținut invers, un aranjament l-ar urma pe cel care l-a
+    deschis ultimul. `on delete set null` — ștergerea unui plan lasă evenimentul
+    fără hartă, nu fără rând. Și `plan_id` intră în amprenta evenimentelor:
+    fără el, un plan pus de pe alt dispozitiv n-ar redesena harta aici.
+50. **Adresa de unde se aduce un desen e o listă albă.** Aplicația face `fetch`
+    la ea, iar rândul e editabil de oricine are drepturi de staff. Două surse
+    sunt ale noastre — bucket-ul `plans` și fișierul din aplicație — și nimic
+    altceva; `..` se refuză înaintea ambelor ramuri, fiindcă un URL de bucket e
+    tot un URL. Regula stă în `utils.js`, ca să poată fi testată singură.
+51. **Bucket-ul `maps` primește doar imagini.** De aceea un plan SVG trebuia
+    rasterizat înainte de urcare. Un desen e JSON, deci are bucket-ul lui
+    (`plans`, `application/json`), cu aceleași politici de staff.
+
+52. **O referință luată înaintea unui `await` nu mai e rândul.** Sincronizarea
+    periodică înlocuiește obiectele din `state`, nu le modifică. Între un dialog
+    de confirmare și scrierea care-i urmează încap două aşteptări, iar un
+    `refresh` care aterizează între ele lasă în mână un obiect desprins:
+    modificat, baza iese corectă și ecranul greșit, până la următoarea
+    reîncărcare. După orice scriere, rândul se caută din nou după `id`
+    (`setEventPlanLocally`). Găsit exact așa: comutarea planului scria
+    `events.plan_id` în bază, dar harta rămânea pe planul dinainte.
+
 ## Rămas de făcut manual
 
 **Protecția împotriva parolelor compromise** nu se poate activa din cod:
