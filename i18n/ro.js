@@ -267,7 +267,7 @@ export default {
   "map.plan_rendering": "Se pregătește planul...",
   "map.plan_empty": "Planul nu are niciun loc desenat.",
   "map.plan_spots_word": "locuri",
-  "map.plan_confirm": "Pui „{name}\" ca hartă? Vine cu {n} de locuri gata numerotate și înlocuiește harta și locurile de acum ({cars} mașini sunt pe locuri).",
+  "map.plan_confirm": "Pui planul „{name}” pe evenimentul „{event}”? Vine cu {n} locuri gata numerotate și înlocuiește harta de acum. Mașini care rămân fără loc: {cars}.",
   "map.plan_done": "Planul e pe hartă: {n} de locuri.",
   "map.plan_freed": "{n} mașini au rămas fără loc (locul lor nu există în plan).",
   "map.plan_no_zone": "{n} locuri desenate fără zonă nu au fost aduse — un loc are nevoie de zonă ca să i se atribuie o mașină.",

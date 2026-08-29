@@ -264,7 +264,7 @@ export default {
   "map.plan_rendering": "Preparing the plan...",
   "map.plan_empty": "The plan has no spots drawn on it.",
   "map.plan_spots_word": "spots",
-  "map.plan_confirm": "Use “{name}” as the map? It comes with {n} numbered spots and replaces the current map and spots ({cars} cars are on spots).",
+  "map.plan_confirm": "Put the plan “{name}” on the event “{event}”? It comes with {n} numbered spots and replaces the current map. Cars left without a spot: {cars}.",
   "map.plan_done": "The plan is now the map: {n} spots.",
   "map.plan_freed": "{n} cars lost their spot (it is not on the plan).",
   "map.plan_no_zone": "{n} drawn spots have no zone and were left out — a spot needs one before a car can be put on it.",
