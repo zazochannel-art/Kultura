@@ -2726,7 +2726,7 @@ try {
     let savedSpots = null, savedUrl = null, savedPlan = null, uploaded = null;
     const carPatches = [];
     let madePlan = null;
-    const EV = { id: 6, title: 'Ev', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString(), plan_id: null };
+    const EV = { id: 6, title: 'Festivalul de Weekend', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString(), plan_id: null };
     const mctx2 = await browser.newContext({ viewport: { width: 1280, height: 950 } });
     await mctx2.route('**://*.supabase.co/**', (r) => {
       const u = r.request().url(), m = r.request().method();
@@ -2834,6 +2834,16 @@ try {
       await ip.waitForTimeout(500);
       await ip.click('#planBundledBtn');
       await ip.waitForTimeout(700);
+      // A plan lands on whichever event is selected at the top of the screen,
+      // and the drawing's own name says nothing about that. A plan named after
+      // next month's event went onto the one three days away, and 53 of its 54
+      // cars lost the bay they had. The count was on this dialog; the event's
+      // name was not, so there was nothing to notice.
+      const adopt = await ip.evaluate(() =>
+        document.getElementById('uiDialogMessage')?.textContent || '');
+      check('plan-import-names-the-event-it-lands-on', /Festivalul de Weekend/.test(adopt), adopt);
+      // And still says what it costs.
+      check('plan-import-says-how-many-lose-their-spot', /\d/.test(adopt) && adopt.length > 30, adopt);
       await ip.evaluate(() => document.getElementById('uiDialogOk')?.click());
       // Rendering 4800px of plan and encoding it takes seconds on this machine
       // and longer on a slow runner, so wait for the result rather than a clock.
@@ -3139,6 +3149,7 @@ try {
       for (const n of ['plan-import-button-for-staff', 'plan-import-keeps-the-plan-a-drawing',
         'plan-import-saves-the-spots', 'plan-import-pins-land-inside-the-image',
         'plan-import-draws-tail-lights-on-every-car',
+        'plan-import-names-the-event-it-lands-on', 'plan-import-says-how-many-lose-their-spot',
         'plan-import-draws-each-car-from-one-definition',
         'plan-import-pins-carry-their-bay',
         'plan-import-speaks-the-app-zone-names', 'plan-import-frees-a-car-whose-spot-is-gone',

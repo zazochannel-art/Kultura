@@ -1056,6 +1056,14 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     când cineva vrea totuși să pună o mașină acolo e întrebat o dată — o
     rezervare e o notă de la cine a făcut-o, nu un lacăt.
 
+64. **Un dialog care schimbă ceva trebuie să spună ce anume schimbă.** Un plan
+    se aduce peste evenimentul selectat sus în ecran, iar numele desenului nu
+    spune nimic despre asta. Un plan numit după evenimentul de luna viitoare a
+    intrat peste cel de peste trei zile, iar 53 din cele 54 de mașini au rămas
+    fără boxa care le fusese dată. Numărul era pe dialog; numele evenimentului
+    nu, deci n-avea ce să sară în ochi. Schimbarea unui plan salvat numea de la
+    început evenimentul; importul face acum la fel.
+
 63. **Numerele parcării stăteau doar în hartă.** Câte boxe are planul, câte sunt
     date și — cea care decide dacă poarta va funcționa — câte mașini vin fără
     niciun loc: toate existau, dar numai înăuntrul hărții. Un număr pentru care

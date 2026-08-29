@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v149';
+    const APP_VERSION = 'v150';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -2602,10 +2602,19 @@
         .map(it => [it.name.trim().toLowerCase(), it.color]));
 
       // Giving the event a new plan takes every car off the old one. Say how
-      // many before doing it, not after.
+      // many before doing it, not after — and say WHICH event is getting it.
+      //
+      // A plan is imported onto whatever event is selected at the top of the
+      // screen, and the drawing's own name says nothing about that. A plan
+      // named after next month's event went onto the one three days away, and
+      // 53 of its 54 cars lost the bay they had been given. The count was on
+      // the dialog; the event's name was not, so there was nothing to notice.
+      // Switching to a saved plan has always named the event. This now matches.
       const parked = activeCars().filter(c => c.spot_no != null).length;
       if (!await uiConfirm(t('map.plan_confirm', {
-        name: name || plan.name || 'plan', n: spots.length, cars: parked,
+        name: name || plan.name || 'plan',
+        event: ev.title || ev.name || ('#' + ev.id),
+        n: spots.length, cars: parked,
       }))) return false;
 
       // No picture is made of it. The plan is drawn in the page as SVG, which
