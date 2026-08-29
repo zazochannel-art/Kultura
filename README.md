@@ -999,6 +999,69 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     dinafară. Butonul „Desenează un plan nou" deschide editorul în fila lui, ca
     biblioteca de planuri să nu se reîncarce și să uite evenimentul.
 
+55. **Zonele sunt o listă care se mișcă, nu o constantă.** Cele nouă clase ale
+    aplicației sunt scrise în cod, dar terenul își aduce propriile nume odată cu
+    desenul — EXPO ZONE, GREEN ZONE, VIP ZONE — și mașini chiar stau în ele: 8
+    din 54 la ultimul eveniment. Construite doar din constantă, toate listele de
+    zone nu puteau spune unde stau acele 8 mașini, iar o boxă nici nu se putea
+    desena într-o astfel de zonă. `allZones()` le unește: întâi clasele
+    aplicației, apoi ce aduce planul, fără dubluri.
+
+56. **Ce se poate da trebuie să se poată și lua înapoi.** `stamp_car_arrival`
+    punea `arrived_at` la sosire și nimic nu-l ștergea vreodată. O apăsare
+    greșită la poartă, „reparată" punând statusul înapoi pe Invitat, lăsa ora
+    acolo — iar aplicația numără o sosire ca `status = 'sosit' SAU arrived_at
+    not null`, deci mașina rămânea sosită pentru totdeauna. Producția avea 18
+    rânduri cu oră și 16 cu status. Ieșirea din starea „sosit" șterge acum ora
+    și cine a lăsat mașina să intre; trecerea la „plecat" e singura excepție.
+    Trigger-ul se verifică singur în migrație: patru aserțiuni într-un bloc
+    `do`, iar un eșec ar fi anulat migrația.
+
+57. **O audiență numită „confirmați" trebuie să însemne confirmare.** Filtrele
+    de campanie citeau statusul „Sosit" în loc de `rsvp`. Înainte de eveniment
+    n-a sosit nimeni, deci „confirmați" era mereu goală; în ziua evenimentului
+    „neconfirmați" pierdea pe toți cei care veniseră fără să răspundă.
+
+58. **Lista de pregătire trebuie să vadă și ce nu e pe ecran.** Se uita doar la
+    evenimentul activ — și exact așa două evenimente create într-o săptămână au
+    stat la două zile distanță fără nicio mașină, fără plan și fără capacitate,
+    în timp ce Acasă spunea că totul e în regulă. Acum orice eveniment care
+    începe în următoarele 7 zile își spune lipsurile, oricare ar fi evenimentul
+    din focus.
+
+59. **Canalul se leagă când omul e în fața ta.** Invitația spre bot se putea
+    doar trimite — prin WhatsApp — iar canalul e tocmai ce lipsea: 51 din 54 de
+    șoferi n-au putut fi atinși deloc, și confirmarea pe care n-a primit-o
+    nimeni a strâns zero răspunsuri. La poartă problema dispare: omul stă în
+    fața ta cu telefonul în mână. După ce mașina e trecută, rândul din poartă
+    oferă codul QR al invitației lui — o dată, doar cât timp nimic altceva nu-l
+    poate ajunge, și doar dacă botul chiar e viu.
+
+60. **Scanarea trebuie să spună unde se merge.** Poarta identifica mașina și se
+    oprea acolo: cartonașul dădea numele, proprietarul și statusul. Singurul
+    lucru pe care șoferul îl aștepta — unde să tragă — era în alt ecran, deci
+    operatorul citea numărul cu voce tare și pleca să-l caute. Cartonașul spune
+    acum numărul de concurs, zona și locul, cu literele cele mai mari de pe el,
+    sau spune limpede că nimeni n-a alocat încă un loc și oferă drumul spre
+    hartă. Locul se aprinde pe plan, fără să miște panorama sub degetul nimănui.
+
+61. **Culoarea e primul lucru pe care-l vede un om la poartă.** Aplicația purta
+    marca, modelul și numărul; culoarea, singura care se potrivește dintr-o
+    privire peste un rând de mașini, nu era cerută nicăieri. Acum se întreabă la
+    înscriere și se citește pe cartonașul de la scanare.
+
+62. **O boxă are trei stări, nu două.** Liber și ocupat erau singurele, deci o
+    boxă ținută pentru cineva se putea doar ține minte. `res` pe boxă o pune
+    deoparte: se desenează chihlimbariu, se numără între cele de pe plan, și
+    când cineva vrea totuși să pună o mașină acolo e întrebat o dată — o
+    rezervare e o notă de la cine a făcut-o, nu un lacăt.
+
+63. **Numerele parcării stăteau doar în hartă.** Câte boxe are planul, câte sunt
+    date și — cea care decide dacă poarta va funcționa — câte mașini vin fără
+    niciun loc: toate existau, dar numai înăuntrul hărții. Un număr pentru care
+    trebuie deschis un ecran e un număr pe care nu-l citește nimeni. Acum stau
+    pe Acasă, sub plăcile de statistici.
+
 ## Rămas de făcut manual
 
 **Protecția împotriva parolelor compromise** nu se poate activa din cod:

@@ -2642,13 +2642,36 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  /* The row gained a fourth control. It does not scroll and nothing says it is
+     cut, so without wrapping the last button is simply off the screen — the
+     same way the map's action bar lost its buttons. */
+  flex-wrap: wrap;
   padding: 12px;
   background: var(--surface-solid);
   border: 1px solid var(--border);
   border-radius: 14px;
 }
 .gate-car.arrived { opacity: 0.6; }
-.gate-car-info { flex: 1; min-width: 0; }
+.gate-car-info { flex: 1 1 9rem; min-width: 0; }
+/* Linking a driver to the bot, offered only once they are through the gate and
+   only while nothing else can reach them. Deliberately quieter than the arrive
+   button beside it: it is an opportunity, not the job. */
+.gate-tg {
+  flex-shrink: 0;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(34,158,217,0.45);
+  border-radius: 12px;
+  background: transparent;
+  color: #229ED9;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.gate-tg:hover { background: rgba(34,158,217,0.10); }
+.gate-tg:active { transform: scale(0.96); }
 .gate-plate {
   font-size: 17px;
   font-weight: 800;
@@ -2885,8 +2908,71 @@
 .gsr-name { font-size: 21px; font-weight: 800; }
 .gsr-sub { color: var(--text-dim); font-size: 14px; margin-top: 4px; }
 .gsr-status { margin-top: 12px; }
-.gsr-actions { display: flex; gap: 10px; margin-top: 18px; }
-.gsr-actions .btn { flex: 1; padding: 13px; font-size: 16px; }
+/* Where the driver goes. This is what the gate exists to say, so it is the
+   loudest thing on the card — read at arm's length, in daylight, by someone
+   who is also watching a queue. */
+.gsr-where {
+  margin-top: 14px;
+  padding: 14px 12px;
+  border-radius: 14px;
+  background: rgba(16,185,129,0.10);
+  border: 1px solid rgba(16,185,129,0.35);
+}
+.gsr-where.is-missing {
+  background: rgba(245,197,66,0.10);
+  border-color: rgba(245,197,66,0.45);
+}
+.gsr-no {
+  font-size: 34px; font-weight: 900; letter-spacing: 0.02em; line-height: 1.1;
+  color: var(--text);
+}
+.gsr-no:empty { display: none; }
+.gsr-zone, .gsr-spot { font-size: 19px; margin-top: 6px; color: var(--text-dim); }
+.gsr-zone b, .gsr-spot b { font-size: 26px; color: var(--text); font-weight: 900; }
+.gsr-nospot { margin-top: 8px; font-size: 16px; font-weight: 700; color: #f5c542; }
+/* Three buttons where there were two, and the card is on a phone. */
+.gsr-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.gsr-actions .btn { flex: 1 1 8rem; padding: 13px; font-size: 16px; }
+
+/* Parking, in one line under the stat tiles. Four numbers, no chrome: the map
+   already draws the picture, this only has to be readable at a glance. */
+.park-strip {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px;
+}
+.park-cell {
+  flex: 1 1 6rem;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-solid);
+}
+.park-cell b { font-size: 20px; font-weight: 800; color: var(--text); }
+.park-cell span { font-size: 12px; color: var(--text-dim); }
+.park-cell.is-warn b { color: #f5c542; }
+.park-cell.is-ok b { color: #10b981; }
+
+/* A bay held back on purpose: free, but not free to hand out. Amber, because
+   the other two states are already green (free) and red (taken). */
+.map-spot.reserved {
+  border-color: rgba(245,197,66,0.85);
+  background: rgba(245,197,66,0.18);
+  color: #f5c542;
+}
+
+/* The bay a scan just pointed at. The plan is 266 pins; without this the
+   operator is told "Retro, 38" and then has to find 38 by eye. */
+.map-spot.is-found {
+  animation: spot-found 1s ease-in-out infinite;
+  z-index: 6;
+}
+@keyframes spot-found {
+  0%, 100% { box-shadow: 0 0 0 2px var(--brand), 0 0 0 6px rgba(248,88,156,0.35); }
+  50%      { box-shadow: 0 0 0 3px var(--brand), 0 0 0 14px rgba(248,88,156,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-spot.is-found { animation: none; box-shadow: 0 0 0 3px var(--brand), 0 0 0 10px rgba(248,88,156,0.35); }
+}
 
 /* Car QR pass */
 .car-qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 8px 0 18px; }
