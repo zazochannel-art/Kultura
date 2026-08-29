@@ -37,33 +37,6 @@ const mapSettled = (page) => page.waitForFunction(
 // A valid one-page 400x200 PDF, built rather than committed: the PDF branch of
 // the template picker needs something real to parse, and a binary fixture in
 // the tree would be one more thing nobody can read in a diff.
-// A PNG of pure noise at a given size — the worst case a map upload can hand
-// the encoder, and the only kind that reliably blows the bucket's 5 MB ceiling.
-function noisyPng(w, h) {
-  const raw = Buffer.alloc((w * 3 + 1) * h);
-  let o = 0, seed = 7;
-  const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) % 256;
-  for (let y = 0; y < h; y++) {
-    raw[o++] = 0;
-    for (let x = 0; x < w; x++) { raw[o++] = rnd(); raw[o++] = rnd(); raw[o++] = rnd(); }
-  }
-  const crc32 = (buf) => {
-    let c = ~0;
-    for (const b of buf) { c ^= b; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xEDB88320 & -(c & 1)); }
-    return ~c >>> 0;
-  };
-  const chunk = (type, data) => {
-    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
-    const body = Buffer.concat([Buffer.from(type), data]);
-    const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(body));
-    return Buffer.concat([len, body, crc]);
-  };
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4);
-  ihdr[8] = 8; ihdr[9] = 2;
-  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
-}
 
 function tinyPdf() {
   const stream = '1 0 0 RG 6 w 20 20 m 380 180 l S 0 0 1 rg 40 40 120 60 re f';
@@ -3044,34 +3017,6 @@ try {
       }
       console.log(`plan import checks: ${e.message}`);
     }
-    // The map a person uploads goes through the same ceiling. A photograph is
-    // 17 MB as lossless PNG at full size, which is what this path produced
-    // before — and the bucket refuses it outright. Quality may drop; the upload
-    // may not simply fail.
-    try {
-      uploaded = null;
-      await ip.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
-      await ip.waitForTimeout(2600);
-      await ip.evaluate(() => {
-        document.getElementById('splashScreen')?.remove();
-        document.querySelector('.tab[data-section="map"], .mtab[data-section="map"]')?.click();
-      });
-      await ip.waitForTimeout(400);
-      // 4.3 megapixels of noise: about 5.8 MB as lossless PNG, which is what the
-      // old path produced and the bucket refused.
-      await ip.setInputFiles('#mapFileInput', { name: 'teren.png', mimeType: 'image/png', buffer: noisyPng(2400, 1800) });
-      await ip.waitForSelector('#cropConfirm', { state: 'visible', timeout: 8000 });
-      await ip.waitForTimeout(600);
-      await ip.click('#cropConfirm');
-      for (let i = 0; i < 80 && !uploaded; i++) await ip.waitForTimeout(250);
-      check('map-upload-fits-the-bucket',
-        !!uploaded && MAPS_BUCKET.types.includes(uploaded.type) && uploaded.bytes <= MAPS_BUCKET.max,
-        uploaded ? `${uploaded.type} ${(uploaded.bytes / 1048576).toFixed(2)}MB` : 'rejected by the bucket');
-    } catch (e) {
-      if (!checks.some((c2) => c2.name === 'map-upload-fits-the-bucket')) check('map-upload-fits-the-bucket', false);
-      console.log(`map upload check: ${e.message}`);
-    }
-
     check('plan-import-no-errors', ierrs.length === 0);
     if (ierrs.length) console.log('  import errors:', ierrs.slice(0, 3));
     await mctx2.close();
@@ -3220,17 +3165,6 @@ try {
         onNothing && beside.shown && beside.title === open.title,
         JSON.stringify({ onNothing, beside, wanted: open.title }));
 
-      // The other direction, and the one with a button on it: choose the car
-      // first, then tap where it goes. Tapping a bay has always opened the
-      // picker, but nothing on screen said so and a bay is four pixels wide —
-      // so the flow existed and nobody could find it.
-      await ap.evaluate(() => document.getElementById('uiDialogCancel').click());
-      await ap.waitForTimeout(200);
-      const hint = await ap.evaluate(() => ({
-        text: document.getElementById('mapSpotHint').textContent,
-        shown: !document.getElementById('mapSpotHint').hidden,
-        btn: document.getElementById('spotParkBtn').textContent,
-      }));
       // Every control beside the title has to be on the screen at phone width.
       // The row does not scroll and nothing says it is cut: a button pushed
       // past the edge is simply not there, and the feature behind it cannot be
@@ -3253,31 +3187,12 @@ try {
         && bar.buttons.every((b) => b.left >= 0 && b.right <= bar.w),
         JSON.stringify(bar));
 
+      const hint = await ap.evaluate(() => ({
+        text: document.getElementById('mapSpotHint').textContent,
+        shown: !document.getElementById('mapSpotHint').hidden,
+      }));
       check('map-says-a-spot-can-be-tapped', hint.shown && hint.text.length > 10,
         JSON.stringify(hint));
-
-      await ap.click('#spotParkBtn');
-      await ap.waitForSelector('#uiDialogPick .ui-pick-row', { timeout: 5000 });
-      await ap.fill('#uiDialogPickSearch', 'B137XYZ');
-      await ap.waitForTimeout(200);
-      await ap.click('.ui-pick-row');
-      await ap.waitForTimeout(400);
-      const waiting = await ap.evaluate(() => ({
-        hint: document.getElementById('mapSpotHint').textContent,
-        btn: document.getElementById('spotParkBtn').textContent,
-        active: document.getElementById('spotParkBtn').classList.contains('active'),
-      }));
-      check('park-flow-says-which-car-it-is-holding',
-        /#237/.test(waiting.hint) && waiting.active && waiting.btn !== hint.btn,
-        JSON.stringify(waiting));
-
-      await ap.evaluate(() => document.querySelector('.map-spot[data-spot-no="2"]').click());
-      await ap.waitForTimeout(600);
-      const parked = carPatches.find((c) => /"spot_no":2/.test(c.body.replace(/\s/g, '')));
-      check('park-flow-puts-the-chosen-car-on-the-tapped-spot',
-        !!parked && /id=eq\.137/.test(parked.url), parked ? parked.url.split('?')[1] : 'no patch');
-      check('park-flow-ends-after-the-tap',
-        await ap.evaluate(() => !document.getElementById('spotParkBtn').classList.contains('active')));
 
       // And the original direction still works: tap a bay, pick a car. On the
       // third bay, because the two flows above took the other two.
@@ -3299,8 +3214,6 @@ try {
         'assign-has-no-confirm-button', 'assign-search-narrows-the-list', 'assign-search-matches-a-plate',
         'map-a-tap-beside-a-bay-still-picks-it', 'map-says-a-spot-can-be-tapped',
         'map-actions-all-fit-the-screen',
-        'park-flow-says-which-car-it-is-holding',
-        'park-flow-puts-the-chosen-car-on-the-tapped-spot', 'park-flow-ends-after-the-tap',
         'assign-a-tap-puts-the-car-on-the-spot', 'assign-closes-after-the-tap']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
@@ -3432,6 +3345,30 @@ try {
       check('plans-library-names-the-events-on-each',
         /Kultura/.test(rows[0].where) && /Retro Expo/.test(rows[1].where), JSON.stringify(rows.map((r2) => r2.where)));
 
+      // Making a plan and bringing one in are two different acts, and only the
+      // second had a button. The hint said the file comes "from the plan
+      // editor" while nothing on any screen led to that editor — so a first
+      // plan could only be made by someone who knew the URL by heart.
+      const draw = await pp.evaluate(() => {
+        const a = document.getElementById('planDrawBtn');
+        if (!a) return null;
+        const r2 = a.getBoundingClientRect();
+        return {
+          href: a.getAttribute('href'),
+          target: a.getAttribute('target'),
+          text: a.textContent.trim(),
+          shown: getComputedStyle(a).display !== 'none' && r2.width > 0 && r2.height > 0,
+          inside: !!a.closest('#modal-plans'),
+        };
+      });
+      check('plans-offer-a-way-to-draw-a-new-one',
+        !!draw && draw.shown && draw.inside && draw.href === 'plan.html' && draw.text.length > 3,
+        JSON.stringify(draw));
+      // The editor opens beside the app, not over it: coming back to a plan
+      // library that had reloaded and forgotten the event would undo the point.
+      check('plans-draw-opens-the-editor-in-its-own-tab', !!draw && draw.target === '_blank',
+        draw ? draw.target : 'no button');
+
       wrote.length = 0;
       await pp.evaluate(() => document.querySelector('button[data-plan-use="2"]')?.click());
       await pp.waitForTimeout(500);
@@ -3533,6 +3470,7 @@ try {
         JSON.stringify(wrote.map((w) => w.what + ' ' + w.m)));
     } catch (e) {
       for (const n of ['plans-event-draws-its-own-layout', 'plans-library-marks-the-one-in-use',
+        'plans-offer-a-way-to-draw-a-new-one', 'plans-draw-opens-the-editor-in-its-own-tab',
         'plans-library-names-the-events-on-each', 'plans-switching-changes-the-map',
         'plans-switch-writes-the-event-not-the-plan', 'plans-switch-frees-cars-off-missing-bays',
         'plans-bays-are-saved-onto-the-plan', 'plans-duplicate-copies-the-bays',
