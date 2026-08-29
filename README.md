@@ -1037,6 +1037,31 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     oferă codul QR al invitației lui — o dată, doar cât timp nimic altceva nu-l
     poate ajunge, și doar dacă botul chiar e viu.
 
+60. **Scanarea trebuie să spună unde se merge.** Poarta identifica mașina și se
+    oprea acolo: cartonașul dădea numele, proprietarul și statusul. Singurul
+    lucru pe care șoferul îl aștepta — unde să tragă — era în alt ecran, deci
+    operatorul citea numărul cu voce tare și pleca să-l caute. Cartonașul spune
+    acum numărul de concurs, zona și locul, cu literele cele mai mari de pe el,
+    sau spune limpede că nimeni n-a alocat încă un loc și oferă drumul spre
+    hartă. Locul se aprinde pe plan, fără să miște panorama sub degetul nimănui.
+
+61. **Culoarea e primul lucru pe care-l vede un om la poartă.** Aplicația purta
+    marca, modelul și numărul; culoarea, singura care se potrivește dintr-o
+    privire peste un rând de mașini, nu era cerută nicăieri. Acum se întreabă la
+    înscriere și se citește pe cartonașul de la scanare.
+
+62. **O boxă are trei stări, nu două.** Liber și ocupat erau singurele, deci o
+    boxă ținută pentru cineva se putea doar ține minte. `res` pe boxă o pune
+    deoparte: se desenează chihlimbariu, se numără între cele de pe plan, și
+    când cineva vrea totuși să pună o mașină acolo e întrebat o dată — o
+    rezervare e o notă de la cine a făcut-o, nu un lacăt.
+
+63. **Numerele parcării stăteau doar în hartă.** Câte boxe are planul, câte sunt
+    date și — cea care decide dacă poarta va funcționa — câte mașini vin fără
+    niciun loc: toate existau, dar numai înăuntrul hărții. Un număr pentru care
+    trebuie deschis un ecran e un număr pe care nu-l citește nimeni. Acum stau
+    pe Acasă, sub plăcile de statistici.
+
 ## Rămas de făcut manual
 
 **Protecția împotriva parolelor compromise** nu se poate activa din cod:

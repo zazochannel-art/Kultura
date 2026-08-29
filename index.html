@@ -380,6 +380,10 @@
           </div>
         </div>
 
+        <!-- Parking, in one line. The map has always known these numbers; this
+             is the only place they are visible without opening it. -->
+        <div class="park-strip" id="parkStrip" hidden></div>
+
         <div class="page-grid-2" style="margin-top: 20px;">
           <div class="card" id="progressCard">
             <div class="card-head">
@@ -616,6 +620,7 @@
                The button is both the thing you look for and the arm. -->
           <button type="button" class="btn ghost small" id="spotAddBtn" data-i18n="spots.add" hidden>Adaugă un loc</button>
           <button type="button" class="btn ghost small" id="spotRowBtn" data-i18n="spots.row" hidden>Rând întreg</button>
+          <button type="button" class="btn ghost small" id="spotResBtn" data-i18n="spots.reserve" hidden>Rezervă locul</button>
           <button type="button" class="btn ghost small" id="spotClearBtn" data-i18n="spots.clear_zone" hidden>Golește zona</button>
           <span class="map-spot-info" id="mapSpotInfo"></span>
           <!-- Tapping a bay has always opened the picker; nothing on screen
@@ -1234,6 +1239,10 @@
             <div><label data-i18n="reg.f_plate">Nr. înmatriculare</label><input name="plate" style="text-transform:uppercase"></div>
             <div><label data-i18n="reg.f_year">An</label><input name="year" inputmode="numeric" maxlength="4"></div>
           </div>
+          <div class="rd-row">
+            <div><label data-i18n="car.detail.color">Culoare</label><input name="color" maxlength="40"></div>
+            <div></div>
+          </div>
           <label data-i18n="reg.f_owner">Proprietar</label>
           <input name="owner">
           <div class="rd-row">
@@ -1841,8 +1850,14 @@
             <div class="gsr-name" id="gsrName">—</div>
             <div class="gsr-sub" id="gsrSub"></div>
             <div class="gsr-status" id="gsrStatus"></div>
+            <!-- Where this car goes. The whole point of scanning at the gate is
+                 that the driver is waiting to be told, so this is the biggest
+                 thing on the card — bigger than the name of the car. -->
+            <div class="gsr-where" id="gsrWhere" hidden></div>
             <div class="gsr-actions">
               <button type="button" class="btn ghost" id="gsrCancel" data-i18n="gate.scan_continue">Continuă</button>
+              <button type="button" class="btn ghost" id="gsrSpot" hidden data-i18n="gate.assign_now">Alocă loc acum</button>
+              <button type="button" class="btn ghost" id="gsrMap" hidden data-i18n="gate.see_on_map">Vezi pe hartă</button>
               <button type="button" class="btn" id="gsrArrive" data-i18n="car.status.arrived">Sosit</button>
             </div>
           </div>

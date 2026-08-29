@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v148';
+    const APP_VERSION = 'v149';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -471,12 +471,29 @@
       const s = q.trim().toLowerCase();
       const items = [];
       const hit = (txt) => s && String(txt || '').toLowerCase().includes(s);
-      // Cars
+      // Cars.
+      //
+      // At the gate a car is looked up by whatever the person in front of you
+      // said — the number on their windscreen, the plate, their name, the phone
+      // they registered with. Searching only plate/owner/brand/model meant the
+      // entry number, the one thing printed on every pass, found nothing. A
+      // bare "247" matches the number itself, not any digits inside a plate.
+      const digits = /^#?\d+$/.test(s) ? s.replace('#', '') : null;
       for (const c of (state.cars || [])) {
-        if (!s || hit(c.plate) || hit(c.owner) || hit(c.brand) || hit(c.model)) {
+        const byNo = digits != null && String(c.entry_no) === digits;
+        if (!s || byNo || hit(c.plate) || hit(c.owner) || hit(c.brand) || hit(c.model)
+            || hit(c.phone) || hit(c.contact)) {
           const name = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
-          items.push({ type: t('cmdk.car'), label: c.plate || name, sub: [name, c.owner].filter(Boolean).join(' · '),
-            run: () => { selectSection('cars'); setTimeout(() => { try { showCarDetail(c.id); } catch (_) {} }, 60); } });
+          // The spot rides along, because the answer to "where is #247" is a
+          // zone and a number, not a screen to open next.
+          const where = (c.spot_no != null && String(c.zone || '').trim())
+            ? `${c.zone} · ${t('gate.go_spot')} ${c.spot_no}` : '';
+          items.push({
+            type: t('cmdk.car'),
+            label: (c.entry_no != null ? '#' + c.entry_no + ' · ' : '') + (c.plate || name),
+            sub: [name, c.owner, where].filter(Boolean).join(' · '),
+            run: () => { selectSection('cars'); setTimeout(() => { try { showCarDetail(c.id); } catch (_) {} }, 60); },
+          });
         }
         if (items.length > 40) break;
       }
@@ -607,6 +624,9 @@
           // A colour goes into a style attribute, so it is checked rather than
           // trusted: the row is editable and this is markup.
           if (/^#[0-9a-f]{3,8}$/i.test(String(s.c || ''))) sp.c = String(s.c);
+          // Held back on purpose — for a guest, a truck, a fire lane. Free, but
+          // not free to hand out.
+          if (s.res) sp.res = true;
           return sp;
         });
     }
@@ -661,6 +681,10 @@
       renderMap();
       try { renderMapSpots(); } catch (_) {}
       try { renderPlanList(); } catch (_) {}
+      // Home counts the bays, and the plan arrives after Home has drawn itself.
+      // Without this the strip says "0 spots on the plan" until something else
+      // happens to repaint it.
+      try { renderParkStrip(); } catch (_) {}
     }
     async function loadMap() {
       await loadPlanLibrary();
@@ -1178,6 +1202,7 @@
         if (bay) cls.push('is-car');
         if (_spotEdit && _spotPick === spotKey(sp.zone, sp.no)) cls.push('picked');
         if (car) { cls.push('taken'); if (here) cls.push('here'); }
+        else if (sp.res) cls.push('reserved');
         const label = car
           ? (car.entry_no ? '#' + car.entry_no : (car.plate || '•'))
           : String(sp.no);
@@ -1186,7 +1211,7 @@
         const who = car
           ? [car.entry_no ? '#' + car.entry_no : '', [car.brand, car.model].filter(Boolean).join(' '), car.plate, car.owner]
               .filter(Boolean).join(' · ')
-          : t('spots.free');
+          : (sp.res ? t('spots.reserved') : t('spots.free'));
         // A pin on a bay is the bay: same size, same heading, so what you tap is
         // the place the car stands and not a circle floating near it. The car
         // itself is drawn on the deck below, at the same size and angle.
@@ -1249,8 +1274,16 @@
       }
       // The zone picker and the row tools belong to editing: outside it they are
       // controls with nothing to act on.
-      for (const id of ['spotAddBtn', 'spotRowBtn', 'spotClearBtn', 'spotZone']) {
+      for (const id of ['spotAddBtn', 'spotRowBtn', 'spotResBtn', 'spotClearBtn', 'spotZone']) {
         const b = el(id); if (b) b.hidden = !_spotEdit;
+      }
+      // Reserving acts on the bay in hand, so it says which way it will go and
+      // is dead until one is picked — like deleting.
+      const res = el('spotResBtn');
+      if (res) {
+        const picked = _spotPick && ZONE_SPOTS.find(x => spotKey(x.zone, x.no) === _spotPick);
+        res.disabled = !picked;
+        res.textContent = t(picked && picked.res ? 'spots.unreserve' : 'spots.reserve');
       }
       const addBtn = el('spotAddBtn');
       if (addBtn) {
@@ -1765,6 +1798,23 @@
     // ----- DELETING, AND TURNING ------------------------------------------
     // Both act on the bay that is picked, so both are one deliberate thing you
     // do to a chosen target rather than something a stray tap can trigger.
+    // Holding a bay back. A reserved bay is still drawn and still countable —
+    // it is simply not one to hand out without meaning to.
+    el('spotResBtn')?.addEventListener('click', async () => {
+      if (!_spotEdit || !roleAtLeast('staff')) return;
+      const key = _spotPick;
+      if (!key) { showToast(t('spots.pick_first'), 'error'); return; }
+      const sp = ZONE_SPOTS.find(x => spotKey(x.zone, x.no) === key);
+      if (!sp) { _spotPick = null; renderMapSpots(); return; }
+      const next = ZONE_SPOTS.map(x => (spotKey(x.zone, x.no) === key
+        ? Object.assign({}, x, sp.res ? { res: undefined } : { res: true })
+        : x));
+      if (await saveZoneSpots(normaliseSpots(next))) {
+        renderMapSpots();
+        showToast(t(sp.res ? 'spots.unreserved_ok' : 'spots.reserved_ok', { zone: sp.zone, n: sp.no }));
+      }
+    });
+
     el('spotDelBtn')?.addEventListener('click', async () => {
       if (!_spotEdit || !roleAtLeast('staff')) return;
       const key = _spotPick;
@@ -2022,6 +2072,11 @@
     });
 
     async function assignCarToSpot(zone, no) {
+      // A reservation is not a lock — it is a note from whoever made it, and
+      // the person at the map may well be the one it was made for. It has to be
+      // said out loud, once, rather than silently refused or silently ignored.
+      const sp = ZONE_SPOTS.find(x => spotKey(x.zone, x.no) === spotKey(zone, no));
+      if (sp && sp.res && !await uiConfirm(t('spots.reserved_confirm', { zone, n: no }))) return;
       const pool = unplacedCars(zone);
       if (!pool.length) { showToast(t('spots.nobody_free'), 'error'); return; }
       const pick = await uiChoose(
@@ -5018,7 +5073,7 @@
     // (notes, modifications, photos, checklist, detailed_description, …) are only
     // needed in the detail view, which hydrates them on demand. `updated_at` is
     // included so any edit still bumps the fingerprint.
-    const CAR_LIST_COLS  = 'id,entry_no,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,phone,telegram,city,category,updated_at,arrived_at,checked_in_by,spot_no,deleted_at,deleted_by,rsvp,rsvp_at,telegram_chat_id,import_batch';
+    const CAR_LIST_COLS  = 'id,entry_no,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,color,phone,telegram,city,category,updated_at,arrived_at,checked_in_by,spot_no,deleted_at,deleted_by,rsvp,rsvp_at,telegram_chat_id,import_batch';
     const TASK_LIST_COLS = 'id,title,event,date,status,status_color,is_completed,event_id,due_at,created_at,assigned_user_id,assigned_user_name,started_at,completed_at,completed_by_user_id,completed_by_user_name,priority,category,due_date,created_by,assigned_to,assigned_at,completed_by,team,updated_at,reminder_sent';
 
     // Canonical parking zones (car categories). Single source of truth for the
@@ -5061,9 +5116,9 @@
       return html;
     }
 
-    const CAR_FP_FIELDS   = ['id','entry_no','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','city','event_id','updated_at','spot_no','rsvp','telegram_chat_id'];
+    const CAR_FP_FIELDS   = ['id','entry_no','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','color','city','event_id','updated_at','spot_no','rsvp','telegram_chat_id'];
     const AGENDA_FP_FIELDS = ['id','event_id','title','at_time','notes','updated_at'];
-    const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','telegram','email','city','category','year','social_links','transport_info','modifications','photos','status','created_at'];
+    const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','telegram','email','city','category','year','color','social_links','transport_info','modifications','photos','status','created_at'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
     const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','cover_url','starts_at','days_left','archived','plan_id'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
@@ -6666,12 +6721,37 @@
       _scanPaused = true;
       const name = [car.brand, car.model].filter(Boolean).join(' ') || car.model || '—';
       el('gsrName').textContent = name;
-      el('gsrSub').textContent = [car.owner, car.plate].filter(Boolean).join(' · ');
+      el('gsrSub').textContent = [car.color, car.owner, car.plate].filter(Boolean).join(' · ');
       const blockReason = plateBlocked(car.plate);
       el('gsrStatus').innerHTML = `<span class="badge ${statusToBadge(car.status)}">${escape(translateStatus(car.status, 'car'))}</span>`
         + (blockReason !== null ? `<div class="gsr-blocked">⛔ ${escape(t('block.gate_warn'))}${blockReason ? ' — ' + escape(blockReason) : ''}</div>` : '');
       const card = document.querySelector('#gateScanResult .gsr-card');
       if (card) card.classList.toggle('is-blocked', blockReason !== null);
+      // Where the driver has to go, in the size it has to be read at from a
+      // phone held at arm's length in daylight. The scan already knew this and
+      // said nothing: the card gave the car's name and status, and the operator
+      // then had to go looking for the spot in another screen.
+      const where = el('gsrWhere');
+      const spotBtn = el('gsrSpot'), mapBtn = el('gsrMap');
+      const hasSpot = car.spot_no != null && String(car.zone || '').trim() !== '';
+      if (where) {
+        where.hidden = false;
+        where.className = 'gsr-where' + (hasSpot ? '' : ' is-missing');
+        where.innerHTML = hasSpot
+          ? `<div class="gsr-no">${car.entry_no != null ? '#' + escape(String(car.entry_no)) : ''}</div>`
+            + `<div class="gsr-zone">${escape(t('gate.go_zone'))} <b>${escape(car.zone)}</b></div>`
+            + `<div class="gsr-spot">${escape(t('gate.go_spot'))} <b>${escape(String(car.spot_no))}</b></div>`
+          : `<div class="gsr-no">${car.entry_no != null ? '#' + escape(String(car.entry_no)) : ''}</div>`
+            + `<div class="gsr-nospot">⚠️ ${escape(t('gate.no_spot_yet'))}</div>`;
+      }
+      // Two different next steps, and only ever one of them on screen.
+      if (spotBtn) { spotBtn.hidden = hasSpot || !roleAtLeast('staff'); spotBtn.dataset.carId = car.id; }
+      if (mapBtn) {
+        mapBtn.hidden = !hasSpot;
+        mapBtn.dataset.spotZone = car.zone || '';
+        mapBtn.dataset.spotNo = car.spot_no != null ? String(car.spot_no) : '';
+      }
+
       const arrived = statusKey(car.status) === 'sosit';
       const btn = el('gsrArrive');
       if (btn) { btn.dataset.carId = car.id; btn.disabled = arrived; btn.textContent = arrived ? t('gate.scan_already_short') : t('car.status.arrived'); }
@@ -6689,6 +6769,38 @@
       _scanPaused = false;
       _lastScanAt = Date.now(); // debounce so the same code isn't re-read instantly
     }
+    // Light the bay up on the map. Reading a zone and a number off a card is
+    // not the same as seeing where to point: the plan is 266 bays.
+    function showSpotOnMap(zone, no) {
+      hideGateScanResult();
+      closeGate();
+      selectSection('map');
+      setTimeout(() => {
+        const pin = [...document.querySelectorAll('.map-spot')].find(p =>
+          p.dataset.spotNo === String(no)
+          && (p.dataset.spotZone || '').toLowerCase() === String(zone || '').toLowerCase());
+        if (!pin) return;
+        // Not scrolled to: the frame pans by transform, and moving it would
+        // leave the operator somewhere they did not ask to be. The plan is
+        // fitted to the screen anyway, so lighting the pin is enough.
+        pin.classList.add('is-found');
+        setTimeout(() => pin.classList.remove('is-found'), 6000);
+      }, 600);
+    }
+
+    el('gsrMap')?.addEventListener('click', (e) => {
+      const b = e.currentTarget;
+      showSpotOnMap(b.dataset.spotZone, b.dataset.spotNo);
+    });
+    // No spot yet. This is navigation, not a mode: the map is where a bay is
+    // tapped and a car chosen, exactly as it is for every other car.
+    el('gsrSpot')?.addEventListener('click', () => {
+      hideGateScanResult();
+      closeGate();
+      selectSection('map');
+      showToast(t('gate.assign_hint'));
+    });
+
     el('gsrCancel')?.addEventListener('click', hideGateScanResult);
     el('gsrArrive')?.addEventListener('click', () => {
       const id = el('gsrArrive')?.dataset.carId; if (!id) return;
@@ -7125,6 +7237,7 @@
         if (!_statsAnimated) { countUp(n, val, 750, 0); return; }
         if (prev !== val) countUp(n, val, 500, prev); else n.textContent = val;
       };
+      try { renderParkStrip(); } catch (_) {}
       setStat('statCars', scopedCars.length);
       setStat('statEvents', (events || state.events || []).length);
       setStat('statCarsConfirmed', arrived);
@@ -7152,6 +7265,32 @@
           labels[3].textContent = t("home.tasks_open");
         }
       }
+    }
+
+    // Parking, as four numbers on the home screen.
+    //
+    // The map has always known all of this and it lived only inside the map:
+    // how many bays the plan has, how many are taken, and — the one that
+    // actually decides whether the gate will work — how many cars are coming
+    // with nowhere to stand. A number nobody opens a screen to read is a number
+    // nobody acts on.
+    function renderParkStrip() {
+      const box = el('parkStrip');
+      if (!box) return;
+      const cars = activeCars();
+      const total = (ZONE_SPOTS || []).length;
+      if (!roleAtLeast('staff') || (!total && !cars.length)) { box.hidden = true; return; }
+      const placed = cars.filter(c => c.spot_no != null && String(c.zone || '').trim() !== '').length;
+      const free = Math.max(0, total - placed);
+      const waiting = cars.length - placed;
+      const cell = (n, label, kind) =>
+        `<div class="park-cell${kind ? ' is-' + kind : ''}"><b>${n}</b><span>${escape(label)}</span></div>`;
+      box.innerHTML =
+        cell(total, t('park.total')) +
+        cell(placed, t('park.taken')) +
+        cell(free, t('park.free'), free ? 'ok' : 'warn') +
+        cell(waiting, t('park.waiting'), waiting ? 'warn' : 'ok');
+      box.hidden = false;
     }
 
     // The active event's cover photo, shown blurred + darkened behind the hero.
@@ -9303,7 +9442,7 @@
     // confirmation channel and actions.
     let _regDetailId = null;
     let _regChannel = 'none';
-    const REG_EDIT_FIELDS = ['brand', 'model', 'plate', 'year', 'owner', 'phone', 'telegram', 'email', 'city', 'social_links', 'transport_info', 'modifications', 'note'];
+    const REG_EDIT_FIELDS = ['brand', 'model', 'plate', 'year', 'color', 'owner', 'phone', 'telegram', 'email', 'city', 'social_links', 'transport_info', 'modifications', 'note'];
     function readRegForm() {
       const f = document.getElementById('regDetailForm'); const o = {};
       if (!f) return o;
@@ -9350,6 +9489,7 @@
       const e = readRegForm();
       const patch = {
         brand: e.brand || null, model: e.model || null, plate: e.plate || null, year: e.year,
+        color: e.color || null,
         owner: e.owner || null, phone: e.phone || null, telegram: e.telegram || null, email: e.email || null,
         city: e.city || null, social_links: e.social_links || null, transport_info: e.transport_info || null,
         modifications: e.modifications || null, note: e.note || null
@@ -9436,7 +9576,7 @@
         phone: m.phone || null, contact: m.phone || null, telegram: m.telegram || null,
         email: m.email || null, city: m.city || null, category: r.category || null,
         zone: (zone || '').trim() || '',
-        year: m.year || null, social_links: m.social_links || null,
+        year: m.year || null, color: m.color || null, social_links: m.social_links || null,
         transport_info: m.transport_info || null,
         modifications: m.modifications || null,
         photos: Array.isArray(r.photos) ? r.photos : [],
@@ -10589,6 +10729,7 @@
             ${fieldRow(t('car.detail.brand'), c.brand)}
             ${fieldRow(t('car.detail.model'), c.model)}
             ${fieldRow(t('car.detail.year'), c.year)}
+            ${fieldRow(t('car.detail.color'), c.color)}
             ${fieldRow(t('car.detail.category'), c.category ? localizeDept(c.category) : c.category)}
             ${fieldRow(t('car.detail.plate'), c.plate)}
             ${fieldRow(t('car.detail.event'), (() => {

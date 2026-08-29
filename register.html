@@ -125,6 +125,12 @@
           <div><label>Număr de înmatriculare</label><input name="plate" placeholder="B 100 XYZ"><div class="field-note" id="plateNote"></div></div>
           <div><label>An fabricație</label><input name="year" inputmode="numeric" maxlength="4" placeholder="2018"></div>
         </div>
+        <div class="row">
+          <!-- The colour is what the person at the gate sees before anything
+               else, and it was the one thing the app never asked for. -->
+          <div><label>Culoare</label><input name="color" maxlength="40" placeholder="Silver"></div>
+          <div></div>
+        </div>
 
         <div class="sec"><span class="sec-n">2</span> Contact</div>
         <div class="row">
@@ -400,6 +406,7 @@
         owner: g('owner') || null, city: g('city') || null, phone: fullPhone,
         telegram: g('telegram') || null, email: g('email') || null,
         year: (parseInt((g('year') || '').replace(/\D/g, ''), 10) || null),
+        color: g('color') || null,
         social_links: g('social_links') || null, transport_info: g('transport_info') || null,
         modifications: g('modifications') || null, note: g('note') || null,
         status: 'pending'

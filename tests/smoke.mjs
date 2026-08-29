@@ -71,7 +71,10 @@ async function waitForServer(timeoutMs = 8000) {
 
 function chromiumOpts() {
   const cand = process.env.PLAYWRIGHT_CHROMIUM || '/opt/pw-browsers/chromium';
-  return existsSync(cand) ? { executablePath: cand } : {};
+  // A fake camera, so the gate scanner can actually be driven. Nothing else in
+  // the suite touches getUserMedia, and a fake device is inert until asked for.
+  const args = ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'];
+  return existsSync(cand) ? { executablePath: cand, args } : { args };
 }
 
 const srv = startServer();
@@ -3632,13 +3635,19 @@ try {
     const SPOTS = [
       { zone: 'Stance', no: 1, x: 20, y: 30 },
       { zone: 'EXPO ZONE', no: 1, x: 50, y: 30 },
-      { zone: 'GREEN ZONE', no: 1, x: 80, y: 30 },
+      // Held back on purpose: free, but not free to hand out.
+      { zone: 'GREEN ZONE', no: 1, x: 80, y: 30, res: true },
     ];
+    let zsaved = null;
     const zctx = await browser.newContext({ viewport: { width: 1400, height: 1100 } });
     await zctx.route('**://*.supabase.co/**', (r) => {
-      const u = r.request().url();
+      const u = r.request().url(), m = r.request().method();
       const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
       if (u.includes('/rest/v1/zone_plans')) {
+        if (m === 'PATCH') {
+          try { zsaved = JSON.parse(r.request().postData() || '{}').spots; } catch (_) { /* asserted below */ }
+          return J([]);
+        }
         const row = { id: 1, name: 'Plan', plan_path: null, map_url: 'https://map.test/plan.png', updated_at: '2026-08-27T10:00:00Z' };
         return J([/id=eq\./.test(u) ? { ...row, spots: SPOTS } : row]);
       }
@@ -3698,14 +3707,219 @@ try {
         [...(document.getElementById('spotZone')?.options || [])].map((o) => o.value));
       check('zones-bay-editor-offers-a-zone-from-the-plan',
         spotZones.includes('EXPO ZONE'), spotZones.join(','));
+
+      // A third state for a bay. Free and taken were the only two, so a bay
+      // being kept for somebody could only be remembered, not recorded.
+      const painted = await zp.evaluate(() => {
+        const pin = [...document.querySelectorAll('.map-spot')]
+          .find((p) => (p.dataset.spotZone || '') === 'GREEN ZONE');
+        return pin ? { cls: pin.className, title: pin.getAttribute('title') || '' } : null;
+      });
+      check('reserved-bay-is-drawn-apart',
+        !!painted && /reserved/.test(painted.cls) && !/taken/.test(painted.cls),
+        JSON.stringify(painted));
+
+      // Reserving one, from the editor. The button acts on the bay in hand and
+      // says which way it will go.
+      const before = await zp.evaluate(() => document.getElementById('spotResBtn')?.disabled);
+      check('reserve-button-waits-for-a-bay', before === true, String(before));
+      await zp.evaluate(() => {
+        [...document.querySelectorAll('.map-spot')]
+          .find((p) => (p.dataset.spotZone || '') === 'Stance')?.click();
+      });
+      await zp.waitForTimeout(400);
+      const label = await zp.evaluate(() => ({
+        disabled: document.getElementById('spotResBtn')?.disabled,
+        text: document.getElementById('spotResBtn')?.textContent.trim(),
+      }));
+      check('reserve-button-wakes-on-a-picked-bay',
+        label.disabled === false && /rezerv/i.test(label.text), JSON.stringify(label));
+      await zp.evaluate(() => document.getElementById('spotResBtn')?.click());
+      await zp.waitForTimeout(700);
+      check('reserving-writes-it-onto-the-plan',
+        Array.isArray(zsaved) && zsaved.some((sp) => sp.zone === 'Stance' && sp.no === 1 && sp.res === true),
+        JSON.stringify(zsaved));
+      // And the same button now offers the way back.
+      const after = await zp.evaluate(() => document.getElementById('spotResBtn')?.textContent.trim());
+      check('reserve-button-offers-the-way-back', /ridic|lift|снят/i.test(after), after);
+
+      // Out of the editor: a reserved bay is not refused, it is questioned. The
+      // person at the map may well be the one it was held for.
+      await zp.evaluate(() => document.getElementById('mapEditBtn')?.click());
+      await zp.waitForTimeout(400);
+      await zp.evaluate(() => {
+        [...document.querySelectorAll('.map-spot')]
+          .find((p) => (p.dataset.spotZone || '') === 'GREEN ZONE')?.click();
+      });
+      await zp.waitForTimeout(600);
+      const asked = await zp.evaluate(() => ({
+        dialog: document.getElementById('uiDialog')?.className || '',
+        msg: document.getElementById('uiDialogMessage')?.textContent || '',
+        picker: !!document.querySelector('#uiDialogPick .ui-pick-row'),
+      }));
+      check('reserved-bay-asks-before-it-is-handed-out',
+        /show/.test(asked.dialog) && /rezervat/i.test(asked.msg) && !asked.picker,
+        JSON.stringify(asked));
     } catch (e) {
       for (const n of ['zones-gate-offers-a-zone-from-the-plan', 'zones-gate-keeps-the-app-classes',
-        'zones-are-not-offered-twice', 'zones-bay-editor-offers-a-zone-from-the-plan']) {
+        'zones-are-not-offered-twice', 'zones-bay-editor-offers-a-zone-from-the-plan',
+        'reserved-bay-is-drawn-apart', 'reserve-button-waits-for-a-bay',
+        'reserve-button-wakes-on-a-picked-bay', 'reserving-writes-it-onto-the-plan',
+        'reserve-button-offers-the-way-back', 'reserved-bay-asks-before-it-is-handed-out']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
       console.log(`zone picker checks: ${e.message}`);
     }
     await zctx.close();
+  }
+
+  // 4v. What the gate says after a scan.
+  //
+  // Scanning identified the car and stopped there: the card gave the name, the
+  // owner and the status. The one thing the driver is waiting to hear — where
+  // to go — was in another screen, so the operator read the plate back and went
+  // looking. The card now answers it, or says plainly that nobody has assigned
+  // a spot yet.
+  //
+  // The camera is real here: a fake capture device plus a stub BarcodeDetector,
+  // so the whole path runs — start the scanner, decode, find the car, render.
+  {
+    const CARS = [
+      { id: 3, entry_no: 247, brand: 'Volkswagen', model: 'Golf 5', owner: 'Ion Popa', plate: 'ABC 123',
+        color: 'Silver', status: 'Invitat', event_id: 6, zone: 'Retro', spot_no: 38, telegram_chat_id: 1, deleted_at: null },
+      { id: 4, entry_no: 248, brand: 'Mazda', model: 'RX7', owner: 'Fara Loc', plate: 'DEF 456',
+        color: null, status: 'Invitat', event_id: 6, zone: 'Retro', spot_no: null, telegram_chat_id: 1, deleted_at: null },
+    ];
+    const SPOTS = [{ zone: 'Retro', no: 38, x: 40, y: 40 }, { zone: 'Retro', no: 39, x: 60, y: 40 }];
+    const gctx = await browser.newContext({
+      viewport: { width: 430, height: 930 }, isMobile: true, hasTouch: true,
+      permissions: ['camera'],
+    });
+    await gctx.route('**://*.supabase.co/**', (r) => {
+      const u = r.request().url();
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      if (u.includes('/rest/v1/zone_plans')) {
+        const row = { id: 1, name: 'Plan', plan_path: null, map_url: 'https://map.test/p.png', updated_at: '2026-08-27T10:00:00Z' };
+        return J([/id=eq\./.test(u) ? { ...row, spots: SPOTS } : row]);
+      }
+      if (u.includes('/rest/v1/cars')) return J(/deleted_at=not\.is\.null/.test(u) ? [] : CARS);
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'Activ', plan_id: 1, starts_at: new Date(Date.now() + 864e5).toISOString() }]);
+      if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+      if (u.includes('/rest/v1/')) return J([]);
+      if (u.includes('/functions/v1/')) return J({});
+      return r.abort();
+    });
+    await gctx.route('**://map.test/**', (r) => r.fulfill({
+      status: 200, contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500"><rect width="800" height="500" fill="#334"/></svg>',
+    }));
+    // The decoder, stubbed at the one seam the app has for it. Which code it
+    // returns is switched from the test by a global.
+    await gctx.addInitScript(() => {
+      window.__scanValue = 'KULTURA:3:ABC 123';
+      window.BarcodeDetector = class {
+        constructor() {}
+        async detect() { return window.__scanValue ? [{ rawValue: window.__scanValue }] : []; }
+      };
+    });
+    const gp = await gctx.newPage();
+    try {
+      await gp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await gp.evaluate(() => localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      })));
+      await gp.reload({ waitUntil: 'domcontentloaded' });
+      await gp.waitForTimeout(2600);
+      await gp.evaluate(() => document.getElementById('splashScreen')?.remove());
+
+      // Parking, on the home screen. The map has always known these numbers and
+      // they lived only inside it.
+      const park = await gp.evaluate(() => {
+        const b = document.getElementById('parkStrip');
+        return b && !b.hidden
+          ? [...b.querySelectorAll('.park-cell')].map((c) => c.querySelector('b').textContent)
+          : null;
+      });
+      // Two bays on the plan, one car standing on one of them, one car with no
+      // spot at all.
+      check('home-shows-parking-numbers',
+        !!park && park[0] === '2' && park[1] === '1' && park[2] === '1' && park[3] === '1',
+        JSON.stringify(park));
+
+      // Looking a car up the way somebody at the gate would: by the number on
+      // the pass. Searching plate/owner/brand/model alone never found it.
+      await gp.evaluate(() => {
+        document.getElementById('cmdk')?.classList.add('show');
+        const i = document.getElementById('cmdkInput');
+        i.value = '247'; i.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      await gp.waitForTimeout(400);
+      const found = await gp.evaluate(() =>
+        [...document.querySelectorAll('#cmdkResults .cmdk-item, #cmdkResults [data-cmdk-i]')]
+          .map((x) => x.textContent.replace(/\s+/g, ' ').trim()));
+      check('search-finds-a-car-by-its-number',
+        found.some((r2) => /247/.test(r2) && /ABC 123/.test(r2)), found.slice(0, 4).join(' | '));
+      // And answers "where is it" in the same line, instead of another screen.
+      check('search-says-where-the-car-stands',
+        found.some((r2) => /247/.test(r2) && /Retro/.test(r2) && /38/.test(r2)), found.slice(0, 4).join(' | '));
+      await gp.evaluate(() => document.getElementById('cmdk')?.classList.remove('show'));
+      await gp.waitForTimeout(200);
+
+      // Now the gate itself.
+      await gp.evaluate(() => document.getElementById('gateOpenBtn')?.click());
+      await gp.waitForTimeout(600);
+      await gp.evaluate(() => document.getElementById('gateScanBtn')?.click());
+      await gp.waitForSelector('#gateScanResult:not([hidden])', { timeout: 12000 });
+      await gp.waitForTimeout(400);
+      const card = await gp.evaluate(() => ({
+        sub: document.getElementById('gsrSub').textContent,
+        where: document.getElementById('gsrWhere').textContent.replace(/\s+/g, ' ').trim(),
+        missing: document.getElementById('gsrWhere').className.includes('is-missing'),
+        mapBtn: !document.getElementById('gsrMap').hidden,
+        spotBtn: !document.getElementById('gsrSpot').hidden,
+      }));
+      check('scan-says-the-zone-and-the-spot',
+        /Retro/.test(card.where) && /38/.test(card.where) && /247/.test(card.where),
+        JSON.stringify(card));
+      // Colour is what a person at a gate matches on before anything else, and
+      // it was the one thing the app never asked for.
+      check('scan-says-the-colour', /Silver/.test(card.sub), card.sub);
+      check('scan-offers-the-map-when-there-is-a-spot', card.mapBtn && !card.spotBtn, JSON.stringify(card));
+
+      // The other half: accepted, but nobody has given them a place yet. The
+      // card used to look identical to the one above.
+      await gp.evaluate(() => {
+        document.getElementById('gsrCancel').click();
+        window.__scanValue = 'KULTURA:4:DEF 456';
+      });
+      await gp.waitForTimeout(1600);
+      await gp.waitForSelector('#gateScanResult:not([hidden])', { timeout: 12000 });
+      await gp.waitForTimeout(400);
+      const none = await gp.evaluate(() => ({
+        where: document.getElementById('gsrWhere').textContent.replace(/\s+/g, ' ').trim(),
+        missing: document.getElementById('gsrWhere').className.includes('is-missing'),
+        mapBtn: !document.getElementById('gsrMap').hidden,
+        spotBtn: !document.getElementById('gsrSpot').hidden,
+      }));
+      check('scan-says-plainly-when-there-is-no-spot',
+        none.missing && /neatribuit/i.test(none.where), JSON.stringify(none));
+      check('scan-offers-the-way-to-fix-it', none.spotBtn && !none.mapBtn, JSON.stringify(none));
+    } catch (e) {
+      for (const n of ['home-shows-parking-numbers', 'search-finds-a-car-by-its-number',
+        'search-says-where-the-car-stands', 'scan-says-the-zone-and-the-spot', 'scan-says-the-colour',
+        'scan-offers-the-map-when-there-is-a-spot', 'scan-says-plainly-when-there-is-no-spot',
+        'scan-offers-the-way-to-fix-it']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`gate scan checks: ${e.message}`);
+    }
+    await gctx.close();
   }
 
   // 5. Public pages (given out by QR at the event) must render standalone.
