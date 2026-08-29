@@ -2642,13 +2642,36 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  /* The row gained a fourth control. It does not scroll and nothing says it is
+     cut, so without wrapping the last button is simply off the screen — the
+     same way the map's action bar lost its buttons. */
+  flex-wrap: wrap;
   padding: 12px;
   background: var(--surface-solid);
   border: 1px solid var(--border);
   border-radius: 14px;
 }
 .gate-car.arrived { opacity: 0.6; }
-.gate-car-info { flex: 1; min-width: 0; }
+.gate-car-info { flex: 1 1 9rem; min-width: 0; }
+/* Linking a driver to the bot, offered only once they are through the gate and
+   only while nothing else can reach them. Deliberately quieter than the arrive
+   button beside it: it is an opportunity, not the job. */
+.gate-tg {
+  flex-shrink: 0;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(34,158,217,0.45);
+  border-radius: 12px;
+  background: transparent;
+  color: #229ED9;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.gate-tg:hover { background: rgba(34,158,217,0.10); }
+.gate-tg:active { transform: scale(0.96); }
 .gate-plate {
   font-size: 17px;
   font-weight: 800;

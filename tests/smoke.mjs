@@ -1210,6 +1210,11 @@ try {
     const CARS = [
       { id: 1, entry_no: 1, brand: 'Dacia', model: 'Logan', owner: 'Ion Popa', plate: 'P1', phone: '069123456', status: 'Invitat', event_id: 6, telegram_chat_id: null, deleted_at: null },
       { id: 2, entry_no: 2, brand: 'BMW', model: 'M3', owner: 'Fara Telefon', plate: 'P2', phone: '', status: 'Invitat', event_id: 6, telegram_chat_id: null, deleted_at: null },
+      // Already through the gate and still unreachable: the one moment when
+      // linking them costs nobody anything, because they are standing there.
+      { id: 3, entry_no: 3, brand: 'Audi', model: 'S4', owner: 'Deja Aici', plate: 'P3', phone: '069999999', status: 'Sosit', event_id: 6, telegram_chat_id: null, deleted_at: null },
+      // Through the gate and already linked — nothing to offer.
+      { id: 4, entry_no: 4, brand: 'Ford', model: 'Focus', owner: 'Legat', plate: 'P4', phone: '069888888', status: 'Sosit', event_id: 6, telegram_chat_id: 4242, deleted_at: null },
     ];
     const LINK = 'https://t.me/KulturaEventBot?start=1-abcdef0123456789abcdef01';
     const MINT_MS = 1500;
@@ -1228,6 +1233,12 @@ try {
       if (u.includes('/functions/v1/telegram')) {
         return new Promise((res) => setTimeout(
           () => res(J({ ok: true, cars: [{ id: 1, link: LINK, linked: false }] })), MINT_MS));
+      }
+      // A live bot: without this the gate is right to offer nothing, and every
+      // QR check below would pass by never rendering a button.
+      if (u.includes('/functions/v1/health')) {
+        return J({ ok: true, telegram: { configured: true, username: 'Bot', webhook_live: true, linked: 1, total: 4 },
+          sms: { configured: false, provider: '' }, public_base_url: 'https://k.example' });
       }
       if (u.includes('/rest/v1/cars')) return J(/deleted_at=not\.is\.null/.test(u) ? [] : CARS);
       if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'planned' }]);
@@ -1295,10 +1306,62 @@ try {
       const noPhone = (await ip.locator('[data-detail-action="car-invite-tg"]').innerText()).trim();
       check('invite-btn-falls-back-to-copy-without-phone',
         !/trimite/i.test(noPhone) && noPhone.length > 0);
+
+      // The same invite as a code on the screen. Sending it needs a channel,
+      // and the missing channel is the whole problem — 51 of 54 drivers could
+      // not be reached at all. A code can be pointed at.
+      await ip.click('[data-detail-action="car-invite-qr"]');
+      await ip.waitForTimeout(MINT_MS + 1200);
+      const qr = await ip.evaluate(() => ({
+        shown: document.getElementById('modal-car-qr')?.classList.contains('show'),
+        svg: !!document.querySelector('#carQrBox svg'),
+        title: document.getElementById('carQrTitle')?.textContent || '',
+      }));
+      check('invite-qr-draws-a-code', !!qr.shown && qr.svg, JSON.stringify(qr));
+      // The modal serves the car's own pass as well, so it has to say which of
+      // the two codes is on screen.
+      check('invite-qr-says-it-is-the-telegram-one', /telegram/i.test(qr.title), qr.title);
+      await ip.evaluate(() => document.getElementById('modal-car-qr')?.classList.remove('show'));
+      await ip.waitForTimeout(300);
+
+      // And at the gate, where the driver is in front of you.
+      await ip.evaluate(() => document.getElementById('gateOpenBtn')?.click());
+      await ip.waitForTimeout(1200);
+      const gate = await ip.evaluate(() => ({
+        onArrivedUnlinked: !!document.querySelector('.gate-car[data-car-id="3"] [data-gate-tg]'),
+        onArrivedLinked: !!document.querySelector('.gate-car[data-car-id="4"] [data-gate-tg]'),
+        onNotArrived: !!document.querySelector('.gate-car[data-car-id="1"] [data-gate-tg]'),
+      }));
+      check('gate-offers-the-code-to-an-unreachable-arrival', gate.onArrivedUnlinked, JSON.stringify(gate));
+      check('gate-offers-nothing-to-someone-already-linked', !gate.onArrivedLinked, JSON.stringify(gate));
+      // Before the car is in, the button beside it is the one that matters.
+      check('gate-offers-nothing-before-the-car-is-in', !gate.onNotArrived, JSON.stringify(gate));
+
+      // Every control in the row has to be on the screen at phone width — the
+      // row gained a fourth one, and that is exactly how the map's action bar
+      // lost its buttons.
+      await ip.setViewportSize({ width: 430, height: 900 });
+      await ip.waitForTimeout(400);
+      const fit = await ip.evaluate(() => {
+        const row = document.querySelector('.gate-car[data-car-id="3"]');
+        if (!row) return null;
+        const w = window.innerWidth;
+        return [...row.querySelectorAll('button, select')].map((b) => {
+          const r2 = b.getBoundingClientRect();
+          return { cls: b.className, left: Math.round(r2.left), right: Math.round(r2.right), w };
+        });
+      });
+      check('gate-row-controls-all-fit-the-screen',
+        !!fit && fit.length >= 3 && fit.every((b) => b.left >= 0 && b.right <= b.w),
+        JSON.stringify(fit));
+      await ip.setViewportSize({ width: 1400, height: 1000 });
     } catch (e) {
       for (const n of ['invite-btn-offers-to-send-when-phone', 'invite-window-opens-before-the-round-trip',
         'invite-opens-whatsapp-to-the-driver',
-        'invite-message-carries-the-connect-link', 'invite-btn-falls-back-to-copy-without-phone']) {
+        'invite-message-carries-the-connect-link', 'invite-btn-falls-back-to-copy-without-phone',
+        'invite-qr-draws-a-code', 'invite-qr-says-it-is-the-telegram-one',
+        'gate-offers-the-code-to-an-unreachable-arrival', 'gate-offers-nothing-to-someone-already-linked',
+        'gate-offers-nothing-before-the-car-is-in', 'gate-row-controls-all-fit-the-screen']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
       console.log(`invite checks: ${e.message}`);
@@ -1561,7 +1624,7 @@ try {
         if (u.includes('/functions/v1/telegram')) return J({ ok: true, has_token: true, username: 'Bot', webhook: 'x', linked: 0 });
         if (u.includes('/rest/v1/cars')) return J(/deleted_at=not\.is\.null/.test(u) ? [] : cars);
         if (u.includes('/rest/v1/event_agenda')) return J(agenda);
-        if (u.includes('/rest/v1/events')) return J([event]);
+        if (u.includes('/rest/v1/events')) return J(Array.isArray(event) ? event : [event]);
         if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
         if (u.includes('/rest/v1/')) return J([]);
         return r.abort();
@@ -1597,7 +1660,7 @@ try {
     const PAST = new Date(Date.now() - 14 * 86400e3).toISOString();
     // A real start date is part of being ready: without it the reminders, the
     // countdown and the confirmation window all skip the event in silence.
-    const READY_EVENT = { id: 6, title: 'F', status: 'Activ', archived: false, entries_frozen: true, is_sandbox: false, reg_capacity: 40, starts_at: SOON };
+    const READY_EVENT = { id: 6, title: 'F', status: 'Activ', archived: false, entries_frozen: true, is_sandbox: false, reg_capacity: 40, starts_at: SOON, plan_id: 1 };
     const RAW_EVENT = { id: 6, title: 'F', status: 'Activ', archived: false, entries_frozen: false, is_sandbox: false, reg_capacity: null };
     const OVER_EVENT = { ...READY_EVENT, starts_at: PAST, ends_at: PAST };
     const CARS = [
@@ -1619,6 +1682,9 @@ try {
       // is the only field that can answer "when", and nothing used to say it
       // was missing.
       check('ready-list-flags-missing-start-date', rows.some(r => /dat[ăa] real/i.test(r)));
+      // RAW_EVENT has no plan_id: cars are entered and the map is an empty
+      // frame, so nobody can be told where to stand.
+      check('ready-list-flags-event-without-a-plan', rows.some(r => /plan/i.test(r)), rows.join(' | '));
 
       await a.p.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
       await a.p.waitForTimeout(1000);
@@ -1664,6 +1730,42 @@ try {
       check('channel-health-all-green-when-configured', green === true, String(okPills));
       await b.c.close();
 
+      // The next event, which is not the one you are looking at.
+      //
+      // The list has always asked about the active event only, and that is how
+      // both events created last week sat two days out with no cars, no plan
+      // and no capacity while Home said everything was fine. Event 6 here is
+      // completely ready, so any row on screen is about event 9.
+      const soonEvent = {
+        id: 9, title: 'Kultura Bavaria', status: 'Planificat', archived: false, is_sandbox: false,
+        entries_frozen: false, reg_capacity: null, plan_id: null,
+        starts_at: new Date(Date.now() + 2 * 86400e3).toISOString(),
+      };
+      const e2 = await mk(HEALTHY, CARS.map(c => ({ ...c, zone: 'A1' })), [READY_EVENT, soonEvent],
+        [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }]);
+      await e2.p.waitForTimeout(900);
+      const soonRows = await e2.p.evaluate(() =>
+        [...document.querySelectorAll('#readyList .ready-row')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
+      check('ready-list-warns-about-the-next-event',
+        soonRows.some(r => /Bavaria/.test(r)), soonRows.join(' | '));
+      // It says when, and what is missing — a name and a date alone would send
+      // somebody looking for a problem that may not exist.
+      check('ready-list-says-when-the-next-event-is',
+        soonRows.some(r => /Bavaria/.test(r) && /2 zile/.test(r)), soonRows.join(' | '));
+      check('ready-list-says-what-the-next-event-lacks',
+        soonRows.some(r => /Bavaria/.test(r) && /mașin/i.test(r) && /plan/i.test(r)), soonRows.join(' | '));
+      await e2.c.close();
+
+      // A month out is not this week's problem: the same gaps, far enough away
+      // that saying so every day would train everyone to ignore the list.
+      const e3 = await mk(HEALTHY, CARS.map(c => ({ ...c, zone: 'A1' })),
+        [READY_EVENT, { ...soonEvent, starts_at: new Date(Date.now() + 30 * 86400e3).toISOString() }],
+        [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }]);
+      await e3.p.waitForTimeout(900);
+      const farHidden = await e3.p.evaluate(() => document.getElementById('readyList').hidden);
+      check('ready-list-stays-quiet-about-a-distant-event', farHidden === true);
+      await e3.c.close();
+
       // An event two weeks past its end, still marked Activ — the state the
       // live event has been in. Everything else about it is complete, so this
       // row is the only thing the list can be reacting to.
@@ -1681,7 +1783,10 @@ try {
         'channel-health-flags-missing-base-url', 'offline-bar-shows-when-offline',
         'offline-bar-says-saved-locally', 'ready-list-hides-when-nothing-missing',
         'channel-health-all-green-when-configured',
-        'ready-list-flags-missing-start-date', 'ready-list-flags-finished-event']) {
+        'ready-list-flags-missing-start-date', 'ready-list-flags-finished-event',
+        'ready-list-flags-event-without-a-plan',
+        'ready-list-warns-about-the-next-event', 'ready-list-says-when-the-next-event-is',
+        'ready-list-says-what-the-next-event-lacks', 'ready-list-stays-quiet-about-a-distant-event']) {
         if (!checks.some((c) => c.name === n)) check(n, false);
       }
       console.log(`readiness/health checks: ${e.message}`);
@@ -1694,9 +1799,11 @@ try {
   {
     const CARS = [
       // No phone at all, but a linked chat: previously invisible to a campaign.
-      { id: 1, entry_no: 1, brand: 'VW', model: 'Golf', owner: 'Ana Pop', plate: 'P1', status: 'Sosit', event_id: 6, phone: null, contact: null, telegram_chat_id: 111, deleted_at: null },
-      // Phone only: still reachable, by SMS.
-      { id: 2, entry_no: 2, brand: 'Mazda', model: 'RX7', owner: 'Ion Rus', plate: 'P2', status: 'Sosit', event_id: 6, phone: '+37360000002', contact: null, telegram_chat_id: null, deleted_at: null },
+      // Here, also: arrived without ever answering the confirmation.
+      { id: 1, entry_no: 1, brand: 'VW', model: 'Golf', owner: 'Ana Pop', plate: 'P1', status: 'Sosit', event_id: 6, phone: null, contact: null, telegram_chat_id: 111, rsvp: null, deleted_at: null },
+      // Phone only: still reachable, by SMS. And the mirror image of the one
+      // above — confirmed, but not here yet.
+      { id: 2, entry_no: 2, brand: 'Mazda', model: 'RX7', owner: 'Ion Rus', plate: 'P2', status: 'Invitat', event_id: 6, phone: '+37360000002', contact: null, telegram_chat_id: null, rsvp: 'yes', deleted_at: null },
       // Neither: genuinely unreachable, must not be counted.
       { id: 3, entry_no: 3, brand: 'BMW', model: 'E30', owner: 'Fara Contact', plate: 'P3', status: 'Sosit', event_id: 6, phone: null, contact: null, telegram_chat_id: null, deleted_at: null },
     ];
@@ -1743,8 +1850,37 @@ try {
       // Two reachable of three; the one with neither channel is left out.
       check('campaign-counts-only-reachable', /\b2\b/.test(txt) && !/\b3\b/.test(txt), txt);
       check('campaign-shows-channel-split', /1/.test(txt) && /Telegram/i.test(txt), txt);
+
+      // "Confirmed" must mean the driver answered, not that they turned up.
+      // Reading the status instead broke both audiences: before the day nobody
+      // has arrived, so "confirmed" was always empty, and during the day
+      // "unconfirmed" dropped everyone who came without ever answering.
+      //
+      // The two cars are deliberate mirror images — one arrived and never
+      // answered, the other answered and is not here — and they sit on
+      // different channels, so the split says which one was picked. Counting
+      // alone could not: both audiences hold exactly one person.
+      const pick = async (name) => {
+        await sp.evaluate((n) => {
+          document.querySelectorAll('#smsAudience input[type=checkbox]').forEach((cb) => {
+            cb.checked = cb.dataset.smsAud === n;
+          });
+          const one = document.querySelector(`#smsAudience input[data-sms-aud="${n}"]`);
+          one.dispatchEvent(new Event('change', { bubbles: true }));
+        }, name);
+        await sp.waitForTimeout(400);
+        return sp.evaluate(() => document.getElementById('smsRecipientCount').textContent);
+      };
+      const conf = await pick('confirmed');
+      check('campaign-confirmed-means-answered-not-arrived',
+        /0 pe Telegram/.test(conf) && /1 prin SMS/.test(conf), conf);
+      const unconf = await pick('unconfirmed');
+      check('campaign-unconfirmed-keeps-whoever-never-answered',
+        /1 pe Telegram/.test(unconf) && /0 prin SMS/.test(unconf), unconf);
     } catch (e) {
-      for (const n of ['campaign-counts-only-reachable', 'campaign-shows-channel-split']) {
+      for (const n of ['campaign-counts-only-reachable', 'campaign-shows-channel-split',
+        'campaign-confirmed-means-answered-not-arrived',
+        'campaign-unconfirmed-keeps-whoever-never-answered']) {
         if (!checks.some((c) => c.name === n)) check(n, false);
       }
       console.log(`campaign checks: ${e.message}`);
@@ -3480,6 +3616,96 @@ try {
       console.log(`plan library checks: ${e.message}`);
     }
     await pctx.close();
+  }
+
+  // 4u. The zones a car can be put in come from the plan in use.
+  //
+  // The app has nine zones of its own, written as a constant. The venue's
+  // drawing carries its own names as well, and cars really stand in them — 8 of
+  // the 54 at the last event were in EXPO ZONE, GREEN ZONE or VIP ZONE. Built
+  // from the constant alone, every zone picker in the app was unable to say
+  // where those cars were, and a bay could not be drawn in such a zone at all.
+  {
+    const CARS = [
+      { id: 1, entry_no: 11, brand: 'VW', model: 'Golf', owner: 'Ana', plate: 'P1', status: 'Invitat', zone: 'EXPO ZONE', spot_no: 1, event_id: 6, deleted_at: null },
+    ];
+    const SPOTS = [
+      { zone: 'Stance', no: 1, x: 20, y: 30 },
+      { zone: 'EXPO ZONE', no: 1, x: 50, y: 30 },
+      { zone: 'GREEN ZONE', no: 1, x: 80, y: 30 },
+    ];
+    const zctx = await browser.newContext({ viewport: { width: 1400, height: 1100 } });
+    await zctx.route('**://*.supabase.co/**', (r) => {
+      const u = r.request().url();
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      if (u.includes('/rest/v1/zone_plans')) {
+        const row = { id: 1, name: 'Plan', plan_path: null, map_url: 'https://map.test/plan.png', updated_at: '2026-08-27T10:00:00Z' };
+        return J([/id=eq\./.test(u) ? { ...row, spots: SPOTS } : row]);
+      }
+      if (u.includes('/rest/v1/cars')) return J(/deleted_at=not\.is\.null/.test(u) ? [] : CARS);
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString(), plan_id: 1 }]);
+      if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+      if (u.includes('/rest/v1/')) return J([]);
+      if (u.includes('/functions/v1/')) return J({});
+      return r.abort();
+    });
+    await zctx.route('**://map.test/**', (r) => r.fulfill({
+      status: 200, contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500"><rect width="800" height="500" fill="#334"/></svg>',
+    }));
+    const zp = await zctx.newPage();
+    try {
+      await zp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await zp.evaluate(() => localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      })));
+      await zp.reload({ waitUntil: 'domcontentloaded' });
+      await zp.waitForTimeout(2600);
+      await zp.evaluate(() => document.getElementById('splashScreen')?.remove());
+
+      // The gate is where a zone is most often set, and its dropdown is built
+      // by the same function as the car form's.
+      await zp.evaluate(() => document.getElementById('gateOpenBtn')?.click());
+      await zp.waitForTimeout(600);
+      const gateZones = await zp.evaluate(() =>
+        [...(document.querySelector('.gate-zone')?.options || [])].map((o) => o.value));
+      check('zones-gate-offers-a-zone-from-the-plan',
+        gateZones.includes('EXPO ZONE') && gateZones.includes('GREEN ZONE'), gateZones.join(','));
+      // The app's own classes do not disappear because a plan arrived.
+      check('zones-gate-keeps-the-app-classes',
+        gateZones.includes('Stance') && gateZones.includes('JDM'), gateZones.join(','));
+      // Stance is both an app class and a zone on this plan. It must be offered
+      // once, not twice.
+      check('zones-are-not-offered-twice',
+        gateZones.filter((z) => z === 'Stance').length === 1, gateZones.join(','));
+      await zp.evaluate(() => document.getElementById('gateCloseBtn')?.click());
+      await zp.waitForTimeout(400);
+
+      // A bay could not even be drawn in a zone the drawing itself has.
+      await zp.evaluate(() => {
+        document.querySelector('.mtab[data-section="map"], .tab[data-section="map"]')?.click();
+      });
+      await zp.waitForTimeout(700);
+      await zp.evaluate(() => document.getElementById('mapEditBtn')?.click());
+      await zp.waitForTimeout(500);
+      const spotZones = await zp.evaluate(() =>
+        [...(document.getElementById('spotZone')?.options || [])].map((o) => o.value));
+      check('zones-bay-editor-offers-a-zone-from-the-plan',
+        spotZones.includes('EXPO ZONE'), spotZones.join(','));
+    } catch (e) {
+      for (const n of ['zones-gate-offers-a-zone-from-the-plan', 'zones-gate-keeps-the-app-classes',
+        'zones-are-not-offered-twice', 'zones-bay-editor-offers-a-zone-from-the-plan']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`zone picker checks: ${e.message}`);
+    }
+    await zctx.close();
   }
 
   // 5. Public pages (given out by QR at the event) must render standalone.

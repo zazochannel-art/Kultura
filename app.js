@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v147';
+    const APP_VERSION = 'v148';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -1265,9 +1265,19 @@
         del.disabled = !_spotPick;
       }
       const zoneSel = el('spotZone');
-      if (zoneSel && zoneSel.options.length !== PARKING_ZONES.length + 1) {
-        zoneSel.innerHTML = `<option value="">${escape(t('spots.pick_zone'))}</option>`
-          + PARKING_ZONES.map(z => `<option value="${escape(z)}">${escape(z)}</option>`).join('');
+      if (zoneSel) {
+        // Rebuilt when the list itself changes, not on every render — and the
+        // list now moves, because switching the event's plan brings other zone
+        // names with it. Counting options would miss a rename.
+        const zones = allZones();
+        const sig = zones.join('|');
+        if (zoneSel.dataset.zoneSig !== sig) {
+          const keep = zoneSel.value;
+          zoneSel.innerHTML = `<option value="">${escape(t('spots.pick_zone'))}</option>`
+            + zones.map(z => `<option value="${escape(z)}">${escape(z)}</option>`).join('');
+          zoneSel.dataset.zoneSig = sig;
+          if (keep) zoneSel.value = keep;
+        }
       }
       const info = el('mapSpotInfo');
       if (info) {
@@ -1736,7 +1746,7 @@
       // button is there to change it.
       let zone = _spotEditZone;
       if (!zone) {
-        zone = await uiChoose(t('spots.add_zone_q'), PARKING_ZONES.map(z => ({
+        zone = await uiChoose(t('spots.add_zone_q'), allZones().map(z => ({
           value: z, label: z, sub: t('spots.summary_zone', { n: spotsOfZone(z).length }), search: z,
         })), { placeholder: t('spots.pick_zone') });
         if (!zone) return;
@@ -2374,6 +2384,7 @@
       if (!car) return;
       const box = el('carQrBox'), cap = el('carQrCaption');
       if (!box) return;
+      setCarQrHead(t('car.qr.title'), t('car.qr.sub'));
       box.innerHTML = `<div class="qr-loading"></div>`;
       if (cap) {
         cap.innerHTML = `<div class="qr-plate">${escape(car.plate || '—')}</div>
@@ -2390,6 +2401,58 @@
         box.innerHTML = `<div class="qr-err">${escape(t('common.error'))}</div>`;
       }
     }
+    // Two different codes come out of this modal now — the car's own pass and a
+    // driver's Telegram invite — so it says which one is on screen.
+    function setCarQrHead(title, sub) {
+      const h = el('carQrTitle'), p = el('carQrSub');
+      if (h) h.textContent = title;
+      if (p) p.textContent = sub;
+    }
+
+    // Whether a Telegram invite can be minted and would lead anywhere. Minting
+    // is a round trip, and a bot with no live webhook takes the driver to a
+    // chat that never answers — worse than no button at all.
+    function tgLinkable() {
+      return navigator.onLine
+        && !!(_health && _health.telegram && _health.telegram.configured && _health.telegram.webhook_live);
+    }
+
+    // The driver's invite as a code on the screen.
+    //
+    // Sending the link needs a channel, and the channel is exactly what is
+    // missing: 51 of 54 drivers at the last event could not be reached at all,
+    // and the confirmation nobody received got zero answers. At the gate that
+    // problem disappears — the person is standing in front of you with their
+    // phone in their hand. They point it at the screen and they are linked.
+    async function showInviteQr(carId) {
+      const car = (state.cars || []).find(c => String(c.id) === String(carId));
+      const box = el('carQrBox'), cap = el('carQrCaption');
+      if (!box) return;
+      setCarQrHead(t('tg.qr_title'), t('tg.qr_sub'));
+      box.innerHTML = `<div class="qr-loading"></div>`;
+      if (cap) {
+        cap.innerHTML = `<div class="qr-plate">${escape(car && car.plate ? car.plate : '—')}</div>
+          <div class="qr-sub">${escape(car ? [car.brand, car.model].filter(Boolean).join(' ') : '')}${
+            car && car.owner ? ' · ' + escape(car.owner) : ''}</div>`;
+      }
+      openModal('car-qr');
+      try {
+        const rows = await tgInviteFor([carId]);
+        const link = rows[0] && rows[0].link;
+        if (!link) throw new Error(t('tg.no_token_yet'));
+        const qrlib = await ensureQrLib();
+        // The invite link is longer than a car pass URL, so the version is left
+        // to the library (0) rather than pinned, and correction stays at M: a
+        // phone screen is not a printed card that gets creased.
+        const qr = qrlib(0, 'M');
+        qr.addData(link);
+        qr.make();
+        box.innerHTML = qr.createSvgTag({ scalable: true, margin: 1 });
+      } catch (e) {
+        box.innerHTML = `<div class="qr-err">${escape(t('common.error') + ': ' + (e.message || e))}</div>`;
+      }
+    }
+
     el('carQrPrintBtn')?.addEventListener('click', () => { try { window.print(); } catch (_) {} });
 
     // Bulk QR passes: build an A6-card sheet for the currently filtered cars and
@@ -2534,9 +2597,10 @@
       await loadPlanLibrary();
       await loadActivePlan();
 
-      // Zones the drawing has and the app does not: their bays are on the map
-      // but no car can ever be assigned to them, so say so rather than let
-      // somebody discover it at the gate.
+      // Zones the drawing brings that are not one of the app's own classes.
+      // They are pickable now — `allZones` reads them off the plan — so this is
+      // no longer a dead end but a list worth reading once: a typo in the
+      // drawing arrives here as a new zone nobody meant to create.
       const unknown = [...new Set(next.map(sp => sp.zone)
         .filter(z => !PARKING_ZONES.some(pz => pz.toLowerCase() === z.toLowerCase())))];
       showToast(t('map.plan_done', { n: next.length }));
@@ -3464,6 +3528,18 @@
       box.hidden = false;
     }
 
+    // How many whole days from today to that date, read off the calendar in the
+    // viewer's own timezone. Hours divided by 24 would call an event starting
+    // in three hours "tomorrow" whenever it is late enough in the evening.
+    function calendarDaysUntil(iso) {
+      const then = new Date(iso);
+      if (Number.isNaN(then.getTime())) return null;
+      const now = new Date();
+      const a = new Date(then.getFullYear(), then.getMonth(), then.getDate());
+      const b = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      return Math.round((a - b) / 86400000);
+    }
+
     // What is still missing for the event in hand. Only shows rows that are
     // actually unfinished, so it disappears entirely once you are ready.
     function renderReadyList() {
@@ -3498,6 +3574,9 @@
       if (!agenda.length) items.push({ k: 'agenda', txt: t('ready.agenda'), go: 'home' });
       if (cars.length && noZone) items.push({ k: 'zones', txt: t('ready.zones', { n: noZone, total: cars.length }), go: 'cars' });
       if (!ev.reg_capacity) items.push({ k: 'cap', txt: t('ready.capacity'), go: 'events' });
+      // A field with cars on it and no drawing: the map is an empty frame and
+      // nobody can be told where to stand.
+      if (cars.length && ev.plan_id == null) items.push({ k: 'plan', txt: t('ready.no_plan'), go: 'map' });
       if (!ev.entries_frozen && cars.some(c => c.entry_no)) items.push({ k: 'freeze', txt: t('ready.freeze'), go: 'events' });
       if (_health) {
         const tg = _health.telegram || {};
@@ -3509,6 +3588,30 @@
       // staying quiet.
       if (_backupAgeHours === null || (typeof _backupAgeHours === 'number' && _backupAgeHours > 26)) {
         items.push({ k: 'backup', txt: t('ready.backup'), go: 'settings' });
+      }
+
+      // Everything above asks about the event in hand — and that is exactly how
+      // the next one stays invisible. Both events created last week sat two
+      // days out with no cars, no plan and no capacity while Home said nothing:
+      // they were simply not the event being looked at.
+      for (const e2 of (state.events || [])) {
+        if (String(e2.id) === String(ev.id) || e2.archived || e2.is_sandbox || !e2.starts_at) continue;
+        const days = calendarDaysUntil(e2.starts_at);
+        if (days == null || days < 0 || days > 7) continue;
+        const n = (state.cars || []).filter(c => !c.deleted_at && String(c.event_id) === String(e2.id)).length;
+        const gaps = [];
+        if (!n) gaps.push(t('ready.soon_cars'));
+        if (e2.plan_id == null) gaps.push(t('ready.soon_plan'));
+        if (!e2.reg_capacity) gaps.push(t('ready.soon_cap'));
+        if (!gaps.length) continue;
+        const when = days === 0 ? t('ready.when_today')
+          : days === 1 ? t('ready.when_tomorrow')
+            : t('ready.when_days', { n: days });
+        items.push({
+          k: 'soon' + e2.id,
+          txt: t('ready.soon', { name: e2.title || ('#' + e2.id), when, list: gaps.join(', ') }),
+          go: 'events',
+        });
       }
 
       if (!items.length) { box.hidden = true; return; }
@@ -4205,8 +4308,13 @@
           if (fb && (c.brand || '') !== fb) continue;
           if (fc && (c.category || '') !== fc) continue;
           if (fcity && (c.city || '') !== fcity) continue;
-          const arrived = statusKey(c.status) === 'sosit';
-          if (!(wantAll || (wantConf && arrived) || (wantUnconf && !arrived))) continue;
+          // "Confirmed" means the driver answered the confirmation, not that
+          // they turned up. Reading the status instead made the two audiences
+          // useless in both directions: before the day nobody has arrived, so
+          // "confirmed" was always empty, and during the day "unconfirmed"
+          // dropped everyone who came without ever answering.
+          const confirmed = String(c.rsvp || '').toLowerCase() === 'yes';
+          if (!(wantAll || (wantConf && confirmed) || (wantUnconf && !confirmed))) continue;
           const parts = (c.owner || '').trim().split(/\s+/);
           add(c.phone, {
             prenume: parts.shift() || '', nume: parts.join(' '),
@@ -4916,13 +5024,38 @@
     // Canonical parking zones (car categories). Single source of truth for the
     // zone dropdowns in the add-car form, the car detail editor and the gate.
     const PARKING_ZONES = ['Stance', 'Super Cars', 'Modern', 'Autosport', 'JDM', 'Retro', 'Euro', 'America', 'Bike'];
+
+    // Which zones a car can actually be put in.
+    //
+    // The nine above are the app's own classes. The venue's drawing carries its
+    // own names as well — EXPO ZONE, GREEN ZONE, VIP ZONE — and cars really do
+    // stand in them: 8 of the 54 at the last event. Built from the constant
+    // alone, every picker in the app was unable to say where those 8 cars were,
+    // and a bay could not even be drawn in such a zone. So the plan in use is
+    // the other half of the answer. Order matters: the app's own classes first,
+    // in their own order, then whatever the drawing adds.
+    function allZones() {
+      const out = [], seen = new Set();
+      const add = (z) => {
+        const s = String(z || '').trim();
+        if (!s) return;
+        const k = s.toLowerCase();
+        if (seen.has(k)) return;
+        seen.add(k);
+        out.push(s);
+      };
+      PARKING_ZONES.forEach(add);
+      (ZONE_SPOTS || []).forEach(sp => add(sp && sp.zone));
+      return out;
+    }
     // Build <option> markup for a zone <select>. Keeps an existing custom value
     // (an older free-text zone not in the list) selectable so nothing is lost.
     function zoneOptionsHTML(current) {
       const cur = (current || '').trim();
-      const inList = PARKING_ZONES.some(z => z.toLowerCase() === cur.toLowerCase());
+      const zones = allZones();
+      const inList = zones.some(z => z.toLowerCase() === cur.toLowerCase());
       let html = `<option value="">${escape(t('car.zone_choose'))}</option>`;
-      html += PARKING_ZONES.map(z =>
+      html += zones.map(z =>
         `<option value="${escape(z)}"${cur.toLowerCase() === z.toLowerCase() ? ' selected' : ''}>${escape(z)}</option>`).join('');
       if (cur && !inList) html += `<option value="${escape(cur)}" selected>${escape(cur)}</option>`;
       return html;
@@ -5629,6 +5762,9 @@
       const inp = el('gateSearch');
       if (inp) inp.value = '';
       renderGate();
+      // Whether the bot can take an invite decides whether the gate offers one,
+      // and staff never open the settings panel that fetches this.
+      ensureHealth().then(() => { try { renderGate(); } catch (_) {} }).catch(() => {});
       renderGateZones();
       renderKioskBtn();
       updateGateSyncUI();
@@ -5744,6 +5880,12 @@
         const actionBtn = arrived
           ? `<button class="gate-arrive is-in" disabled>${escape(t('car.status.arrived'))}</button>`
           : `<button class="gate-arrive" data-gate-arrive="${c.id}">${escape(t('gate.arrive'))}</button>`;
+        // A driver who is already in, and whom nothing can reach afterwards.
+        // This is the one second in the whole event when linking them costs
+        // nobody anything: they are here, holding the phone.
+        const tgBtn = (arrived && !c.telegram_chat_id && tgLinkable())
+          ? `<button class="gate-tg" data-gate-tg="${c.id}" title="${escape(t('tg.qr_title'))}">${escape(t('tg.qr_short'))}</button>`
+          : '';
         return `
           <div class="gate-car ${arrived ? 'arrived' : ''}${blocked ? ' blocked' : ''}" data-car-id="${c.id}">
             <div class="gate-car-info">
@@ -5751,7 +5893,7 @@
               <div class="gate-car-sub">${escape(name)}${c.owner ? ' · ' + escape(c.owner) : ''}</div>
             </div>
             <select class="gate-zone" data-gate-zone="${c.id}" title="${escape(t('gate.zone_ph'))}">${zoneOptionsHTML(c.zone)}</select>
-            ${actionBtn}
+            ${actionBtn}${tgBtn}
           </div>`;
       }).join('') + (list.length > 60 ? `<div class="gate-more">${escape(t('gate.more', { n: list.length - 60 }))}</div>` : '');
     }
@@ -5889,6 +6031,8 @@
     el('gateResults')?.addEventListener('click', (e) => {
       const arr = e.target.closest('[data-gate-arrive]');
       if (arr && !arr.disabled) { gateCheckIn(arr.dataset.gateArrive); return; }
+      const tg = e.target.closest('[data-gate-tg]');
+      if (tg) { showInviteQr(tg.dataset.gateTg); return; }
     });
     el('gateResults')?.addEventListener('change', (e) => {
       const zi = e.target.closest('[data-gate-zone]');
@@ -10520,6 +10664,7 @@
         ${roleAtLeast('staff') && !c.telegram_chat_id
           ? `<button class="btn ghost" data-detail-action="car-invite-tg" data-car-id="${c.id}">${
             escape(normalizePhone(c.phone || c.contact) ? t('tg.invite_send') : t('tg.invite_one'))}</button>`
+          + `<button class="btn ghost" data-detail-action="car-invite-qr" data-car-id="${c.id}">${escape(t('tg.qr_short'))}</button>`
           : ''}
         ${canDelete ? `<button class="btn danger" data-detail-action="car-delete" data-car-id="${c.id}" data-car-label="${escape(title)}">${escape(t('car.action.delete'))}</button>` : ''}
       `;
@@ -10879,6 +11024,11 @@
         } else if (action === 'car-invite-tg') {
           await sendInviteToDriver(btn.dataset.carId);
           btn.disabled = false;
+          return;
+
+        } else if (action === 'car-invite-qr') {
+          btn.disabled = false;
+          showInviteQr(btn.dataset.carId);
           return;
 
         } else if (action === 'car-delete') {
