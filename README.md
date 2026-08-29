@@ -192,10 +192,18 @@ Ce trebuie știut înainte de a o atinge:
 
 ### Planul ca hartă a aplicației
 
-În secțiunea **Hartă**, un staff are butonul „Adu planul terenului". Apăsat o
-dată, `plans/plan-06.json` devine harta: calea lui intră în `zone_plan_url`, iar
-locurile lui intră în `zone_spots`. Aplicația citește planul la pornire și îl
+În secțiunea **Hartă**, un staff are butonul **„Planuri"**. Modalul lui ține
+biblioteca (`zone_plans`) și trei drumuri către un plan: **„Desenează un plan
+nou"** deschide editorul `plan.html` în fila lui, **„Adu un plan din fișier"**
+urcă JSON-ul exportat de acolo, iar **„Planul din aplicație"** ia
+`plans/plan-06.json`, cel care vine cu aplicația. Planul ales se scrie pe
+eveniment (`events.plan_id`). Aplicația citește desenul la pornire și îl
 **desenează în pagină ca SVG** — nu se face nicio poză din el.
+
+Harta nu mai primește poze. Butonul „Înlocuiește" urca o imagine în bucket-ul
+`maps` și-i scria adresa într-o cheie pe care aplicația n-o mai citește, deci
+poza dispărea la prima reîncărcare; a fost scos împreună cu decupatorul și cu
+cititorul de PDF pe care numai el îi folosea (regula 53).
 
 **De ce nu o poză.** Harta se mărește de 8× la poartă, iar o imagine are o
 rezoluție: prima variantă rasteriza planul la 4800 px și tot se făcea pastă la
@@ -470,22 +478,15 @@ fundal inline bate orice clasă, iar starea apăsată ieșise cerneală închis�
 buton închis. O hartă ștearsă stinge modul — un cursor de cruce peste o ramă
 goală n-are ce să însemne.
 
-### Parcarea unei mașini, din ambele capete
+### Parcarea unei mașini
 
-Apăsarea unei boxe deschide dialogul „cine stă aici" de la început — dar nimic
-de pe ecran n-o spunea, iar la lățime întreagă o boxă are patru pixeli, deci
-n-o găsea nimeni nici din greșeală. Acum sunt două căi spre același loc:
+Apeși o boxă liberă, alegi mașina. O linie sub hartă spune că boxele se pot
+apăsa — fără ea nimeni n-o găsea, pentru că la lățime întreagă o boxă are patru
+pixeli. Un tap pe lângă boxă contează tot ca tap pe ea.
 
-- **De la boxă.** O linie sub hartă spune că boxele se pot apăsa. Apeși una
-  liberă, alegi mașina.
-- **De la mașină.** Butonul **„Parchează o mașină"** deschide aceeași listă
-  căutabilă, apoi harta așteaptă: bara scrie „Acum apasă locul unde parchezi
-  #200 · VW Golf", iar butonul devine ieșirea din mod. O boxă cu cineva pe ea nu
-  e un răspuns, deci o spune și rămâne în mod, în loc să arunce ce făceai.
-
-Cele două moduri nu stau aprinse odată — pornirea redactării stinge parcarea.
-Lista de mașini și felul rândului (`unplacedCars`, `carChoice`) sunt aceleași în
-ambele direcții: o singură definiție a ce înseamnă „o mașină de ales".
+Drumul celălalt — un buton „Parchează o mașină" care alegea întâi mașina, apoi
+aștepta apăsarea locului — a fost scos împreună cu „Umple automat": locul se
+alege de fiecare dată cu mâna, de la boxă.
 
 ### „Cine stă pe locul ăsta?"
 
@@ -983,6 +984,20 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     reîncărcare. După orice scriere, rândul se caută din nou după `id`
     (`setEventPlanLocally`). Găsit exact așa: comutarea planului scria
     `events.plan_id` în bază, dar harta rămânea pe planul dinainte.
+
+53. **Poza de fundal a hărții scria acolo unde nimeni nu mai citea.**
+    „Înlocuiește" urca imaginea în bucket-ul `maps` și-i punea adresa în
+    `ui_settings.zone_map_url` — o cheie pe care aplicația n-o mai citește de
+    când planul e o înregistrare cu `map_url`-ul lui. Poza se vedea până la
+    prima reîncărcare, apoi dispărea. Când o cheie iese din citire, drumurile
+    care mai scriu în ea sunt moarte, nu doar tăcute.
+
+54. **Un lucru care se aduce trebuie și să se poată face.** Modalul de planuri
+    aducea un plan din fișier și spunea că fișierul e „JSON-ul exportat din
+    editorul de plan", dar la editorul acela (`plan.html`) nu ducea niciun
+    buton din aplicație. Primul plan se putea face doar știind adresa pe
+    dinafară. Butonul „Desenează un plan nou" deschide editorul în fila lui, ca
+    biblioteca de planuri să nu se reîncarce și să uite evenimentul.
 
 ## Rămas de făcut manual
 

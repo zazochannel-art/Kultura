@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v146';
+    const APP_VERSION = 'v147';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -677,8 +677,6 @@
       // A map that is gone cannot be edited, and a mode left on over an empty
       // frame is a crosshair cursor with nothing under it.
       if (_spotEdit && !(_plan || _mapUrl)) { _spotEdit = false; _spotRow = false; _rowFrom = null; _spotAdd = false; _spotPick = null; }
-      const uploadLabel = el('mapUploadBtn').querySelector('span');
-      if (uploadLabel) uploadLabel.textContent = (_plan || _mapUrl) ? t('map.replace') : t('map.upload');
 
       const container = el('mapContainer');
       if (!container) return;
@@ -822,7 +820,6 @@
     let _spotAdd = false;           // armed to drop the next tap as a spot
     let _spotPick = null;           // the bay picked up for turning or deleting
     let _spotDragged = false;       // a drag just ended; its click is not a tap
-    let _parkCar = null;            // a car chosen, waiting for a place to be tapped
 
     const spotKey = (zone, no) => (zone || '').trim().toLowerCase() + '#' + no;
     // The ink a zone's bays are drawn in, taken from the bays it already has.
@@ -1278,25 +1275,16 @@
         const taken = ZONE_SPOTS.filter(sp => carOnSpot(sp.zone, sp.no)).length;
         info.textContent = total ? t('spots.summary', { taken, total }) : t('spots.none_yet');
       }
-      const park = el('spotParkBtn');
-      if (park) {
-        park.hidden = _spotEdit || !ZONE_SPOTS.length;
-        park.classList.toggle('active', !!_parkCar);
-        park.textContent = t(_parkCar ? 'spots.park_cancel' : 'spots.park');
-      }
-      // The one line that says a bay can be tapped at all. Replaced by what the
-      // map is waiting for once a car has been chosen.
+      // The one line that says a bay can be tapped at all.
       const hint = el('mapSpotHint');
       if (hint) {
-        const c = _parkCar && activeCars().find(x => String(x.id) === String(_parkCar));
         hint.hidden = !_spotEdit && !ZONE_SPOTS.length;
         const pk = _spotPick && ZONE_SPOTS.find(sp => spotKey(sp.zone, sp.no) === _spotPick);
         hint.textContent = _spotEdit
           ? (_spotAdd ? t('spots.add_where', { zone: _spotEditZone })
             : pk ? t('spots.picked', { zone: pk.zone, n: pk.no, deg: Math.round(pk.r || 0) })
               : t('spots.edit_hint'))
-          : c ? t('spots.park_where', { car: carChoice(c).label })
-            : t('spots.tap_hint');
+          : t('spots.tap_hint');
       }
     }
 
@@ -1726,7 +1714,6 @@
     // label and the tools under it are both drawn from it in `renderMapSpots`.
     function setSpotEdit(on) {
       _spotEdit = !!on;
-      if (_spotEdit) _parkCar = null;   // two modes over one map is one too many
       if (!_spotEdit) { setRowMode(false); _spotAdd = false; }
       _spotPick = null;
       if (_spotEdit) showToast(t('spots.place_hint'));
@@ -1929,7 +1916,6 @@
       if (_mapPanMoved) return;
       e.stopPropagation();
       const zone = pin.dataset.spotZone, no = Number(pin.dataset.spotNo);
-      if (_parkCar) { await parkHere(zone, no); return; }
       if (_spotEdit) {
         if (!roleAtLeast('staff')) return;
         // A tap picks the bay up; it does not destroy it. Deleting is the
@@ -2025,39 +2011,6 @@
       search: [c.entry_no, c.brand, c.model, c.plate, c.owner, c.zone].filter(Boolean).join(' '),
     });
 
-    /**
-     * Parking a car, starting from the car.
-     *
-     * Tapping a bay has always opened the picker, but nothing on screen said
-     * so — and at fit-width a bay is four pixels across, so nobody found it by
-     * accident either. This is the same thing from the other end: press the
-     * button, choose the car, then tap where it goes. The bar says which car it
-     * is waiting for, and the button turns into the way out.
-     */
-    async function startParking() {
-      if (!roleAtLeast('staff')) return;
-      if (_parkCar) { _parkCar = null; renderMapSpots(); return; }
-      const pool = unplacedCars('');
-      if (!pool.length) { showToast(t('spots.nobody_free'), 'error'); return; }
-      const pick = await uiChoose(t('spots.park_which'), pool.map(carChoice),
-        { placeholder: t('spots.assign_search') });
-      if (!pick) return;
-      _parkCar = pick;
-      renderMapSpots();
-      const c = activeCars().find(x => String(x.id) === String(pick));
-      showToast(t('spots.park_where', { car: c ? carChoice(c).label : '' }));
-    }
-    // The tap that finishes it. A bay with somebody on it is not an answer, so
-    // it says so and stays in the mode rather than dropping what you were doing.
-    async function parkHere(zone, no) {
-      if (carOnSpot(zone, no)) { showToast(t('spots.park_taken'), 'error'); return; }
-      const id = _parkCar;
-      _parkCar = null;
-      if (await setCarSpot(id, zone, no)) showToast(t('spots.assigned', { zone, n: no }));
-      else renderMapSpots();
-    }
-    el('spotParkBtn')?.addEventListener('click', startParking);
-
     async function assignCarToSpot(zone, no) {
       const pool = unplacedCars(zone);
       if (!pool.length) { showToast(t('spots.nobody_free'), 'error'); return; }
@@ -2068,28 +2021,6 @@
       if (await setCarSpot(pick, zone, no)) showToast(t('spots.assigned', { zone, n: no }));
     }
 
-    // Fill every free spot from the cars already assigned to that zone but not
-    // yet placed. Nothing is moved and nothing is invented: a car keeps the zone
-    // it already has, and cars without one are left alone.
-    el('spotAutoBtn')?.addEventListener('click', async () => {
-      if (!roleAtLeast('staff')) return;
-      if (!ZONE_SPOTS.length) { showToast(t('spots.none_yet'), 'error'); return; }
-      const plan = [];
-      const zones = [...new Set(ZONE_SPOTS.map(sp => sp.zone.trim()))];
-      for (const z of zones) {
-        const waiting = activeCars().filter(c =>
-          c.spot_no == null && (c.zone || '').trim().toLowerCase() === z.toLowerCase());
-        const free = spotsOfZone(z).filter(sp => !carOnSpot(z, sp.no));
-        for (let i = 0; i < Math.min(waiting.length, free.length); i++) {
-          plan.push({ carId: waiting[i].id, zone: z, no: free[i].no });
-        }
-      }
-      if (!plan.length) { showToast(t('spots.nothing_to_fill')); return; }
-      if (!await uiConfirm(t('spots.autofill_confirm', { n: plan.length }))) return;
-      let done = 0;
-      for (const p of plan) { if (await setCarSpot(p.carId, p.zone, p.no)) done++; }
-      showToast(t('spots.autofill_done', { n: done }));
-    });
 
     // Interactive zone breakdown, derived live from car data (respects the
     // active-event filter). Each card shows real-time occupancy vs capacity.
@@ -2275,7 +2206,7 @@
       const b = el('zoneBoard');
       if (b) b.addEventListener('pointerdown', onDown);
     })();
-    el('mapUploadBtn').addEventListener('click', () => el('mapFileInput').click());
+
     // ----- THE PLAN LIBRARY -----
     // A plan is picked for the event being looked at, not for the app: that is
     // what lets two events on the same field keep two different layouts.
@@ -2421,24 +2352,6 @@
       else if (b.dataset.planRename) renamePlan(b.dataset.planRename);
       else if (b.dataset.planDel) deletePlan(b.dataset.planDel);
     });
-    // Lazy-load the vendored pdf.js only when a PDF is actually chosen.
-    let _pdfjsLoading = null;
-    function ensurePdfJs() {
-      if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
-      if (_pdfjsLoading) return _pdfjsLoading;
-      _pdfjsLoading = new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = 'vendor/pdf.min.js';
-        s.onload = () => {
-          try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js'; } catch (_) {}
-          resolve(window.pdfjsLib);
-        };
-        s.onerror = () => { _pdfjsLoading = null; reject(new Error('Nu s-a putut încărca cititorul PDF.')); };
-        document.head.appendChild(s);
-      });
-      return _pdfjsLoading;
-    }
-
     // Lazy-load the vendored QR generator only when a car pass is displayed.
     let _qrLoading = null;
     function ensureQrLib() {
@@ -2531,85 +2444,6 @@
     el('passPrintBtn')?.addEventListener('click', printAllPasses);
     window.addEventListener('afterprint', () => { document.body.classList.remove('printing-passes'); });
 
-    // Turn any chosen file into an image data URL. PDFs render their first
-    // page to a canvas at high resolution.
-    async function fileToImageSrc(file) {
-      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
-      if (!isPdf) {
-        return await new Promise((res, rej) => {
-          const fr = new FileReader();
-          fr.onload = () => res(fr.result);
-          fr.onerror = () => rej(new Error('Nu s-a putut citi fișierul.'));
-          fr.readAsDataURL(file);
-        });
-      }
-      const st = el('mapStatus');
-      st.style.display = 'block'; st.style.color = 'var(--text-dim)';
-      st.textContent = t('map.pdf_rendering');
-      const pdfjs = await ensurePdfJs();
-      const buf = await file.arrayBuffer();
-      const pdf = await pdfjs.getDocument({ data: buf }).promise;
-      const page = await pdf.getPage(1);
-      // Render the PDF page at up to 4096px wide for a crisp map.
-      const scale = Math.min(4, 4096 / page.getViewport({ scale: 1 }).width);
-      const viewport = page.getViewport({ scale: Math.max(1.5, scale) });
-      const canvas = document.createElement('canvas');
-      canvas.width = viewport.width; canvas.height = viewport.height;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-      await page.render({ canvasContext: ctx, viewport }).promise;
-      st.style.display = 'none';
-      // PNG keeps vector-PDF lines/text perfectly sharp (no double JPEG loss).
-      return canvas.toDataURL('image/png');
-    }
-
-    el('mapFileInput').addEventListener('change', async (e) => {
-      const file = e.target.files && e.target.files[0];
-      e.target.value = '';
-      if (!file) return;
-      const status = el('mapStatus');
-      try {
-        const src = await fileToImageSrc(file);
-        openMapCropper(src); // upload happens after the user confirms the crop
-      } catch (err) {
-        status.style.display = 'block';
-        status.style.color = 'var(--red)';
-        status.textContent = t('map.upload_error') + ': ' + (err.message || err);
-      }
-    });
-
-    // Upload a finished map blob and record its URL.
-    async function uploadMapBlob(blob) {
-      const status = el('mapStatus');
-      status.style.display = 'block';
-      status.style.color = 'var(--text-dim)';
-      status.textContent = t('map.uploading');
-      try {
-        const ext = { 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }[blob.type] || 'jpg';
-        const path = `zone-map-${Date.now()}.${ext}`;
-        const { error: upErr } = await supa.storage.from('maps')
-          .upload(path, blob, { contentType: blob.type || 'image/jpeg' });
-        if (upErr) throw upErr;
-        const url = supa.storage.from('maps').getPublicUrl(path).data.publicUrl;
-        const prev = _mapUrl;
-        const { error: dbErr } = await supa.from('ui_settings')
-          .upsert({ key: 'zone_map_url', value: url, updated_at: new Date().toISOString() }, { onConflict: 'key' });
-        if (dbErr) throw dbErr;
-        const prevPath = (prev || '').split('/maps/')[1];
-        if (prevPath) supa.storage.from('maps').remove([decodeURIComponent(prevPath)]);
-        _mapUrl = url;
-        renderMap();
-        status.textContent = t('map.saved');
-        status.style.color = 'var(--green)';
-        setTimeout(() => { status.style.display = 'none'; }, 1500);
-        return true;
-      } catch (err) {
-        status.textContent = t('map.upload_error') + ': ' + (err.message || err);
-        status.style.color = 'var(--red)';
-        return false;
-      }
-    }
-
     // ----- THE DRAWN PLAN AS THE MAP -----
     //
     // Two ways of saying where a car goes meet here. The plan (plan.html) is a
@@ -2628,46 +2462,6 @@
       if (exact) return exact;
       const alias = PLAN_ZONE_ALIASES[k];
       return alias && PARKING_ZONES.includes(alias) ? alias : String(name).trim();
-    }
-
-    // The `maps` bucket accepts jpeg/png/webp/gif and nothing over 5 MB.
-    const MAP_MAX_BYTES = 5 * 1024 * 1024;
-
-    /**
-     * The best version of a picture that the bucket will actually take.
-     *
-     * Quality is given up in the order it hurts least. Lossless first, because
-     * a parking plan is hairlines and small text and that is exactly what lossy
-     * compression eats — WebP at quality 1 is lossless and lands well under
-     * PNG, and a browser that cannot write WebP returns a PNG instead, which is
-     * the fallback rather than a failure. Only then near-lossless, then JPEG.
-     * Pixels go last: a slightly compressed full-size map still reads, a sharp
-     * small one cannot be zoomed into.
-     *
-     * A photograph does not compress like a drawing — 4096px of it is 17 MB as
-     * PNG — so without this every photo map failed the upload outright.
-     */
-    async function fitMapBlob(canvas) {
-      const enc = (c, type, q) => new Promise((res) => c.toBlob(res, type, q));
-      let c = canvas;
-      for (let shrink = 0; shrink < 5; shrink++) {
-        for (const [type, q] of [['image/webp', 1], ['image/png', undefined],
-                                 ['image/webp', 0.95], ['image/jpeg', 0.92], ['image/jpeg', 0.82]]) {
-          const b = await enc(c, type, q);
-          if (b && b.size <= MAP_MAX_BYTES) return b;
-        }
-        const w = Math.round(c.width * 0.75);
-        if (w < 900) break;
-        const n = document.createElement('canvas');
-        n.width = w;
-        n.height = Math.round(c.height * 0.75);
-        const ctx = n.getContext('2d');
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(c, 0, 0, n.width, n.height);
-        c = n;
-      }
-      return null;
     }
 
 
@@ -2827,94 +2621,6 @@
       else closeModal(el('modal-plans'));
     }
 
-    // ----- MAP CROP EDITOR -----
-    // Lets the user drag/resize a rectangle over the image to choose the
-    // visible region before upload. Output is downscaled to <=2400px JPEG.
-    let _crop = null; // { box:{x,y,w,h}, dispW, dispH }
-    function openMapCropper(src) {
-      const img = el('cropImage');
-      img.onload = () => {
-        const stage = el('cropStage');
-        const dispW = img.clientWidth, dispH = img.clientHeight;
-        _crop = { dispW, dispH, natW: img.naturalWidth, natH: img.naturalHeight,
-                  offX: (stage.clientWidth - dispW) / 2, offY: (stage.clientHeight - dispH) / 2 };
-        setCropBox(0, 0, dispW, dispH);
-      };
-      img.src = src;
-      openModal('map-crop');
-    }
-    function setCropBox(x, y, w, h) {
-      const c = _crop; if (!c) return;
-      // clamp within the displayed image
-      w = Math.max(40, Math.min(w, c.dispW));
-      h = Math.max(40, Math.min(h, c.dispH));
-      x = Math.max(0, Math.min(x, c.dispW - w));
-      y = Math.max(0, Math.min(y, c.dispH - h));
-      c.box = { x, y, w, h };
-      const box = el('cropBox');
-      box.style.left = (c.offX + x) + 'px';
-      box.style.top = (c.offY + y) + 'px';
-      box.style.width = w + 'px';
-      box.style.height = h + 'px';
-    }
-    (function wireCropDrag() {
-      const box = el('cropBox');
-      let mode = null, sx = 0, sy = 0, orig = null;
-      const onDown = (e) => {
-        if (!_crop) return;
-        const handle = e.target.closest('.crop-handle');
-        mode = handle ? handle.dataset.handle : 'move';
-        const p = e.touches ? e.touches[0] : e;
-        sx = p.clientX; sy = p.clientY; orig = { ..._crop.box };
-        e.preventDefault();
-        document.addEventListener('pointermove', onMove);
-        document.addEventListener('pointerup', onUp);
-      };
-      const onMove = (e) => {
-        if (!mode || !_crop) return;
-        const dx = e.clientX - sx, dy = e.clientY - sy;
-        let { x, y, w, h } = orig;
-        if (mode === 'move') { setCropBox(x + dx, y + dy, w, h); return; }
-        if (mode.includes('e')) w = orig.w + dx;
-        if (mode.includes('s')) h = orig.h + dy;
-        if (mode.includes('w')) { w = orig.w - dx; x = orig.x + dx; }
-        if (mode.includes('n')) { h = orig.h - dy; y = orig.y + dy; }
-        setCropBox(x, y, w, h);
-      };
-      const onUp = () => {
-        mode = null;
-        document.removeEventListener('pointermove', onMove);
-        document.removeEventListener('pointerup', onUp);
-      };
-      box.addEventListener('pointerdown', onDown);
-    })();
-    el('cropReset').addEventListener('click', () => {
-      if (_crop) setCropBox(0, 0, _crop.dispW, _crop.dispH);
-    });
-    el('cropCancel').addEventListener('click', () => closeModal(el('modal-map-crop')));
-    el('cropConfirm').addEventListener('click', async () => {
-      const c = _crop; if (!c || !c.box) return;
-      const scale = c.natW / c.dispW; // display px → natural px
-      const sxp = c.box.x * scale, syp = c.box.y * scale;
-      const swp = c.box.w * scale, shp = c.box.h * scale;
-      // Downscale the cropped region only if bigger than 4096px on the long side
-      // (keeps map lines/text crisp; small enough to stay under storage limits).
-      const out = Math.min(1, 4096 / Math.max(swp, shp));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(swp * out);
-      canvas.height = Math.round(shp * out);
-      const ctx = canvas.getContext('2d');
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(el('cropImage'), sxp, syp, swp, shp, 0, 0, canvas.width, canvas.height);
-      // Lossless when it fits — a parking map is lines and text, and those are
-      // what lossy compression eats. A photograph at this size does not fit, so
-      // the same ladder that serves the drawn plan serves it here.
-      const blob = await fitMapBlob(canvas);
-      closeModal(el('modal-map-crop'));
-      if (blob) uploadMapBlob(blob);
-      else showToast(t('map.plan_too_big'), 'error');
-    });
     // Taking the map off this event, not out of the app: the plan stays in the
     // library with its bays, ready to be given back or given to another event.
     // Throwing one away for good is a separate act, and it lives with the list.
