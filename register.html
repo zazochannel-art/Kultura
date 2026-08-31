@@ -55,6 +55,22 @@
       background:linear-gradient(135deg,var(--cyan),var(--purple));box-shadow:0 12px 30px rgba(6,182,212,.3);
     }
     button.submit:disabled{opacity:.6}
+    /* Telegram, asked before the form can be sent. Loud enough not to be
+       scrolled past, quiet enough not to look like an ad. */
+    .tg-box{margin:6px 0 4px;padding:14px;border-radius:14px;
+      background:rgba(34,158,217,.06);border:1px solid rgba(34,158,217,.30)}
+    .tg-why{font-size:13.5px;line-height:1.55;color:#c9d2e0;margin:0 0 12px}
+    /* Telegram's own blue is 3.1:1 against white — readable enough for a logo,
+       not for 15px of button text. Darkened to 5.3:1, which is what AA asks of
+       text this size, and still unmistakably Telegram. */
+    .tg-btn{width:100%;padding:13px;border-radius:12px;cursor:pointer;border:none;
+      font-family:inherit;font-size:15px;font-weight:800;color:#fff;background:#17739E}
+    .tg-btn:disabled{opacity:.6;cursor:default}
+    .tg-state{margin-top:10px;font-size:14px;font-weight:700}
+    .tg-state.is-off{color:#f87171}
+    .tg-state.is-wait{color:#f5c542}
+    .tg-state.is-on{color:#34d399}
+    .tg-hint{margin:8px 0 0;font-size:12.5px;line-height:1.5;color:var(--text-dim)}
     .waiver{margin:18px 0;padding:14px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.10)}
     .waiver-text{font-size:13px;line-height:1.6;color:#c9d2e0;white-space:pre-wrap;max-height:180px;overflow:auto;margin-bottom:12px}
     .waiver-agree{display:flex;align-items:center;gap:10px;margin:0 0 12px;font-size:14px;color:#e8edf5;cursor:pointer}
@@ -190,7 +206,22 @@
         <!-- Warns before a long form is filled in, not after. -->
         <div class="cap-note" id="capNote" style="display:none;"></div>
 
-        <button type="submit" class="submit" id="submitBtn">Trimite înscrierea</button>
+        <!-- Telegram, before the form can be sent.
+             Nothing automated has ever reached a participant here: no SMS
+             provider was ever configured, and 51 of 54 drivers at the last
+             event could not be contacted at all. Every reminder and every
+             "your spot is X" went nowhere. This is the one moment the person
+             is certainly present, so it is the moment to ask. -->
+        <div class="sec"><span class="sec-n">5</span> Telegram</div>
+        <div class="tg-box" id="tgBox">
+          <p class="tg-why">Îți trimitem pe Telegram confirmarea, numărul de concurs și locul de parcare.
+            Fără el nu avem cum să te anunțăm.</p>
+          <button type="button" class="tg-btn" id="tgConnect">📲 Conectează Telegram</button>
+          <div class="tg-state is-off" id="tgState">🔴 Telegram neconectat</div>
+          <p class="tg-hint" id="tgHint" hidden></p>
+        </div>
+
+        <button type="submit" class="submit" id="submitBtn" disabled>Trimite înscrierea</button>
         <div class="msg" id="msg"></div>
       </form>
       <div class="done" id="done" style="display:none;">
@@ -391,6 +422,111 @@
     // Anti-spam: when the form first became interactive (bots submit instantly).
     const _formReadyAt = Date.now();
     const RATE_MS = 60000; // one submit per minute per browser
+    // ---------- Telegram, connected before this form can be sent ----------
+    //
+    // There is no account behind this page, so the session is the token and
+    // nothing else. The page asks for one, sends the person to the bot, then
+    // asks the server every few seconds whether the chat arrived. Polling
+    // rather than Realtime on purpose: `registration_sessions` has RLS on with
+    // no policies, precisely so the anon key cannot read other people's
+    // tokens — which also means it cannot subscribe to them.
+    const tgBtn = document.getElementById('tgConnect');
+    const tgState = document.getElementById('tgState');
+    const tgHint = document.getElementById('tgHint');
+    let tgToken = null, tgConnected = false, tgPoll = null, tgTries = 0;
+
+    const setTg = (kind, text, hint) => {
+      tgState.className = 'tg-state is-' + kind;
+      tgState.textContent = text;
+      tgHint.hidden = !hint;
+      tgHint.textContent = hint || '';
+      // The button is not hidden when the connection is missing — a disabled
+      // button with a reason beside it is answerable, a vanished one is not.
+      btn.disabled = !tgConnected;
+    };
+
+    const tgCall = async (payload) => {
+      const r = await fetch(SUPA_URL + '/functions/v1/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPA_ANON, Authorization: 'Bearer ' + SUPA_ANON },
+        body: JSON.stringify(payload),
+      });
+      return { status: r.status, data: await r.json().catch(() => ({})) };
+    };
+
+    const stopPolling = () => { if (tgPoll) { clearInterval(tgPoll); tgPoll = null; } };
+
+    const pollTg = async () => {
+      if (!tgToken) return;
+      // Fifteen minutes of asking every three seconds, which is the life of the
+      // token. After that the answer cannot change, so stop rather than ask a
+      // dead question forever.
+      if (++tgTries > 300) { stopPolling(); return; }
+      let out;
+      try { out = await tgCall({ action: 'reg_status', token: tgToken }); }
+      catch (_) { return; }   // a dropped request is not an answer
+      const d = out.data || {};
+      if (d.connected) {
+        stopPolling();
+        tgConnected = true;
+        tgBtn.disabled = true;
+        tgBtn.textContent = '✓ Telegram conectat';
+        setTg('on', '🟢 Telegram conectat' + (d.name ? ' — ' + d.name : ''),
+          'Vei primi confirmarea, numărul de concurs și locul de parcare în Telegram.');
+        return;
+      }
+      if (d.expired) {
+        stopPolling();
+        tgBtn.disabled = false;
+        tgBtn.textContent = '📲 Generează link nou';
+        setTg('off', '⚠️ Linkul de conectare a expirat', 'Apasă din nou ca să primești unul nou.');
+      }
+    };
+
+    tgBtn.addEventListener('click', async () => {
+      if (tgConnected) return;
+      // The window is opened inside the click, before the round trip: a window
+      // opened after an await is treated as a popup and blocked, silently, on
+      // mobile Safari.
+      const win = window.open('', '_blank');
+      tgBtn.disabled = true;
+      setTg('wait', '⏳ Se pregătește linkul…');
+      let out;
+      try { out = await tgCall({ action: 'reg_start' }); }
+      catch (_) {
+        if (win) win.close();
+        tgBtn.disabled = false;
+        setTg('off', '🔴 Telegram neconectat', 'Conexiune întreruptă. Încearcă din nou.');
+        return;
+      }
+      const d = out.data || {};
+      if (!d.ok || !d.link) {
+        if (win) win.close();
+        tgBtn.disabled = false;
+        setTg('off', '🔴 Telegram neconectat',
+          out.status === 429
+            ? 'Prea multe încercări. Așteaptă câteva minute.'
+            : 'Botul nu e disponibil acum. Scrie-le organizatorilor.');
+        return;
+      }
+      tgToken = d.token;
+      tgTries = 0;
+      if (win) win.location = d.link; else location.href = d.link;
+      tgBtn.disabled = false;
+      tgBtn.textContent = '📲 Deschide din nou Telegram';
+      setTg('wait', '⏳ Aștept confirmarea din Telegram…',
+        'Apasă START în conversația cu botul. Această pagină se actualizează singură.');
+      stopPolling();
+      tgPoll = setInterval(pollTg, 3000);
+      pollTg();
+    });
+
+    // A phone that went to Telegram and came back is a page that was hidden and
+    // is visible again — the fastest moment to find out it worked.
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && tgToken && !tgConnected) pollTg();
+    });
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(form);
@@ -433,6 +569,9 @@
           headers: { 'Content-Type': 'application/json', apikey: SUPA_ANON, Authorization: 'Bearer ' + SUPA_ANON },
           body: JSON.stringify({
             kind: 'register', ...base, photos: uploaded,
+            // Checked again on the server. A disabled button is a courtesy,
+            // not a rule: the endpoint is public and anyone can post to it.
+            reg_token: tgToken,
             // A poster printed for one event carries ?event=<id>. The server
             // validates it against real events and falls back to the active
             // one, so a tampered value can only pick a different real event.
@@ -448,6 +587,12 @@
       btn.disabled = false;
       if (res.status === 429) {
         showMsg('Ai trimis deja o înscriere recent. Încearcă mai târziu sau contactează organizatorii.', 'err');
+        return;
+      }
+      if (data.error === 'telegram_required') {
+        tgConnected = false;
+        setTg('off', '🔴 Telegram neconectat', 'Conectează Telegram ca să poți trimite înregistrarea.');
+        showMsg('Conectează mai întâi Telegram.', 'err');
         return;
       }
       if (!res.ok || data.error) { showMsg('Eroare: ' + (data.error || res.status), 'err'); return; }

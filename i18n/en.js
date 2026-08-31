@@ -329,6 +329,8 @@ export default {
   "reg.approved": "{name} was added",
   "reg.new": "New registration",
   "reg.hold": "On hold",
+  "reg.tg_on_hint": "Telegram connected — will get the event notifications.",
+  "reg.tg_off_hint": "No Telegram — we cannot notify them automatically.",
   "reg.hold_action": "Put on hold",
   "reg.held": "Moved to on hold",
   "reg.save": "Save",

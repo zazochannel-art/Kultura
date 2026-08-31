@@ -3933,6 +3933,126 @@ try {
     await gctx.close();
   }
 
+  // 4w. Telegram, connected before a registration can be sent.
+  //
+  // Nothing automated has ever reached a participant here: no SMS provider was
+  // ever configured, and 51 of 54 drivers at the last event had no chat at all.
+  // Every reminder and every "your spot is X" went nowhere, and the "are you
+  // coming?" question got zero answers out of 54. Asking for the connection
+  // while the person is already filling in the form is the one moment they are
+  // certain to be there.
+  //
+  // The whole exchange is driven for real: the page mints a session, the fake
+  // bot "connects" it, the page notices on its own, and only then does the
+  // button work. The server refusing without one is verified against
+  // production by hand — a hermetic fixture cannot prove an edge function.
+  {
+    const tctx = await browser.newContext({ viewport: { width: 430, height: 930 }, isMobile: true, hasTouch: true });
+    let connected = false, submitted = null, minted = 0;
+    const TOKEN = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
+    await tctx.route('**://*.supabase.co/**', (r) => {
+      const u = r.request().url();
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      if (u.includes('/functions/v1/telegram')) {
+        let b = {};
+        try { b = JSON.parse(r.request().postData() || '{}'); } catch (_) { /* asserted below */ }
+        if (b.action === 'reg_start') {
+          minted++;
+          return J({ ok: true, token: TOKEN, ttl_min: 15, link: 'https://t.me/TestBot?start=r' + TOKEN });
+        }
+        if (b.action === 'reg_status') {
+          return J({ ok: true, connected, expired: false, used: false, name: connected ? 'Ion' : '' });
+        }
+        return J({});
+      }
+      if (u.includes('/functions/v1/submit')) {
+        try { submitted = JSON.parse(r.request().postData() || '{}'); } catch (_) { /* asserted below */ }
+        return J({ ok: true, status: 'pending' });
+      }
+      if (u.includes('/functions/v1/')) return J({ ok: true });
+      if (u.includes('/rest/v1/')) return J([]);
+      return r.abort();
+    });
+    // The bot itself is out of scope here; catching the tab keeps the run
+    // hermetic and lets us read back the link the page actually opened.
+    await tctx.route('**://t.me/**', (r) =>
+      r.fulfill({ status: 200, contentType: 'text/html', body: '<html><body>tg</body></html>' }));
+    const tp = await tctx.newPage();
+    try {
+      await tp.goto(`${BASE}/register.html`, { waitUntil: 'domcontentloaded' });
+      await tp.waitForTimeout(900);
+
+      // Before anything: the button is dead, and the reason is on the screen.
+      // Hiding it would leave somebody scrolling for a button that is not there.
+      const before = await tp.evaluate(() => ({
+        disabled: document.getElementById('submitBtn').disabled,
+        visible: !!document.getElementById('submitBtn').offsetParent,
+        state: document.getElementById('tgState').textContent,
+        off: document.getElementById('tgState').className.includes('is-off'),
+      }));
+      check('register-cannot-be-sent-without-telegram',
+        before.disabled === true && before.visible === true, JSON.stringify(before));
+      check('register-says-why-it-cannot-be-sent',
+        before.off && /neconectat/i.test(before.state), JSON.stringify(before));
+
+      // Connect. The page mints a session and sends the person to the bot.
+      const popup = tp.waitForEvent('popup', { timeout: 8000 }).catch(() => null);
+      await tp.click('#tgConnect');
+      const win = await popup;
+      await tp.waitForTimeout(600);
+      check('register-mints-one-session', minted === 1, String(minted));
+      check('register-opens-the-bot-with-the-token',
+        !!win && /t\.me\/TestBot\?start=r/.test(win.url()) && win.url().includes(TOKEN),
+        win ? win.url() : 'no window');
+      const waiting = await tp.evaluate(() => ({
+        state: document.getElementById('tgState').textContent,
+        wait: document.getElementById('tgState').className.includes('is-wait'),
+        disabled: document.getElementById('submitBtn').disabled,
+      }));
+      check('register-waits-for-the-chat', waiting.wait && waiting.disabled === true, JSON.stringify(waiting));
+
+      // The bot answers. Nobody refreshes anything: the page is asking.
+      connected = true;
+      await tp.waitForFunction(
+        () => document.getElementById('tgState').className.includes('is-on'),
+        null, { timeout: 15000 });
+      const now = await tp.evaluate(() => ({
+        state: document.getElementById('tgState').textContent,
+        disabled: document.getElementById('submitBtn').disabled,
+        btn: document.getElementById('tgConnect').textContent,
+      }));
+      check('register-notices-the-connection-on-its-own',
+        /conectat/i.test(now.state) && /Ion/.test(now.state), JSON.stringify(now));
+      check('register-unlocks-the-send-button', now.disabled === false, JSON.stringify(now));
+
+      // And the token rides along with the registration, because the server
+      // checks it again — the endpoint is public and a disabled button is a
+      // courtesy, not a rule.
+      await tp.evaluate(() => {
+        const f = document.getElementById('regForm') || document.querySelector('form');
+        const set = (n, v) => { const el = f.elements[n]; if (el) el.value = v; };
+        set('brand', 'VW'); set('model', 'Golf'); set('owner', 'Ion Popa'); set('phone', '69123456');
+      });
+      await tp.click('#submitBtn');
+      await tp.waitForTimeout(1200);
+      check('register-sends-the-token-with-the-form',
+        !!submitted && submitted.reg_token === TOKEN,
+        submitted ? String(submitted.reg_token) : 'nothing sent');
+      check('register-confirms-after-sending',
+        await tp.evaluate(() => document.getElementById('done').style.display === 'block'));
+    } catch (e) {
+      for (const n of ['register-cannot-be-sent-without-telegram', 'register-says-why-it-cannot-be-sent',
+        'register-mints-one-session', 'register-opens-the-bot-with-the-token',
+        'register-waits-for-the-chat', 'register-notices-the-connection-on-its-own',
+        'register-unlocks-the-send-button', 'register-sends-the-token-with-the-form',
+        'register-confirms-after-sending']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`register telegram checks: ${e.message}`);
+    }
+    await tctx.close();
+  }
+
   // 5. Public pages (given out by QR at the event) must render standalone.
   // They talk to Supabase, which is unreachable here, so we only assert the
   // static shell renders and nothing throws before the network call.

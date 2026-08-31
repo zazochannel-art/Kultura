@@ -1056,6 +1056,34 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     când cineva vrea totuși să pună o mașină acolo e întrebat o dată — o
     rezervare e o notă de la cine a făcut-o, nu un lacăt.
 
+65. **Canalul se cere când omul e sigur acolo.** Invitațiile împărțite după
+    eveniment au ajuns la 3 șoferi din 54; formularul de înscriere e singurul
+    moment în care participantul e cu siguranță în fața ecranului. De aceea
+    conectarea la Telegram e acum obligatorie ca să se poată trimite înscrierea.
+
+    Fluxul: pagina cere o sesiune (`registration_sessions`), primește un token
+    de 128 de biți valabil 15 minute, îl duce pe om la bot ca `?start=r<token>`,
+    apoi întreabă serverul la fiecare 3 secunde dacă a venit chat-ul. Nimeni nu
+    dă refresh. La trimitere, tokenul merge cu formularul și **e verificat din
+    nou pe server**: butonul dezactivat e o politețe, endpoint-ul e public.
+    Fără sesiune conectată → `403 telegram_required`, fără niciun rând scris.
+
+    Tokenul se cheltuie o dată, și abia după ce rândul chiar a fost scris — dacă
+    inserarea eșuează, omul rămâne cu un token viu, nu cu unul mort și un
+    formular pe care nu-l mai poate trimite.
+
+    `telegram_user_id` e identitatea, nu username-ul: un username se schimbă sau
+    lipsește. La acceptarea înscrierii, chat-ul trece pe mașină, deci o mașină
+    aprobată e de contactat din primul minut.
+
+    Sesiunea n-are `user_id`: participanții n-au conturi în aplicație, iar o
+    coloană care n-are niciodată valoare e mai rea decât una absentă.
+
+    Tabela are RLS pornit **fără nicio politică**, ca `app_config`: tokenul e
+    credențialul, deci o tabelă citibilă ar da toate sesiunile oricui are cheia
+    anonimă. Din același motiv verificarea se face prin polling la o edge
+    function, nu prin Realtime — cheia anonimă n-are ce să asculte.
+
 64. **Un dialog care schimbă ceva trebuie să spună ce anume schimbă.** Un plan
     se aduce peste evenimentul selectat sus în ecran, iar numele desenului nu
     spune nimic despre asta. Un plan numit după evenimentul de luna viitoare a

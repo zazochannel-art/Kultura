@@ -332,6 +332,8 @@ export default {
   "reg.approved": "{name} a fost adăugat",
   "reg.new": "Înscriere nouă",
   "reg.hold": "Amânată",
+  "reg.tg_on_hint": "Telegram conectat — primește notificările evenimentului.",
+  "reg.tg_off_hint": "Fără Telegram — nu-l putem anunța automat.",
   "reg.hold_action": "Amână",
   "reg.held": "Mutată la amânate.",
   "reg.save": "Salvează",
