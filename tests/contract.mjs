@@ -242,6 +242,37 @@ async function main() {
     check('submit-rejects-unknown-kind', r.status === 400, `status ${r.status}`);
   }
 
+  {
+    // A registration without a connected Telegram session must be refused by
+    // the server, not merely by a disabled button — this endpoint is public and
+    // anyone can post JSON straight at it. The refusal happens before the row
+    // is built and before a rate-limit slot is taken, so this writes nothing
+    // and costs the caller nothing.
+    //
+    // Worth a contract check rather than a fixture: whether the check is live
+    // depends on which version of the edge function is deployed, which is
+    // exactly what a mock cannot know.
+    const body = JSON.stringify({
+      kind: 'register', brand: 'X', model: 'Y', owner: 'Z', phone: '+37360000000',
+    });
+    const r = await fn('submit', { method: 'POST', body });
+    check('submit-refuses-registration-without-telegram',
+      r.status === 403 && r.body?.error === 'telegram_required',
+      `status ${r.status}, ${JSON.stringify(r.body).slice(0, 80)}`);
+
+    // And a made-up token is no better than none. 32 hex characters so it gets
+    // past the shape check and is actually looked up.
+    const r2 = await fn('submit', {
+      method: 'POST',
+      body: JSON.stringify({
+        kind: 'register', brand: 'X', model: 'Y', owner: 'Z', phone: '+37360000000',
+        reg_token: '00000000000000000000000000000000',
+      }),
+    });
+    check('submit-refuses-a-token-it-never-issued',
+      r2.status === 403, `status ${r2.status}`);
+  }
+
   // ---------------------------------------------------------------------------
   const failed = checks.filter(c => !c.ok);
   console.log(`\n${checks.length - failed.length}/${checks.length} passed`);
