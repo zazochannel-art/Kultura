@@ -209,32 +209,53 @@ cititorul de PDF pe care numai el îi folosea (regula 53).
 
 Mini-harta exista de la început în aplicație — cardul de la scanarea de la
 poartă desenează toate locurile ca puncte și îl mărește pe al mașinii. Numai că
-o vedea staff-ul, nu omul care are nevoie de ea. Din v153, botul o desenează și
-o trimite: notificarea „locul tău a fost atribuit" pleacă drept **poză cu text
-în caption**, nu ca text singur.
+o vedea staff-ul, nu omul care are nevoie de ea. Din v153 botul o trimite:
+notificarea „locul tău a fost atribuit" pleacă drept **poză cu text în
+caption**, nu ca text singur.
 
-Poza se desenează în funcția edge, în `map-png.ts`, fără nicio bibliotecă:
-dreptunghiuri rotite într-un buffer RGB, mediere 2×2 și un encoder PNG de o sută
-de linii peste `CompressionStream('deflate')`. Motivul e cald/rece: un
-rasterizator WebAssembly ar fi însemnat un megabyte descărcat la fiecare pornire
-la rece, plus un font, înainte ca notificarea să poată pleca.
+Din v154 poza aia e **chiar harta din aplicație** — desenul de arhitect, cu
+zonele colorate, clădirile, drumurile și etichetele — cu un cerc roz peste locul
+șoferului.
 
-**În poză nu există text.** resvg fără font scrie gol, deci zona și numărul
-locului stau în caption, unde oricum pot fi copiate și citite de un cititor de
-ecran. Poza răspunde la o singură întrebare: unde pe teren.
+**Cine desenează ce.** Nu funcția edge. Planul are peste două mii de forme, iar
+textul („GREEN ZONE", „4056 m²") și markerele emoji ar cere un font împachetat
+în funcție și un rasterizator care să-l așeze. Browserul are și randorul, și
+fonturile. Deci:
+
+1. aplicația desenează planul o singură dată — la import, sau prima dată când un
+   staff deschide o hartă care n-are încă poză — printr-un `<canvas>`, la 1280 px
+   (cât servește Telegram o poză), și urcă PNG-ul în bucket-ul `maps`;
+2. adresa lui se scrie în `zone_plans.render_path`;
+3. botul descarcă PNG-ul, îl **decodează**, pune cercul și îl re-encodează.
+
+`render_path` e un fișier **derivat**: se poate șterge oricând, aplicația îl face
+la loc. Merge în `maps`, nu în `plans`, fiindcă `plans` acceptă doar
+`application/json`.
+
+**Trei niveluri, în ordine.** Harta reală dacă există poza; harta schematică
+(dreptunghiuri pe hârtie albă, direct din `spots`) dacă planul n-a fost deschis
+încă de nimeni; **text** dacă nici aia nu se poate desena. Poza nu poate face
+notificarea să se piardă. Răspunsul funcției spune `map: "plan" | "spots" |
+false` și separat `photo` (dacă Telegram a acceptat-o), ca să se poată deosebi
+un plan nedesenat de un chat care a dispărut.
+
+**În poză nu există text**, deliberat: zona și numărul stau în caption, unde pot
+fi copiate, citite de un cititor de ecran și traduse.
+
+**Decodorul PNG.** E partea care putea să iasă prost, deci e verificată direct:
+aceleași octeți decodați de `map-png.ts` și de browser dau **exact aceiași
+pixeli**, pe planul real de 1280×1410. Suportă doar ce scrie un `<canvas>` — 8
+biți pe canal, neîntrețesut, culoare cu sau fără alfa; orice altceva întoarce
+null și se cade pe harta schematică. La encodare, filtrul se alege pe fiecare
+linie: fără el, desenul ieșea de trei ori mai mare decât îl făcuse browserul.
 
 `zone_plans.spots` ține fiecare loc ca **procent din view box-ul desenului**, iar
 view box-ul nu era scris nicăieri — aplicația îl recalcula din desen la fiecare
 deschidere a hărții, ceea ce nimic din afara unui browser nu poate face. De aceea
-planurile au acum `view_w` / `view_h`: 1,5% din lățime și 1,5% din înălțime sunt
-aceeași distanță pe teren doar dacă știi forma terenului, iar o hartă desenată
-în proporții greșite arată alt loc. Se scriu la import și se copiază odată cu
-locurile când duplici un plan.
-
-Dacă poza nu se poate desena — plan lipsă, proporții lipsă, un loc care nu e pe
-plan — mesajul pleacă **ca text**, ca înainte. Răspunsul funcției spune separat
-`map` (s-a desenat) și `photo` (Telegram a acceptat-o), ca să se poată deosebi
-un plan care nu se poate desena de un chat care a dispărut.
+planurile au și `view_w` / `view_h`: 1,5% din lățime și 1,5% din înălțime sunt
+aceeași distanță pe teren doar dacă știi forma terenului. Ele încadrează harta
+schematică; pentru cea reală, PNG-ul acoperă exact view box-ul, deci procentul
+cade direct pe pixel.
 
 **De ce nu o poză.** Harta se mărește de 8× la poartă, iar o imagine are o
 rezoluție: prima variantă rasteriza planul la 4800 px și tot se făcea pastă la
@@ -597,7 +618,7 @@ fel, dar **își verifică singure apelantul** înăuntru (`is_admin_user()` /
 | `event-info` | nu | Evenimentul curent + agenda, pentru paginile publice. Întoarce și `waiver_text` și `spots_left` |
 | `ticket` | nu | Bilet/pass |
 | `rsvp` | nu | „Vii la eveniment?" pentru `confirm.html`. Token HMAC pe id-ul mașinii; un „nu" eliberează locul și promovează prima înscriere de pe lista de așteptare |
-| `telegram` | nu² | Webhook-ul botului (`/start <id>-<token>` leagă chat-ul de mașină), configurarea de către admin, **linkurile de invitație** (`action:'invite'`, staff) și mesajele pe care sistemul le trimite singur (`action:'notify'`). Are **două fișiere**: `index.ts` și `map-png.ts`, care desenează mini-harta trimisă odată cu locul |
+| `telegram` | nu² | Webhook-ul botului (`/start <id>-<token>` leagă chat-ul de mașină), configurarea de către admin, **linkurile de invitație** (`action:'invite'`, staff) și mesajele pe care sistemul le trimite singur (`action:'notify'`). Are **două fișiere**: `index.ts` și `map-png.ts` — decodor + encoder PNG, care pune cercul peste harta desenată de aplicație |
 | `health` | da | Starea canalelor pentru admin: Telegram (conectat? webhook viu? câți legați?), SMS (configurat?), adresa publică. Booleeni și numere, niciodată secretele |
 | `backup` | nu¹ | Export JSON a 15 tabele în bucket-ul `backups`. Lista `TABLES` **trebuie să rămână în pas cu `PK` din `restore`** — un tabel salvat dar absent acolo se sare în tăcere la restaurare |
 | `restore` | da | Restaurare **aditivă** din backup (admin) |

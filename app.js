@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v153';
+    const APP_VERSION = 'v154';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -602,6 +602,78 @@
     // Where a drawing may come from: our own plans bucket, or a file shipped
     // with the app. The rule itself lives in utils.js, where it is tested.
     const PLANS_PREFIX = SUPABASE_URL + '/storage/v1/object/public/plans/';
+    const MAPS_PREFIX = SUPABASE_URL + '/storage/v1/object/public/maps/';
+
+    // ----- A PICTURE OF THE PLAN, FOR THE BOT ------------------------------
+    //
+    // The bot sends the driver the map with their bay ringed on it. It cannot
+    // draw this map: it is an architect's drawing of a couple of thousand
+    // shapes with zone labels and emoji markers, and an edge function has no
+    // font to write any of it with. The browser has both the renderer and the
+    // fonts, so the browser draws it — once per plan, not once per message —
+    // and the bot fetches the picture and paints one ring on it.
+    //
+    // 1280 px wide because that is the size Telegram serves a photo at; more
+    // pixels would be bytes nobody sees.
+    const PLAN_RENDER_W = 1280;
+
+    function planPngBlob(plan, doc) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(new Blob([doc.svg], { type: 'image/svg+xml' }));
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const cv = document.createElement('canvas');
+            cv.width = doc.width; cv.height = doc.height;
+            const cx = cv.getContext('2d');
+            // The drawing's own paper first. The SVG paints it too, but a canvas
+            // that starts transparent leaves half-transparent edges, and what
+            // reads them next has to guess what was under them.
+            cx.fillStyle = inkOf(plan).bg;
+            cx.fillRect(0, 0, cv.width, cv.height);
+            cx.drawImage(img, 0, 0, cv.width, cv.height);
+            URL.revokeObjectURL(url);
+            cv.toBlob(b => b ? resolve(b) : reject(new Error('blob')), 'image/png');
+          } catch (err) { URL.revokeObjectURL(url); reject(err); }
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('svg')); };
+        img.src = url;
+      });
+    }
+
+    // Never throws and never blocks anything: a plan without a picture still
+    // works everywhere in the app, and the bot falls back to a plainer map.
+    const _rendering = new Set();
+    async function ensurePlanRender(planId, plan, force) {
+      if (planId == null || !plan) return null;
+      const key = String(planId);
+      if (_rendering.has(key)) return null;
+      if (!roleAtLeast('staff') || !navigator.onLine) return null;
+      _rendering.add(key);
+      try {
+        if (!force) {
+          const { data } = await supa.from('zone_plans').select('render_path').eq('id', planId).maybeSingle();
+          if (data && data.render_path) return data.render_path;
+        }
+        const doc = planSvgDoc(plan, { width: PLAN_RENDER_W, chrome: false, metric: true });
+        const blob = await planPngBlob(plan, doc);
+        // Named for the plan and the moment: a plan redrawn later gets a new
+        // file rather than fighting a cached copy of the old one.
+        const path = 'plan-' + planId + '-' + Date.now() + '.png';
+        const { error: upErr } = await supa.storage.from('maps')
+          .upload(path, blob, { contentType: 'image/png' });
+        if (upErr) return null;
+        const url = MAPS_PREFIX + encodeURIComponent(path);
+        const { error: setErr } = await supa.from('zone_plans')
+          .update({ render_path: url }).eq('id', planId);
+        if (setErr) return null;
+        return url;
+      } catch (_) {
+        return null;
+      } finally {
+        _rendering.delete(key);
+      }
+    }
 
     // Bays as they come out of storage. Clamped on read as well as on write: a
     // bad row must not put a bay outside the drawing, where nobody can reach it.
@@ -639,7 +711,7 @@
     async function loadPlanLibrary() {
       try {
         const { data } = await supa.from('zone_plans')
-          .select('id,name,plan_path,map_url,updated_at')
+          .select('id,name,plan_path,map_url,updated_at,render_path')
           .order('updated_at', { ascending: false });
         ZONE_PLANS = Array.isArray(data) ? data : [];
       } catch (_) { ZONE_PLANS = []; }
@@ -652,14 +724,15 @@
       const id = activeEventPlanId();
       _planId = id;
       _planName = '';
-      _mapUrl = null; _planUrl = null; _plan = null;
+      _mapUrl = null; _planUrl = null; _plan = null; _planRender = null;
       ZONE_SPOTS = [];
       if (id != null) {
         try {
           const { data } = await supa.from('zone_plans')
-            .select('id,name,plan_path,map_url,spots').eq('id', id).maybeSingle();
+            .select('id,name,plan_path,map_url,spots,render_path').eq('id', id).maybeSingle();
           if (data) {
             _planName = data.name || '';
+            _planRender = data.render_path || null;
             _mapUrl = data.map_url || null;
             _planUrl = data.plan_path || null;
             ZONE_SPOTS = normaliseSpots(data.spots);
@@ -690,6 +763,15 @@
       // Without this the strip says "0 spots on the plan" until something else
       // happens to repaint it.
       try { renderParkStrip(); } catch (_) {}
+      // Every plan from before this existed has no picture. Rather than a
+      // migration nobody can run from a browser, the app makes one the first
+      // time a staff member opens a plan — in the background, because nothing
+      // on screen is waiting for it.
+      if (_plan && _planId != null && !_planRender) {
+        const forId = _planId;
+        ensurePlanRender(forId, _plan)
+          .then(url => { if (url && String(_planId) === String(forId)) _planRender = url; });
+      }
     }
     async function loadMap() {
       await loadPlanLibrary();
@@ -842,6 +924,7 @@
     // car is on which spot is data about the car, so it lives on `cars.spot_no`,
     // guarded by a unique index: two drivers must never be sent to one square.
     let ZONE_SPOTS = [];            // [{ zone, no, x, y }]
+    let _planRender = null;         // the plan drawn to PNG, for the bot
     let _spotEdit = false;          // placing/moving spots
     let _spotEditZone = '';         // which zone new spots belong to
     let _spotRow = false;           // laying a whole row instead of one spot
@@ -2412,6 +2495,13 @@
         const stillUsed = ZONE_PLANS.some(x => String(x.id) !== String(pl.id) && x.plan_path === path);
         if (rest && !stillUsed) supa.storage.from('plans').remove([decodeURIComponent(rest)]);
       }
+      // The picture is this plan's alone — a copy renders its own — so it goes
+      // with it rather than being left behind as a file nobody can reach.
+      const shot = String(pl.render_path || '');
+      if (shot.startsWith(MAPS_PREFIX)) {
+        const rest = shot.slice(MAPS_PREFIX.length);
+        if (rest) supa.storage.from('maps').remove([decodeURIComponent(rest)]);
+      }
       await loadPlanLibrary();
       if (String(pl.id) === String(_planId)) await loadActivePlan();
       renderPlanList();
@@ -2673,6 +2763,14 @@
       const { error: evErr } = await supa.from('events').update({ plan_id: row.id }).eq('id', ev.id);
       if (evErr) { uiAlert(t('common.error') + ': ' + evErr.message); return false; }
       setEventPlanLocally(ev.id, row.id);
+
+      // Drawn now rather than left for whoever opens the map next: the person
+      // who just imported a plan is the one who will be assigning bays from it,
+      // and the first notification must not go out with the plainer map.
+      status.style.display = 'block';
+      status.textContent = t('map.plan_rendering');
+      await ensurePlanRender(row.id, plan, true);
+      status.style.display = 'none';
 
       await freeOrphanSpots(next);
 
