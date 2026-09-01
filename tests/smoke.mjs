@@ -3796,9 +3796,10 @@ try {
   // so the whole path runs — start the scanner, decode, find the car, render.
   {
     const CARS = [
-      { id: 3, entry_no: 247, brand: 'Volkswagen', model: 'Golf 5', owner: 'Ion Popa', plate: 'ABC 123',
-        color: 'Silver', status: 'Invitat', event_id: 6, zone: 'Retro', spot_no: 38, telegram_chat_id: 1, deleted_at: null },
-      { id: 4, entry_no: 248, brand: 'Mazda', model: 'RX7', owner: 'Fara Loc', plate: 'DEF 456',
+      { id: 9137, entry_no: 247, brand: 'Volkswagen', model: 'Golf 5', owner: 'Ion Popa', plate: 'ABC 123',
+        color: 'Silver', status: 'Invitat', event_id: 6, zone: 'Retro', spot_no: 38,
+        telegram: 'ionpopa', telegram_chat_id: 55501, deleted_at: null },
+      { id: 9138, entry_no: 248, brand: 'Mazda', model: 'RX7', owner: 'Fara Loc', plate: 'DEF 456',
         color: null, status: 'Invitat', event_id: 6, zone: 'Retro', spot_no: null, telegram_chat_id: 1, deleted_at: null },
     ];
     const SPOTS = [{ zone: 'Retro', no: 38, x: 40, y: 40 }, { zone: 'Retro', no: 39, x: 60, y: 40 }];
@@ -3827,7 +3828,7 @@ try {
     // The decoder, stubbed at the one seam the app has for it. Which code it
     // returns is switched from the test by a global.
     await gctx.addInitScript(() => {
-      window.__scanValue = 'KULTURA:3:ABC 123';
+      window.__scanValue = 'KULTURA:9137:ABC 123';
       window.BarcodeDetector = class {
         constructor() {}
         async detect() { return window.__scanValue ? [{ rawValue: window.__scanValue }] : []; }
@@ -3879,6 +3880,25 @@ try {
       // And answers "where is it" in the same line, instead of another screen.
       check('search-says-where-the-car-stands',
         found.some((r2) => /247/.test(r2) && /Retro/.test(r2) && /38/.test(r2)), found.slice(0, 4).join(' | '));
+
+      // Whatever the person in front of you actually has: a Telegram handle, a
+      // chat id out of a log, or the row id out of a URL.
+      const lookFor = async (q) => {
+        await gp.evaluate((v) => {
+          const i = document.getElementById('cmdkInput');
+          i.value = v; i.dispatchEvent(new Event('input', { bubbles: true }));
+        }, q);
+        await gp.waitForTimeout(300);
+        return gp.evaluate(() =>
+          [...document.querySelectorAll('#cmdkResults .cmdk-item, #cmdkResults [data-cmdk-i]')]
+            .map((x) => x.textContent.replace(/\s+/g, ' ').trim()));
+      };
+      check('search-finds-a-car-by-its-telegram-handle',
+        (await lookFor('ionpopa')).some((r2) => /247/.test(r2)));
+      check('search-finds-a-car-by-its-chat-id',
+        (await lookFor('55501')).some((r2) => /247/.test(r2)));
+      check('search-finds-a-car-by-its-row-id',
+        (await lookFor('9137')).some((r2) => /247/.test(r2)));
       await gp.evaluate(() => document.getElementById('cmdk')?.classList.remove('show'));
       await gp.waitForTimeout(200);
 
@@ -3903,11 +3923,28 @@ try {
       check('scan-says-the-colour', /Silver/.test(card.sub), card.sub);
       check('scan-offers-the-map-when-there-is-a-spot', card.mapBtn && !card.spotBtn, JSON.stringify(card));
 
+      // A zone and a number are precise and say nothing about which way to
+      // point. The plan's own coordinates make that answerable in a box the
+      // size of a stamp.
+      const mini = await gp.evaluate(() => {
+        const svg = document.querySelector('#gsrWhere .gsr-mini');
+        if (!svg) return null;
+        return {
+          dots: svg.querySelectorAll('.gsr-mini-dot').length,
+          here: svg.querySelectorAll('.gsr-mini-here').length,
+          label: svg.getAttribute('aria-label') || '',
+        };
+      });
+      // Two bays on this plan: one of them is the one being pointed at.
+      check('scan-draws-a-mini-map', !!mini && mini.dots === 1 && mini.here === 1, JSON.stringify(mini));
+      check('scan-mini-map-is-described-for-a-reader',
+        !!mini && /38/.test(mini.label) && /Retro/.test(mini.label), mini ? mini.label : 'none');
+
       // The other half: accepted, but nobody has given them a place yet. The
       // card used to look identical to the one above.
       await gp.evaluate(() => {
         document.getElementById('gsrCancel').click();
-        window.__scanValue = 'KULTURA:4:DEF 456';
+        window.__scanValue = 'KULTURA:9138:DEF 456';
       });
       await gp.waitForTimeout(1600);
       await gp.waitForSelector('#gateScanResult:not([hidden])', { timeout: 12000 });
@@ -3925,7 +3962,10 @@ try {
       for (const n of ['home-shows-parking-numbers', 'search-finds-a-car-by-its-number',
         'search-says-where-the-car-stands', 'scan-says-the-zone-and-the-spot', 'scan-says-the-colour',
         'scan-offers-the-map-when-there-is-a-spot', 'scan-says-plainly-when-there-is-no-spot',
-        'scan-offers-the-way-to-fix-it']) {
+        'scan-offers-the-way-to-fix-it', 'scan-draws-a-mini-map',
+        'scan-mini-map-is-described-for-a-reader',
+        'search-finds-a-car-by-its-telegram-handle', 'search-finds-a-car-by-its-chat-id',
+        'search-finds-a-car-by-its-row-id']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
       console.log(`gate scan checks: ${e.message}`);

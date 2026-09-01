@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v151';
+    const APP_VERSION = 'v152';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -481,8 +481,13 @@
       const digits = /^#?\d+$/.test(s) ? s.replace('#', '') : null;
       for (const c of (state.cars || [])) {
         const byNo = digits != null && String(c.entry_no) === digits;
-        if (!s || byNo || hit(c.plate) || hit(c.owner) || hit(c.brand) || hit(c.model)
-            || hit(c.phone) || hit(c.contact)) {
+        // Everything somebody might have in hand: the number on the windscreen,
+        // the plate, a name, the phone they registered with, their Telegram
+        // handle or chat id, or the row id itself out of a log or a URL.
+        const byId = digits != null && String(c.id) === digits;
+        if (!s || byNo || byId || hit(c.plate) || hit(c.owner) || hit(c.brand) || hit(c.model)
+            || hit(c.phone) || hit(c.contact) || hit(c.telegram)
+            || (c.telegram_chat_id != null && hit(String(c.telegram_chat_id)))) {
           const name = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
           // The spot rides along, because the answer to "where is #247" is a
           // zone and a number, not a screen to open next.
@@ -6750,6 +6755,7 @@
           ? `<div class="gsr-no">${car.entry_no != null ? '#' + escape(String(car.entry_no)) : ''}</div>`
             + `<div class="gsr-zone">${escape(t('gate.go_zone'))} <b>${escape(car.zone)}</b></div>`
             + `<div class="gsr-spot">${escape(t('gate.go_spot'))} <b>${escape(String(car.spot_no))}</b></div>`
+            + miniMapSvg(car.zone, car.spot_no)
           : `<div class="gsr-no">${car.entry_no != null ? '#' + escape(String(car.entry_no)) : ''}</div>`
             + `<div class="gsr-nospot">⚠️ ${escape(t('gate.no_spot_yet'))}</div>`;
       }
@@ -6778,6 +6784,32 @@
       _scanPaused = false;
       _lastScanAt = Date.now(); // debounce so the same code isn't re-read instantly
     }
+    // The bay, drawn small, in the field it belongs to.
+    //
+    // "Zona Retro, locul 38" is precise and tells a driver nothing about which
+    // way to point. Every bay already carries its position as a percentage of
+    // the plan, so a hundred-pixel box of dots is enough to answer "over there"
+    // — no drawing to fetch, no scale to compute.
+    function miniMapSvg(zone, no) {
+      const spots = ZONE_SPOTS || [];
+      if (!spots.length) return '';
+      const key = spotKey(zone, no);
+      const here = spots.find(sp => spotKey(sp.zone, sp.no) === key);
+      if (!here) return '';
+      const dots = spots.map((sp) => {
+        const mine = spotKey(sp.zone, sp.no) === key;
+        // The one we are pointing at is drawn last and larger, so it cannot be
+        // hidden under a neighbour in a dense row.
+        return { x: sp.x, y: sp.y, mine };
+      }).sort((a, b) => (a.mine === b.mine ? 0 : a.mine ? 1 : -1));
+      return `<svg class="gsr-mini" viewBox="0 0 100 100" preserveAspectRatio="none"
+          role="img" aria-label="${escape(t('gate.mini_alt', { zone, n: no }))}">`
+        + dots.map(d => d.mine
+          ? `<circle cx="${d.x}" cy="${d.y}" r="4.5" class="gsr-mini-here"/>`
+          : `<circle cx="${d.x}" cy="${d.y}" r="1.1" class="gsr-mini-dot"/>`).join('')
+        + `</svg>`;
+    }
+
     // Light the bay up on the map. Reading a zone and a number off a card is
     // not the same as seeing where to point: the plan is 266 bays.
     function showSpotOnMap(zone, no) {
@@ -10752,6 +10784,10 @@
             ${fieldRow(t('car.detail.model'), c.model)}
             ${fieldRow(t('car.detail.year'), c.year)}
             ${fieldRow(t('car.detail.color'), c.color)}
+            ${fieldRow(t('car.detail.telegram_state'),
+              c.telegram_chat_id
+                ? '🟢 ' + t('car.detail.tg_on') + (c.telegram ? ' · @' + c.telegram : '')
+                : '🔴 ' + t('car.detail.tg_off'))}
             ${fieldRow(t('car.detail.category'), c.category ? localizeDept(c.category) : c.category)}
             ${fieldRow(t('car.detail.plate'), c.plate)}
             ${fieldRow(t('car.detail.event'), (() => {

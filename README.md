@@ -1084,6 +1084,36 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     anonimă. Din același motiv verificarea se face prin polling la o edge
     function, nu prin Realtime — cheia anonimă n-are ce să asculte.
 
+66. **Un canal obligatoriu care nu spune nimic e o formalitate.** Am cerut
+    conectarea la Telegram ca să se poată trimite înscrierea, dar singurul mesaj
+    automat era cel care confirma chiar conectarea. Acceptarea și primirea
+    locului — cele două lucruri pe care participantul chiar le așteaptă —
+    ajungeau la el doar dacă un operator deschidea WhatsApp și scria de mână.
+
+    Acum botul spune singur trei lucruri: înscrierea a ajuns (din `submit`,
+    fiindcă atunci nu există încă o mașină), a fost acceptată (INSERT pe `cars`
+    — în aplicația asta o înscriere *devine* o mașină, deci inserarea E
+    acceptarea), și locul a fost atribuit (`spot_no` trece din nimic în ceva).
+    Ultimele două vin dintr-un trigger, pe același drum pe care merge deja
+    `notify_push`.
+
+    Funcția recitește mașina din bază în loc să se încreadă în `NEW`: un mesaj
+    nu trebuie să descrie o stare pe care baza n-o are. Iar o mașină fără chat
+    nu e o eroare — sunt toate cele importate înainte ca asta să existe.
+
+67. **Un `case` din PL/pgSQL nu te scapă de o coloană care nu există.** Prima
+    versiune a trigger-ului comun pentru `cars` și `car_registrations` citea
+    `new.telegram_user_id` într-o ramură și `new.telegram_chat_id` în cealaltă.
+    PL/pgSQL rezolvă câmpul unei înregistrări când compilează expresia, nu când
+    execută ramura — deci pe `cars`, care n-are `telegram_user_id`, orice
+    inserare cădea. Prin `to_jsonb(new)` întrebi rândul de o cheie, nu de o
+    coloană: aceeași întrebare la care ambele tabele pot răspunde.
+
+68. **Un loc se spune cu un deget, nu cu un număr.** „Zona Retro, locul 38" e
+    exact și nu-i spune șoferului încotro s-o ia. Fiecare boxă își poartă deja
+    poziția ca procent din plan, deci o casetă de o sută de pixeli cu puncte
+    răspunde la „acolo" fără să încarce desenul și fără să calculeze vreo scară.
+
 64. **Un dialog care schimbă ceva trebuie să spună ce anume schimbă.** Un plan
     se aduce peste evenimentul selectat sus în ecran, iar numele desenului nu
     spune nimic despre asta. Un plan numit după evenimentul de luna viitoare a
