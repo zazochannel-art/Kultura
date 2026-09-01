@@ -224,7 +224,11 @@ fonturile. Deci:
 
 1. aplicația desenează planul o singură dată — la import, sau prima dată când un
    staff deschide o hartă care n-are încă poză — printr-un `<canvas>`, la 1280 px
-   (cât servește Telegram o poză), și urcă PNG-ul în bucket-ul `maps`;
+   (cât servește Telegram o poză), și urcă PNG-ul în bucket-ul `maps`. Importul
+   **nu așteaptă**: poza îi trebuie botului abia când cineva atribuie un loc,
+   iar prima variantă ținea importul deschis cât desena canvasul — pe o mașină
+   lentă planul părea neterminat și notele de la final apăreau în urma unui
+   „se pregătește" pe care nu-l aștepta nimeni;
 2. adresa lui se scrie în `zone_plans.render_path`;
 3. botul descarcă PNG-ul, îl **decodează**, pune cercul și îl re-encodează.
 
