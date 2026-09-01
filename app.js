@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v156';
+    const APP_VERSION = 'v157';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -3928,6 +3928,7 @@
       return error ? { error, rows: [] } : { error: null, rows: data || [] };
     }
 
+    let _trashGroups = [];
     async function renderTrash() {
       const box = el('trashList');
       if (!box) return;
@@ -3935,21 +3936,62 @@
       const { error, rows } = await fetchTrash();
       if (error) { box.innerHTML = `<div class="block-empty">${escape(error.message)}</div>`; return; }
       if (!rows.length) { box.innerHTML = `<div class="block-empty">${escape(t('trash.empty_state'))}</div>`; return; }
-      box.innerHTML = rows.map(c => {
-        const name = [c.brand, c.model].filter(Boolean).join(' ') || c.plate || '—';
-        return `<div class="backup-row">
-          <div class="backup-meta">
-            <strong>${c.entry_no ? `<span class="entry-no">#${escape(String(c.entry_no))}</span> ` : ''}${escape(name)}</strong>
-            <span>${escape(c.plate || '')}${c.owner ? ' · ' + escape(c.owner) : ''} · ${escape(fmtRelative(c.deleted_at))}</span>
+      // Grouped by the moment of deletion, because that is what a deletion was:
+      // fifty-five cars removed in one action arrived here as fifty-five rows
+      // with fifty-five buttons, and putting them back meant pressing all of
+      // them. Cars deleted within the same second were deleted together.
+      const groups = [];
+      for (const c of rows) {
+        const key = String(c.deleted_at || '').slice(0, 19);
+        const last = groups[groups.length - 1];
+        if (last && last.key === key) last.cars.push(c);
+        else groups.push({ key, at: c.deleted_at, cars: [c] });
+      }
+      box.innerHTML = groups.map(g => {
+        const rowsHtml = g.cars.map(c => {
+          const name = [c.brand, c.model].filter(Boolean).join(' ') || c.plate || '—';
+          return `<div class="backup-row">
+            <div class="backup-meta">
+              <strong>${c.entry_no ? `<span class="entry-no">#${escape(String(c.entry_no))}</span> ` : ''}${escape(name)}</strong>
+              <span>${escape(c.plate || '')}${c.owner ? ' · ' + escape(c.owner) : ''} · ${escape(fmtRelative(c.deleted_at))}</span>
+            </div>
+            <button type="button" class="btn small ghost" data-trash-restore="${c.id}">${escape(t('trash.restore'))}</button>
+          </div>`;
+        }).join('');
+        // One car is its own group, and a header over a single row would be
+        // noise. The header earns its place only when there is a group to act on.
+        if (g.cars.length < 2) return rowsHtml;
+        return `<div class="trash-group">
+          <div class="trash-group-head">
+            <span>${escape(t('trash.group', { n: g.cars.length, when: fmtRelative(g.at) }))}</span>
+            <button type="button" class="btn small" data-trash-restore-all="${escape(g.key)}">${escape(t('trash.restore_all', { n: g.cars.length }))}</button>
           </div>
-          <button type="button" class="btn small ghost" data-trash-restore="${c.id}">${escape(t('trash.restore'))}</button>
+          ${rowsHtml}
         </div>`;
       }).join('');
+      _trashGroups = groups;
     }
 
     el('trashRefreshBtn')?.addEventListener('click', () => renderTrash());
 
     el('trashList')?.addEventListener('click', async (e) => {
+      const all = e.target.closest('[data-trash-restore-all]');
+      if (all) {
+        const g = _trashGroups.find(x => x.key === all.dataset.trashRestoreAll);
+        if (!g) return;
+        if (!await uiConfirm(t('trash.confirm_restore_all', { n: g.cars.length }))) return;
+        all.disabled = true;
+        const res = await untrashCars(g.cars.map(c => c.id));
+        if (res.error) { showToast(t('common.error') + ': ' + res.error.message, 'error'); all.disabled = false; return; }
+        // Renumbering is the one surprise worth naming: a car whose old number
+        // was taken while it was gone comes back with a different one.
+        showToast(res.renumbered
+          ? t('trash.restored_many_renumbered', { n: res.n, r: res.renumbered })
+          : t('trash.restored_many', { n: res.n }));
+        await loadDataFull();
+        renderTrash();
+        return;
+      }
       const btn = e.target.closest('[data-trash-restore]');
       if (!btn) return;
       btn.disabled = true;
@@ -4970,6 +5012,20 @@
       return { error: null, renumbered: !!row?.renumbered, entry_no: row?.entry_no ?? null };
     }
 
+    // A whole group at once. Deleting fifty-five cars was one action; bringing
+    // them back was fifty-five taps. The database still decides each number the
+    // same way — this only spares the round trips, and makes the group one
+    // transaction, so it either all lands or none of it does.
+    async function untrashCars(ids) {
+      if (!requireOnline(t('offline.what_restore'))) return { error: new Error(t('offline.bar')) };
+      const list = (ids || []).map(Number).filter(Number.isFinite);
+      if (!list.length) return { error: null, n: 0, renumbered: 0 };
+      const { data, error } = await supa.rpc('restore_cars', { p_ids: list });
+      if (error) return { error };
+      const rows = Array.isArray(data) ? data : [];
+      return { error: null, n: rows.length, renumbered: rows.filter(r => r && r.renumbered).length };
+    }
+
     // Offered right after a car is trashed: one tap takes it back, before the
     // toast fades. After that it is still in Settings → Trash for 30 days.
     function offerUndoRestore(id, label) {
@@ -5261,7 +5317,7 @@
     // (notes, modifications, photos, checklist, detailed_description, …) are only
     // needed in the detail view, which hydrates them on demand. `updated_at` is
     // included so any edit still bumps the fingerprint.
-    const CAR_LIST_COLS  = 'id,entry_no,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,color,phone,telegram,city,category,updated_at,arrived_at,checked_in_by,spot_no,deleted_at,deleted_by,rsvp,rsvp_at,telegram_chat_id,import_batch';
+    const CAR_LIST_COLS  = 'id,entry_no,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,color,phone,telegram,city,category,updated_at,arrived_at,checked_in_by,spot_no,deleted_at,deleted_by,rsvp,rsvp_at,telegram_chat_id,import_batch,telegram_notified_at,telegram_notify_ok,telegram_notify_kind';
     const TASK_LIST_COLS = 'id,title,event,date,status,status_color,is_completed,event_id,due_at,created_at,assigned_user_id,assigned_user_name,started_at,completed_at,completed_by_user_id,completed_by_user_name,priority,category,due_date,created_by,assigned_to,assigned_at,completed_by,team,updated_at,reminder_sent';
 
     // Canonical parking zones (car categories). Single source of truth for the
@@ -5304,7 +5360,7 @@
       return html;
     }
 
-    const CAR_FP_FIELDS   = ['id','entry_no','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','color','city','event_id','updated_at','spot_no','rsvp','telegram_chat_id'];
+    const CAR_FP_FIELDS   = ['id','entry_no','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','color','city','event_id','updated_at','spot_no','rsvp','telegram_chat_id','telegram_notify_ok'];
     const AGENDA_FP_FIELDS = ['id','event_id','title','at_time','notes','updated_at'];
     const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','telegram','email','city','category','year','color','social_links','transport_info','modifications','photos','status','created_at','telegram_user_id','telegram_username'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
@@ -6359,7 +6415,7 @@
     // ----- Backups (admin) — list, download, run-now. -----
     let _backupBusy = false;
     // ----- Activity log (admin): who did what -----
-    const ACT_ICON = { status: '🚦', created: '➕', deleted: '🗑️', delete: '🗑️', update: '✏️', gdpr: '🧹' };
+    const ACT_ICON = { status: '🚦', created: '➕', deleted: '🗑️', delete: '🗑️', update: '✏️', gdpr: '🧹', zone: '📍', spot: '🅿️' };
     function actEntityLabel(entity) {
       if (entity === 'car') return t('cmdk.car');
       if (entity === 'gdpr') return 'GDPR';
@@ -7994,6 +8050,7 @@
                   ${blockReason !== null ? `<span class="block-badge" title="${escape(blockReason || '')}">⛔ ${escape(t('block.badge'))}</span>` : ''}
                   ${car.rsvp === 'no' ? `<span class="rsvp-badge is-no" title="${escape(t('car.rsvp_no'))}">${escape(t('car.rsvp_no_short'))}</span>` : ''}
                   ${car.rsvp === 'yes' ? `<span class="rsvp-badge is-yes" title="${escape(t('car.rsvp_yes'))}">✓</span>` : ''}
+                  ${car.telegram_notify_ok === false ? `<span class="notify-badge" title="${escape(t('car.notify_failed_hint'))}">🔕 ${escape(t('car.notify_failed'))}</span>` : ''}
                 </div>
                 <div class="row-sub" style="margin-top:2px;">
                   <span style="color: var(--blue); font-weight: 700;">${escape(car.owner || '—')}</span>
@@ -10717,6 +10774,9 @@
           case 'deleted':  line = `<strong>${who(row.user_email)}</strong> ${escape(t('history.deleted'))}`; break;
           case 'status':   line = `<strong>${who(row.user_email)}</strong> ${escape(t('history.status'))}: ${dash(row.old_value)} → ${dash(row.new_value)}`; break;
           case 'zone':     line = `<strong>${who(row.user_email)}</strong> ${escape(t('history.zone'))}: ${dash(row.old_value)} → ${dash(row.new_value)}`; break;
+          // The bay was the one field that changed without a trace, and it is
+          // the field the map, the gate card and the bot all read.
+          case 'spot':     line = `<strong>${who(row.user_email)}</strong> ${escape(t('history.spot'))}: ${dash(row.old_value)} → ${dash(row.new_value)}`; break;
           case 'assigned': line = `<strong>${who(row.user_email)}</strong> ${escape(t('history.assigned'))}: ${dash(row.old_value)} → ${dash(row.new_value)}`; break;
           default:         line = `<strong>${who(row.user_email)}</strong> ${escape(row.action)}`;
         }

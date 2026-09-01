@@ -1018,12 +1018,23 @@ try {
     const CARS = [
       { id: 1, entry_no: 1, brand: 'VW', model: 'Golf', owner: 'A', plate: 'P1', status: 'Sosit', category: 'Performance', event_id: 6, rsvp: null, deleted_at: null },
       { id: 2, entry_no: 2, brand: 'Mazda', model: 'RX-7', owner: 'B', plate: 'P2', status: 'Sosit', category: 'JDM', event_id: 6, rsvp: 'no', deleted_at: null },
-      { id: 3, entry_no: 3, brand: 'BMW', model: 'E30', owner: 'C', plate: 'P3', status: 'Invitat', category: 'Retro', event_id: 6, rsvp: 'yes', deleted_at: null },
+      { id: 3, entry_no: 3, brand: 'BMW', model: 'E30', owner: 'C', plate: 'P3', status: 'Invitat', category: 'Retro', event_id: 6, rsvp: 'yes', deleted_at: null,
+        telegram_notify_ok: false, telegram_notify_kind: 'spot', telegram_notified_at: new Date().toISOString() },
     ];
-    const TRASH = [{
-      id: 9, entry_no: 7, brand: 'Audi', model: 'S4', owner: 'Z', plate: 'P9', event_id: 6,
-      deleted_at: new Date(Date.now() - 3600e3).toISOString(), deleted_by: 'qa@example.com',
-    }];
+    // One car deleted on its own, three deleted in the same action. The second
+    // shape is the one that mattered: fifty-five cars removed at once used to
+    // arrive here as fifty-five rows with fifty-five buttons.
+    const BULK_AT = new Date(Date.now() - 7200e3).toISOString();
+    const TRASH = [
+      { id: 9, entry_no: 7, brand: 'Audi', model: 'S4', owner: 'Z', plate: 'P9', event_id: 6,
+        deleted_at: new Date(Date.now() - 3600e3).toISOString(), deleted_by: 'qa@example.com' },
+      { id: 10, entry_no: 8, brand: 'Opel', model: 'Astra', owner: 'Y', plate: 'P10', event_id: 6,
+        deleted_at: BULK_AT, deleted_by: 'qa@example.com' },
+      { id: 11, entry_no: 9, brand: 'Ford', model: 'Focus', owner: 'X', plate: 'P11', event_id: 6,
+        deleted_at: BULK_AT, deleted_by: 'qa@example.com' },
+      { id: 12, entry_no: 10, brand: 'Seat', model: 'Leon', owner: 'W', plate: 'P12', event_id: 6,
+        deleted_at: BULK_AT, deleted_by: 'qa@example.com' },
+    ];
     const IMPORTS = [
       { id: 5, source: 'google-sheet', inserted: 12, skipped: 1, total: 13, note: null, batch: 'b-1', undone_at: null, created_at: new Date(Date.now() - 7200e3).toISOString() },
       { id: 4, source: 'google-sheet', inserted: 3, skipped: 0, total: 3, note: null, batch: 'b-0', undone_at: new Date().toISOString(), created_at: new Date(Date.now() - 86400e3).toISOString() },
@@ -1071,6 +1082,15 @@ try {
         [...document.querySelectorAll('#carsList .rsvp-badge')]
           .map((x) => (x.classList.contains('is-no') ? 'no' : 'yes')));
       check('rsvp-badges-on-cards', badges.join() === 'no,yes');
+      // Telegram is the only channel this project has, so a driver the bot could
+      // not reach is a driver who will arrive not knowing where to park. That
+      // has to be visible on the car, not only in a response nobody reads.
+      const notReached = await tp.evaluate(() => ({
+        n: document.querySelectorAll('#carsList .notify-badge').length,
+        title: document.querySelector('#carsList .notify-badge')?.getAttribute('title') || '',
+      }));
+      check('card-flags-a-driver-the-bot-could-not-reach',
+        notReached.n === 1 && notReached.title.length > 10, JSON.stringify(notReached));
 
       await tp.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
       await tp.waitForTimeout(1200);
@@ -1078,6 +1098,9 @@ try {
         trashShown: getComputedStyle(document.getElementById('trashBlock')).display,
         rows: [...document.querySelectorAll('#trashList .backup-row strong')].map((x) => x.textContent.replace(/\s+/g, ' ').trim()),
         restores: document.querySelectorAll('#trashList [data-trash-restore]').length,
+        groups: document.querySelectorAll('#trashList .trash-group').length,
+        restoreAll: document.querySelectorAll('#trashList [data-trash-restore-all]').length,
+        groupHead: (document.querySelector('#trashList .trash-group-head')?.textContent || '').trim(),
         // The badge must hug its text; a stray `display:block` from the settings
         // pane once stretched it into a bar across the whole row.
         badgeW: document.querySelector('#trashList .entry-no')?.getBoundingClientRect().width ?? 0,
@@ -1091,8 +1114,14 @@ try {
         baseUrl: document.getElementById('publicBaseUrl').value,
       }));
       check('trash-panel-visible-to-admin', s.trashShown === 'block');
-      check('trash-lists-deleted-car', s.rows.length === 1 && /#7/.test(s.rows[0]) && /Audi S4/.test(s.rows[0]));
-      check('trash-offers-restore', s.restores === 1);
+      check('trash-lists-deleted-car', s.rows.length === 4 && /#7/.test(s.rows[0]) && /Audi S4/.test(s.rows[0]));
+      check('trash-offers-restore', s.restores === 4);
+      // Cars deleted together are listed together, under one button. The car
+      // deleted on its own gets no heading — a group of one is just a row.
+      check('trash-groups-a-bulk-deletion',
+        s.groups === 1 && s.restoreAll === 1, JSON.stringify({ groups: s.groups, restoreAll: s.restoreAll }));
+      check('trash-group-says-how-many-it-holds',
+        /3/.test(s.groupHead), s.groupHead);
       check('trash-entry-badge-not-stretched', s.badgeW > 0 && s.badgeW < s.rowW / 3);
       check('imports-listed', s.importRows === 2);
       // Only the batch that has not been undone may be undone again.
@@ -1106,7 +1135,9 @@ try {
       check('telegram-state-comes-from-function', /kultura_test_bot/.test(s.tgMsg) && /4/.test(s.tgMsg));
       check('telegram-token-marked-stored', /salvat/i.test(s.tokenPlaceholder));
     } catch (e) {
-      for (const n of ['rsvp-badges-on-cards', 'trash-panel-visible-to-admin', 'trash-lists-deleted-car',
+      for (const n of ['rsvp-badges-on-cards', 'card-flags-a-driver-the-bot-could-not-reach',
+        'trash-panel-visible-to-admin', 'trash-lists-deleted-car',
+        'trash-groups-a-bulk-deletion', 'trash-group-says-how-many-it-holds',
         'trash-offers-restore', 'trash-entry-badge-not-stretched', 'imports-listed',
         'import-undo-only-for-live-batch', 'telegram-panel-visible-to-admin',
         'telegram-token-never-echoed', 'public-base-url-loaded',
