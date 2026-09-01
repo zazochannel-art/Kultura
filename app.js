@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v155';
+    const APP_VERSION = 'v156';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -2823,16 +2823,17 @@
       if (evErr) { uiAlert(t('common.error') + ': ' + evErr.message); return false; }
       setEventPlanLocally(ev.id, row.id);
 
-      // Drawn now rather than left for whoever opens the map next: the person
-      // who just imported a plan is the one who will be assigning bays from it,
-      // and the first notification must not go out with the plainer map.
-      status.style.display = 'block';
-      status.textContent = t('map.plan_rendering');
-      const shot = await ensurePlanRender(row.id, plan, true);
-      status.style.display = 'none';
-      // Not fatal — the plan is saved and the bot has a plainer map — but the
-      // person who just imported it is the one who can do something about it.
-      if (!shot.ok) showToast(t('plans.render_failed', { why: shot.why }));
+      // Started here, not waited on. The picture is for the bot, and the bot
+      // will not need it until somebody assigns a bay — minutes away at the
+      // very least. Awaiting it held the import open for as long as the canvas
+      // took, which on a slow machine meant the plan looked unfinished and the
+      // notes below arrived behind a spinner nobody was waiting for.
+      ensurePlanRender(row.id, plan, true).then(shot => {
+        // Not fatal — the plan is saved and the bot has a plainer map — but the
+        // person who just imported it is the one who can do something about it.
+        if (!shot.ok) showToast(t('plans.render_failed', { why: shot.why }));
+        try { renderPlanList(); } catch (_) {}
+      });
 
       await freeOrphanSpots(next);
 

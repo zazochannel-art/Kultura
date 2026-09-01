@@ -2865,6 +2865,12 @@ try {
       // browser draws it once and parks it where the bot can fetch it. The
       // bucket's real rules are enforced above, so a wrong content type fails
       // here rather than in production.
+      //
+      // Waited for, because the import deliberately does not wait for it: the
+      // picture is for the bot, and the bot needs it minutes from now, so the
+      // import starts it and moves on. A canvas over two and a half thousand
+      // shapes takes as long as the machine takes.
+      for (let i = 0; i < 60 && !(uploaded && savedRender); i++) await ip.waitForTimeout(150);
       check('plan-import-parks-a-picture-for-the-bot',
         !!uploaded && uploaded.type === 'image/png' && uploaded.bytes > 5000,
         uploaded ? `${uploaded.type} ${uploaded.bytes}B` : 'nothing uploaded');
@@ -2921,8 +2927,15 @@ try {
       check('plan-import-frees-a-car-whose-spot-is-gone',
         !!freed && /id=in\./.test(freed.url) && /2/.test(freed.url.split('id=in.')[1] || ''),
         freed ? freed.url.split('id=in.')[1] : 'no patch');
-      const note = await ip.textContent('#mapStatus');
-      check('plan-import-says-what-it-left-out', /20/.test(note || ''), (note || '').slice(0, 60));
+      // Waited for, not read once. The import writes this line last, and what
+      // runs before it takes as long as the machine takes — reading at a fixed
+      // moment caught the previous line on a slower runner and called it a bug.
+      let note = '';
+      for (let i = 0; i < 40 && !/20/.test(note); i++) {
+        note = (await ip.textContent('#mapStatus')) || '';
+        if (!/20/.test(note)) await ip.waitForTimeout(150);
+      }
+      check('plan-import-says-what-it-left-out', /20/.test(note), note.slice(0, 60));
       await ip.waitForTimeout(1200);
       const drawn = await ip.evaluate(() => {
         const pin = document.querySelector('#mapSpotLayer .map-spot');
