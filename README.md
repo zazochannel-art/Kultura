@@ -205,6 +205,37 @@ Harta nu mai primește poze. Butonul „Înlocuiește" urca o imagine în bucket
 poza dispărea la prima reîncărcare; a fost scos împreună cu decupatorul și cu
 cititorul de PDF pe care numai el îi folosea (regula 53).
 
+#### Aceeași hartă ajunge și la șofer
+
+Mini-harta exista de la început în aplicație — cardul de la scanarea de la
+poartă desenează toate locurile ca puncte și îl mărește pe al mașinii. Numai că
+o vedea staff-ul, nu omul care are nevoie de ea. Din v153, botul o desenează și
+o trimite: notificarea „locul tău a fost atribuit" pleacă drept **poză cu text
+în caption**, nu ca text singur.
+
+Poza se desenează în funcția edge, în `map-png.ts`, fără nicio bibliotecă:
+dreptunghiuri rotite într-un buffer RGB, mediere 2×2 și un encoder PNG de o sută
+de linii peste `CompressionStream('deflate')`. Motivul e cald/rece: un
+rasterizator WebAssembly ar fi însemnat un megabyte descărcat la fiecare pornire
+la rece, plus un font, înainte ca notificarea să poată pleca.
+
+**În poză nu există text.** resvg fără font scrie gol, deci zona și numărul
+locului stau în caption, unde oricum pot fi copiate și citite de un cititor de
+ecran. Poza răspunde la o singură întrebare: unde pe teren.
+
+`zone_plans.spots` ține fiecare loc ca **procent din view box-ul desenului**, iar
+view box-ul nu era scris nicăieri — aplicația îl recalcula din desen la fiecare
+deschidere a hărții, ceea ce nimic din afara unui browser nu poate face. De aceea
+planurile au acum `view_w` / `view_h`: 1,5% din lățime și 1,5% din înălțime sunt
+aceeași distanță pe teren doar dacă știi forma terenului, iar o hartă desenată
+în proporții greșite arată alt loc. Se scriu la import și se copiază odată cu
+locurile când duplici un plan.
+
+Dacă poza nu se poate desena — plan lipsă, proporții lipsă, un loc care nu e pe
+plan — mesajul pleacă **ca text**, ca înainte. Răspunsul funcției spune separat
+`map` (s-a desenat) și `photo` (Telegram a acceptat-o), ca să se poată deosebi
+un plan care nu se poate desena de un chat care a dispărut.
+
 **De ce nu o poză.** Harta se mărește de 8× la poartă, iar o imagine are o
 rezoluție: prima variantă rasteriza planul la 4800 px și tot se făcea pastă la
 capătul măririi. A doua încercare — SVG urcat ca fișier — pica în producție cu
@@ -566,7 +597,7 @@ fel, dar **își verifică singure apelantul** înăuntru (`is_admin_user()` /
 | `event-info` | nu | Evenimentul curent + agenda, pentru paginile publice. Întoarce și `waiver_text` și `spots_left` |
 | `ticket` | nu | Bilet/pass |
 | `rsvp` | nu | „Vii la eveniment?" pentru `confirm.html`. Token HMAC pe id-ul mașinii; un „nu" eliberează locul și promovează prima înscriere de pe lista de așteptare |
-| `telegram` | nu² | Webhook-ul botului (`/start <id>-<token>` leagă chat-ul de mașină), configurarea de către admin și **linkurile de invitație** (`action:'invite'`, staff) |
+| `telegram` | nu² | Webhook-ul botului (`/start <id>-<token>` leagă chat-ul de mașină), configurarea de către admin, **linkurile de invitație** (`action:'invite'`, staff) și mesajele pe care sistemul le trimite singur (`action:'notify'`). Are **două fișiere**: `index.ts` și `map-png.ts`, care desenează mini-harta trimisă odată cu locul |
 | `health` | da | Starea canalelor pentru admin: Telegram (conectat? webhook viu? câți legați?), SMS (configurat?), adresa publică. Booleeni și numere, niciodată secretele |
 | `backup` | nu¹ | Export JSON a 15 tabele în bucket-ul `backups`. Lista `TABLES` **trebuie să rămână în pas cu `PK` din `restore`** — un tabel salvat dar absent acolo se sare în tăcere la restaurare |
 | `restore` | da | Restaurare **aditivă** din backup (admin) |
