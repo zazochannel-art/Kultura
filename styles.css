@@ -2235,6 +2235,12 @@
   font-size: 11px; font-weight: 800; padding: 4px 9px; border-radius: 999px;
   background: var(--brand); color: #1a0410;
 }
+/* The bot's map is a fact about a plan, not an action on it: quiet, and never
+   the brand pink, which in this list means "this is the plan in use". */
+.plan-badge.ok {
+  background: transparent; color: var(--text-mute);
+  border: 1px solid var(--border); font-weight: 700;
+}
 .plans-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .plans-hint { margin-top: 8px; font-size: 12px; color: var(--text-mute); }
 

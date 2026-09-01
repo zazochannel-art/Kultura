@@ -3590,6 +3590,22 @@ try {
       wrote.length = 0; planPost = null;
       await pp.evaluate(() => document.getElementById('mapPlansBtn').click());
       await pp.waitForSelector('.plan-row', { timeout: 6000 });
+
+      // A plan with no picture for the bot says so, and offers to draw one.
+      // The first version did this silently in the background: a plan sat for
+      // a day with no picture, the bot kept sending the plain schematic, and
+      // there was nothing on screen that said either thing.
+      const shot = await pp.evaluate(() => {
+        const row = document.querySelector('.plan-row');
+        return {
+          text: row ? row.innerText : '',
+          button: !!document.querySelector('button[data-plan-shot]'),
+          badge: !!document.querySelector('.plan-badge.ok'),
+        };
+      });
+      check('plans-say-when-the-bot-has-no-map',
+        shot.button && !shot.badge && /bot/i.test(shot.text),
+        JSON.stringify(shot));
       await pp.evaluate(() => document.querySelector('button[data-plan-copy="1"]')?.click());
       await pp.waitForTimeout(500);
       await pp.fill('#uiDialogInput', 'Plan A varianta 2');
