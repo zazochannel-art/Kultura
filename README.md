@@ -574,6 +574,55 @@ listă pe care o cauți și o atingi (`uiChoose` → `.ui-pick`):
   ar acoperi exact lista pentru care ai deschis dialogul. E la o atingere
   distanță, adică fix atunci când lista e prea lungă ca s-o citești.
 
+## Ce se ține minte despre o mașină
+
+### Locul intră în jurnal
+
+`log_activity` urmărea statusul, zona și responsabilul unui task. Nu și
+`spot_no` — iar locul e câmpul pe care îl citesc harta, cardul de la poartă și
+botul. Măsurat pe producție: **303** schimbări de status înregistrate, **131**
+de zonă, **zero** de loc.
+
+A contat o dată: un plan legat de evenimentul greșit a lăsat 53 de mașini fără
+locul primit, într-o singură instrucțiune, fără să rămână nimic — cine, când,
+sau ce era înainte. Numărul era pe un dialog pe care nimeni n-avea motiv să-l
+recitească.
+
+Acum se scrie ca „Zonă Loc", nu ca număr gol: „12" singur e unul din unsprezece
+locuri diferite pe planul ăsta. Iar un loc luat se scrie **gol**, nu ca zona
+rămasă — altfel jurnalul ar spune că mașina a fost mutată în „Autosport" exact
+când i s-a luat locul din Autosport.
+
+### Dacă botul a ajuns sau nu
+
+Telegram e **singurul** canal: n-a existat niciodată un furnizor de SMS. Deci un
+mesaj pe care Telegram îl refuză — botul blocat, chatul șters — e un șofer care
+ajunge la eveniment fără să știe unde parchează, iar tu afli abia la poartă.
+
+Funcția știa deja (`ok` din `sendMessage`/`sendPhoto`), dar răspunsul se ducea în
+`net._http_response` și nu-l citea nimic. Acum se scrie pe mașină
+(`telegram_notify_ok`, `telegram_notify_kind`, `telegram_notified_at`) și cardul
+arată „🔕 n-a primit".
+
+Scrierea urmei nu poate strica livrarea: mesajul a plecat sau nu a plecat deja
+când se ajunge acolo, iar `remember` înghite orice eroare. Nu declanșează nici
+notificarea din nou — trigger-ul e `after update of spot_no`, iar aici se scriu
+alte coloane.
+
+### Restaurare în masă din coș
+
+Ștergerea a 55 de mașini a fost o acțiune. Readucerea lor era 55 de apăsări,
+fiindcă singura cale înăuntru era `restore_car(id)`, una câte una.
+
+Coșul grupează acum după **momentul ștergerii** — ce s-a șters în aceeași
+secundă s-a șters împreună — și fiecare grup are un buton. Regula de renumerotare
+nu se repetă nicăieri: `restore_cars(ids)` trece fiecare mașină tot prin
+`restore_car_unchecked`, care întoarce numărul vechi sau primul liber dacă
+între timp l-a luat altcineva. Un grup e o singură tranzacție: ori intră tot, ori
+nimic. Plafon 500 într-un apel.
+
+Un grup de una singură nu primește antet — ar fi zgomot peste un singur rând.
+
 ## Roluri și permisiuni
 
 Rolul e în `profiles.role`. Ierarhia din `app.js`:
