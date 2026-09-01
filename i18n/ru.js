@@ -329,6 +329,8 @@ export default {
   "reg.approved": "{name} добавлен",
   "reg.new": "Новая заявка",
   "reg.hold": "На рассмотрении",
+  "reg.tg_on_hint": "Telegram подключён — получит уведомления события.",
+  "reg.tg_off_hint": "Без Telegram — автоматически уведомить не сможем.",
   "reg.hold_action": "Отложить",
   "reg.held": "Отложено на рассмотрение",
   "reg.save": "Сохранить",

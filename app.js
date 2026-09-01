@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v150';
+    const APP_VERSION = 'v151';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -5127,7 +5127,7 @@
 
     const CAR_FP_FIELDS   = ['id','entry_no','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','color','city','event_id','updated_at','spot_no','rsvp','telegram_chat_id'];
     const AGENDA_FP_FIELDS = ['id','event_id','title','at_time','notes','updated_at'];
-    const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','telegram','email','city','category','year','color','social_links','transport_info','modifications','photos','status','created_at'];
+    const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','telegram','email','city','category','year','color','social_links','transport_info','modifications','photos','status','created_at','telegram_user_id','telegram_username'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];
     const EVENT_FP_FIELDS = ['id','status','status_color','title','name','date','location','description','cover_url','starts_at','days_left','archived','plan_id'];
     const PROF_FP_FIELDS  = ['id','email','full_name','role','department','avatar_url','phone','created_at'];
@@ -9405,6 +9405,12 @@
           const blockBadge = blockReason !== null ? `<span class="block-badge" title="${escape(blockReason || '')}">⛔ ${escape(t('block.badge'))}</span>` : '';
           const dup = regDuplicate(r);
           const dupBadge = dup ? `<span class="reg-dup-badge" title="${escape(dup)}">⧉ ${escape(t('regdup.badge'))}</span>` : '';
+          // Whether this person can be reached at all, decided before you spend
+          // a minute on the rest of the card. Registrations made before Telegram
+          // was asked for have no chat and say so plainly.
+          const tgBadge = r.telegram_user_id
+            ? `<span class="reg-tg-badge is-on" title="${escape(t('reg.tg_on_hint'))}">🟢 Telegram</span>`
+            : `<span class="reg-tg-badge is-off" title="${escape(t('reg.tg_off_hint'))}">🔴 Telegram</span>`;
           const wv = el('regDetailWaiver');
       if (wv) {
         // Proof that this person accepted the terms, with the name they typed
@@ -9431,7 +9437,7 @@
           ].filter(Boolean).join('<span class="sep"></span>');
           // How long this one has been waiting — the reviewer's queue order.
           const waited = r.created_at ? `<span class="reg-age">${escape(fmtRelative(r.created_at))}</span>` : '';
-          const badges = [hold, wait, blockBadge, dupBadge].filter(Boolean).join('');
+          const badges = [hold, wait, blockBadge, dupBadge, tgBadge].filter(Boolean).join('');
           return `<div class="card reg-card card-stripe${r.status === 'hold' ? ' is-hold' : ''}${r.status === 'waitlist' ? ' is-waitlist' : ''}${blockReason !== null ? ' is-blocked' : ''}" data-reg-open="${r.id}" role="button" tabindex="0">
               <div class="reg-card-main">
                 <div class="row-icon orange reg-card-icon">${carIcon}</div>
@@ -9582,8 +9588,15 @@
       const m = Object.assign({}, r, edits || {});
       const car = {
         brand: m.brand || null, model: m.model || '', plate: m.plate || null, owner: m.owner || null,
-        phone: m.phone || null, contact: m.phone || null, telegram: m.telegram || null,
+        phone: m.phone || null, contact: m.phone || null,
+        telegram: r.telegram_username || m.telegram || null,
         email: m.email || null, city: m.city || null, category: r.category || null,
+        // The chat the participant connected while filling in the form. This
+        // is the whole point of asking for it there: an approved car is
+        // reachable from its first minute, instead of needing an invite link
+        // that reached 3 drivers out of 54.
+        telegram_chat_id: r.telegram_user_id || null,
+        telegram_linked_at: r.telegram_connected_at || null,
         zone: (zone || '').trim() || '',
         year: m.year || null, color: m.color || null, social_links: m.social_links || null,
         transport_info: m.transport_info || null,
