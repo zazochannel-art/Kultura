@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v154';
+    const APP_VERSION = 'v155';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -617,6 +617,20 @@
     // pixels would be bytes nobody sees.
     const PLAN_RENDER_W = 1280;
 
+    // The drawing behind a plan row. The map has always fetched this inline for
+    // the active plan; the button that draws a picture for the bot needs the
+    // same thing for a plan that is not the active one.
+    async function fetchPlanDrawing(planPath) {
+      const url = String(planPath || '');
+      if (!url) return null;
+      if (!planDrawingOk(url, PLANS_PREFIX)) return null;
+      try {
+        const r = await fetch(url, { cache: 'no-cache' });
+        if (!r.ok) return null;
+        return await r.json();
+      } catch (_) { return null; }
+    }
+
     function planPngBlob(plan, doc) {
       return new Promise((resolve, reject) => {
         const url = URL.createObjectURL(new Blob([doc.svg], { type: 'image/svg+xml' }));
@@ -643,33 +657,46 @@
 
     // Never throws and never blocks anything: a plan without a picture still
     // works everywhere in the app, and the bot falls back to a plainer map.
+    //
+    // It does, however, always say what happened. The first version answered a
+    // bare null on every failure, so a picture that never got drawn looked
+    // exactly like one that was never attempted — and the only way to find out
+    // which was to ask the person whose bot was still sending the plain map.
+    // Now the reason comes back to whoever asked, and an unexpected one is
+    // reported like any other client error, where it can be read without them.
     const _rendering = new Set();
     async function ensurePlanRender(planId, plan, force) {
-      if (planId == null || !plan) return null;
+      const fail = (why, quiet) => {
+        if (!quiet) reportClientError('plan render failed: ' + why + ' (plan ' + planId + ')');
+        return { ok: false, why };
+      };
+      if (planId == null || !plan) return fail('no_plan', true);
+      if (!roleAtLeast('staff')) return fail('not_staff', true);
+      if (!navigator.onLine) return fail('offline', true);
       const key = String(planId);
-      if (_rendering.has(key)) return null;
-      if (!roleAtLeast('staff') || !navigator.onLine) return null;
+      if (_rendering.has(key)) return fail('busy', true);
       _rendering.add(key);
       try {
         if (!force) {
           const { data } = await supa.from('zone_plans').select('render_path').eq('id', planId).maybeSingle();
-          if (data && data.render_path) return data.render_path;
+          if (data && data.render_path) return { ok: true, url: data.render_path, kept: true };
         }
         const doc = planSvgDoc(plan, { width: PLAN_RENDER_W, chrome: false, metric: true });
-        const blob = await planPngBlob(plan, doc);
+        let blob;
+        try { blob = await planPngBlob(plan, doc); } catch (err) { return fail('draw:' + (err && err.message || '?')); }
         // Named for the plan and the moment: a plan redrawn later gets a new
         // file rather than fighting a cached copy of the old one.
         const path = 'plan-' + planId + '-' + Date.now() + '.png';
         const { error: upErr } = await supa.storage.from('maps')
           .upload(path, blob, { contentType: 'image/png' });
-        if (upErr) return null;
+        if (upErr) return fail('upload:' + (upErr.message || '?'));
         const url = MAPS_PREFIX + encodeURIComponent(path);
         const { error: setErr } = await supa.from('zone_plans')
           .update({ render_path: url }).eq('id', planId);
-        if (setErr) return null;
-        return url;
-      } catch (_) {
-        return null;
+        if (setErr) return fail('save:' + (setErr.message || '?'));
+        return { ok: true, url };
+      } catch (err) {
+        return fail('unexpected:' + (err && err.message || '?'));
       } finally {
         _rendering.delete(key);
       }
@@ -769,8 +796,12 @@
       // on screen is waiting for it.
       if (_plan && _planId != null && !_planRender) {
         const forId = _planId;
-        ensurePlanRender(forId, _plan)
-          .then(url => { if (url && String(_planId) === String(forId)) _planRender = url; });
+        ensurePlanRender(forId, _plan).then(res => {
+          if (res.ok && String(_planId) === String(forId)) {
+            _planRender = res.url;
+            try { renderPlanList(); } catch (_) {}
+          }
+        });
       }
     }
     async function loadMap() {
@@ -2383,11 +2414,15 @@
           <div class="plan-main">
             <span class="plan-name">${escape(pl.name || '—')}</span>
             ${on.length ? `<span class="plan-where">${escape(t('plans.used_by', { list: on.join(', ') }))}</span>` : ''}
+            <span class="plan-where">${escape(pl.render_path ? t('plans.render_yes') : t('plans.render_no'))}</span>
           </div>
           <div class="plan-btns">
             ${here
               ? `<span class="plan-badge">${escape(t('plans.in_use'))}</span>`
               : `<button type="button" class="btn ghost small" data-plan-use="${pl.id}">${escape(t('plans.use'))}</button>`}
+            ${pl.render_path
+              ? `<span class="plan-badge ok" title="${escape(t('plans.render_ok'))}">${escape(t('plans.render_short'))}</span>`
+              : `<button type="button" class="btn ghost small" data-plan-shot="${pl.id}">${escape(t('plans.render_do'))}</button>`}
             <button type="button" class="btn ghost small" data-plan-copy="${pl.id}">${escape(t('plans.copy'))}</button>
             <button type="button" class="btn ghost small" data-plan-rename="${pl.id}">${escape(t('common.rename'))}</button>
             <button type="button" class="btn ghost small danger" data-plan-del="${pl.id}">${escape(t('common.delete'))}</button>
@@ -2459,6 +2494,29 @@
       showToast(t('plans.copied', { name }));
     }
 
+    // Draw the picture the bot sends, on demand.
+    //
+    // The app also does this on its own the first time it opens a plan, but
+    // "on its own, in the background, silently" is how a plan sat for a day
+    // with no picture while the bot kept sending the plain map and nobody
+    // could see why. A row that says whether the picture exists, and a button
+    // that makes one and reports what went wrong, is the version an operator
+    // can actually act on.
+    async function drawPlanForBot(id) {
+      if (!roleAtLeast('staff') || !requireOnline(t('map.plan_what'))) return;
+      const pl = ZONE_PLANS.find(x => String(x.id) === String(id));
+      if (!pl) return;
+      showToast(t('plans.render_working'));
+      const plan = await fetchPlanDrawing(pl.plan_path);
+      if (!plan) { uiAlert(t('plans.render_failed', { why: 'drawing' })); return; }
+      const res = await ensurePlanRender(pl.id, plan, true);
+      if (!res.ok) { uiAlert(t('plans.render_failed', { why: res.why })); return; }
+      await loadPlanLibrary();
+      if (String(pl.id) === String(_planId)) _planRender = res.url;
+      renderPlanList();
+      showToast(t('plans.render_done', { name: pl.name || '?' }));
+    }
+
     async function renamePlan(id) {
       if (!roleAtLeast('staff') || !requireOnline(t('map.plan_what'))) return;
       const pl = ZONE_PLANS.find(x => String(x.id) === String(id));
@@ -2509,9 +2567,10 @@
     }
 
     el('plansList')?.addEventListener('click', (e) => {
-      const b = e.target.closest('button[data-plan-use], button[data-plan-copy], button[data-plan-rename], button[data-plan-del]');
+      const b = e.target.closest('button[data-plan-use], button[data-plan-shot], button[data-plan-copy], button[data-plan-rename], button[data-plan-del]');
       if (!b) return;
       if (b.dataset.planUse) usePlanForEvent(b.dataset.planUse);
+      else if (b.dataset.planShot) drawPlanForBot(b.dataset.planShot);
       else if (b.dataset.planCopy) duplicatePlan(b.dataset.planCopy);
       else if (b.dataset.planRename) renamePlan(b.dataset.planRename);
       else if (b.dataset.planDel) deletePlan(b.dataset.planDel);
@@ -2769,8 +2828,11 @@
       // and the first notification must not go out with the plainer map.
       status.style.display = 'block';
       status.textContent = t('map.plan_rendering');
-      await ensurePlanRender(row.id, plan, true);
+      const shot = await ensurePlanRender(row.id, plan, true);
       status.style.display = 'none';
+      // Not fatal — the plan is saved and the bot has a plainer map — but the
+      // person who just imported it is the one who can do something about it.
+      if (!shot.ok) showToast(t('plans.render_failed', { why: shot.why }));
 
       await freeOrphanSpots(next);
 

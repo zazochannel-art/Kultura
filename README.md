@@ -232,6 +232,14 @@ fonturile. Deci:
 la loc. Merge în `maps`, nu în `plans`, fiindcă `plans` acceptă doar
 `application/json`.
 
+**Și se vede.** Prima variantă desena poza numai în fundal și înghițea orice
+eroare, deci un plan fără poză arăta exact ca unul care nici n-a fost încercat —
+iar botul trimitea schema simplă fără ca cineva să poată afla de ce. Acum fiecare
+rând din modalul **Planuri** spune „harta pentru bot: gata / lipsește", planul
+fără poză are butonul **„Desenează pentru bot"**, iar `ensurePlanRender` întoarce
+motivul (`draw:` / `upload:` / `save:`) în loc de `null` și îl trece prin
+`client_errors`, unde se poate citi fără să întrebi omul.
+
 **Trei niveluri, în ordine.** Harta reală dacă există poza; harta schematică
 (dreptunghiuri pe hârtie albă, direct din `spots`) dacă planul n-a fost deschis
 încă de nimeni; **text** dacă nici aia nu se poate desena. Poza nu poate face
