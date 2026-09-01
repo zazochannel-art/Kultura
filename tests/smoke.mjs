@@ -2723,7 +2723,7 @@ try {
       // untested — an arrived car once came out unpainted and nothing caught it.
       { id: 3, entry_no: 13, brand: 'BMW', model: 'E30', owner: 'Dan', plate: 'P3', status: 'Invitat', zone: 'Stance', spot_no: 2, event_id: 6, deleted_at: null },
     ];
-    let savedSpots = null, savedUrl = null, savedPlan = null, uploaded = null;
+    let savedSpots = null, savedUrl = null, savedPlan = null, uploaded = null, savedRender = null;
     let savedView = null;
     const carPatches = [];
     let madePlan = null;
@@ -2783,6 +2783,7 @@ try {
           try {
             const b = JSON.parse(r.request().postData() || '{}');
             if (b.spots) { savedSpots = b.spots; if (madePlan) madePlan.spots = b.spots; }
+            if (b.render_path) { savedRender = b.render_path; if (madePlan) madePlan.render_path = b.render_path; }
           } catch (_) { /* the assertions below report it */ }
           return J([]);
         }
@@ -2857,8 +2858,19 @@ try {
       // where the drawing lives, and the page draws it as SVG. The bucket is
       // still watched here, because "it uploads nothing" is the claim.
       check('plan-import-keeps-the-plan-a-drawing',
-        savedPlan === 'plans/plan-06.json' && !uploaded,
-        `plan=${savedPlan} uploaded=${uploaded ? uploaded.type : 'none'}`);
+        savedPlan === 'plans/plan-06.json',
+        `plan=${savedPlan}`);
+      // One picture IS made, and it is not the map: the bot cannot draw an
+      // architect's drawing — no font to write the zone names with — so the
+      // browser draws it once and parks it where the bot can fetch it. The
+      // bucket's real rules are enforced above, so a wrong content type fails
+      // here rather than in production.
+      check('plan-import-parks-a-picture-for-the-bot',
+        !!uploaded && uploaded.type === 'image/png' && uploaded.bytes > 5000,
+        uploaded ? `${uploaded.type} ${uploaded.bytes}B` : 'nothing uploaded');
+      check('plan-import-points-the-plan-at-its-picture',
+        typeof savedRender === 'string' && /\/storage\/v1\/object\/public\/maps\/plan-\d+-\d+\.png$/.test(savedRender),
+        String(savedRender));
       // 258 spots are drawn; 20 of them sit outside every zone the drawing
       // names, and a spot without a zone can never take a car.
       check('plan-import-saves-the-spots',
