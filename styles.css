@@ -2930,6 +2930,16 @@
 .gsr-zone, .gsr-spot { font-size: 19px; margin-top: 6px; color: var(--text-dim); }
 .gsr-zone b, .gsr-spot b { font-size: 26px; color: var(--text); font-weight: 900; }
 .gsr-nospot { margin-top: 8px; font-size: 16px; font-weight: 700; color: #f5c542; }
+/* The bay, drawn small, in the field it belongs to. A zone and a number are
+   precise and say nothing about which way to point. */
+.gsr-mini {
+  display: block; width: 100%; height: 74px; margin-top: 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+}
+.gsr-mini-dot { fill: rgba(255,255,255,0.30); }
+.gsr-mini-here { fill: var(--brand); stroke: #fff; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
 /* Three buttons where there were two, and the card is on a phone. */
 .gsr-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
 .gsr-actions .btn { flex: 1 1 8rem; padding: 13px; font-size: 16px; }
