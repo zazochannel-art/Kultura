@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v152';
+    const APP_VERSION = 'v153';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -2361,10 +2361,14 @@
       if (!name) return;
       // The bays are fetched rather than kept in the library: the list is loaded
       // without them so opening it does not pull a copy of every layout.
-      const { data, error } = await supa.from('zone_plans').select('spots').eq('id', pl.id).maybeSingle();
+      const { data, error } = await supa.from('zone_plans')
+        .select('spots, view_w, view_h').eq('id', pl.id).maybeSingle();
       if (error || !data) { uiAlert(t('common.error') + ': ' + (error ? error.message : '?')); return; }
       const { error: insErr } = await supa.from('zone_plans').insert({
         name, plan_path: pl.plan_path, map_url: pl.map_url, spots: data.spots || [],
+        // Copied with the bays, not left behind: the percentages are a share of
+        // this view box, so a copy without it is a layout nobody can draw.
+        view_w: data.view_w, view_h: data.view_h,
       });
       if (insErr) { uiAlert(t('common.error') + ': ' + insErr.message); return; }
       await loadPlanLibrary();
@@ -2653,7 +2657,16 @@
       // that order: an event pointing at a plan that failed to save would show
       // an empty map with no way back to the one it had.
       const { data: row, error: insErr } = await supa.from('zone_plans')
-        .insert({ name: name || plan.name || 'Plan', plan_path: source, spots: next })
+        .insert({
+          name: name || plan.name || 'Plan', plan_path: source, spots: next,
+          // The percentages above are a share of this drawing's view box. Kept
+          // with them, because they mean nothing without it: a bay 1.5% wide
+          // and 1.5% tall is only square if the ground is. The app recomputes
+          // the box from the drawing every time it opens the map; the bot, which
+          // draws the same map to send to the driver, cannot open a drawing.
+          view_w: Math.round(doc.view.w * 1e4) / 1e4,
+          view_h: Math.round(doc.view.h * 1e4) / 1e4,
+        })
         .select('id').single();
       status.style.display = 'none';
       if (insErr || !row) { uiAlert(t('common.error') + ': ' + (insErr ? insErr.message : '?')); return false; }

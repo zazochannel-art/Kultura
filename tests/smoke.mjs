@@ -2724,6 +2724,7 @@ try {
       { id: 3, entry_no: 13, brand: 'BMW', model: 'E30', owner: 'Dan', plate: 'P3', status: 'Invitat', zone: 'Stance', spot_no: 2, event_id: 6, deleted_at: null },
     ];
     let savedSpots = null, savedUrl = null, savedPlan = null, uploaded = null;
+    let savedView = null;
     const carPatches = [];
     let madePlan = null;
     const EV = { id: 6, title: 'Festivalul de Weekend', status: 'Activ', starts_at: new Date(Date.now() + 864e5).toISOString(), plan_id: null };
@@ -2769,6 +2770,7 @@ try {
           try {
             const b = JSON.parse(r.request().postData() || '{}');
             savedSpots = b.spots; savedPlan = b.plan_path; savedUrl = b.map_url || null;
+            savedView = { w: b.view_w, h: b.view_h };
             madePlan = { id: 7, name: b.name, plan_path: b.plan_path, map_url: b.map_url || null, spots: b.spots, updated_at: new Date().toISOString() };
           } catch (_) { /* the assertions below report it */ }
           // `.single()` asks for the object, so PostgREST answers with the
@@ -2864,6 +2866,31 @@ try {
         savedSpots ? String(savedSpots.length) : 'none');
       check('plan-import-pins-land-inside-the-image',
         Array.isArray(savedSpots) && savedSpots.every((sp) => sp.x >= 0 && sp.x <= 100 && sp.y >= 0 && sp.y <= 100));
+      // The percentages above are a share of the drawing's view box, and the
+      // view box is not in them. Without it stored, nothing outside a browser
+      // can draw this plan — which is what the bot has to do to send the map.
+      check('plan-import-records-the-view-box',
+        !!savedView && savedView.w > 0 && savedView.h > 0,
+        JSON.stringify(savedView));
+      // Compared against the renderer itself rather than against a plausible
+      // range: the two sides of this drawing are only ten per cent apart, so a
+      // view box with its width and height swapped still yields bays that look
+      // like bays. It would point the bot's map at the wrong bay all the same.
+      const { planSvgDoc } = await import('../plan-render.js');
+      const want = planSvgDoc(JSON.parse(readFileSync(resolve(ROOT, 'plans/plan-06.json'), 'utf8')),
+        { chrome: false }).view;
+      check('plan-import-view-box-is-the-one-the-drawing-was-framed-in',
+        !!savedView && Math.abs(savedView.w - want.w) < 0.01 && Math.abs(savedView.h - want.h) < 0.01,
+        `${JSON.stringify(savedView)} want ${want.w.toFixed(3)} x ${want.h.toFixed(3)}`);
+      // And that the numbers mean metres: the percentages run back through the
+      // view box have to come out the size of a parking space again.
+      const metres = (savedSpots || []).map((sp) => ({
+        w: (sp.w / 100) * (savedView ? savedView.w : 0),
+        d: (sp.h / 100) * (savedView ? savedView.h : 0),
+      }));
+      check('plan-import-view-box-turns-percent-back-into-metres',
+        metres.length > 0 && metres.every((b) => b.w >= 1 && b.w <= 2.6 && b.d >= 4 && b.d <= 5.2),
+        metres.length ? `${metres[0].w.toFixed(2)} x ${metres[0].d.toFixed(2)} m` : 'none');
       // A pin that knows only where its bay is can be a dot and nothing else.
       // The size and the heading are what let it be drawn as a car standing in
       // the bay, so they have to survive the conversion into percentages.
