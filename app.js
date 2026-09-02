@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v160';
+    const APP_VERSION = 'v161';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -3767,8 +3767,38 @@
         pill(tgState, tgLabel) +
         pill(sms.configured ? 'ok' : 'warn', sms.configured ? t('chan.sms_on') : t('chan.sms_off')) +
         pill(_health.public_base_url ? 'ok' : 'bad',
-          _health.public_base_url ? t('chan.base_ok') : t('chan.base_missing'));
+          _health.public_base_url ? t('chan.base_ok') : t('chan.base_missing')) +
+        syncPill(await sheetSyncState(), pill);
       box.hidden = false;
+    }
+
+    // The scheduled jobs post somewhere and read nothing back, so a broken one
+    // is perfectly quiet — the sheet sync fired every five minutes for months
+    // and every single request came back 404, because the Apps Script behind
+    // the saved link no longer exists. The database now settles each request on
+    // the following run and keeps the answer; this is where it becomes visible.
+    //
+    // Null when the row is absent: a job that has never run has nothing to say,
+    // and a pill saying so would be noise on a fresh install.
+    async function sheetSyncState() {
+      try {
+        const { data, error } = await supa.from('integration_runs')
+          .select('name, last_status, last_ok_at, fail_streak').eq('name', 'sheet_sync').maybeSingle();
+        // A row, and the row asked for. RLS hides the table from anyone below
+        // staff, which comes back as no row rather than as an error.
+        const row = Array.isArray(data) ? data[0] : data;
+        if (error || !row || row.name !== 'sheet_sync') return null;
+        return row;
+      } catch (_) { return null; }
+    }
+    function syncPill(run, pill) {
+      if (!run) return '';
+      // One failure is a hiccup — a redeploy, a slow Apps Script. A streak is a
+      // link that has stopped working, and that is what deserves red.
+      const n = Number(run.fail_streak) || 0;
+      if (n === 0) return pill('ok', t('chan.sync_ok'));
+      if (n < 3) return pill('warn', t('chan.sync_warn', { n }));
+      return pill('bad', t('chan.sync_bad', { n, code: run.last_status || '—' }));
     }
 
     // How many whole days from today to that date, read off the calendar in the
@@ -3781,6 +3811,29 @@
       const a = new Date(then.getFullYear(), then.getMonth(), then.getDate());
       const b = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       return Math.round((a - b) / 86400000);
+    }
+
+    // An event whose stored status contradicts its own date.
+    //
+    // The status is typed by hand once and then nobody revisits it, so the
+    // board fills up with events that say „În curând" about a day four days
+    // gone. Everything downstream believes that label: the public page picks
+    // the event marked „Activ", the readiness list nags about preparing a show
+    // that is over, and a visitor reads a card that is plainly wrong.
+    //
+    // Only `starts_at` can settle it — `date` is free text for humans („31
+    // august 2026"). No start date means no opinion, which is its own row in
+    // the readiness list.
+    //
+    // Returns whole days since it ended, or null when the label and the
+    // calendar agree (or when there is nothing to compare).
+    function eventPastItsStatus(e) {
+      if (!e || e.archived || e.is_sandbox) return null;
+      if (eventStatusKey(e.status) === 'finalizat') return null;
+      const ends = e.ends_at || e.starts_at;
+      if (!ends) return null;
+      const days = calendarDaysUntil(ends);
+      return days != null && days < 0 ? -days : null;
     }
 
     // What is still missing for the event in hand. Only shows rows that are
@@ -3840,6 +3893,22 @@
       for (const e2 of (state.events || [])) {
         if (String(e2.id) === String(ev.id) || e2.archived || e2.is_sandbox || !e2.starts_at) continue;
         const days = calendarDaysUntil(e2.starts_at);
+        // Behind us, and still labelled as if it were ahead. Two events sat
+        // like this for days — „În curând" on the 28th, „Planificat" on the
+        // 31st — while the board showed them as upcoming.
+        const stale = eventPastItsStatus(e2);
+        if (stale != null) {
+          items.push({
+            k: 'stale' + e2.id,
+            txt: t('ready.stale_status', {
+              name: e2.title || ('#' + e2.id),
+              n: stale,
+              status: translateStatus(e2.status, 'event'),
+            }),
+            go: 'events',
+          });
+          continue;
+        }
         if (days == null || days < 0 || days > 7) continue;
         const n = (state.cars || []).filter(c => !c.deleted_at && String(c.event_id) === String(e2.id)).length;
         const gaps = [];
@@ -7918,7 +7987,15 @@
               </div>
               <div style="text-align:right;">
                 <div class="badge ${statusToBadge(e.status)}">${escape(translateStatus(e.status, 'event'))}</div>
-                ${(() => { const d = eventDaysLeft(e); return d != null ? `<div style="margin-top:10px;color:var(--text-dim);font-size:11px;">${d} ${t("common.days")}</div>` : ''; })()}
+                ${(() => {
+                  // The badge is whatever somebody typed. When the calendar
+                  // disagrees, say so next to it rather than letting the card
+                  // assert something the date contradicts.
+                  const past = eventPastItsStatus(e);
+                  if (past != null) return `<div class="stale-status">${escape(t('event.past_status', { n: past }))}</div>`;
+                  const d = eventDaysLeft(e);
+                  return d != null ? `<div style="margin-top:10px;color:var(--text-dim);font-size:11px;">${d} ${t("common.days")}</div>` : '';
+                })()}
               </div>
             </div>
             <div class="event-actions">
