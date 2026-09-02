@@ -84,14 +84,14 @@
       top: -22vmax; left: -22vmax;
       background: radial-gradient(circle at 50% 50%, var(--purple) 0%, rgba(139,92,246,0) 68%);
       opacity: 0.46;
-      animation: aura-a 26s ease-in-out infinite;
+      animation: aura-a 20s ease-in-out infinite;
     }
     body::after {
       width: 50vmax; height: 50vmax;
       bottom: -20vmax; right: -20vmax;
       background: radial-gradient(circle at 50% 50%, var(--blue) 0%, rgba(59,130,246,0) 68%);
       opacity: 0.38;
-      animation: aura-b 34s ease-in-out infinite;
+      animation: aura-b 26s ease-in-out infinite;
     }
     /* A third bloom, in the logo's magenta. `html` is used because both of the
        body's pseudo-elements were already spoken for, and a real <div> would
@@ -107,7 +107,7 @@
       opacity: 0.26;
       top: 50%; left: 50%;
       will-change: transform;
-      animation: aura-c 42s ease-in-out infinite;
+      animation: aura-c 32s ease-in-out infinite;
     }
 
     /* Three journeys, at three lengths that do not divide into each other, so
@@ -117,9 +117,11 @@
        the gate.
 
        Sized in vw/vh so the travel is proportional: a bloom that crosses a
-       laptop crosses a phone the same way. Measured rather than guessed — over
-       any two-second window the picture changes by roughly four times what the
-       first version managed, and never sits still. */
+       laptop crosses a phone the same way. Measured rather than guessed: over
+       three seconds the three blooms cover about 1100px between them, against
+       125px for the first version, which read as a still picture. The three
+       lengths shortened together, so the composition is the same walk taken at
+       a brisker pace, not a different one. */
     @keyframes aura-a {
       0%   { transform: translate3d(0, 0, 0) scale(1); }
       30%  { transform: translate3d(70vw, 18vh, 0) scale(1.15); }

@@ -4266,7 +4266,7 @@ try {
     const to = await where();
     const travelled = from.reduce(
       (sum, [x, y], i) => sum + Math.hypot(to[i][0] - x, to[i][1] - y), 0);
-    // Roughly 700px across the three blooms on this viewport. The version that
+    // Roughly 1100px across the three blooms on this viewport. The version that
     // read as motionless managed 125px over the same three seconds, so 350
     // sits between the two with room on either side for a slow CI machine —
     // CSS animations run on wall-clock time, not on how fast the box is.
