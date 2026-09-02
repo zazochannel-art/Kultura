@@ -29,16 +29,16 @@
     body::before,body::after{content:"";position:fixed;border-radius:50%;pointer-events:none;z-index:0;will-change:transform}
     body::before{width:56vmax;height:56vmax;top:-22vmax;left:-22vmax;
       background:radial-gradient(circle at 50% 50%,var(--purple) 0%,rgba(139,92,246,0) 68%);
-      opacity:.46;animation:aura-a 26s ease-in-out infinite}
+      opacity:.46;animation:aura-a 20s ease-in-out infinite}
     body::after{width:50vmax;height:50vmax;bottom:-20vmax;right:-20vmax;
       background:radial-gradient(circle at 50% 50%,var(--blue) 0%,rgba(59,130,246,0) 68%);
-      opacity:.38;animation:aura-b 34s ease-in-out infinite}
+      opacity:.38;animation:aura-b 26s ease-in-out infinite}
     /* A third bloom, in the logo's magenta. `html` carries it because both of
        the body's pseudo-elements were already spoken for. */
     html::before{content:"";position:fixed;width:42vmax;height:42vmax;border-radius:50%;
       pointer-events:none;z-index:0;
       background:radial-gradient(circle at 50% 50%,var(--brand) 0%,rgba(248,88,156,0) 68%);
-      opacity:.26;top:50%;left:50%;will-change:transform;animation:aura-c 42s ease-in-out infinite}
+      opacity:.26;top:50%;left:50%;will-change:transform;animation:aura-c 32s ease-in-out infinite}
     /* Three journeys, at three lengths that do not divide into each other, so
        the picture never visibly repeats. Only `transform` moves. */
     @keyframes aura-a{
