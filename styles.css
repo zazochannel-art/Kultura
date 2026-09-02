@@ -5032,6 +5032,14 @@ select.is-missing { border-color: var(--red); }
 .chan-pill.is-warn{ color:#fcd34d; border-color:rgba(245,158,11,.34); background:rgba(245,158,11,.10); }
 .chan-pill.is-bad{ color:#fca5a5; border-color:rgba(239,68,68,.34); background:rgba(239,68,68,.10); }
 
+/* An event card whose hand-typed status the calendar contradicts. Amber rather
+   than red: the event is not broken, its label is stale — and the fix is to
+   press one of the status buttons already sitting on the same card. */
+.stale-status{
+  margin-top:10px; font-size:11px; font-weight:700;
+  color:#fcd34d; white-space:nowrap;
+}
+
 /* The readiness list disappears once nothing is missing, so it never becomes
    furniture people learn to ignore. */
 .ready-list{

@@ -752,6 +752,17 @@ verificat în `profiles` pentru configurare.
 | `kultura-prune-activity-log` | 04:52 UTC | Curăță jurnalul de activitate mai vechi de un an |
 | `kultura-prune-deleted-cars` | 04:35 UTC | Șterge definitiv mașinile din coș mai vechi de 30 de zile |
 
+`pg_net` e asincron: `net.http_post` întoarce un id, nu un răspuns. Un job care
+aruncă acel id nu poate afla niciodată dacă a reușit — `kultura-sheet-sync` a
+trimis așa 288 de cereri pe zi și toate s-au întors 404, fiindcă scriptul Apps
+Script de la capătul linkului salvat nu mai există. Nimic, nicăieri, n-a spus-o.
+
+De aceea `sync_cars_from_sheet()` întâi *închide* cererea precedentă
+(`settle_integration_run`), apoi trimite și ține noul id
+(`remember_integration_run`). Rezultatul stă în `integration_runs`, o linie per
+job, iar aplicația îl arată ca a patra pastilă în „Starea canalelor".
+
+
 ## Storage
 
 | Bucket | Public | Conținut |
@@ -1258,6 +1269,18 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     execută ramura — deci pe `cars`, care n-are `telegram_user_id`, orice
     inserare cădea. Prin `to_jsonb(new)` întrebi rândul de o cheie, nu de o
     coloană: aceeași întrebare la care ambele tabele pot răspunde.
+
+69. **Un job programat care sună în afară trebuie să-și citească răspunsul.**
+    `pg_net` e asincron: `net.http_post` întoarce un id de cerere, nu un
+    rezultat. `perform net.http_post(...)` aruncă acel id, și odată aruncat
+    nimeni nu mai poate afla ce s-a întâmplat. `kultura-sheet-sync` a trimis așa
+    288 de cereri pe zi; toate cele 72 din ultimele șase ore s-au întors 404,
+    fiindcă scriptul Apps Script de la capătul linkului salvat nu mai există.
+    Aplicația arăta „totul e în regulă" fiindcă nu întreba pe nimeni.
+    Regula: ține id-ul (`remember_integration_run`) și închide-l la rularea
+    următoare (`settle_integration_run`). Răspunsul ajunge în
+    `integration_runs`, iar „Starea canalelor" îl arată ca a patra pastilă —
+    verde, chihlimbariu la o singură ratare, roșu la un șir.
 
 68. **Un loc se spune cu un deget, nu cu un număr.** „Zona Retro, locul 38" e
     exact și nu-i spune șoferului încotro s-o ia. Fiecare boxă își poartă deja

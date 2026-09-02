@@ -1649,7 +1649,7 @@ try {
   // nobody linked, and no sign at all that you were working offline outside
   // the gate screen.
   {
-    const mk = async (health, cars, event, agenda = []) => {
+    const mk = async (health, cars, event, agenda = [], sync = []) => {
       const c = await browser.newContext({ viewport: { width: 430, height: 930 }, isMobile: true, hasTouch: true });
       await c.route('**://*.supabase.co/**', (r) => {
         const u = r.request().url();
@@ -1658,6 +1658,7 @@ try {
         if (u.includes('/functions/v1/telegram')) return J({ ok: true, has_token: true, username: 'Bot', webhook: 'x', linked: 0 });
         if (u.includes('/rest/v1/cars')) return J(/deleted_at=not\.is\.null/.test(u) ? [] : cars);
         if (u.includes('/rest/v1/event_agenda')) return J(agenda);
+        if (u.includes('/rest/v1/integration_runs')) return J(sync);
         if (u.includes('/rest/v1/events')) return J(Array.isArray(event) ? event : [event]);
         if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
         if (u.includes('/rest/v1/')) return J([]);
@@ -1798,6 +1799,72 @@ try {
       await e3.p.waitForTimeout(900);
       const farHidden = await e3.p.evaluate(() => document.getElementById('readyList').hidden);
       check('ready-list-stays-quiet-about-a-distant-event', farHidden === true);
+
+      // An event the calendar has left behind while its label still says it is
+      // coming. Two of them sat like this — „În curând" four days after the
+      // day, „Planificat" two days after — and nothing on any screen said so.
+      const staleEvent = {
+        ...soonEvent, id: 7, title: 'Kultura Night', status: 'În curând',
+        starts_at: new Date(Date.now() - 5 * 86400e3).toISOString(),
+      };
+      const e4 = await mk(HEALTHY, CARS.map(c => ({ ...c, zone: 'A1' })), [READY_EVENT, staleEvent],
+        [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }]);
+      await e4.p.waitForTimeout(900);
+      const staleRows = await e4.p.evaluate(() =>
+        [...document.querySelectorAll('#readyList .ready-row')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
+      check('ready-list-flags-an-event-its-date-has-passed',
+        staleRows.some(r => /Night/.test(r)), staleRows.join(' | '));
+      // Naming it is not enough: the row has to carry both halves of the
+      // contradiction, or nobody knows what to correct.
+      check('ready-list-names-the-status-that-lags',
+        staleRows.some(r => /Night/.test(r) && /5 zile/.test(r) && /curând/i.test(r)), staleRows.join(' | '));
+      // And the card itself says it, next to the badge it contradicts.
+      await e4.p.evaluate(() => document.querySelector('.mtab[data-section="events"], .tab[data-section="events"]')?.click());
+      await e4.p.waitForTimeout(700);
+      const staleChips = await e4.p.evaluate(() =>
+        [...document.querySelectorAll('#eventsList .card')]
+          .filter(c => /Night/.test(c.textContent))
+          .map(c => c.querySelector('.stale-status')?.textContent.trim() || ''));
+      check('event-card-says-its-date-has-passed',
+        staleChips.some(x => /5/.test(x)), JSON.stringify(staleChips));
+      // The event that has not happened yet keeps its countdown instead.
+      const freshChips = await e4.p.evaluate(() =>
+        [...document.querySelectorAll('#eventsList .card')]
+          .filter(c => !/Night/.test(c.textContent))
+          .map(c => c.querySelector('.stale-status')?.textContent.trim() || ''));
+      check('event-card-leaves-a-future-event-alone',
+        freshChips.every(x => x === ''), JSON.stringify(freshChips));
+      await e4.c.close();
+
+      // The scheduled sheet sync. It posts to a saved Apps Script link every
+      // five minutes and used to read nothing back — the link had been dead for
+      // long enough that every request in the last six hours came back 404, and
+      // no screen in the app knew.
+      const e5 = await mk(HEALTHY, CARS.map(c => ({ ...c, zone: 'A1' })), READY_EVENT,
+        [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }],
+        [{ name: 'sheet_sync', last_status: 404, last_ok_at: null, fail_streak: 9 }]);
+      await e5.p.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
+      await e5.p.waitForTimeout(1200);
+      const syncPills = await e5.p.evaluate(() =>
+        [...document.querySelectorAll('#channelHealth .chan-pill')].map(x => ({
+          state: x.className.replace('chan-pill ', ''), text: x.textContent.trim(),
+        })));
+      check('channel-health-flags-a-dead-sheet-sync',
+        syncPills.some(p => /404/.test(p.text) && p.state === 'is-bad'), JSON.stringify(syncPills));
+      await e5.c.close();
+
+      // A streak of one is a hiccup, not a dead link: amber, so the red pill
+      // keeps meaning something.
+      const e6 = await mk(HEALTHY, CARS.map(c => ({ ...c, zone: 'A1' })), READY_EVENT,
+        [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }],
+        [{ name: 'sheet_sync', last_status: 500, last_ok_at: new Date().toISOString(), fail_streak: 1 }]);
+      await e6.p.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
+      await e6.p.waitForTimeout(1200);
+      const oneOff = await e6.p.evaluate(() =>
+        [...document.querySelectorAll('#channelHealth .chan-pill')].map(x => x.className.replace('chan-pill ', '')));
+      check('channel-health-does-not-shout-about-one-failure',
+        oneOff.includes('is-warn') && !oneOff.includes('is-bad'), oneOff.join(','));
+      await e6.c.close();
       await e3.c.close();
 
       // An event two weeks past its end, still marked Activ — the state the
