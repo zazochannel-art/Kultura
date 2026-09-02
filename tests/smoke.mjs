@@ -4218,6 +4218,62 @@ try {
     await p.close();
   }
 
+  // 5a. The drifting background must stop for anyone who asked their phone to
+  // stop animating things. This is the one part of it that is not taste: the
+  // blooms are large and slow, but motion on a page is a real accessibility
+  // setting, and a decorative animation that ignores it is a bug.
+  {
+    const still = await browser.newContext({ reducedMotion: 'reduce' });
+    const rp = await still.newPage();
+    await rp.goto(`${BASE}/register.html`, { waitUntil: 'domcontentloaded' });
+    const anim = await rp.evaluate(() => [
+      getComputedStyle(document.body, '::before').animationName,
+      getComputedStyle(document.body, '::after').animationName,
+      getComputedStyle(document.documentElement, '::before').animationName,
+    ]);
+    check('background-holds-still-for-reduced-motion',
+      anim.every((a) => a === 'none'), anim.join(','));
+    await still.close();
+    // And it does move for everyone else — a rule that always says "none" would
+    // pass the check above while shipping nothing.
+    const movingCtx = await browser.newContext({ reducedMotion: 'no-preference' });
+    const mp = await movingCtx.newPage();
+    await mp.goto(`${BASE}/register.html`, { waitUntil: 'domcontentloaded' });
+    const moving = await mp.evaluate(() => [
+      getComputedStyle(document.body, '::before').animationName,
+      getComputedStyle(document.body, '::after').animationName,
+      getComputedStyle(document.documentElement, '::before').animationName,
+    ]);
+    check('background-drifts-by-default',
+      moving.every((a) => a && a !== 'none'), moving.join(','));
+    // Named animations are not enough: the first version of this background
+    // animated all three blooms and still looked like a still picture, because
+    // each wandered about a tenth of the screen over half a minute. Measure the
+    // distance actually covered. The blooms move by `transform` only, so the
+    // animated matrix in the computed style is where the travel shows up.
+    const where = () => mp.evaluate(() => [
+      getComputedStyle(document.body, '::before').transform,
+      getComputedStyle(document.body, '::after').transform,
+      getComputedStyle(document.documentElement, '::before').transform,
+    ].map((m) => {
+      const n = m.match(/matrix\(([^)]+)\)/);
+      const v = n ? n[1].split(',').map(Number) : [1, 0, 0, 1, 0, 0];
+      return [v[4], v[5]];
+    }));
+    await mp.waitForTimeout(1000);
+    const from = await where();
+    await mp.waitForTimeout(3000);
+    const to = await where();
+    const travelled = from.reduce(
+      (sum, [x, y], i) => sum + Math.hypot(to[i][0] - x, to[i][1] - y), 0);
+    // Roughly 700px across the three blooms on this viewport. The version that
+    // read as motionless managed 125px over the same three seconds, so 350
+    // sits between the two with room on either side for a slow CI machine —
+    // CSS animations run on wall-clock time, not on how fast the box is.
+    check('background-moves-far-enough-to-notice', travelled > 350, `${Math.round(travelled)}px in 3s`);
+    await movingCtx.close();
+  }
+
   // 5b. Accessibility (WCAG 2 A/AA) on every page we ship. Skipped when
   // axe-core isn't installed, so the suite still runs without it.
   const axePath = resolve(ROOT, 'node_modules/axe-core/axe.min.js');

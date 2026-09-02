@@ -623,6 +623,43 @@ nimic. Plafon 500 într-un apel.
 
 Un grup de una singură nu primește antet — ar fi zgomot peste un singur rând.
 
+## Fundalul care se mișcă
+
+Fiecare pagină avea deja două pete estompate în colțuri — mov și albastru, fixe.
+Din v158 se mișcă, și li s-a adăugat a treia, în magenta din logo.
+
+**Ce se animează, și de ce doar atât.** Numai `transform`. Blur-ul de 130–150 px
+se calculează o dată, iar ce se mișcă e o textură pe care compozitorul o
+alunecă — fără repaint, fără layout. De asta merge fără cost pe telefonul care
+în același timp desenează harta sau ține camera deschisă la poartă. O animație
+de `top`/`left` ar fi făcut exact invers.
+
+Deplasarea e în `vw`/`vh`, ca să fie proporțională: o pată care rătăcește 16% pe
+un laptop rătăcește tot 16% pe telefon.
+
+**Cele trei durate — 30s, 38s, 46s — nu se împart una în alta**, deci compoziția
+nu se repetă vizibil. Prima variantă avea 54/68/82s: corect, dar în zece secunde
+nu se schimba nimic perceptibil, adică toată treaba nu se vedea. Ciclurile de
+acum se citesc la o privire de câteva secunde fără să tragă ochiul de pe conținut.
+
+**A treia pată stă pe `html::before`**, fiindcă `body::before` și `body::after`
+erau deja luate, iar un `<div>` nou ar fi însemnat șapte pagini modificate
+pentru un lucru pur decorativ.
+
+**`prefers-reduced-motion: reduce` oprește tot.** Petele rămân exact unde sunt —
+pagina își păstrează adâncimea, doar încetează să se miște. Asta nu e gust, e o
+setare reală de accesibilitate, iar o animație decorativă care o ignoră e un
+defect. Două teste o păzesc, în ambele sensuri: unul cere să stea pe loc când
+setarea e pornită, celălalt cere să se miște când nu e — fiindcă o regulă care
+ar întoarce mereu `none` ar trece primul test livrând nimic.
+
+**Unde nu se aplică:** `ticket.html` (biletul se ține în mână la poartă, în timp
+ce cineva scanează un QR — nu e locul pentru mișcare) și `plan.html` (editorul de
+plan e o unealtă de desen, nu o vitrină). Regula e duplicată în fiecare pagină
+publică, ca tot restul stilului lor: paginile alea se deschid de pe un QR, pe
+date mobile, și sunt de sine stătătoare dinadins — un fișier CSS comun ar fi
+însemnat încă o cerere care blochează randarea.
+
 ## Roluri și permisiuni
 
 Rolul e în `profiles.role`. Ierarhia din `app.js`:

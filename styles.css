@@ -58,25 +58,94 @@
       /* Kill double-tap-to-zoom (and the 300ms tap delay); pinch-zoom stays. */
       touch-action: manipulation;
     }
+    /* The moving background. Three blooms drift across the page on paths long
+       enough to be seen: the old ones wandered about a tenth of the screen over
+       half a minute, which is slower than the eye registers as movement at all.
+       These cross most of the viewport, so the picture behind the cards is
+       visibly different from one glance to the next.
+
+       Each bloom is a radial-gradient that fades to nothing at 68% of its own
+       radius rather than a hard disc under `filter: blur(140px)`. Same soft
+       edge, but the gradient is painted once by the GPU while a 140px blur over
+       a 500px element is re-filtered work the phone did not need to do. The
+       alpha-0 stop is spelled out in rgba of the same colour: `transparent`
+       fades through transparent *black* on older WebViews, which greys the
+       bloom out at its edge. */
     body::before, body::after {
       content: "";
       position: fixed;
       border-radius: 50%;
-      filter: blur(140px);
       pointer-events: none;
       z-index: 0;
+      will-change: transform;
     }
     body::before {
-      width: 500px; height: 500px;
-      background: var(--purple);
-      opacity: 0.28;
-      top: -160px; left: -160px;
+      width: 56vmax; height: 56vmax;
+      top: -22vmax; left: -22vmax;
+      background: radial-gradient(circle at 50% 50%, var(--purple) 0%, rgba(139,92,246,0) 68%);
+      opacity: 0.46;
+      animation: aura-a 26s ease-in-out infinite;
     }
     body::after {
-      width: 440px; height: 440px;
-      background: var(--blue);
-      opacity: 0.22;
-      bottom: -160px; right: -160px;
+      width: 50vmax; height: 50vmax;
+      bottom: -20vmax; right: -20vmax;
+      background: radial-gradient(circle at 50% 50%, var(--blue) 0%, rgba(59,130,246,0) 68%);
+      opacity: 0.38;
+      animation: aura-b 34s ease-in-out infinite;
+    }
+    /* A third bloom, in the logo's magenta. `html` is used because both of the
+       body's pseudo-elements were already spoken for, and a real <div> would
+       have to be added to seven pages that share nothing but this idea. */
+    html::before {
+      content: "";
+      position: fixed;
+      width: 42vmax; height: 42vmax;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 0;
+      background: radial-gradient(circle at 50% 50%, var(--brand) 0%, rgba(248,88,156,0) 68%);
+      opacity: 0.26;
+      top: 50%; left: 50%;
+      will-change: transform;
+      animation: aura-c 42s ease-in-out infinite;
+    }
+
+    /* Three journeys, at three lengths that do not divide into each other, so
+       the picture never visibly repeats. Only `transform` moves — what the
+       compositor slides around is a texture painted once, which is why this
+       costs nothing on a phone that is also running the map or the camera at
+       the gate.
+
+       Sized in vw/vh so the travel is proportional: a bloom that crosses a
+       laptop crosses a phone the same way. Measured rather than guessed — over
+       any two-second window the picture changes by roughly four times what the
+       first version managed, and never sits still. */
+    @keyframes aura-a {
+      0%   { transform: translate3d(0, 0, 0) scale(1); }
+      30%  { transform: translate3d(70vw, 18vh, 0) scale(1.15); }
+      60%  { transform: translate3d(28vw, 62vh, 0) scale(0.85); }
+      100% { transform: translate3d(0, 0, 0) scale(1); }
+    }
+    @keyframes aura-b {
+      0%   { transform: translate3d(0, 0, 0) scale(1); }
+      35%  { transform: translate3d(-64vw, -22vh, 0) scale(0.85); }
+      70%  { transform: translate3d(-22vw, -64vh, 0) scale(1.2); }
+      100% { transform: translate3d(0, 0, 0) scale(1); }
+    }
+    @keyframes aura-c {
+      0%   { transform: translate3d(-50%, -50%, 0) scale(1); }
+      28%  { transform: translate3d(-115%, -105%, 0) scale(1.2); }
+      55%  { transform: translate3d(10%, -90%, 0) scale(0.8); }
+      80%  { transform: translate3d(-25%, 20%, 0) scale(1.1); }
+      100% { transform: translate3d(-50%, -50%, 0) scale(1); }
+    }
+
+    /* Somebody who has asked their phone to stop animating things has asked for
+       this too. The blooms stay exactly where they are — the page keeps its
+       depth, it just stops moving. */
+    @media (prefers-reduced-motion: reduce) {
+      body::before, body::after, html::before { animation: none; }
+      html::before { transform: translate3d(-50%, -50%, 0); }
     }
 
     /* ============ LOGIN VIEW ============ */
