@@ -4246,6 +4246,31 @@ try {
     ]);
     check('background-drifts-by-default',
       moving.every((a) => a && a !== 'none'), moving.join(','));
+    // Named animations are not enough: the first version of this background
+    // animated all three blooms and still looked like a still picture, because
+    // each wandered about a tenth of the screen over half a minute. Measure the
+    // distance actually covered. The blooms move by `transform` only, so the
+    // animated matrix in the computed style is where the travel shows up.
+    const where = () => mp.evaluate(() => [
+      getComputedStyle(document.body, '::before').transform,
+      getComputedStyle(document.body, '::after').transform,
+      getComputedStyle(document.documentElement, '::before').transform,
+    ].map((m) => {
+      const n = m.match(/matrix\(([^)]+)\)/);
+      const v = n ? n[1].split(',').map(Number) : [1, 0, 0, 1, 0, 0];
+      return [v[4], v[5]];
+    }));
+    await mp.waitForTimeout(1000);
+    const from = await where();
+    await mp.waitForTimeout(3000);
+    const to = await where();
+    const travelled = from.reduce(
+      (sum, [x, y], i) => sum + Math.hypot(to[i][0] - x, to[i][1] - y), 0);
+    // Roughly 700px across the three blooms on this viewport. The version that
+    // read as motionless managed 125px over the same three seconds, so 350
+    // sits between the two with room on either side for a slow CI machine —
+    // CSS animations run on wall-clock time, not on how fast the box is.
+    check('background-moves-far-enough-to-notice', travelled > 350, `${Math.round(travelled)}px in 3s`);
     await movingCtx.close();
   }
 
