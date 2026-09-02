@@ -4218,6 +4218,37 @@ try {
     await p.close();
   }
 
+  // 5a. The drifting background must stop for anyone who asked their phone to
+  // stop animating things. This is the one part of it that is not taste: the
+  // blooms are large and slow, but motion on a page is a real accessibility
+  // setting, and a decorative animation that ignores it is a bug.
+  {
+    const still = await browser.newContext({ reducedMotion: 'reduce' });
+    const rp = await still.newPage();
+    await rp.goto(`${BASE}/register.html`, { waitUntil: 'domcontentloaded' });
+    const anim = await rp.evaluate(() => [
+      getComputedStyle(document.body, '::before').animationName,
+      getComputedStyle(document.body, '::after').animationName,
+      getComputedStyle(document.documentElement, '::before').animationName,
+    ]);
+    check('background-holds-still-for-reduced-motion',
+      anim.every((a) => a === 'none'), anim.join(','));
+    await still.close();
+    // And it does move for everyone else — a rule that always says "none" would
+    // pass the check above while shipping nothing.
+    const movingCtx = await browser.newContext({ reducedMotion: 'no-preference' });
+    const mp = await movingCtx.newPage();
+    await mp.goto(`${BASE}/register.html`, { waitUntil: 'domcontentloaded' });
+    const moving = await mp.evaluate(() => [
+      getComputedStyle(document.body, '::before').animationName,
+      getComputedStyle(document.body, '::after').animationName,
+      getComputedStyle(document.documentElement, '::before').animationName,
+    ]);
+    check('background-drifts-by-default',
+      moving.every((a) => a && a !== 'none'), moving.join(','));
+    await movingCtx.close();
+  }
+
   // 5b. Accessibility (WCAG 2 A/AA) on every page we ship. Skipped when
   // axe-core isn't installed, so the suite still runs without it.
   const axePath = resolve(ROOT, 'node_modules/axe-core/axe.min.js');
