@@ -298,16 +298,22 @@
           <div class="aflux-counters" id="afluxCounters"></div>
           <div class="aflux-sub" data-i18n="aflux.by_hour">Sosiri pe oră</div>
           <div class="aflux-bars" id="afluxHours"></div>
-          <div class="aflux-cols">
-            <div><div class="aflux-sub" data-i18n="aflux.by_zone">Pe zone</div><div id="afluxZones"></div></div>
-            <div><div class="aflux-sub" data-i18n="aflux.by_category">Pe categorii</div><div id="afluxCats"></div></div>
-          </div>
-          <div class="aflux-cols">
-            <div><div class="aflux-sub" data-i18n="aflux.by_brand">Pe mărci</div><div id="afluxBrands"></div></div>
-            <div><div class="aflux-sub" data-i18n="aflux.by_city">Pe orașe</div><div id="afluxCities"></div></div>
-          </div>
-          <div class="aflux-cols">
-            <div><div class="aflux-sub" data-i18n="aflux.by_operator">Check-in pe operator</div><div id="afluxOps"></div></div>
+          <button type="button" class="aflux-toggle" id="afluxToggle" aria-expanded="false" aria-controls="afluxDetails">
+            <span data-i18n="aflux.details">Detalii</span>
+            <svg class="aflux-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="aflux-details" id="afluxDetails" hidden>
+            <div class="aflux-cols">
+              <div><div class="aflux-sub" data-i18n="aflux.by_zone">Pe zone</div><div id="afluxZones"></div></div>
+              <div><div class="aflux-sub" data-i18n="aflux.by_category">Pe categorii</div><div id="afluxCats"></div></div>
+            </div>
+            <div class="aflux-cols">
+              <div><div class="aflux-sub" data-i18n="aflux.by_brand">Pe mărci</div><div id="afluxBrands"></div></div>
+              <div><div class="aflux-sub" data-i18n="aflux.by_city">Pe orașe</div><div id="afluxCities"></div></div>
+            </div>
+            <div class="aflux-cols">
+              <div><div class="aflux-sub" data-i18n="aflux.by_operator">Check-in pe operator</div><div id="afluxOps"></div></div>
+            </div>
           </div>
         </div>
 

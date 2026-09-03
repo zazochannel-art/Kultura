@@ -4391,7 +4391,6 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .aflux-tile.ok b { color: var(--green); }
 .aflux-tile.mut b { color: #8b5cf6; }
 .aflux-tile.hot b { color: var(--orange, #f59e0b); }
-@media (max-width: 520px) { .aflux-counters { grid-template-columns: repeat(2, 1fr); } }
 .aflux-sub { font-size: 12px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; margin: 12px 0 8px; }
 .aflux-bars { display: flex; align-items: flex-end; gap: 6px; height: 120px; padding-top: 6px; }
 .aflux-hbar { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
@@ -4407,7 +4406,61 @@ body::after  { animation: blob-breathe-b 22s ease-in-out infinite; }
 .aflux-op:last-child { border-bottom: 0; }
 .aflux-op-n { font-weight: 800; color: var(--blue); }
 .aflux-empty { text-align: center; color: var(--text-mute); padding: 16px; font-size: 13px; }
-@media (max-width: 560px) { .aflux-cols { grid-template-columns: 1fr; gap: 4px; } }
+/* „Detalii" — the four breakdowns, folded away until asked for.
+   A full-width row rather than a small link: on a phone the whole strip is the
+   target, which is the difference between one tap and three. */
+.aflux-toggle {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; margin-top: 12px; padding: 9px 12px;
+  border-radius: 10px; border: 1px solid var(--border);
+  background: var(--fill); color: var(--text-dim);
+  font: inherit; font-size: 12px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .04em;
+  cursor: pointer;
+}
+.aflux-toggle:hover { color: var(--text); border-color: var(--border-strong); }
+.aflux-chev { width: 15px; height: 15px; transition: transform .2s ease; }
+.aflux-toggle.is-open .aflux-chev { transform: rotate(180deg); }
+.aflux-details { margin-top: 4px; }
+/* `hidden` cannot be animated, so the slide plays when the box goes from
+   display:none to shown — which is exactly the moment the button is pressed. */
+.aflux-details:not([hidden]) { animation: aflux-open .22s ease; }
+@keyframes aflux-open {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aflux-details:not([hidden]) { animation: none; }
+  .aflux-chev { transition: none; }
+}
+
+/* On a phone the arrivals panel ran to 1412px — one and two-thirds of a
+   screen, so the operator scrolled past the numbers to reach the lists and
+   past the lists to reach the operators. Nothing here is dropped; everything
+   is simply tightened, and the four tiles go three across instead of two,
+   which alone gets rid of a whole wasted row.
+
+   Desktop keeps the roomier version: it has the height to spend. */
+@media (max-width: 560px) {
+  .aflux-cols { grid-template-columns: 1fr; gap: 4px; }
+  .aflux-counters { grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+  .aflux-tile { padding: 8px 8px 7px; border-radius: 10px; gap: 1px; }
+  .aflux-tile b { font-size: 18px; }
+  /* The label wraps rather than being clipped: „ULTIMELE 15 MIN" does not fit
+     one line in a third of a 390px screen, and a truncated label is worse
+     than a two-line one. The grid keeps all three tiles the same height. */
+  .aflux-tile span { font-size: 9px; line-height: 1.25; letter-spacing: .02em; }
+  .aflux-sub { font-size: 11px; margin: 10px 0 6px; }
+  .aflux-bars { height: 84px; gap: 4px; }
+  .aflux-hbar-lbl { font-size: 9px; margin-top: 3px; }
+  /* Twenty-five of these rows stack up on one screen, so every pixel saved
+     here is saved twenty-five times. */
+  .aflux-row { margin-bottom: 5px; }
+  .aflux-row-top { font-size: 11.5px; margin-bottom: 2px; }
+  .aflux-track { height: 4px; }
+  .aflux-op { padding: 6px 0; font-size: 12.5px; }
+  .aflux-empty { padding: 10px; font-size: 12px; }
+}
 
 /* ---- Arrivals wall (live full-screen display) ---- */
 .wall-overlay { position: fixed; inset: 0; z-index: 3000; display: none; flex-direction: column;

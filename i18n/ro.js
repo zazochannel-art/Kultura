@@ -113,6 +113,7 @@ export default {
   "cmdk.task": "Task",
   "aflux.title": "Aflux sosiri",
   "aflux.summary": "{a} din {n} au sosit",
+  "aflux.details": "Detalii",
   "aflux.by_hour": "Sosiri pe oră",
   "aflux.by_zone": "Pe zone",
   "aflux.by_category": "Pe categorii",

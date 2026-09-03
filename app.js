@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v161';
+    const APP_VERSION = 'v163';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -7492,6 +7492,7 @@
       const ops = {};
       arrived.forEach(c => { const o = (c.checked_in_by || '').trim(); if (o) ops[o] = (ops[o] || 0) + 1; });
       countList('afluxOps', ops, 'aflux.no_operators');
+      afluxDetailsInit();
     }
 
     function renderRegStats() {
@@ -7556,6 +7557,46 @@
             <div class="cmp-track"><div class="cmp-fill" style="width:${w}%"></div></div>
           </div>`;
       }).join('');
+    }
+
+    // „Detalii": the four breakdowns and the operator list, folded away.
+    //
+    // The counters and the arrivals-per-hour bars are what somebody at a gate
+    // glances at; the breakdowns are what somebody asks for once, sitting down.
+    // Keeping all of it open made the panel 1080px on a phone even after the
+    // layout was tightened — the operator scrolled past the lists to reach the
+    // rest of Home. Closed, the panel is a third of that.
+    //
+    // The choice is remembered, because a person who wants the breakdowns
+    // wants them every time they open the app, and one who does not should not
+    // have to close them again tomorrow.
+    const AFLUX_OPEN_KEY = 'kultura_aflux_details';
+    let _afluxWired = false;
+    function afluxSetDetails(open) {
+      const box = el('afluxDetails');
+      const btn = el('afluxToggle');
+      if (!box || !btn) return;
+      box.hidden = !open;
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.classList.toggle('is-open', open);
+    }
+    function afluxDetailsInit() {
+      const btn = el('afluxToggle');
+      if (!btn) return;
+      if (!_afluxWired) {
+        _afluxWired = true;
+        let open = false;
+        try { open = localStorage.getItem(AFLUX_OPEN_KEY) === '1'; } catch (_) {}
+        afluxSetDetails(open);
+        btn.addEventListener('click', () => {
+          const next = btn.getAttribute('aria-expanded') !== 'true';
+          afluxSetDetails(next);
+          try {
+            if (next) localStorage.setItem(AFLUX_OPEN_KEY, '1');
+            else localStorage.removeItem(AFLUX_OPEN_KEY);
+          } catch (_) {}
+        });
+      }
     }
 
     function renderStats(cars, tasks, events) {

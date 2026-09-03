@@ -110,6 +110,7 @@ export default {
   "cmdk.task": "Задача",
   "aflux.title": "Поток прибытий",
   "aflux.summary": "прибыло {a} из {n}",
+  "aflux.details": "Подробнее",
   "aflux.by_hour": "Прибытия по часам",
   "aflux.by_zone": "По зонам",
   "aflux.by_category": "По категориям",
