@@ -1865,6 +1865,75 @@ try {
       check('channel-health-does-not-shout-about-one-failure',
         oneOff.includes('is-warn') && !oneOff.includes('is-bad'), oneOff.join(','));
       await e6.c.close();
+
+      // The arrivals panel on a phone. With a real field's worth of cars it ran
+      // to 1412px on a 390px screen — one and two-thirds of a viewport — so the
+      // operator scrolled past the numbers to reach the lists and past the
+      // lists to reach the operators. Nothing was dropped to fix it; the phone
+      // layout was tightened and the tiles went three across.
+      const MANY = [];
+      const zn = ['Autosport', 'JDM', 'America', 'GREEN ZONE', 'Stance', 'Retro', 'Modern', 'Euro', 'EXPO ZONE', 'VIP ZONE'];
+      const br = ['VW', 'BMW', 'Mazda', 'Audi', 'Toyota', 'Nissan', 'Ford'];
+      const ct = ['Chișinău', 'Bălți', 'Cahul', 'Orhei', 'Ungheni'];
+      for (let i = 1; i <= 40; i++) MANY.push({
+        id: i, entry_no: i, brand: br[i % br.length], model: 'M' + i, owner: 'O' + i, plate: 'P' + i,
+        status: i % 3 ? 'Sosit' : 'Invitat', event_id: 6, zone: zn[i % zn.length],
+        category: ['Tuning', 'Retro', 'Sport'][i % 3], city: ct[i % ct.length],
+        arrived_at: i % 3 ? new Date(Date.now() - (i % 9) * 3600e3).toISOString() : null,
+        checked_in_by: 'op' + (i % 3) + '@example.com', deleted_at: null,
+      });
+      const e7 = await mk(HEALTHY, MANY, READY_EVENT,
+        [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }]);
+      await e7.p.waitForTimeout(900);
+      const look = () => e7.p.evaluate(() => {
+        const b = document.getElementById('afluxBlock');
+        if (!b || b.hidden) return null;
+        const tiles = [...document.querySelectorAll('#afluxCounters .aflux-tile')];
+        const btn = document.getElementById('afluxToggle');
+        return {
+          height: Math.round(b.getBoundingClientRect().height),
+          tiles: tiles.length,
+          // Three tiles on one row: every one of them starts at the same
+          // vertical offset. Two-across left the third alone on a row of its
+          // own, which is a whole wasted band of screen.
+          rows: new Set(tiles.map((t) => Math.round(t.offsetTop))).size,
+          folded: document.getElementById('afluxDetails')?.hidden,
+          expanded: btn?.getAttribute('aria-expanded'),
+          label: (btn?.textContent || '').trim(),
+          // The lists are built either way — folding is not the same as not
+          // rendering, and this is what would catch it turning into that.
+          rates: document.querySelectorAll('#afluxZones .aflux-row').length,
+        };
+      });
+      const shut = await look();
+      check('aflux-counters-fit-one-row-on-a-phone',
+        shut && shut.tiles === 3 && shut.rows === 1, JSON.stringify(shut));
+      check('aflux-details-start-folded',
+        shut && shut.folded === true && shut.expanded === 'false' && /detalii/i.test(shut.label),
+        JSON.stringify(shut));
+      // Closed it is about 290px. 420 leaves room for a font that renders a
+      // hair taller elsewhere, and still sits far below the 1412px this panel
+      // used to be — a screen and two thirds before anything else on Home.
+      check('aflux-panel-is-compact-on-a-phone', shut && shut.height < 420, `${shut && shut.height}px`);
+
+      await e7.p.click('#afluxToggle');
+      await e7.p.waitForTimeout(400);
+      const open = await look();
+      check('aflux-details-open-on-tap',
+        open && open.folded === false && open.expanded === 'true', JSON.stringify(open));
+      check('aflux-panel-shows-every-zone', open && open.rates >= 10, JSON.stringify(open));
+      // Opening has to actually add the height back, or „folded" was only ever
+      // an attribute nobody honoured.
+      check('aflux-details-add-their-height', open && open.height > shut.height + 400,
+        `${shut && shut.height} → ${open && open.height}`);
+
+      // Somebody who wants the breakdowns wants them tomorrow too.
+      await e7.p.reload({ waitUntil: 'domcontentloaded' });
+      await e7.p.waitForTimeout(2400);
+      const again = await look();
+      check('aflux-details-remember-the-choice',
+        again && again.folded === false && again.expanded === 'true', JSON.stringify(again));
+      await e7.c.close();
       await e3.c.close();
 
       // An event two weeks past its end, still marked Activ — the state the

@@ -110,6 +110,7 @@ export default {
   "cmdk.task": "Task",
   "aflux.title": "Arrivals flow",
   "aflux.summary": "{a} of {n} arrived",
+  "aflux.details": "Details",
   "aflux.by_hour": "Arrivals per hour",
   "aflux.by_zone": "By zone",
   "aflux.by_category": "By category",
