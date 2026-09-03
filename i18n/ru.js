@@ -548,6 +548,8 @@ export default {
   "report.votes": "Голоса",
   "pass.none": "Нет машин для печати",
   "pass.building": "Готовятся пропуска: {n}…",
+  "tasks.filters": "Фильтры",
+  "tasks.filters_active": "активных фильтров: {n}",
   "tasks.view_list": "Список",
   "tasks.view_kanban": "Канбан",
   "kanban.empty": "Нет задач",
