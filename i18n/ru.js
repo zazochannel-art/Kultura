@@ -465,6 +465,7 @@ export default {
   "cars.search": "Поиск модели, владельца или номера...",
   "cars.add": "Добавить",
   "cars.ai_import": "AI Импорт",
+  "cars.more": "Ещё",
   "cars.export": "Экспорт",
   "history.title": "ИСТОРИЯ",
   "history.empty": "Пока нет записей активности.",

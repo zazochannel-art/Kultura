@@ -636,6 +636,13 @@
       padding: 10px 20px 4px;
       user-select: none;
     }
+    /* Home only. `on-home` is on the body in the markup and `selectSection`
+       toggles it from then on — put there by script alone it would be missing
+       on load, because the first active section comes from the HTML and
+       `selectSection` never runs until somebody switches tabs. The smoke suite
+       caught exactly that. */
+    body:not(.on-home) .logo-hero { display: none; }
+
     .logo-img {
       display: block;
       width: clamp(130px, 30vw, 210px);
@@ -4993,10 +5000,24 @@ html {
   letter-spacing: .02em;
   padding: 2px 7px;
   border-radius: 999px;
-  /* Dark ink on brand magenta: white measures ~3:1 here and fails AA. */
-  background: var(--brand);
-  color: #1a0410;
+  /* Neutral, not brand magenta.
+     Magenta is the accent this app spends on „important" — on a list of
+     twenty-four cars it made all twenty-four look special, and it competed
+     with the car's own name for the eye. The number still has to be findable
+     at a gate, so it keeps the weight and the pill; it gives up the colour. */
+  background: var(--fill-4);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
   white-space: nowrap;
+}
+
+/* The car's colour, on its tile. Falls back to the blue every tile had when
+   the row carries no colour — most rows do not, and a grey square would be a
+   downgrade from a blue one. */
+.row-icon.car-ic.is-painted {
+  background: var(--car-fill);
+  border: 1px solid var(--car-line);
+  color: var(--car-ink);
 }
 /* On the printed dash card it is the largest thing, by design. */
 .pass-card .pass-no {

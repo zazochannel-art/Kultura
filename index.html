@@ -43,7 +43,10 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
 </head>
-<body>
+<!-- `on-home` starts here, not in script: the first active section is set by
+     the markup, so `selectSection` never runs on load and the logo would be
+     hidden on Home until the first tab switch. -->
+<body class="on-home">
   <!-- ============ SPLASH SCREEN ============ -->
   <div id="splashScreen">
     <img src="logo.png" alt="Kultura" class="splash-logo">
@@ -470,6 +473,20 @@
           <button class="add-btn muted" id="manualRefreshBtn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
           </button>
+          <button type="button" class="add-btn muted" id="carsMoreBtn" aria-expanded="false" aria-controls="carsMoreBox">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+            <span data-i18n="cars.more">Mai multe</span>
+          </button>
+          <button class="add-btn grad-gate" id="gateOpenBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>
+            <span data-i18n="gate.open">Poartă</span>
+          </button>
+          <button class="add-btn" data-modal="add-car">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span data-i18n="cars.add">Adaugă</span>
+          </button>
+        </div>
+        <div class="toolbar cars-more" id="carsMoreBox" hidden>
           <button class="add-btn grad-ai" id="aiImportBtn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
             <span data-i18n="cars.ai_import">AI Import</span>
@@ -493,14 +510,6 @@
           <button class="add-btn muted" id="judgeBtn" style="display:none;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2-6.3-4.6-6.3 4.6L7.9 13.8 2 9.4h7.6z"/></svg>
             <span data-i18n="judge.btn">Jurizare</span>
-          </button>
-          <button class="add-btn grad-gate" id="gateOpenBtn">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>
-            <span data-i18n="gate.open">Poartă</span>
-          </button>
-          <button class="add-btn" data-modal="add-car">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span data-i18n="cars.add">Adaugă</span>
           </button>
         </div>
         <div id="carsSplit" class="cars-split">

@@ -465,6 +465,7 @@ export default {
   "cars.search": "Search model, owner or plate...",
   "cars.add": "Add",
   "cars.ai_import": "AI Import",
+  "cars.more": "More",
   "cars.export": "Export",
   "history.title": "HISTORY",
   "history.empty": "No activity recorded yet.",

@@ -471,6 +471,7 @@ export default {
   "cars.search": "Caută model, proprietar sau plăcuță...",
   "cars.add": "Adaugă",
   "cars.ai_import": "AI Import",
+  "cars.more": "Mai multe",
   "cars.export": "Export",
   "history.title": "ISTORIC",
   "history.empty": "Nicio activitate înregistrată încă.",
