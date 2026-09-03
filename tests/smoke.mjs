@@ -2030,6 +2030,93 @@ try {
       check('task-filters-button-counts-what-is-narrowed',
         t4 && t4.narrowed === true && t4.badge === '2', JSON.stringify(t4));
       await e8.c.close();
+
+      // ---- The event card, the Cars toolbar, the logo and the car tiles.
+      //
+      // All five come from looking at the app on a 390px phone: a card that
+      // said „3 zile rămase" above „02 Z 23 H 59 M 55 S" and disagreed with
+      // itself, two icons with nothing beside them, eight buttons before the
+      // first car, the logo on every screen, and twenty-four identical blue
+      // tiles.
+      const COLOURED = [
+        { ...CARS[0], id: 101, entry_no: 101, color: '#ff0000', zone: 'A1' },
+        { ...CARS[1], id: 102, entry_no: 102, color: '', zone: 'A1' },
+      ];
+      const e9 = await mk(HEALTHY, COLOURED, READY_EVENT,
+        [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }]);
+      await e9.p.waitForTimeout(900);
+      const home = await e9.p.evaluate(() => {
+        const cd = document.getElementById('heroCountdown');
+        return {
+          countdownHidden: cd ? cd.hidden : null,
+          ring: document.getElementById('heroDays')?.textContent.trim(),
+          dateHtml: document.getElementById('heroDate')?.innerHTML || '',
+          locHtml: document.getElementById('heroLocation')?.innerHTML || '',
+          logo: getComputedStyle(document.querySelector('.logo-hero')).display,
+        };
+      });
+      // Three days out: the ring says it, and the strip stays away.
+      check('event-card-shows-one-countdown-not-two',
+        home && home.countdownHidden === true && /\d/.test(home.ring || ''), JSON.stringify(home));
+      // READY_EVENT carries neither `date` text nor `location`, so both icons
+      // must be absent rather than sitting there with nothing beside them.
+      check('event-card-drops-an-icon-that-labels-nothing',
+        home && home.dateHtml === '' && home.locHtml === '',
+        JSON.stringify({ d: home.dateHtml.slice(0, 40), l: home.locHtml.slice(0, 40) }));
+      check('logo-shows-on-home', home && home.logo !== 'none', String(home && home.logo));
+
+      // Inside the last day the strip comes back, in hours and minutes — and
+      // never with a seconds digit ticking on a working screen.
+      const soonEv = { ...READY_EVENT, starts_at: new Date(Date.now() + 5 * 3600e3).toISOString() };
+      const e10 = await mk(HEALTHY, COLOURED, soonEv,
+        [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }]);
+      await e10.p.waitForTimeout(900);
+      const last = await e10.p.evaluate(() => {
+        const cd = document.getElementById('heroCountdown');
+        return { hidden: cd?.hidden, segs: [...cd.querySelectorAll('.cd-seg i')].map((x) => x.textContent.trim()) };
+      });
+      check('event-card-counts-down-inside-the-last-day',
+        last && last.hidden === false && last.segs.length === 2, JSON.stringify(last));
+      check('event-card-has-no-ticking-seconds',
+        last && !last.segs.some((x) => /^s$/i.test(x)), JSON.stringify(last.segs));
+      await e10.c.close();
+
+      // Cars: the toolbar, the logo, the number pill and the coloured tiles.
+      await e9.p.evaluate(() => document.querySelector('.mtab[data-section="cars"], .tab[data-section="cars"]')?.click());
+      await e9.p.waitForTimeout(900);
+      const cars = await e9.p.evaluate(() => {
+        const box = document.getElementById('carsMoreBox');
+        const brand = getComputedStyle(document.documentElement).getPropertyValue('--brand').trim();
+        const pill = document.querySelector('#carsList .entry-no');
+        const tiles = [...document.querySelectorAll('#carsList .car-ic')].map((t) => getComputedStyle(t).backgroundColor);
+        return {
+          moreHidden: box ? box.hidden : null,
+          inToolbar: document.querySelectorAll('#section-cars .toolbar:not(.cars-more) .add-btn').length,
+          folded: box ? box.querySelectorAll('.add-btn').length : 0,
+          logo: getComputedStyle(document.querySelector('.logo-hero')).display,
+          brand, pillBg: pill ? getComputedStyle(pill).backgroundColor : null,
+          tiles: tiles.slice(0, 2),
+        };
+      });
+      check('logo-stays-off-the-working-screens', cars && cars.logo === 'none', String(cars && cars.logo));
+      check('cars-actions-fold-under-more',
+        cars && cars.moreHidden === true && cars.folded >= 5 && cars.inToolbar <= 4, JSON.stringify(cars));
+      // The pill keeps its shape and loses the accent: magenta on every one of
+      // twenty-four rows made all twenty-four look special.
+      check('entry-number-is-not-painted-brand-magenta',
+        cars && cars.pillBg && !/248, ?88, ?156/.test(cars.pillBg), String(cars && cars.pillBg));
+      // A car with a colour and a car without must not look the same.
+      check('car-tile-carries-the-cars-own-colour',
+        cars && cars.tiles.length === 2 && cars.tiles[0] !== cars.tiles[1], JSON.stringify(cars.tiles));
+      await e9.p.click('#carsMoreBtn');
+      await e9.p.waitForTimeout(300);
+      const opened = await e9.p.evaluate(() => ({
+        hidden: document.getElementById('carsMoreBox').hidden,
+        expanded: document.getElementById('carsMoreBtn').getAttribute('aria-expanded'),
+      }));
+      check('cars-more-opens-on-tap',
+        opened && opened.hidden === false && opened.expanded === 'true', JSON.stringify(opened));
+      await e9.c.close();
       await e3.c.close();
 
       // An event two weeks past its end, still marked Activ — the state the

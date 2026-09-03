@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v164';
+    const APP_VERSION = 'v165';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -427,6 +427,28 @@
       hideMsg();
     }
 
+    // „Mai multe" on Cars.
+    //
+    // Eight buttons stood between the search box and the first car — AI Import,
+    // Export, Catalog, Pass-uri, Raport, Jurizare, Poartă, Adaugă — three rows
+    // of them, all the same weight. Two are pressed during an event; the other
+    // six are once-per-event errands. Those six moved into a drawer, so the
+    // primary action is visible as the primary action.
+    //
+    // Unlike the task filters, this does not remember: a drawer of errands is a
+    // menu, and a menu that stayed open would put the six rows straight back.
+    (function wireCarsMore() {
+      const btn = document.getElementById('carsMoreBtn');
+      const box = document.getElementById('carsMoreBox');
+      if (!btn || !box) return;
+      btn.addEventListener('click', () => {
+        const next = btn.getAttribute('aria-expanded') !== 'true';
+        box.hidden = !next;
+        btn.setAttribute('aria-expanded', next ? 'true' : 'false');
+        btn.classList.toggle('is-open', next);
+      });
+    })();
+
     // Tab navigation — sync top desktop tabs + bottom mobile tabs
     function selectSection(name) {
       if (!name) return;
@@ -436,6 +458,14 @@
       document.querySelectorAll('.section').forEach(s => {
         s.classList.toggle('active', s.id === 'section-' + name);
       });
+      // The logo is a quarter of a phone screen, and it was on every one of
+      // them — above the car list, above the task list, above the map. It
+      // belongs where somebody arrives (login and Home); on a working screen it
+      // is a hundred pixels of nothing between the person and their list.
+      //
+      // The class starts on `<body>` in the markup: this line only ever
+      // maintains it, because nothing calls `selectSection` on load.
+      document.body.classList.toggle('on-home', name === 'home');
       // Trigger the one-shot card stagger for the section we just opened, then
       // clear it so ordinary data refreshes don't re-animate the list.
       const activeSection = document.getElementById('section-' + name);
@@ -7721,8 +7751,11 @@
       const dl = eventDaysLeft(e);
       el('heroTitle').textContent = e.title || '—';
       el('heroSub').textContent = e.subtitle || '';
-      el('heroDate').innerHTML = calendarIcon() + (e.date || '');
-      el('heroLocation').innerHTML = pinIcon() + (e.location || '');
+      // A pin with nothing beside it is not information, it is a leftover: the
+      // card carried two orphan glyphs whenever an event had no date text or no
+      // venue. The icon exists to label a value; with no value it goes too.
+      el('heroDate').innerHTML = e.date ? calendarIcon() + escape(e.date) : '';
+      el('heroLocation').innerHTML = e.location ? pinIcon() + escape(e.location) : '';
       el('heroDays').textContent = dl ?? '—';
       const hd = el('heroDays');
       if (hd) {
@@ -7757,13 +7790,24 @@
               m = Math.floor((s % 3600) / 60), sec = s % 60;
         const pad = (n) => String(n).padStart(2, '0');
         const seg = (v, lab) => `<span class="cd-seg"><b>${pad(v)}</b><i>${escape(lab)}</i></span>`;
+        // The card used to say the same thing twice and disagree with itself:
+        // a ring reading „3 zile rămase" above a strip reading „02 Z 23 H 59 M
+        // 55 S", because one rounds up and the other counts down. The ring
+        // stays; this strip only appears once days have run out, when hours and
+        // minutes are the thing somebody actually wants.
+        //
+        // No seconds. A digit that changes every second on a working screen
+        // pulls the eye once a second toward a number nobody acts on.
+        if (d > 0) { box.hidden = true; box.innerHTML = ''; return; }
         box.innerHTML =
           `<span class="cd-label">${escape(t('countdown.starts_in'))}</span>` +
-          (d > 0 ? seg(d, t('countdown.d')) : '') +
-          seg(h, t('countdown.h')) + seg(m, t('countdown.m')) + seg(sec, t('countdown.s'));
+          (h > 0 ? seg(h, t('countdown.h')) : '') +
+          seg(m, t('countdown.m')) + (h > 0 ? '' : seg(sec, t('countdown.s')));
         box.hidden = false;
       };
       tick();
+      // Once a minute is enough while the strip is showing minutes; the last
+      // hour ticks per second because that is when a second matters.
       _countdownTimer = setInterval(tick, 1000);
     }
 
@@ -8131,6 +8175,31 @@
     }
 
     // Markup for one car row (also used by the chunked/windowed renderer).
+    // The car's own colour on its tile.
+    //
+    // Twenty-four cars in a list all wore the same blue square. „A mea era
+    // roșie" is how somebody finds their car in a list; „a mea era a
+    // paisprezecea" is not. The colour is already on the row — it was simply
+    // never drawn.
+    //
+    // Only a hex we recognise is used, and it is written into a custom property
+    // rather than straight into `background`, so the tile keeps its own tint
+    // rules and a malformed value falls back to blue instead of breaking the
+    // style attribute.
+    function carPaint(hex) {
+      const v = String(hex || '').trim();
+      if (!/^#[0-9a-f]{6}$/i.test(v)) return '';
+      const r = parseInt(v.slice(1, 3), 16), g = parseInt(v.slice(3, 5), 16), b = parseInt(v.slice(5, 7), 16);
+      // The tints are mixed here rather than with `color-mix`, which the older
+      // Android WebViews this ships inside do not have. A very dark colour is
+      // lifted toward white so a black car is a visible tile and not a hole.
+      const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      const ink = lum < 0.22
+        ? `rgb(${Math.round(r + (255 - r) * 0.55)},${Math.round(g + (255 - g) * 0.55)},${Math.round(b + (255 - b) * 0.55)})`
+        : v;
+      return `--car-fill:rgba(${r},${g},${b},.22);--car-line:rgba(${r},${g},${b},.5);--car-ink:${ink};`;
+    }
+
     function carRowHtml(car) {
       const active = statusKey(car.status);
       const actionButtons = CAR_STATUS_OPTIONS.map(opt => {
@@ -8157,7 +8226,7 @@
       return `
           <div class="card car-row card-stripe stripe-${active || 'invitat'}${car.is_vip ? ' card-vip' : ''}${photo ? ' has-photo' : ''}${blockReason !== null ? ' is-blocked' : ''}" data-row-id="${car.id}" style="cursor:pointer; padding: 16px; margin-bottom: 0;${photo ? `--car-bg:url('${escape(photo)}');` : ''}">
             <div style="display:flex; align-items:flex-start; gap:12px;">
-              <div class="row-icon blue" style="flex-shrink:0;">
+              <div class="row-icon blue car-ic${carPaint(car.color) ? ' is-painted' : ''}" style="flex-shrink:0;${carPaint(car.color)}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
               </div>
               <div style="flex:1; min-width:0;">
