@@ -1649,7 +1649,7 @@ try {
   // nobody linked, and no sign at all that you were working offline outside
   // the gate screen.
   {
-    const mk = async (health, cars, event, agenda = [], sync = []) => {
+    const mk = async (health, cars, event, agenda = [], sync = [], tasks = []) => {
       const c = await browser.newContext({ viewport: { width: 430, height: 930 }, isMobile: true, hasTouch: true });
       await c.route('**://*.supabase.co/**', (r) => {
         const u = r.request().url();
@@ -1659,6 +1659,7 @@ try {
         if (u.includes('/rest/v1/cars')) return J(/deleted_at=not\.is\.null/.test(u) ? [] : cars);
         if (u.includes('/rest/v1/event_agenda')) return J(agenda);
         if (u.includes('/rest/v1/integration_runs')) return J(sync);
+        if (u.includes('/rest/v1/tasks')) return J(tasks);
         if (u.includes('/rest/v1/events')) return J(Array.isArray(event) ? event : [event]);
         if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
         if (u.includes('/rest/v1/')) return J([]);
@@ -1934,6 +1935,101 @@ try {
       check('aflux-details-remember-the-choice',
         again && again.folded === false && again.expanded === 'true', JSON.stringify(again));
       await e7.c.close();
+
+      // The task filters. Three chip rows plus two dropdowns stood between the
+      // search box and the first task on a phone, and every chip row scrolled
+      // sideways off the screen mid-word — measured at 570, 541 and 971 pixels
+      // of content in 350 pixels of box, which is how „Мои срочные" arrives as
+      // „Мо…". They fold now, and wrap rather than scroll when opened.
+      const TASKS = [];
+      const teams = ['Management', 'Parteneriat', 'Marketing', 'Logistică'];
+      for (let i = 1; i <= 9; i++) TASKS.push({
+        id: i, title: 'T' + i, event_id: 6, is_completed: i === 4 || i === 7,
+        status: ['in_progress', 'available', 'available', 'done', 'available', 'in_progress', 'done', 'available', 'available'][i - 1],
+        priority: i % 3 === 0 ? 'urgent' : (i % 3 === 1 ? 'high' : 'normal'),
+        team: teams[i % teams.length], assigned_user_name: 'QA', assigned_to: 'qa@example.com',
+        created_at: new Date(Date.now() - i * 3600e3).toISOString(),
+        updated_at: new Date(Date.now() - i * 3600e3).toISOString(),
+      });
+      const e8 = await mk(HEALTHY, CARS.map(c => ({ ...c, zone: 'A1' })), READY_EVENT,
+        [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }], [], TASKS);
+      await e8.p.evaluate(() => document.querySelector('.mtab[data-section="tasks"], .tab[data-section="tasks"]')?.click());
+      await e8.p.waitForTimeout(900);
+      const tf = () => e8.p.evaluate(() => {
+        const clipped = [];
+        for (const id of ['tasksViewChips', 'tasksChips', 'tasksDeptChips']) {
+          const e = document.getElementById(id);
+          if (e && e.scrollWidth > e.clientWidth + 1) clipped.push(`${id} ${e.scrollWidth}>${e.clientWidth}`);
+        }
+        // A dropdown is cut when the option it shows is wider than its box.
+        const narrow = [];
+        for (const sel of document.querySelectorAll('#tasksFilters select')) {
+          const probe = document.createElement('span');
+          const cs = getComputedStyle(sel);
+          probe.style.cssText = `position:absolute;visibility:hidden;white-space:nowrap;font:${cs.font}`;
+          probe.textContent = sel.options[sel.selectedIndex]?.text || '';
+          document.body.appendChild(probe);
+          const need = probe.getBoundingClientRect().width;
+          probe.remove();
+          if (need > sel.getBoundingClientRect().width + 1) narrow.push(`${sel.id} ${Math.round(need)}`);
+        }
+        const first = document.querySelector('#tasksList > *');
+        const top = document.querySelector('#section-tasks .toolbar');
+        const btn = document.getElementById('tasksFiltersToggle');
+        const badge = document.getElementById('tasksFiltersCount');
+        return {
+          folded: document.getElementById('tasksFilters')?.hidden,
+          expanded: btn?.getAttribute('aria-expanded'),
+          narrowed: btn?.classList.contains('is-narrowed'),
+          badge: badge?.hidden === false ? badge.dataset.n : null,
+          chips: document.querySelectorAll('#section-tasks .chip').length,
+          clipped, narrow,
+          toFirstTask: first && top ? Math.round(first.getBoundingClientRect().top - top.getBoundingClientRect().top) : null,
+        };
+      });
+      const t1 = await tf();
+      check('task-filters-start-folded',
+        t1 && t1.folded === true && t1.expanded === 'false', JSON.stringify(t1));
+      // 106px folded against 304px before. 200 sits between the two.
+      check('task-filters-leave-room-for-the-tasks',
+        t1 && t1.toFirstTask != null && t1.toFirstTask < 200, `${t1 && t1.toFirstTask}px`);
+      // Folded is not the same as gone: the chips are built either way.
+      check('task-filters-are-still-built-while-folded', t1 && t1.chips >= 12, JSON.stringify(t1));
+
+      await e8.p.click('#tasksFiltersToggle');
+      await e8.p.waitForTimeout(400);
+      const t2 = await tf();
+      check('task-filters-open-on-tap', t2 && t2.folded === false && t2.expanded === 'true', JSON.stringify(t2));
+      // The whole point: no row runs off the right edge any more.
+      check('task-filter-chips-never-run-off-screen', t2 && t2.clipped.length === 0, JSON.stringify(t2.clipped));
+      // Measured at 390px, not at the fixture's 430: side by side the two
+      // dropdowns clear „Toți responsabilii" on a 430px screen and come two
+      // pixels short on a 390px one, which is an iPhone 13. A check that only
+      // looks at the roomier width would have passed the very layout this
+      // change is undoing.
+      await e8.p.setViewportSize({ width: 390, height: 844 });
+      await e8.p.waitForTimeout(300);
+      const t2n = await tf();
+      check('task-filter-dropdowns-show-their-whole-label',
+        t2n && t2n.narrow.length === 0, JSON.stringify(t2n.narrow));
+      check('task-filter-chips-never-run-off-screen-at-390',
+        t2n && t2n.clipped.length === 0, JSON.stringify(t2n.clipped));
+      await e8.p.setViewportSize({ width: 430, height: 930 });
+      await e8.p.waitForTimeout(300);
+
+      // A filter that shortens the list has to say so on the button, or a
+      // folded filter turns into a list that is mysteriously short.
+      const t3before = await tf();
+      check('task-filters-button-quiet-when-nothing-is-narrowed',
+        t3before && t3before.narrowed === false && t3before.badge === null, JSON.stringify(t3before));
+      await e8.p.evaluate(() => document.querySelector('[data-tasks-dept]:not(.active)')?.click());
+      await e8.p.waitForTimeout(300);
+      await e8.p.evaluate(() => document.querySelector('[data-tasks-filter]:not(.active)')?.click());
+      await e8.p.waitForTimeout(300);
+      const t4 = await tf();
+      check('task-filters-button-counts-what-is-narrowed',
+        t4 && t4.narrowed === true && t4.badge === '2', JSON.stringify(t4));
+      await e8.c.close();
       await e3.c.close();
 
       // An event two weeks past its end, still marked Activ — the state the

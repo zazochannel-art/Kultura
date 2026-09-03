@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v163';
+    const APP_VERSION = 'v164';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -2966,6 +2966,7 @@
     // Tasks assignee filter.
     el('tasksAssigneeSelect').addEventListener('change', (e) => {
       state.tasksAssignee = e.target.value || 'all';
+      renderTasksFiltersButton();
       renderTasks();
     });
     // Tasks sort (priority / deadline / recent). The initial value is applied
@@ -8610,15 +8611,16 @@
       const cc = ev.target.closest('[data-cars-filter]');
       if (cc) { state.carsFilter = cc.dataset.carsFilter; renderCarsChips(); renderCars(); return; }
       const tc = ev.target.closest('[data-tasks-filter]');
-      if (tc) { state.tasksFilter = tc.dataset.tasksFilter; renderTasksChips(); renderTasks(); return; }
+      if (tc) { state.tasksFilter = tc.dataset.tasksFilter; renderTasksChips(); renderTasksFiltersButton(); renderTasks(); return; }
       const tp = ev.target.closest('[data-tasks-preset]');
       if (tp) {
         state.tasksPreset = tp.dataset.tasksPreset || 'all';
+        renderTasksFiltersButton();
         try { localStorage.setItem('kultura_tasks_preset', state.tasksPreset); } catch (_) {}
         renderTasksViewChips(); renderTasks(); return;
       }
       const td = ev.target.closest('[data-tasks-dept]');
-      if (td) { state.tasksDept = td.dataset.tasksDept; renderTasksDeptChips(); renderTasks(); return; }
+      if (td) { state.tasksDept = td.dataset.tasksDept; renderTasksDeptChips(); renderTasksFiltersButton(); renderTasks(); return; }
       const ec = ev.target.closest('[data-events-filter]');
       if (ec) { state.eventsFilter = ec.dataset.eventsFilter; renderEventsChips(); renderEvents(); return; }
       // Department editor (Settings, admin) — delete one.
@@ -11915,7 +11917,64 @@
       `).join('');
     }
 
+    // The filter block, folded away behind one button.
+    //
+    // Seven rows of chips and dropdowns stood between the search box and the
+    // first task on a phone, and the three chip rows scrolled sideways off the
+    // screen mid-word — 570, 541 and 971 pixels of content in 350 pixels of
+    // box. Nothing is dropped: the rows now wrap when opened, so no label is
+    // ever cut, and closed they cost one row instead of seven.
+    //
+    // The button carries the count of filters actually narrowing the list, and
+    // turns amber when there is one. A hidden filter that silently shortens the
+    // list is worse than a filter that takes up room.
+    const TASKS_FILTERS_KEY = 'kultura_tasks_filters_open';
+    let _tasksFiltersWired = false;
+    function tasksNarrowedCount() {
+      let n = 0;
+      if ((state.tasksPreset || 'all') !== 'all') n++;
+      if ((state.tasksFilter || 'all') !== 'all') n++;
+      if ((state.tasksDept || 'all') !== 'all') n++;
+      if ((state.tasksAssignee || 'all') !== 'all') n++;
+      return n;
+    }
+    function renderTasksFiltersButton() {
+      const btn = el('tasksFiltersToggle');
+      const badge = el('tasksFiltersCount');
+      if (!btn || !badge) return;
+      const n = tasksNarrowedCount();
+      btn.classList.toggle('is-narrowed', n > 0);
+      badge.hidden = n === 0;
+      badge.dataset.n = String(n);
+      badge.setAttribute('aria-label', t('tasks.filters_active', { n }));
+    }
+    function tasksSetFilters(open) {
+      const box = el('tasksFilters');
+      const btn = el('tasksFiltersToggle');
+      if (!box || !btn) return;
+      box.hidden = !open;
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    function tasksFiltersInit() {
+      const btn = el('tasksFiltersToggle');
+      if (!btn || _tasksFiltersWired) { renderTasksFiltersButton(); return; }
+      _tasksFiltersWired = true;
+      let open = false;
+      try { open = localStorage.getItem(TASKS_FILTERS_KEY) === '1'; } catch (_) {}
+      tasksSetFilters(open);
+      btn.addEventListener('click', () => {
+        const next = btn.getAttribute('aria-expanded') !== 'true';
+        tasksSetFilters(next);
+        try {
+          if (next) localStorage.setItem(TASKS_FILTERS_KEY, '1');
+          else localStorage.removeItem(TASKS_FILTERS_KEY);
+        } catch (_) {}
+      });
+      renderTasksFiltersButton();
+    }
+
     function applyTasksView() {
+      tasksFiltersInit();
       const ss = el('tasksSortSelect');
       if (ss && ss.value !== state.tasksSort) ss.value = state.tasksSort;
       const listC = el('tasksList'), kanC = el('tasksKanban');

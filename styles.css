@@ -754,6 +754,28 @@
       scrollbar-width: none;
     }
     .chips::-webkit-scrollbar { display: none; }
+
+    /* On a phone the filter rows were three horizontal scrollers, and every one
+       of them ran off the right edge mid-word: „Мо…", „ЗАВЕРШ…", „От…". A
+       scroller with no visible affordance does not read as „there is more" —
+       it reads as broken text, and the filter nobody can see is the filter
+       nobody presses. Measured on a 390px screen: 570, 541 and 971 pixels of
+       content in 350 pixels of box.
+
+       So they wrap. Wrapping can never hide a word, and the chips shrink to pay
+       for the extra lines. Desktop keeps the single-line rows: there the
+       content fits, and scrolling was never the problem. */
+    @media (max-width: 560px) {
+      .chips {
+        flex-wrap: wrap;
+        overflow-x: visible;
+        gap: 6px;
+        margin-bottom: 8px;
+        padding-bottom: 0;
+      }
+      .chip { padding: 6px 11px; font-size: 11.5px; gap: 5px; }
+      .chip.dept-chip { padding: 5px 10px; font-size: 10.5px; }
+    }
     .chip {
       display: inline-flex;
       align-items: center;
@@ -1990,7 +2012,71 @@
   text-overflow: ellipsis;
 }
 .event-picker select option { background: var(--surface-solid); color: var(--text); }
+
+/* Filters folded away, with the list/kanban switch beside them.
+   Seven rows of chips and dropdowns stood between the search box and the first
+   task on a phone. They are all still there — one press away — and the button
+   says how many of them are actually narrowing the list, so a filtered view
+   can never look like an empty one. */
+.filters-bar {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 12px;
+}
+.filters-toggle {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 12px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-dim); font: inherit; font-size: 12px; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
+}
+.filters-toggle:hover { color: var(--text); border-color: var(--border-strong); }
+.filters-toggle svg:first-child { width: 15px; height: 15px; flex: 0 0 auto; }
+.filters-chev { width: 14px; height: 14px; flex: 0 0 auto; transition: transform .2s ease; }
+.filters-toggle[aria-expanded="true"] .filters-chev { transform: rotate(180deg); }
+/* Something is narrowing the list. Amber rather than the brand gradient: this
+   is a state to notice, not an action to take. */
+.filters-toggle.is-narrowed {
+  color: #fcd34d; border-color: rgba(245,158,11,.34); background: rgba(245,158,11,.10);
+}
+.filters-count {
+  min-width: 17px; height: 17px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 999px; background: currentColor; font-size: 10px; font-weight: 800;
+}
+.filters-count::before { content: attr(data-n); color: var(--bg); }
+.tasks-filters-box:not([hidden]) { animation: aflux-open .22s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .tasks-filters-box:not([hidden]) { animation: none; }
+  .filters-chev { transition: none; }
+}
+/* Folded, the dropdowns get a row to themselves, so „Toți responsabilii" and
+   „După prioritate" are written out rather than cut to „Toți responsabi…". */
 @media (max-width: 560px) {
+  .filters-bar { flex-wrap: wrap; }
+  .filters-toggle { flex: 1 1 auto; justify-content: center; }
+}
+
+/* The two task dropdowns share their row rather than each being capped at a
+   width neither label fits: „Toți responsabilii" and „După prioritate" both
+   ran past 120px and came out as „Toți responsabi…". The header's own event
+   picker keeps its cap — that row has six icon buttons to fit beside it. */
+@media (max-width: 560px) {
+  .toolbar.tasks-filters { flex-wrap: wrap; }
+  /* A row each. Side by side they came two pixels short of „Toți
+     responsabilii" and further short of „Все ответственные", and a label cut
+     to „Toți responsabi…" is the thing this whole change is about. The two
+     extra rows are inside the fold, which already gave back two hundred. */
+  .toolbar.tasks-filters .event-picker {
+    flex: 1 1 100%; min-width: 0; max-width: none;
+  }
+  .toolbar.tasks-filters .event-picker select {
+    max-width: none; width: 100%; min-width: 0;
+  }
+}
+@media (max-width: 560px) {
+  /* 160/120px cut „Toți responsabilii" and „După prioritate" down to „Toți
+     responsabi…" — the two dropdowns sit side by side on one row, so give them
+     the row to share instead of a fixed width neither label fits. */
   .event-picker { max-width: 160px; padding: 5px 8px; }
   .event-picker select { max-width: 120px; font-size: 12px; }
 }

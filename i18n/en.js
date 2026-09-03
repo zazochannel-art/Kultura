@@ -548,6 +548,8 @@ export default {
   "report.votes": "Votes",
   "pass.none": "No cars to print",
   "pass.building": "Preparing {n} passes…",
+  "tasks.filters": "Filters",
+  "tasks.filters_active": "{n} filters active",
   "tasks.view_list": "List",
   "tasks.view_kanban": "Kanban",
   "kanban.empty": "No tasks",

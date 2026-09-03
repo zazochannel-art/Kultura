@@ -555,6 +555,8 @@ export default {
   "report.votes": "Voturi",
   "pass.none": "Nicio mașină de printat",
   "pass.building": "Se pregătesc {n} pass-uri…",
+  "tasks.filters": "Filtre",
+  "tasks.filters_active": "{n} filtre active",
   "tasks.view_list": "Listă",
   "tasks.view_kanban": "Kanban",
   "kanban.empty": "Niciun task",
