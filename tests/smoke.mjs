@@ -1649,7 +1649,7 @@ try {
   // nobody linked, and no sign at all that you were working offline outside
   // the gate screen.
   {
-    const mk = async (health, cars, event, agenda = [], sync = [], tasks = []) => {
+    const mk = async (health, cars, event, agenda = [], sync = [], tasks = [], settings = []) => {
       const c = await browser.newContext({ viewport: { width: 430, height: 930 }, isMobile: true, hasTouch: true });
       await c.route('**://*.supabase.co/**', (r) => {
         const u = r.request().url();
@@ -1660,6 +1660,7 @@ try {
         if (u.includes('/rest/v1/event_agenda')) return J(agenda);
         if (u.includes('/rest/v1/integration_runs')) return J(sync);
         if (u.includes('/rest/v1/tasks')) return J(tasks);
+        if (u.includes('/rest/v1/ui_settings')) return J(settings);
         if (u.includes('/rest/v1/events')) return J(Array.isArray(event) ? event : [event]);
         if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
         if (u.includes('/rest/v1/')) return J([]);
@@ -1735,6 +1736,60 @@ try {
         pills.some(p => /Telegram/.test(p.text) && p.state === 'is-warn'), JSON.stringify(pills[0] || {}));
       check('channel-health-flags-missing-base-url',
         pills.some(p => /public|Adres/i.test(p.text) && p.state === 'is-bad'));
+
+      // SMS is off here on purpose — every message goes over Telegram — and
+      // amber said "half-finished" about a decision. Grey, and it says which
+      // channel actually carries the messages.
+      check('channel-health-says-sms-is-off-on-purpose',
+        pills.some(p => /SMS/.test(p.text) && p.state === 'is-off' && /Telegram/i.test(p.text)),
+        JSON.stringify(pills));
+      check('channel-health-does-not-warn-about-sms-that-is-off',
+        !pills.some(p => /SMS/.test(p.text) && (p.state === 'is-warn' || p.state === 'is-bad')),
+        JSON.stringify(pills));
+
+      // And the SMS Center says the same thing at the top, because that is
+      // where somebody types a message for 52 phone numbers.
+      await a.p.evaluate(() => document.querySelector('.mtab[data-section="sms"], .tab[data-section="sms"]')?.click());
+      await a.p.waitForTimeout(900);
+      const smsNote = await a.p.evaluate(() => {
+        const n = document.getElementById('smsProviderNote');
+        return { hidden: n.hidden, txt: n.textContent.trim(), fixed: getComputedStyle(n).position };
+      });
+      check('sms-center-says-messages-go-over-telegram',
+        !smsNote.hidden && /Telegram/i.test(smsNote.txt), JSON.stringify(smsNote));
+      // The note used to carry .conn-banner, which is position:fixed and parked
+      // off-screen — it could never have been read even when shown.
+      check('sms-center-note-sits-in-the-page', smsNote.fixed !== 'fixed', smsNote.fixed);
+
+      // Switched ON with nothing behind it is the state that is actually
+      // broken: the arrival trigger fires, finds no provider, and the owner is
+      // never told anything. That one is red.
+      const armed = await mk(SILENT, CARS, RAW_EVENT, [], [], [],
+        [{ key: 'sms_welcome_enabled', value: '1' }]);
+      await armed.p.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
+      await armed.p.waitForTimeout(1200);
+      const armedPills = await armed.p.evaluate(() =>
+        [...document.querySelectorAll('#channelHealth .chan-pill')].map(x => ({
+          state: x.className.replace('chan-pill ', ''), text: x.textContent.trim(),
+        })));
+      check('channel-health-reds-sms-armed-with-no-provider',
+        armedPills.some(p => /SMS/.test(p.text) && p.state === 'is-bad'), JSON.stringify(armedPills));
+      await armed.p.evaluate(() => document.querySelector('.mtab[data-section="sms"], .tab[data-section="sms"]')?.click());
+      await armed.p.waitForTimeout(900);
+      const armedNote = await armed.p.evaluate(() => {
+        const n = document.getElementById('smsProviderNote');
+        return { hidden: n.hidden, txt: n.textContent.trim() };
+      });
+      check('sms-center-warns-when-an-automation-is-armed-with-no-provider',
+        !armedNote.hidden && /furnizor/i.test(armedNote.txt), JSON.stringify(armedNote));
+      // And saving that state says so on the spot, where the tick happened.
+      await armed.p.evaluate(() => document.getElementById('smsAutomSaveBtn')?.click());
+      await armed.p.waitForTimeout(900);
+      const savedMsg = await armed.p.evaluate(() =>
+        document.getElementById('smsAutomMsg')?.textContent.trim() || '');
+      check('saving-an-armed-sms-automation-warns-there-is-no-provider',
+        /furnizor/i.test(savedMsg), savedMsg);
+      await armed.c.close();
 
       // Offline: the bar has to appear away from the gate screen.
       await a.p.evaluate(() => {

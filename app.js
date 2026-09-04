@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v165';
+    const APP_VERSION = 'v166';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -3794,9 +3794,20 @@
         : !tg.webhook_live ? t('chan.tg_no_hook')
           : t('chan.tg_linked', { n: tg.linked, total: tg.total });
 
+      // SMS has three states here, not two. "Not configured" used to be amber
+      // whatever the reason, which flattened a decision and a bug into one
+      // colour: SMS is deliberately off — everything goes out over Telegram —
+      // and amber made that look like something left half-done. Red is now
+      // kept for the case that really is broken: an automation switched on
+      // with no provider behind it, which quietly sends nothing.
+      const autom = await smsAutomationState();
+      const smsState = sms.configured ? 'ok' : (autom.anyOn ? 'bad' : 'off');
+      const smsLabel = sms.configured ? t('chan.sms_on')
+        : autom.anyOn ? t('chan.sms_armed_no_provider') : t('chan.sms_disabled');
+
       box.innerHTML =
         pill(tgState, tgLabel) +
-        pill(sms.configured ? 'ok' : 'warn', sms.configured ? t('chan.sms_on') : t('chan.sms_off')) +
+        pill(smsState, smsLabel) +
         pill(_health.public_base_url ? 'ok' : 'bad',
           _health.public_base_url ? t('chan.base_ok') : t('chan.base_missing')) +
         syncPill(await sheetSyncState(), pill);
@@ -3822,6 +3833,28 @@
         return row;
       } catch (_) { return null; }
     }
+    // Whether the SMS templates are armed is a client-readable setting, so the
+    // pill can tell "off on purpose" from "on and going nowhere" without the
+    // health function having to grow a field. Unreadable settings count as off:
+    // claiming a channel is armed when we could not check would be the same
+    // false alarm in the other direction.
+    async function smsAutomationState() {
+      const off = { welcome: false, reminder: false, approved: false, anyOn: false };
+      try {
+        const { data, error } = await supa.from('ui_settings').select('key,value')
+          .in('key', ['sms_welcome_enabled', 'sms_reminder_enabled', 'sms_approved_enabled']);
+        if (error) return off;
+        const m = {}; (data || []).forEach(r => { m[r.key] = r.value; });
+        const st = {
+          welcome: m.sms_welcome_enabled === '1',
+          reminder: m.sms_reminder_enabled === '1',
+          approved: m.sms_approved_enabled === '1',
+        };
+        st.anyOn = st.welcome || st.reminder || st.approved;
+        return st;
+      } catch (_) { return off; }
+    }
+
     function syncPill(run, pill) {
       if (!run) return '';
       // One failure is a hiccup — a redeploy, a slow Apps Script. A streak is a
@@ -4815,17 +4848,44 @@
         { key: 'sms_approved_template', value: (el('smsApprovedTemplate')?.value || '').trim() },
       ].map(r => ({ ...r, updated_at: new Date().toISOString() }));
       const { error } = await supa.from('ui_settings').upsert(rows, { onConflict: 'key' });
-      if (msg) { msg.className = 'modal-msg show'; msg.style.color = error ? 'var(--red)' : 'var(--green)'; msg.textContent = error ? (t('common.error') + ': ' + error.message) : t('sms.autom_saved'); }
+      // Ticking a box here is one click away from an automation that fires and
+      // delivers nothing: there is no SMS provider, and the trigger returns
+      // without a trace. Say it at the moment of saving, not on a pill someone
+      // may never scroll to.
+      const armed = rows.some(r => r.key.endsWith('_enabled') && r.value === '1');
+      const health = await ensureHealth();
+      const smsWorks = !!(health && health.sms && health.sms.configured);
+      const warn = armed && !smsWorks;
+      if (msg) {
+        msg.className = 'modal-msg show';
+        msg.style.color = error ? 'var(--red)' : (warn ? '#fcd34d' : 'var(--green)');
+        msg.textContent = error ? (t('common.error') + ': ' + error.message)
+          : warn ? t('sms.autom_saved_no_provider') : t('sms.autom_saved');
+      }
+      if (!error) { renderSmsChannelNote(); loadChannelHealth(); }
     });
 
     function renderSmsCenter() {
       renderSmsFilters(); updateSmsCount(); updateSmsMeta();
       loadSmsHistory(); loadSmsAutomations();
-      // Show a hint if the provider isn't configured yet (best-effort probe).
-      const note = el('smsProviderNote');
-      if (note && !note.dataset.checked) {
-        note.dataset.checked = '1';
-      }
+      renderSmsChannelNote();
+    }
+
+    // This screen is called "SMS Center" and sends nothing by SMS: there is no
+    // provider, and the three automations are switched off on purpose. What it
+    // does do is deliver campaigns over Telegram, to whoever has linked a chat.
+    // Say that at the top, so nobody types a message for the 52 phone numbers
+    // in the list and expects 52 people to read it.
+    async function renderSmsChannelNote() {
+      const note = el('smsProviderNote'); if (!note) return;
+      const health = await ensureHealth();
+      const smsWorks = !!(health && health.sms && health.sms.configured);
+      const autom = await smsAutomationState();
+      if (smsWorks && !autom.anyOn) { note.hidden = true; note.innerHTML = ''; return; }
+      note.innerHTML = smsWorks
+        ? escape(t('sms.note_sms_on'))
+        : autom.anyOn ? escape(t('sms.note_armed_no_provider')) : escape(t('sms.note_telegram_only'));
+      note.hidden = false;
     }
 
     // Live progress: poll the history row while the campaign is sending.

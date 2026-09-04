@@ -784,9 +784,9 @@ Pozele rămase fără referință în DB se curăță cu **Setări → Curăță
 |---|---|
 | `voting_event_id` | Evenimentul deschis la vot. **Gol = votarea închisă** |
 | `public_event_id` | Evenimentul fixat pentru paginile publice (gol = cel mai apropiat de azi) |
-| `sms_welcome_enabled` / `_template` | SMS automat la sosire |
-| `sms_approved_enabled` / `_template` | SMS automat la aprobarea înscrierii |
-| `sms_reminder_enabled` / `_template` | Remindere înainte de eveniment |
+| `sms_welcome_enabled` / `_template` | SMS automat la sosire. **Oprit** — nu există furnizor, totul merge prin Telegram |
+| `sms_approved_enabled` / `_template` | SMS automat la aprobarea înscrierii. **Oprit** |
+| `sms_reminder_enabled` / `_template` | Remindere înainte de eveniment. **Oprit** |
 | `zone_map_url` | Harta zonelor, ca poză urcată |
 | `zone_plan_url` | Planul desenat care ține loc de hartă (`plans/*.json`). Are prioritate față de poză |
 | `public_base_url` | Adresa publică a aplicației. Fără ea, `{{confirmare}}` din mesaje rămâne gol |
@@ -1269,6 +1269,19 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     execută ramura — deci pe `cars`, care n-are `telegram_user_id`, orice
     inserare cădea. Prin `to_jsonb(new)` întrebi rândul de o cheie, nu de o
     coloană: aceeași întrebare la care ambele tabele pot răspunde.
+
+70. **„Oprit" și „stricat" nu sunt aceeași culoare.** SMS-ul e închis aici cu
+    intenție — nu există și n-a existat vreodată un furnizor, iar totul pleacă
+    prin Telegram. Pastila zicea totuși chihlimbariu „SMS: neconfigurat", adică
+    exact ce zice despre un lucru lăsat pe jumătate. Acum are trei stări: verde
+    când există furnizor, **gri** când e oprit (și scrie că merge prin Telegram),
+    **roșu** doar când o automatizare e bifată fără furnizor în spate — singurul
+    caz care chiar e o defecțiune, fiindcă triggerul pornește, nu găsește nimic
+    și proprietarul nu află niciodată. Aceeași distincție e scrisă și sus în SMS
+    Center, și la salvarea automatizărilor, unde se face bifa.
+    (Nota de sus purta clasa `.conn-banner`, care e `position:fixed` și parcată
+    în afara ecranului până alunecă în jos — deci n-ar fi putut fi citită nici
+    dacă cineva o afișa. Are clasa ei acum.)
 
 69. **Un job programat care sună în afară trebuie să-și citească răspunsul.**
     `pg_net` e asincron: `net.http_post` întoarce un id de cerere, nu un
