@@ -2031,10 +2031,22 @@ try {
       await eMissOff.c.close();
 
       // The task row, and the event card's date, at 390px.
+      //
+      // Noon tomorrow, built from the calendar rather than by adding hours.
+      // `now + 30h` is only "tomorrow" until 18:00 UTC and becomes the day
+      // after that: this check passed on the pull request at 16:45 and failed
+      // on main at 17:59 with the identical tree. A fixture whose meaning
+      // depends on what time the runner starts is not a fixture.
+      const TOMORROW_NOON = (() => {
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        d.setHours(12, 0, 0, 0);
+        return d.toISOString();
+      })();
       const SOON_TASK = [
         { id: 1, title: 'Verifică extinctoarele din zona VIP', is_completed: false, event_id: 6,
           priority: 'high', assigned_to: 'op@example.com', assigned_user_name: 'Alex',
-          due_at: new Date(Date.now() + 30 * 3600e3).toISOString(), status: 'todo',
+          due_at: TOMORROW_NOON, status: 'todo',
           created_at: new Date().toISOString() },
       ];
       // `date` deliberately absent, `starts_at` present: the card used to print
