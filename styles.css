@@ -5191,6 +5191,20 @@ select.is-missing { border-color: var(--red); }
 .chan-pill.is-ok{ color:#6ee7b7; border-color:rgba(16,185,129,.34); background:rgba(16,185,129,.10); }
 .chan-pill.is-warn{ color:#fcd34d; border-color:rgba(245,158,11,.34); background:rgba(245,158,11,.10); }
 .chan-pill.is-bad{ color:#fca5a5; border-color:rgba(239,68,68,.34); background:rgba(239,68,68,.10); }
+/* Off on purpose. SMS is switched off here and everything goes out over
+   Telegram, so the pill has to read as a decision, not as a fault — grey, the
+   same neutral the pill already starts from. Red is reserved for a channel
+   that is switched ON with nothing behind it. */
+.chan-pill.is-off{ color:var(--text-dim); border-color:var(--border); background:var(--fill); }
+
+/* An inline explanation at the top of a section. Not .conn-banner: that one is
+   position:fixed and parked off-screen until it slides down, which is why this
+   note stayed invisible for as long as it existed. */
+.chan-note{
+  padding:10px 12px; border-radius:12px; margin:0 0 14px;
+  border:1px solid var(--border); background:var(--fill);
+  color:var(--text-dim); font-size:12.5px; line-height:1.45;
+}
 
 /* An event card whose hand-typed status the calendar contradicts. Amber rather
    than red: the event is not broken, its label is stale — and the fix is to
