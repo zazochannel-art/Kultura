@@ -1863,6 +1863,24 @@ try {
       check('greeting-uses-the-name-from-profiles', greeting === 'QA', greeting);
       check('greeting-is-not-the-raw-email', !/@/.test(greeting), greeting);
 
+      // The header laid its two groups out at their natural width and let the
+      // row run past the screen: on a 390px phone the avatar's right edge sat
+      // at 429px — off-screen and untappable on every section. The existing
+      // overflow check could not see it, because the body clips (the page never
+      // scrolls sideways) and because that check loads pages signed OUT, where
+      // this header does not render at all.
+      const hdr = await a.p.evaluate(() => {
+        const h = document.querySelector('.app-header');
+        const av = document.getElementById('avatarBadge');
+        const vw = document.documentElement.clientWidth;
+        const r = av ? av.getBoundingClientRect() : null;
+        return { vw, headerScrollW: h ? h.scrollWidth : 0, headerClientW: h ? h.clientWidth : 0,
+          avatarRight: r ? Math.round(r.right) : null, avatarLeft: r ? Math.round(r.left) : null };
+      });
+      check('header-fits-the-phone', hdr.headerScrollW <= hdr.headerClientW, JSON.stringify(hdr));
+      check('the-avatar-button-is-on-screen',
+        hdr.avatarRight != null && hdr.avatarRight <= hdr.vw && hdr.avatarLeft >= 0, JSON.stringify(hdr));
+
       // Offline: the bar has to appear away from the gate screen.
       await a.p.evaluate(() => {
         Object.defineProperty(navigator, 'onLine', { get: () => false, configurable: true });
@@ -1883,6 +1901,22 @@ try {
       await b.p.waitForTimeout(900);
       const hidden = await b.p.evaluate(() => document.getElementById('readyList').hidden);
       check('ready-list-hides-when-nothing-missing', hidden === true);
+
+      // The bottom bar's width depended on which tab you were standing on: the
+      // active pill shows its label, and „Evenimente" pushed the row to 390px
+      // inside a 372px container, scrolling the settings cog out of reach.
+      const navFit = await b.p.evaluate(async () => {
+        const out = [];
+        for (const s of ['home', 'events', 'cars', 'tasks', 'team', 'map', 'chat', 'settings']) {
+          document.querySelector(`.mtab[data-section="${s}"]`)?.click();
+          await new Promise(r => setTimeout(r, 260));
+          const n = document.querySelector('.mobile-tabs');
+          if (n) out.push({ s, over: n.scrollWidth - n.clientWidth });
+        }
+        return out;
+      });
+      check('the-bottom-bar-fits-whatever-tab-is-active',
+        navFit.length === 8 && navFit.every(x => x.over <= 0), JSON.stringify(navFit));
       const okPills = await b.p.evaluate(() => {
         document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click();
         return null;
@@ -1995,6 +2029,61 @@ try {
       check('ready-list-stays-quiet-when-reminders-are-off',
         !offRows.some(r => /reminder/i.test(r)), offRows.join(' | '));
       await eMissOff.c.close();
+
+      // The task row, and the event card's date, at 390px.
+      const SOON_TASK = [
+        { id: 1, title: 'Verifică extinctoarele din zona VIP', is_completed: false, event_id: 6,
+          priority: 'high', assigned_to: 'op@example.com', assigned_user_name: 'Alex',
+          due_at: new Date(Date.now() + 30 * 3600e3).toISOString(), status: 'todo',
+          created_at: new Date().toISOString() },
+      ];
+      // `date` deliberately absent, `starts_at` present: the card used to print
+      // „—" here while printing the countdown from starts_at right beside it.
+      // 'Planificat', not 'Activ': two active events and the picker scopes the
+      // app to the second one, which filters event 6's tasks out of the list.
+      const DATELESS = { ...READY_EVENT, id: 12, title: 'Kultura Bavaria', date: '',
+        status: 'Planificat',
+        starts_at: new Date(Date.now() + 9 * 86400e3).toISOString() };
+      const rowCtx = await mk(HEALTHY, CARS.map(c => ({ ...c, zone: 'A1' })), [READY_EVENT, DATELESS],
+        [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }], [], SOON_TASK);
+      await rowCtx.p.evaluate(() => document.querySelector('.mtab[data-section="tasks"], .tab[data-section="tasks"]')?.click());
+      await rowCtx.p.setViewportSize({ width: 390, height: 844 });
+      await rowCtx.p.waitForTimeout(1200);
+      const tkRow = await rowCtx.p.evaluate(() => {
+        const row = document.querySelector('#tasksList .tk-row');
+        if (!row) return null;
+        const title = row.querySelector('.tk-row-title');
+        const prio = row.querySelector('.tk-prio');
+        const due = row.querySelector('.tk-row-due');
+        return {
+          due: due ? due.textContent.trim() : null,
+          titleW: title ? Math.round(title.getBoundingClientRect().width) : 0,
+          rowW: Math.round(row.getBoundingClientRect().width),
+          prioW: prio ? Math.round(prio.getBoundingClientRect().width) : 0,
+          titleLines: title ? Math.round(title.getBoundingClientRect().height /
+            parseFloat(getComputedStyle(title).lineHeight || '20')) : 0,
+        };
+      });
+      // The list said who was on a task and, only once it was too late, that it
+      // was late. Tomorrow and next month looked identical.
+      check('a-task-row-says-when-it-is-due',
+        tkRow && /mâine/i.test(tkRow.due || ''), JSON.stringify(tkRow));
+      // The priority word is written twice on the same card; on a phone the
+      // head copy was costing the title half the row.
+      check('the-priority-chip-stops-squeezing-the-title',
+        tkRow && tkRow.prioW <= 34, JSON.stringify(tkRow));
+      check('a-task-title-gets-most-of-the-row',
+        tkRow && tkRow.titleW > tkRow.rowW * 0.55, JSON.stringify(tkRow));
+
+      await rowCtx.p.evaluate(() => document.querySelector('.mtab[data-section="events"], .tab[data-section="events"]')?.click());
+      await rowCtx.p.waitForTimeout(900);
+      const evWhen = await rowCtx.p.evaluate(() =>
+        [...document.querySelectorAll('#eventsList .card')]
+          .filter(c => /Bavaria/.test(c.textContent))
+          .map(c => c.textContent.replace(/\s+/g, ' ').trim())[0] || '');
+      check('an-event-card-does-not-print-a-dash-next-to-a-countdown',
+        evWhen && !/—/.test(evWhen) && /9 zile/.test(evWhen), evWhen);
+      await rowCtx.c.close();
 
       // The scheduled sheet sync. It posts to a saved Apps Script link every
       // five minutes and used to read nothing back — the link had been dead for

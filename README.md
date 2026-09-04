@@ -1270,6 +1270,43 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     inserare cădea. Prin `to_jsonb(new)` întrebi rândul de o cheie, nu de o
     coloană: aceeași întrebare la care ambele tabele pot răspunde.
 
+79. **Un element scos afară fără scrollbar e invizibil și pentru teste.**
+    Header-ul își așeza cele două grupuri la lățimea lor naturală și lăsa rândul
+    să crească peste ecran: pe 390px marginea dreaptă a avatarului cădea la
+    **429px** — în afară, invizibil și neapăsabil, pe fiecare secțiune. Nimic
+    n-a prins-o, din două motive care merită ținute minte: body-ul taie, deci
+    pagina nu derulează lateral și `documentElement.scrollWidth` rămâne 390; iar
+    `mobile-no-horizontal-overflow` încarcă paginile **nelogat**, unde header-ul
+    ăsta nici nu se randează. Verificarea nouă se uită la elementul concret, nu
+    la simptomul lui.
+
+78. **O bară a cărei lățime depinde de unde stai.** Bara de jos are opt taburi,
+    iar cel activ își arată eticheta. Pe „Evenimente" rândul ajungea la 390px
+    într-un container de 372 și roata dințată de Setări ieșea din raza degetului
+    — pe celelalte taburi era în regulă. Patru pixeli luați de la fiecare tab
+    inactiv fac loc celei mai late etichete.
+
+77. **Densitatea nu se plătește cu o funcție.** Cardul de mașină ajunsese la
+    154px, adică 5852px pentru 38 de mașini. Cele două butoane „Invitat/Sosit"
+    par candidatul evident la tăiere — dar modalul de detaliu **n-are** control
+    de status, deci în afara ecranului de poartă rândul ăla e singurul loc unde
+    poți muta o mașină între stări. Au rămas; s-au strâns paddingurile,
+    iconița și rândul de acțiuni. 154 → 144.
+
+76. **Un card care răspunde de două ori la aceeași întrebare trebuie să fie de
+    acord cu el însuși.** Data de sub iconița de calendar venea din `date` —
+    text liber, scris de mână — iar numărătoarea din dreapta venea din
+    `starts_at`. Un eveniment cu dată reală dar fără una tastată scria „—"
+    lângă „9 zile". Aceeași familie cu statusul învechit (regula despre eveniment
+    și eticheta lui). Acum `date` are prioritate, dar când lipsește se
+    formatează `starts_at`.
+    (Tot pe rândul de task: prioritatea era scrisă de **două ori** pe același
+    card — un chip în cap și un badge în meta — iar copia din cap fura jumătate
+    din lățimea titlului pe telefon. Sub 560px își păstrează culoarea și
+    punctul și renunță la cuvânt. Iar scadența, care stătea doar în panoul
+    extins, se vede acum pe rând: „mâine" și „în N zile", nu doar „ÎNTÂRZIAT"
+    când e prea târziu.)
+
 75. **Un job oprit n-are ce raporta — și verdictul lui vechi nu e starea de
     acum.** Linkul Apps Script a fost golit, deci sincronizarea din Sheets nu
     mai rulează. Dar ultimul ei verdict — 404, 453 eșecuri la rând — rămăsese

@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v167';
+    const APP_VERSION = 'v168';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -8184,6 +8184,24 @@
       `).join('');
     }
 
+    // What the card says under the calendar icon.
+    //
+    // `date` is free text somebody types; `starts_at` is the real timestamp the
+    // reminders, the countdown and the confirmation window all run on. The card
+    // printed `date || '—'` on the left while printing the countdown from
+    // `starts_at` on the right, so an event with a real date but no typed one
+    // read „—" beside „9 zile": the same card answering "when?" twice and
+    // disagreeing with itself.
+    function eventWhen(e) {
+      const typed = String(e.date || '').trim();
+      if (typed) return typed;
+      if (!e.starts_at) return '—';
+      const d = new Date(e.starts_at);
+      if (isNaN(d)) return '—';
+      const locale = { ro: 'ro-RO', ru: 'ru-RU', en: 'en-GB' }[currentLang] || 'ro-RO';
+      return d.toLocaleDateString(locale, { day: 'numeric', month: 'long' });
+    }
+
     function renderEvents() {
       el('eventsCount').textContent = state.events.length;
       const list = filterEvents();
@@ -8205,7 +8223,7 @@
                 <div style="font-size:18px;font-weight:900;letter-spacing:-0.3px;">${escape(e.title)}</div>
                 ${e.subtitle ? `<div style="color:var(--text-dim);font-size:13px;margin-top:4px;">${escape(e.subtitle)}</div>` : ''}
                 <div style="display:flex;gap:14px;margin-top:12px;font-size:12px;color:var(--text-dim);flex-wrap:wrap;">
-                  <span style="display:inline-flex;align-items:center;gap:6px;">${calendarIcon()}${escape(e.date || '—')}</span>
+                  <span style="display:inline-flex;align-items:center;gap:6px;">${calendarIcon()}${escape(eventWhen(e))}</span>
                   ${e.location ? `<span style="display:inline-flex;align-items:center;gap:6px;">${pinIcon()}${escape(e.location)}</span>` : ''}
                 </div>
               </div>
@@ -8389,7 +8407,7 @@
               </div>
               <div class="badge ${statusToBadge(car.status)}">${escape(translateStatus(car.status, 'car'))}</div>
             </div>
-            <div class="car-actions" style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px; margin-top: 12px; display:flex; flex-wrap:wrap; gap:6px;">
+            <div class="car-actions" style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 6px; margin-top: 6px; display:flex; flex-wrap:wrap; gap:6px;">
               ${actionButtons}
             </div>
           </div>
@@ -12291,9 +12309,23 @@
         }
 
         // Collapsed sub-line: who's working on it (if taken), else the status.
-        const subLine = tk.assigned_user_name
+        // When it is due, on the row itself. The list told you who was on a
+        // task and — only once it was too late — that it was ÎNTÂRZIAT; the
+        // date lived in the expanded panel, so a task due tomorrow read exactly
+        // like one due next month. Overdue already has its own red badge next
+        // to the title, so this stays quiet about the past.
+        const dueChip = (!tk.is_completed && tk.due_at && !isOverdue(tk))
+          ? (() => {
+            const d = calendarDaysUntil(tk.due_at);
+            if (d == null || d < 0 || d > 30) return '';
+            const txt = d === 0 ? t('task.due_today')
+              : d === 1 ? t('task.due_tomorrow') : t('task.due_in_days', { n: d });
+            return `<span class="tk-row-due${d <= 1 ? ' is-soon' : ''}">${escape(txt)}</span>`;
+          })()
+          : '';
+        const subLine = (tk.assigned_user_name
           ? `${taskAssigneeAvatar(tk)}<span class="tk-row-who">${escape((sk === 'completed' ? t('task.finished_by') : t('task.worked_by')))}: ${responsible}</span>`
-          : `<span class="tk-row-status stat-${badgeClass}">${statusLabel}</span>`;
+          : `<span class="tk-row-status stat-${badgeClass}">${statusLabel}</span>`) + dueChip;
 
         const prioKey = priorityKey(tk.priority);
         const prioLabel = localizePriority(tk.priority);
