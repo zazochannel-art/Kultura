@@ -2039,7 +2039,10 @@ try {
       ];
       // `date` deliberately absent, `starts_at` present: the card used to print
       // „—" here while printing the countdown from starts_at right beside it.
+      // 'Planificat', not 'Activ': two active events and the picker scopes the
+      // app to the second one, which filters event 6's tasks out of the list.
       const DATELESS = { ...READY_EVENT, id: 12, title: 'Kultura Bavaria', date: '',
+        status: 'Planificat',
         starts_at: new Date(Date.now() + 9 * 86400e3).toISOString() };
       const rowCtx = await mk(HEALTHY, CARS.map(c => ({ ...c, zone: 'A1' })), [READY_EVENT, DATELESS],
         [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }], [], SOON_TASK);
