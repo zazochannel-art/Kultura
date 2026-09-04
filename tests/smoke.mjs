@@ -1092,6 +1092,35 @@ try {
       check('card-flags-a-driver-the-bot-could-not-reach',
         notReached.n === 1 && notReached.title.length > 10, JSON.stringify(notReached));
 
+      // Knowing is only half of it. The badge used to be a <span>: it said the
+      // driver never got the message and offered nothing to do about it.
+      check('the-unreached-badge-is-a-button',
+        await tp.evaluate(() =>
+          document.querySelector('#carsList .notify-badge')?.tagName === 'BUTTON'));
+      check('the-unreached-badge-offers-a-resend',
+        await tp.evaluate(() =>
+          /retrimite/i.test(document.querySelector('#carsList .notify-badge')?.textContent || '')));
+
+      // Pressing it goes through the RPC, because the telegram function's
+      // notify action needs a secret the browser must never hold.
+      const rpcCalls = [];
+      await tctx.route('**/rest/v1/rpc/resend_car_notification', (r) => {
+        rpcCalls.push(r.request().postData() || '');
+        return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, kind: 'spot' }) });
+      });
+      await tp.evaluate(() => document.querySelector('#carsList .notify-badge')?.click());
+      await tp.waitForTimeout(900);
+      check('resend-calls-the-server-side-rpc', rpcCalls.length === 1, JSON.stringify(rpcCalls));
+      check('resend-names-the-car-it-is-for',
+        /"p_car_id"\s*:\s*3/.test(rpcCalls[0] || ''), rpcCalls[0] || '(none)');
+      // Opening the car detail instead of resending would be the wrong action
+      // entirely — the badge sits inside a card that is itself clickable.
+      check('resend-does-not-open-the-car-detail',
+        await tp.evaluate(() => {
+          const d = document.getElementById('carDetailModal') || document.getElementById('carModal');
+          return !d || d.hidden || getComputedStyle(d).display === 'none';
+        }));
+
       await tp.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
       await tp.waitForTimeout(1200);
       const s = await tp.evaluate(() => ({
@@ -1136,6 +1165,9 @@ try {
       check('telegram-token-marked-stored', /salvat/i.test(s.tokenPlaceholder));
     } catch (e) {
       for (const n of ['rsvp-badges-on-cards', 'card-flags-a-driver-the-bot-could-not-reach',
+        'the-unreached-badge-is-a-button', 'the-unreached-badge-offers-a-resend',
+        'resend-calls-the-server-side-rpc', 'resend-names-the-car-it-is-for',
+        'resend-does-not-open-the-car-detail',
         'trash-panel-visible-to-admin', 'trash-lists-deleted-car',
         'trash-groups-a-bulk-deletion', 'trash-group-says-how-many-it-holds',
         'trash-offers-restore', 'trash-entry-badge-not-stretched', 'imports-listed',
@@ -1772,8 +1804,12 @@ try {
         [...document.querySelectorAll('#channelHealth .chan-pill')].map(x => ({
           state: x.className.replace('chan-pill ', ''), text: x.textContent.trim(),
         })));
-      check('channel-health-reds-sms-armed-with-no-provider',
-        armedPills.some(p => /SMS/.test(p.text) && p.state === 'is-bad'), JSON.stringify(armedPills));
+      // Red, and the label no longer says "SMS": what is broken is the message,
+      // which had no channel at all — not the SMS provider on its own.
+      check('channel-health-reds-a-message-with-no-channel-at-all',
+        armedPills.some(p => /automate/i.test(p.text) && p.state === 'is-bad'), JSON.stringify(armedPills));
+      check('the-no-channel-pill-does-not-blame-sms-alone',
+        armedPills.some(p => p.state === 'is-bad' && /niciun canal/i.test(p.text)), JSON.stringify(armedPills));
       await armed.p.evaluate(() => document.querySelector('.mtab[data-section="sms"], .tab[data-section="sms"]')?.click());
       await armed.p.waitForTimeout(900);
       const armedNote = await armed.p.evaluate(() => {
@@ -1782,6 +1818,33 @@ try {
       });
       check('sms-center-warns-when-an-automation-is-armed-with-no-provider',
         !armedNote.hidden && /furnizor/i.test(armedNote.txt), JSON.stringify(armedNote));
+
+      // And the case that is NOT broken, which the first version of this pill
+      // got wrong: armed, no SMS provider — but a live bot with linked chats.
+      // The three sms_*_enabled flags gate a Telegram-FIRST sender, so the
+      // message lands. Calling that red is how three kinds of message got
+      // switched off for both channels at once.
+      const TG_ONLY = {
+        ok: true,
+        telegram: { configured: true, username: 'Bot', webhook_live: true, linked: 3, total: 4, preferred: true },
+        sms: { configured: false, provider: '' }, public_base_url: 'https://k.example',
+      };
+      const tgOnly = await mk(TG_ONLY, CARS, RAW_EVENT, [], [], [],
+        [{ key: 'sms_welcome_enabled', value: '1' }]);
+      await tgOnly.p.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
+      await tgOnly.p.waitForTimeout(1200);
+      const tgOnlyPills = await tgOnly.p.evaluate(() =>
+        [...document.querySelectorAll('#channelHealth .chan-pill')].map(x => ({
+          state: x.className.replace('chan-pill ', ''), text: x.textContent.trim(),
+        })));
+      check('telegram-carries-it-so-armed-sms-is-not-red',
+        !tgOnlyPills.some(p => /SMS/.test(p.text) && p.state === 'is-bad'), JSON.stringify(tgOnlyPills));
+      await tgOnly.p.evaluate(() => document.querySelector('.mtab[data-section="sms"], .tab[data-section="sms"]')?.click());
+      await tgOnly.p.waitForTimeout(900);
+      check('sms-center-does-not-cry-wolf-when-telegram-delivers',
+        await tgOnly.p.evaluate(() =>
+          !/niciun canal|nu livrează/i.test(document.getElementById('smsProviderNote')?.textContent || '')));
+      await tgOnly.c.close();
       // And saving that state says so on the spot, where the tick happened.
       await armed.p.evaluate(() => document.getElementById('smsAutomSaveBtn')?.click());
       await armed.p.waitForTimeout(900);
@@ -1790,6 +1853,15 @@ try {
       check('saving-an-armed-sms-automation-warns-there-is-no-provider',
         /furnizor/i.test(savedMsg), savedMsg);
       await armed.c.close();
+
+      // The greeting used to read user_metadata, which our own signup form
+      // fills in and nothing else does — so an invited account was greeted by
+      // its raw email address while every other screen read `profiles`.
+      // The stubbed session below carries an empty user_metadata on purpose.
+      const greeting = await a.p.evaluate(() =>
+        document.getElementById('greetingEmail')?.textContent.trim() || '');
+      check('greeting-uses-the-name-from-profiles', greeting === 'QA', greeting);
+      check('greeting-is-not-the-raw-email', !/@/.test(greeting), greeting);
 
       // Offline: the bar has to appear away from the gate screen.
       await a.p.evaluate(() => {
@@ -1891,6 +1963,38 @@ try {
       check('event-card-leaves-a-future-event-alone',
         freshChips.every(x => x === ''), JSON.stringify(freshChips));
       await e4.c.close();
+
+      // An event that has already happened whose reminder never went out. The
+      // send window is forward-only — `starts_at between now() and now()+24h` —
+      // so once the day passes nothing tries again and nothing said so. Three
+      // real events went by exactly like this.
+      const missedEvent = {
+        ...READY_EVENT, id: 11, title: 'Kultura Missed', status: 'Finalizat',
+        starts_at: new Date(Date.now() - 6 * 86400e3).toISOString(),
+        ends_at: new Date(Date.now() - 6 * 86400e3).toISOString(),
+        reminder_24h_sent: false, reminder_2h_sent: false,
+      };
+      const eMiss = await mk(HEALTHY, CARS.map(c => ({ ...c, zone: 'A1' })), [READY_EVENT, missedEvent],
+        [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }], [], [],
+        [{ key: 'sms_reminder_enabled', value: '1' }]);
+      await eMiss.p.waitForTimeout(1400);
+      const missedRows = await eMiss.p.evaluate(() =>
+        [...document.querySelectorAll('#readyList .ready-row')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
+      check('ready-list-flags-a-reminder-that-never-went-out',
+        missedRows.some(r => /Missed/.test(r) && /reminder/i.test(r)), missedRows.join(' | '));
+      await eMiss.c.close();
+
+      // With the reminders switched off, the same event is not a miss — it is
+      // the setting, and saying so every day would train everyone to ignore
+      // the list.
+      const eMissOff = await mk(HEALTHY, CARS.map(c => ({ ...c, zone: 'A1' })), [READY_EVENT, missedEvent],
+        [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }], [], [], []);
+      await eMissOff.p.waitForTimeout(1400);
+      const offRows = await eMissOff.p.evaluate(() =>
+        [...document.querySelectorAll('#readyList .ready-row')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
+      check('ready-list-stays-quiet-when-reminders-are-off',
+        !offRows.some(r => /reminder/i.test(r)), offRows.join(' | '));
+      await eMissOff.c.close();
 
       // The scheduled sheet sync. It posts to a saved Apps Script link every
       // five minutes and used to read nothing back — the link had been dead for

@@ -784,9 +784,9 @@ Pozele rămase fără referință în DB se curăță cu **Setări → Curăță
 |---|---|
 | `voting_event_id` | Evenimentul deschis la vot. **Gol = votarea închisă** |
 | `public_event_id` | Evenimentul fixat pentru paginile publice (gol = cel mai apropiat de azi) |
-| `sms_welcome_enabled` / `_template` | SMS automat la sosire. **Oprit** — nu există furnizor, totul merge prin Telegram |
-| `sms_approved_enabled` / `_template` | SMS automat la aprobarea înscrierii. **Oprit** |
-| `sms_reminder_enabled` / `_template` | Remindere înainte de eveniment. **Oprit** |
+| `sms_welcome_enabled` / `_template` | Mesaj automat la sosire. Pleacă prin Telegram, SMS ca rezervă |
+| `sms_approved_enabled` / `_template` | Mesaj automat la aprobarea înscrierii |
+| `sms_reminder_enabled` / `_template` | Remindere înainte de eveniment. **Numele minte: oprește mesajul, nu canalul** |
 | `zone_map_url` | Harta zonelor, ca poză urcată |
 | `zone_plan_url` | Planul desenat care ține loc de hartă (`plans/*.json`). Are prioritate față de poză |
 | `public_base_url` | Adresa publică a aplicației. Fără ea, `{{confirmare}}` din mesaje rămâne gol |
@@ -1270,15 +1270,66 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     inserare cădea. Prin `to_jsonb(new)` întrebi rândul de o cheie, nu de o
     coloană: aceeași întrebare la care ambele tabele pot răspunde.
 
+75. **Un job oprit n-are ce raporta — și verdictul lui vechi nu e starea de
+    acum.** Linkul Apps Script a fost golit, deci sincronizarea din Sheets nu
+    mai rulează. Dar ultimul ei verdict — 404, 453 eșecuri la rând — rămăsese
+    în `integration_runs` fără nimic care să-l mai actualizeze vreodată, deci
+    „Starea canalelor" ar fi arătat o pastilă roșie permanentă despre un job
+    care nu mai există. Aceeași greșeală ca la 70, în altă haină. Fără link,
+    fără rând.
+
+74. **Un steag numit după canal, care de fapt oprește mesajul.** Cele trei
+    setări `sms_*_enabled` par să spună „trimite SMS". În realitate ele
+    păzesc `send-sms`, care încearcă **Telegram primul** și cade pe SMS doar
+    dacă nu există chat legat — comentariul funcției o spune direct. Deci
+    oprindu-le, s-au oprit și mesajul de bun venit la poartă, și cel de
+    aprobare, și reminderele de 24h/2h, **pe ambele canale**. Verificarea
+    „nicio cerere HTTP la sosire" arăta ca o reușită și era exact dovada
+    problemei: cererea aia era expeditorul care încearcă Telegram.
+    Regula: numește steagul după ce oprește, nu după canalul din care s-a
+    născut. Interfața zice acum „Mesaje automate", cu un rând care spune prin
+    ce pleacă, iar roșul din „Starea canalelor" apare doar când **nimic** nu
+    poate livra — nici furnizor SMS, nici bot cu chat-uri legate.
+
+73. **O fereastră care se uită doar înainte pierde definitiv ce a scăpat.**
+    Reminderul de eveniment se trimitea pentru `starts_at between now() and
+    now()+24h`. Odată ce ziua a trecut, evenimentul nu se mai potrivește
+    niciodată, nimic nu reîncearcă și nimic nu spune că s-a ratat: toate cele
+    trei evenimente cu dată au trecut cu `reminder_24h_sent = false`. În plus,
+    steagul se scria `true` indiferent dacă apelul a plecat, deci un eșec era
+    definitiv. Acum se scrie doar când cererea chiar a intrat în coadă, iar
+    lista de pregătire spune „a trecut acum N zile și reminderul n-a plecat
+    niciodată" — dar numai cât timp reminderele sunt pornite, altfel ar fi
+    zgomot despre o setare.
+    (Tot acolo: fereastra de 24h o conținea pe cea de 2h, deci un eveniment
+    adăugat cu o oră înainte primea două mesaje din același șablon.)
+
+72. **Un badge care constată nu ajunge; trebuie să și poți face ceva.**
+    Cardul spunea „🔕 n-a primit" și oferea nimic — era un `<span>`. Retrimiterea
+    nu se poate face din browser: `notify` din funcția Telegram cere
+    `x-import-secret`, iar `app_config` e intenționat inaccesibil clientului.
+    Deci retrimiterea stă în bază, ca `resend_car_notification(bigint)`, păzită
+    de `is_staff_or_admin()` și cu EXECUTE revocat de la `public`/`anon`.
+
+71. **Numele omului stă în `profiles`, nu în `user_metadata`.**
+    `user_metadata` e completat de formularul nostru de înregistrare și de
+    nimic altceva, deci un cont invitat din dashboard n-are niciunul — și
+    salutul îi zicea adresa de mail brută, în timp ce fiecare alt ecran citea
+    `profiles`. Mai rău: upsert-ul de la fiecare login scria
+    `full_name: meta.full_name || email.split('@')[0]`, adică suprascria un
+    nume real cu prefixul adresei. Acum câmpul se trimite doar când chiar
+    avem ce trimite.
+
 70. **„Oprit" și „stricat" nu sunt aceeași culoare.** SMS-ul e închis aici cu
     intenție — nu există și n-a existat vreodată un furnizor, iar totul pleacă
     prin Telegram. Pastila zicea totuși chihlimbariu „SMS: neconfigurat", adică
     exact ce zice despre un lucru lăsat pe jumătate. Acum are trei stări: verde
     când există furnizor, **gri** când e oprit (și scrie că merge prin Telegram),
-    **roșu** doar când o automatizare e bifată fără furnizor în spate — singurul
-    caz care chiar e o defecțiune, fiindcă triggerul pornește, nu găsește nimic
-    și proprietarul nu află niciodată. Aceeași distincție e scrisă și sus în SMS
-    Center, și la salvarea automatizărilor, unde se face bifa.
+    **roșu** doar când o automatizare e bifată și **nimic** nu poate livra.
+    Prima versiune a acestei reguli punea roșu pe „bifat fără furnizor SMS",
+    ceea ce era la fel de nedrept: fără furnizor mesajul totuși ajunge, prin
+    Telegram (vezi 74). Aceeași distincție e scrisă și sus în SMS Center, și la
+    salvarea automatizărilor, unde se face bifa.
     (Nota de sus purta clasa `.conn-banner`, care e `position:fixed` și parcată
     în afara ecranului până alunecă în jos — deci n-ar fi putut fi citită nici
     dacă cineva o afișa. Are clasa ei acum.)
@@ -1294,6 +1345,12 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     următoare (`settle_integration_run`). Răspunsul ajunge în
     `integration_runs`, iar „Starea canalelor" îl arată ca a patra pastilă —
     verde, chihlimbariu la o singură ratare, roșu la un șir.
+    Regula se aplică **fiecărei** funcții care sună în afară, nu doar
+    sincronizării: `send_task_reminders`, `process_scheduled_sms`,
+    `send_event_reminders`, `run_backup`, `car_welcome_sms` și
+    `send_approval_sms` aveau exact aceeași orbire și o au reparată la fel.
+    Singura excepție e `notify_telegram_car`, fiindcă răspunsul ei e deja citit
+    înapoi — se scrie pe mașină, ca `telegram_notify_ok`.
 
 68. **Un loc se spune cu un deget, nu cu un număr.** „Zona Retro, locul 38" e
     exact și nu-i spune șoferului încotro s-o ia. Fiecare boxă își poartă deja

@@ -5139,6 +5139,18 @@ select.is-missing { border-color: var(--red); }
   background:rgba(245,158,11,.16); color:#fcd34d; border:1px solid rgba(245,158,11,.34);
 }
 
+/* The same badge, now something you can press. It was a label saying the driver
+   never got the message and offering nothing to do about it; the retry is the
+   whole point of knowing. Sized for a thumb — it sits in a row of small badges,
+   so it earns its target height with padding rather than by growing the text. */
+button.notify-badge{
+  font-family:inherit; cursor:pointer; min-height:24px;
+  transition:background .15s ease, border-color .15s ease;
+}
+button.notify-badge:hover{ background:rgba(245,158,11,.26); border-color:rgba(245,158,11,.55); }
+button.notify-badge:active{ transform:translateY(1px); }
+button.notify-badge:disabled{ opacity:.55; cursor:default; }
+
 /* Cars deleted in one action are listed under one heading, with one button
    that takes the whole group back. */
 .trash-group{
@@ -5200,6 +5212,12 @@ select.is-missing { border-color: var(--red); }
 /* An inline explanation at the top of a section. Not .conn-banner: that one is
    position:fixed and parked off-screen until it slides down, which is why this
    note stayed invisible for as long as it existed. */
+/* The automations card is named for the message, not the channel, so the
+   channel has to be written somewhere: these flags gate a Telegram-first
+   sender, and reading them as "SMS on/off" is what cost three kinds of
+   message their only working channel. */
+.sms-card-hint{ margin:2px 0 12px; color:var(--text-dim); font-size:12px; line-height:1.45; }
+
 .chan-note{
   padding:10px 12px; border-radius:12px; margin:0 0 14px;
   border:1px solid var(--border); background:var(--fill);
