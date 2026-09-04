@@ -1590,7 +1590,34 @@
     }
 
     @media (max-width: 700px) {
-      .app-header { padding: 8px 20px; }
+      /* The header laid its two groups out at their natural width and let the
+         row grow past the screen. On a 390px phone that put the avatar's right
+         edge at 429px — 39px outside, invisible and untappable, on every
+         section. Nothing caught it: the body clips, so the page never scrolls
+         sideways, and an element parked off-screen with no scrollbar looks
+         exactly like an element that is not there.
+         The picker is the part that gives: it holds a long event title and can
+         truncate, while the buttons are fixed targets. */
+      .app-header { padding: 8px 14px; gap: 8px; }
+      .app-header > .event-picker { flex: 0 1 auto; min-width: 0; max-width: 172px; }
+      .app-header > .event-picker select { max-width: 100%; }
+      .app-header > div:last-child { flex: 0 0 auto; gap: 6px !important; }
+      .app-header .notif-btn, .app-header .avatar { width: 36px; height: 36px; }
+
+      /* Thirty-eight cars ran to 5852px of list — 154px a card, about two and a
+         half on screen. Nothing is dropped here; the card is simply not a
+         poster: the inner padding, the icon and the gap above the buttons all
+         shrink, and the plate/zone line stops being allowed to wrap onto a
+         third row. */
+      .card.car-row { padding: 11px 12px !important; }
+      .card.car-row .row-icon { width: 36px; height: 36px; border-radius: 11px; }
+      .card.car-row .row-icon svg { width: 18px; height: 18px; }
+      .card.car-row .row-sub { margin-top: 2px; gap: 6px; }
+      .card.car-row .car-actions { margin-top: 6px; margin-left: 44px; }
+      /* The two status buttons stay. They look like the obvious thing to fold
+         away, but the car detail modal has no status control at all, so outside
+         the gate screen this row is the only way to move a car between
+         „Invitat" and „Sosit". Density is not worth a capability. */
       .content { padding: 0 20px calc(118px + env(safe-area-inset-bottom, 0px)); }
       .greeting h1 { font-size: 26px; }
       .hero-title { font-size: 20px; }
@@ -1667,9 +1694,17 @@
         padding: 9px 13px;
       }
       .mtab.active .label {
-        max-width: 90px;
+        max-width: 84px;
         opacity: 1;
       }
+
+      /* Eight tabs plus the active pill's label have to fit 390px. They did not
+         when the label was the longest one: „Evenimente" pushed the row to
+         390px inside a 372px container, and the settings cog was scrolled out
+         of reach — the bar's width depended on which tab you were standing on.
+         Four pixels off each idle tab buys the widest label its room. */
+      .mtab { padding: 8px 5px; }
+      .mtab.active { padding: 9px 11px; }
       .mtab .label { font-size: 12px; }
 
       /* Separators removed on mobile — 7 nav items need the width. */
@@ -3721,6 +3756,24 @@
   white-space: nowrap;
 }
 .tk-prio-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+/* When the task is due, on the row. */
+.tk-row-due{
+  margin-left:8px; padding:2px 7px; border-radius:6px; white-space:nowrap;
+  font-size:11px; font-weight:700;
+  color:var(--text-mute); background:var(--fill-1); border:1px solid var(--border);
+}
+.tk-row-due.is-soon{ color:#fcd34d; background:rgba(245,158,11,.10); border-color:rgba(245,158,11,.32); }
+
+/* The priority chip is written twice on the same card — here in the head and
+   again as a .tk-badge in the meta row below. On a phone the head copy cost the
+   title half its width: „Verifică extinctoarele" broke after one word with the
+   right half of the row empty. Under 560px the chip keeps its colour and dot
+   and drops the word, which is still in the card, one line down. */
+@media (max-width: 560px) {
+  .tk-prio { padding-left: 6px; padding-right: 6px; font-size: 0; gap: 0; }
+  .tk-prio .tk-prio-dot { font-size: 11px; width: 8px; height: 8px; }
+}
 .tk-prio.prio-low    { color: #10b981; background: rgba(16,185,129,0.10);  border-color: rgba(16,185,129,0.32); }
 .tk-prio.prio-normal { color: #94a3b8; background: rgba(148,163,184,0.10); border-color: rgba(148,163,184,0.28); }
 .tk-prio.prio-high   { color: #f59e0b; background: rgba(245,158,11,0.12);  border-color: rgba(245,158,11,0.40); }
