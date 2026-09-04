@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v166';
+    const APP_VERSION = 'v167';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -378,6 +378,8 @@
       el('appView').classList.add('show');
 
       const meta = user.user_metadata || {};
+      // Provisional: profiles have not loaded yet. updateAvatarUI() rewrites it
+      // from the profiles row the moment they do.
       el('greetingEmail').textContent = meta.full_name || email;
       el('settingsEmail').textContent = email;
       el('settingsFirstName').value = meta.first_name || '';
@@ -389,11 +391,13 @@
       updateAvatarUI(); // upgrades to the photo if profiles are already in state
 
       // Ensure profile exists in public table for team visibility
-      supa.from('profiles').upsert({
-        email: email,
-        full_name: meta.full_name || email.split('@')[0],
-        department: meta.department || ''
-      }, { onConflict: 'email' }).then(({error}) => {
+      // Only claim a name we actually have. `email.split('@')[0]` as a default
+      // meant every login of an account without metadata overwrote whatever
+      // name the profiles row already held.
+      const seedProfile = { email: email };
+      if ((meta.full_name || '').trim()) seedProfile.full_name = meta.full_name.trim();
+      if ((meta.department || '').trim()) seedProfile.department = meta.department.trim();
+      supa.from('profiles').upsert(seedProfile, { onConflict: 'email' }).then(({error}) => {
         if (error) console.warn("Error auto-creating profile:", error);
         loadData();
       });
@@ -3323,11 +3327,32 @@
     const myProfile = () => (state.profiles || [])
       .find(p => (p.email || '').toLowerCase() === (currentUser?.email || '').toLowerCase());
 
-    // Sync every avatar spot (header badge + settings preview) with the
-    // profile row; falls back to the initial letter when no photo is set.
+    // Who the app should call you.
+    //
+    // `user_metadata` is filled in by our own signup form, so an account made
+    // any other way — invited from the dashboard, created by hand — has none,
+    // and the greeting fell through to the raw email address while every other
+    // screen read the name out of `profiles`. The profiles row is the app's own
+    // record and the one everyone else sees, so it goes first.
+    function myDisplayName() {
+      const prof = myProfile();
+      const fromProfile = (prof && prof.full_name || '').trim();
+      if (fromProfile) return fromProfile;
+      const meta = currentUser?.user_metadata || {};
+      const fromMeta = (meta.full_name || '').trim();
+      if (fromMeta) return fromMeta;
+      return currentUser?.email || '';
+    }
+
+    // Sync every avatar spot (header badge + settings preview) and the greeting
+    // with the profile row; falls back to the initial letter when no photo is
+    // set. Called again when profiles arrive, which is what upgrades a greeting
+    // that first rendered from metadata alone.
     function updateAvatarUI() {
       const url = myProfile()?.avatar_url;
-      const initial = (currentUser?.user_metadata?.first_name?.charAt(0)
+      const greet = el('greetingEmail');
+      if (greet) greet.textContent = myDisplayName();
+      const initial = (myDisplayName().charAt(0)
         || currentUser?.email?.charAt(0) || '?').toUpperCase();
       [['avatarBadge', initial], ['settingsAvatarPreview', initial]].forEach(([id, fb]) => {
         const node = el(id);
@@ -3420,7 +3445,6 @@
         }, { onConflict: 'email' });
 
         showToast('Profil actualizat cu succes!');
-        el('greetingEmail').textContent = currentUser.user_metadata.full_name || currentUser.email;
         updateAvatarUI();
       } catch (err) {
         uiAlert('Eroare la actualizare: ' + err.message);
@@ -3790,20 +3814,28 @@
         `<span class="chan-pill is-${state}"><span class="chan-dot"></span>${escape(label)}</span>`;
 
       const tgState = !tg.configured ? 'bad' : (!tg.webhook_live ? 'bad' : (tg.linked ? 'ok' : 'warn'));
+      // A bot that is configured, receiving, and has at least one linked chat is
+      // a channel that delivers. Anything less is not, whatever the token says.
+      const telegramReach = !!(tg.configured && tg.webhook_live && tg.linked > 0);
       const tgLabel = !tg.configured ? t('chan.tg_off')
         : !tg.webhook_live ? t('chan.tg_no_hook')
           : t('chan.tg_linked', { n: tg.linked, total: tg.total });
 
-      // SMS has three states here, not two. "Not configured" used to be amber
-      // whatever the reason, which flattened a decision and a bug into one
-      // colour: SMS is deliberately off — everything goes out over Telegram —
-      // and amber made that look like something left half-done. Red is now
-      // kept for the case that really is broken: an automation switched on
-      // with no provider behind it, which quietly sends nothing.
+      // SMS is off here on purpose and Telegram carries everything, so amber —
+      // which reads as "left half-done" — was wrong for it. Grey says the
+      // decision. Red is for the one state that is really broken.
+      //
+      // And "broken" is not "no SMS provider": the three sms_*_enabled flags
+      // gate `send-sms`, which tries Telegram FIRST and only falls back to a
+      // provider. With a live bot and linked chats the message lands. What
+      // actually strands a driver is an automation switched on when *nothing*
+      // can deliver — no provider and no reachable chat — and that is the only
+      // case that earns red.
       const autom = await smsAutomationState();
-      const smsState = sms.configured ? 'ok' : (autom.anyOn ? 'bad' : 'off');
+      const smsState = sms.configured ? 'ok'
+        : (autom.anyOn && !telegramReach) ? 'bad' : 'off';
       const smsLabel = sms.configured ? t('chan.sms_on')
-        : autom.anyOn ? t('chan.sms_armed_no_provider') : t('chan.sms_disabled');
+        : (autom.anyOn && !telegramReach) ? t('chan.msg_no_channel') : t('chan.sms_disabled');
 
       box.innerHTML =
         pill(tgState, tgLabel) +
@@ -3838,6 +3870,11 @@
     // health function having to grow a field. Unreadable settings count as off:
     // claiming a channel is armed when we could not check would be the same
     // false alarm in the other direction.
+    // Read once and kept, because renderReadyList() is synchronous and needs the
+    // answer. Null means "not asked yet" — never "off", so a slow answer cannot
+    // invent a warning.
+    let _automCache = null;
+
     async function smsAutomationState() {
       const off = { welcome: false, reminder: false, approved: false, anyOn: false };
       try {
@@ -3851,6 +3888,7 @@
           approved: m.sms_approved_enabled === '1',
         };
         st.anyOn = st.welcome || st.reminder || st.approved;
+        _automCache = st;
         return st;
       } catch (_) { return off; }
     }
@@ -3988,6 +4026,35 @@
           txt: t('ready.soon', { name: e2.title || ('#' + e2.id), when, list: gaps.join(', ') }),
           go: 'events',
         });
+      }
+
+      // A reminder that never went out, on an event that has already happened.
+      //
+      // The window is forward-only — `starts_at between now() and now()+24h` —
+      // so once the day passes the event stops matching and nothing ever tries
+      // again. All three dated events here went by with reminder_24h_sent still
+      // false and not a word about it anywhere. This is the word.
+      //
+      // Only while the reminders are actually switched on: with them off this
+      // is not a miss, it is the setting. And only for a month, because a
+      // reminder that is a year late is history, not a task.
+      if (_automCache && _automCache.reminder) {
+        for (const e2 of (state.events || [])) {
+          if (e2.archived || e2.is_sandbox || !e2.starts_at) continue;
+          if (e2.reminder_24h_sent !== false) continue;
+          const days = calendarDaysUntil(e2.starts_at);
+          if (days == null || days >= 0 || days < -30) continue;
+          items.push({
+            k: 'noreminder' + e2.id,
+            txt: t('ready.reminder_never_sent', {
+              name: e2.title || ('#' + e2.id), n: Math.abs(days),
+            }),
+            go: 'events',
+          });
+        }
+      } else if (_automCache === null) {
+        // First render: ask, then draw the list again with the answer.
+        smsAutomationState().then(() => { try { renderReadyList(); } catch (_) {} });
       }
 
       if (!items.length) { box.hidden = true; return; }
@@ -4855,12 +4922,14 @@
       const armed = rows.some(r => r.key.endsWith('_enabled') && r.value === '1');
       const health = await ensureHealth();
       const smsWorks = !!(health && health.sms && health.sms.configured);
-      const warn = armed && !smsWorks;
+      // Armed with no SMS provider is normal here and works — Telegram carries
+      // it. Warn only when nothing at all can deliver.
+      const warn = armed && !smsWorks && !telegramReachOf(health);
       if (msg) {
         msg.className = 'modal-msg show';
         msg.style.color = error ? 'var(--red)' : (warn ? '#fcd34d' : 'var(--green)');
         msg.textContent = error ? (t('common.error') + ': ' + error.message)
-          : warn ? t('sms.autom_saved_no_provider') : t('sms.autom_saved');
+          : warn ? t('sms.autom_saved_no_channel') : t('sms.autom_saved');
       }
       if (!error) { renderSmsChannelNote(); loadChannelHealth(); }
     });
@@ -4880,12 +4949,21 @@
       const note = el('smsProviderNote'); if (!note) return;
       const health = await ensureHealth();
       const smsWorks = !!(health && health.sms && health.sms.configured);
+      const reach = telegramReachOf(health);
       const autom = await smsAutomationState();
       if (smsWorks && !autom.anyOn) { note.hidden = true; note.innerHTML = ''; return; }
-      note.innerHTML = smsWorks
-        ? escape(t('sms.note_sms_on'))
-        : autom.anyOn ? escape(t('sms.note_armed_no_provider')) : escape(t('sms.note_telegram_only'));
+      note.innerHTML = smsWorks ? escape(t('sms.note_sms_on'))
+        : (autom.anyOn && !reach) ? escape(t('sms.note_no_channel_at_all'))
+          : escape(t('sms.note_telegram_only'));
       note.hidden = false;
+    }
+
+    // Same question the channel pill asks, from the same answer: can Telegram
+    // actually deliver to anyone? Shared so the pill and the two notices can
+    // never disagree about it.
+    function telegramReachOf(health) {
+      const tg = (health && health.telegram) || {};
+      return !!(tg.configured && tg.webhook_live && tg.linked > 0);
     }
 
     // Live progress: poll the history row while the campaign is sending.
@@ -8298,7 +8376,7 @@
                   ${blockReason !== null ? `<span class="block-badge" title="${escape(blockReason || '')}">⛔ ${escape(t('block.badge'))}</span>` : ''}
                   ${car.rsvp === 'no' ? `<span class="rsvp-badge is-no" title="${escape(t('car.rsvp_no'))}">${escape(t('car.rsvp_no_short'))}</span>` : ''}
                   ${car.rsvp === 'yes' ? `<span class="rsvp-badge is-yes" title="${escape(t('car.rsvp_yes'))}">✓</span>` : ''}
-                  ${car.telegram_notify_ok === false ? `<span class="notify-badge" title="${escape(t('car.notify_failed_hint'))}">🔕 ${escape(t('car.notify_failed'))}</span>` : ''}
+                  ${car.telegram_notify_ok === false ? `<button type="button" class="notify-badge notify-retry" data-action="renotify" data-car-id="${car.id}" title="${escape(t('car.notify_retry_hint'))}">🔕 ${escape(t('car.notify_failed'))} · ${escape(t('car.notify_retry'))}</button>` : ''}
                 </div>
                 <div class="row-sub" style="margin-top:2px;">
                   <span style="color: var(--blue); font-weight: 700;">${escape(car.owner || '—')}</span>
@@ -8619,7 +8697,7 @@
 
     // Delegate clicks — cars/tasks/events actions
     document.addEventListener('click', async (ev) => {
-      const btn = ev.target.closest('.action-btn, .tk-btn[data-action]');
+      const btn = ev.target.closest('.action-btn, .tk-btn[data-action], .notify-retry');
       if (!btn || btn.classList.contains('loading')) return;
       // Stop propagation immediately so parent card row doesn't open detail
       ev.stopPropagation();
@@ -8640,6 +8718,23 @@
       };
 
       // --- CARS ---
+      // The badge said the driver never got the message and left it at that.
+      // The retry has to run server-side: the telegram function's `notify`
+      // needs x-import-secret, and app_config is deliberately out of the
+      // browser's reach, so the RPC reads it and posts on our behalf.
+      if (action === 'renotify') {
+        const id = Number(btn.dataset.carId);
+        if (!navigator.onLine) { showToast(t('offline.needs_connection', { what: t('offline.what_renotify') })); return; }
+        const { data, error } = await withSpinner(() =>
+          supa.rpc('resend_car_notification', { p_car_id: id }));
+        if (error) return uiAlert(t('common.error') + ': ' + error.message);
+        const res = (Array.isArray(data) ? data[0] : data) || {};
+        if (!res.ok) return uiAlert(t('car.notify_retry_failed_' + (res.reason || 'no_car')) || t('common.error'));
+        showToast(t('car.notify_retry_sent'));
+        await loadData();
+        return;
+      }
+
       if (action === 'status') {
         const id = btn.dataset.carId, label = btn.dataset.label, color = btn.dataset.color;
         const patch = { status: label, status_color: color };
