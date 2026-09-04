@@ -1804,8 +1804,12 @@ try {
         [...document.querySelectorAll('#channelHealth .chan-pill')].map(x => ({
           state: x.className.replace('chan-pill ', ''), text: x.textContent.trim(),
         })));
-      check('channel-health-reds-sms-armed-with-no-provider',
-        armedPills.some(p => /SMS/.test(p.text) && p.state === 'is-bad'), JSON.stringify(armedPills));
+      // Red, and the label no longer says "SMS": what is broken is the message,
+      // which had no channel at all — not the SMS provider on its own.
+      check('channel-health-reds-a-message-with-no-channel-at-all',
+        armedPills.some(p => /automate/i.test(p.text) && p.state === 'is-bad'), JSON.stringify(armedPills));
+      check('the-no-channel-pill-does-not-blame-sms-alone',
+        armedPills.some(p => p.state === 'is-bad' && /niciun canal/i.test(p.text)), JSON.stringify(armedPills));
       await armed.p.evaluate(() => document.querySelector('.mtab[data-section="sms"], .tab[data-section="sms"]')?.click());
       await armed.p.waitForTimeout(900);
       const armedNote = await armed.p.evaluate(() => {
