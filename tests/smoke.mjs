@@ -272,8 +272,15 @@ try {
   // state was a button everyone had to read past.
   const gateAfter = await page.evaluate(() => ({
     checkoutBtn: !!document.querySelector('[data-gate-checkout]'),
-    // The row it belongs to is the one we just checked in.
-    arrivedIsTerminal: !!document.querySelector('.gate-car.arrived .gate-arrive.is-in[disabled]'),
+    // The row it belongs to is the one we just checked in. Terminal used to be
+    // shown as a disabled button — 76x44px that could not be pressed, on two
+    // rows in three late in an event. It is a state, so it is written as one.
+    arrivedIsTerminal: !!document.querySelector('.gate-car.arrived .gate-in')
+      && !document.querySelector('.gate-car.arrived .gate-arrive'),
+    // …and it says when, which is the question an operator actually has.
+    arrivedSaysWhen: /\d{1,2}[:.]\d{2}/.test(
+      document.querySelector('.gate-car.arrived .gate-in')?.textContent || ''),
+    noDeadButtons: [...document.querySelectorAll('#gateResults button')].filter((b) => b.disabled).length,
     // One entrance: the per-device gate name is gone. It was never once set.
     gateLabel: !!document.getElementById('gateLabelBtn'),
     // Burst mode lives on the scanner panel.
@@ -282,6 +289,8 @@ try {
   }));
   check('gate-has-no-checkout', !gateAfter.checkoutBtn);
   check('gate-arrived-is-terminal', gateAfter.arrivedIsTerminal);
+  check('an-arrived-row-says-what-time', gateAfter.arrivedSaysWhen, JSON.stringify(gateAfter));
+  check('the-gate-list-holds-no-dead-buttons', gateAfter.noDeadButtons === 0, String(gateAfter.noDeadButtons));
   check('gate-has-no-gate-name', !gateAfter.gateLabel);
   check('gate-burst-toggle-present', gateAfter.burstToggle && gateAfter.burstFlash);
 
@@ -1412,7 +1421,7 @@ try {
         const row = document.querySelector('.gate-car[data-car-id="3"]');
         if (!row) return null;
         const w = window.innerWidth;
-        return [...row.querySelectorAll('button, select')].map((b) => {
+        return [...row.querySelectorAll('button, select, .gate-in')].map((b) => {
           const r2 = b.getBoundingClientRect();
           return { cls: b.className, left: Math.round(r2.left), right: Math.round(r2.right), w };
         });
@@ -1420,6 +1429,50 @@ try {
       check('gate-row-controls-all-fit-the-screen',
         !!fit && fit.length >= 3 && fit.every((b) => b.left >= 0 && b.right <= b.w),
         JSON.stringify(fit));
+
+      // The plate is what the operator matches against the car in front of
+      // them, so it is the one thing on the row that may never be broken or
+      // clipped. Widening the zone select at its expense did exactly that —
+      // „ABC 104" over two lines — and a row that wraps does not overflow, so
+      // an overflow check cannot see it. Measure the geometry that actually
+      // fails: line count, and the row against its tallest child.
+      const gateGeom = await ip.evaluate(() => {
+        const rows = [...document.querySelectorAll('#gateResults .gate-car')];
+        const lineCount = (el) => {
+          const lh = parseFloat(getComputedStyle(el).lineHeight) || 18;
+          return Math.round(el.getBoundingClientRect().height / lh);
+        };
+        const wrapped = (r) => {
+          const kids = [...r.children];
+          if (kids.length < 2) return false;
+          const cs = getComputedStyle(r);
+          const inner = r.getBoundingClientRect().height
+            - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+            - parseFloat(cs.borderTopWidth) - parseFloat(cs.borderBottomWidth);
+          return inner > Math.max(...kids.map((k) => k.getBoundingClientRect().height)) + 4;
+        };
+        const plates = [...document.querySelectorAll('#gateResults .gate-plate')];
+        return {
+          rows: rows.length,
+          wrapped: rows.filter(wrapped).length,
+          // Rows without the fourth control — the ordinary case at a gate.
+          plainRows: rows.filter((r) => !r.querySelector('.gate-tg')).length,
+          wrappedPlain: rows.filter((r) => !r.querySelector('.gate-tg')).filter(wrapped).length,
+          platesOnTwoLines: plates.filter((p) => lineCount(p) > 1).length,
+          platesClipped: plates.filter((p) => p.scrollWidth > p.clientWidth + 1).length,
+          // Two of the longest zone names do not fit at 390px — the row has no
+          // width left to give — so the full name rides on the title instead.
+          zonesTitled: [...document.querySelectorAll('#gateResults .gate-zone')]
+            .filter((z) => (z.title || '').trim().length > 0).length,
+          zonesTotal: document.querySelectorAll('#gateResults .gate-zone').length,
+        };
+      });
+      check('a-plain-gate-row-never-wraps',
+        gateGeom.plainRows > 0 && gateGeom.wrappedPlain === 0, JSON.stringify(gateGeom));
+      check('the-plate-is-never-broken-or-clipped',
+        gateGeom.platesOnTwoLines === 0 && gateGeom.platesClipped === 0, JSON.stringify(gateGeom));
+      check('every-zone-carries-its-full-name-in-the-title',
+        gateGeom.zonesTotal > 0 && gateGeom.zonesTitled === gateGeom.zonesTotal, JSON.stringify(gateGeom));
       await ip.setViewportSize({ width: 1400, height: 1000 });
     } catch (e) {
       for (const n of ['invite-btn-offers-to-send-when-phone', 'invite-window-opens-before-the-round-trip',
@@ -1427,7 +1480,9 @@ try {
         'invite-message-carries-the-connect-link', 'invite-btn-falls-back-to-copy-without-phone',
         'invite-qr-draws-a-code', 'invite-qr-says-it-is-the-telegram-one',
         'gate-offers-the-code-to-an-unreachable-arrival', 'gate-offers-nothing-to-someone-already-linked',
-        'gate-offers-nothing-before-the-car-is-in', 'gate-row-controls-all-fit-the-screen']) {
+        'gate-offers-nothing-before-the-car-is-in', 'gate-row-controls-all-fit-the-screen',
+        'a-plain-gate-row-never-wraps', 'the-plate-is-never-broken-or-clipped',
+        'every-zone-carries-its-full-name-in-the-title']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
       console.log(`invite checks: ${e.message}`);
@@ -1854,6 +1909,38 @@ try {
         /furnizor/i.test(savedMsg), savedMsg);
       await armed.c.close();
 
+      // A separator belongs between two rows. As a border-bottom it also landed
+      // under the last row of every block — all seventeen of them — a line with
+      // padding under it and nothing after it to separate. `:last-child` would
+      // not have been enough: one block ends with a row that still has a
+      // sibling after it, so it is last on screen without being last in markup.
+      await a.p.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
+      await a.p.waitForTimeout(1200);
+      const seps = await a.p.evaluate(() => {
+        const blocks = [...document.querySelectorAll('#section-settings .setting-block')]
+          .filter((b) => b.offsetParent !== null);
+        let trailing = 0;
+        for (const b of blocks) {
+          const rows = [...b.querySelectorAll('.setting-row')].filter((r) => r.offsetParent !== null);
+          const last = rows[rows.length - 1];
+          if (last && getComputedStyle(last).borderBottomWidth !== '0px') trailing++;
+        }
+        return { blocks: blocks.length, trailing };
+      });
+      check('no-settings-block-ends-with-a-separator',
+        seps.blocks > 0 && seps.trailing === 0, JSON.stringify(seps));
+
+      // „Member" was an English literal in the code, in the DEPARTMENT slot —
+      // so a person with no department got a word that reads like a role, in
+      // the wrong language, right beside the real role badges.
+      await a.p.evaluate(() => document.querySelector('.mtab[data-section="team"], .tab[data-section="team"]')?.click());
+      await a.p.waitForTimeout(1000);
+      const teamRoles = await a.p.evaluate(() =>
+        [...document.querySelectorAll('#teamList .team-role, .team-card .team-role')]
+          .map((x) => x.textContent.trim()));
+      check('the-team-list-speaks-romanian',
+        teamRoles.length > 0 && !teamRoles.some((x) => /\bMember\b/.test(x)), JSON.stringify(teamRoles));
+
       // The greeting used to read user_metadata, which our own signup form
       // fills in and nothing else does — so an invited account was greeted by
       // its raw email address while every other screen read `profiles`.
@@ -2031,10 +2118,22 @@ try {
       await eMissOff.c.close();
 
       // The task row, and the event card's date, at 390px.
+      //
+      // Noon tomorrow, built from the calendar rather than by adding hours.
+      // `now + 30h` is only "tomorrow" until 18:00 UTC and becomes the day
+      // after that: this check passed on the pull request at 16:45 and failed
+      // on main at 17:59 with the identical tree. A fixture whose meaning
+      // depends on what time the runner starts is not a fixture.
+      const TOMORROW_NOON = (() => {
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        d.setHours(12, 0, 0, 0);
+        return d.toISOString();
+      })();
       const SOON_TASK = [
         { id: 1, title: 'Verifică extinctoarele din zona VIP', is_completed: false, event_id: 6,
           priority: 'high', assigned_to: 'op@example.com', assigned_user_name: 'Alex',
-          due_at: new Date(Date.now() + 30 * 3600e3).toISOString(), status: 'todo',
+          due_at: TOMORROW_NOON, status: 'todo',
           created_at: new Date().toISOString() },
       ];
       // `date` deliberately absent, `starts_at` present: the card used to print
