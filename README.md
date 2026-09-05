@@ -1270,6 +1270,37 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     inserare cădea. Prin `to_jsonb(new)` întrebi rândul de o cheie, nu de o
     coloană: aceeași întrebare la care ambele tabele pot răspunde.
 
+83. **Un buton dezactivat e cel mai prost mod de a spune „gata".** Rândurile
+    deja sosite de la poartă păstrau butonul „Sosit" dezactivat: 76×44px în
+    mijlocul razei degetului, care nu face nimic. Spre finalul unui eveniment
+    două rânduri din trei arată așa — în fixtură, 8 din 12. E o stare, deci se
+    scrie ca o stare: bifă, cuvânt, și minutul („✓ Sosit 14:32"), care e
+    întrebarea pe care operatorul chiar o are.
+
+82. **Uneori nu încape, și numărul o spune.** După ce butonul mort a eliberat
+    lățime, am vrut și numele întreg al zonei. Nu intră: pe 390px rândul are
+    332px, plăcuța cere 97 pe o linie, acțiunea 76, spațiile 20 — rămân 139
+    pentru un select care ar avea nevoie de 137 de text plus 36 de padding.
+    Am baleiat spațiul (lățime select × bază info × lățime buton × corp
+    plăcuță) și **niciun punct** nu ține simultan plăcuța nefrântă, plăcuța
+    netăiată și rândul pe o linie. Deci câștigă plăcuța — ea e ce compară
+    operatorul cu mașina din față — zona ia doar cât a eliberat eticheta
+    (92 → 108px, adică 4 nume tăiate din 12 în loc de 7), iar numele întreg
+    stă pe `title`. Un compromis măsurat, scris ca atare, nu o setare uitată.
+
+81. **O linie desparte două lucruri, deci se desenează pe al doilea.**
+    `.setting-row` avea `border-bottom`, deci fiecare bloc din Setări — toate
+    17 — se termina cu o linie și 14px de padding sub ea, fără nimic dedesubt.
+    `:last-child` n-ar fi fost de ajuns: un bloc se termină cu un rând care mai
+    are un frate după el, deci e ultimul pe ecran fără să fie ultimul în
+    markup. `\+ .setting-row { border-top }` e corect indiferent ce urmează.
+
+80. **Un șir scris de mână scapă de gardă.** `'Member'` stătea literal în
+    `app.js`, în trei locuri, ca valoare implicită pentru **departament**. Apărea
+    netradus în interfața românească și, mai rău, suna a rol chiar lângă
+    badge-urile reale de rol. Garda de i18n verifică cheile, nu literalele: ce
+    nu trece prin `t()` nu e văzut de nimeni.
+
 79. **Un element scos afară fără scrollbar e invizibil și pentru teste.**
     Header-ul își așeza cele două grupuri la lățimea lor naturală și lăsa rândul
     să crească peste ecran: pe 390px marginea dreaptă a avatarului cădea la

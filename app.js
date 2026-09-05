@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v168';
+    const APP_VERSION = 'v169';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -6240,7 +6240,7 @@
     // anybody ever asked about.
     function gateCheckIn(carId, opts) {
       const quiet = !!(opts && opts.quiet);
-      const patch = { status: 'Sosit', status_color: '#10B981' };
+      const patch = { status: 'Sosit', status_color: '#10B981', arrived_at: new Date().toISOString() };
       applyLocalCarPatch(carId, patch);
       enqueueAction({ type: 'car-update', carId, patch });
       renderGate(); updateGateSyncUI();
@@ -6408,14 +6408,34 @@
         box.innerHTML = `<div class="gate-empty">${escape(t(q ? 'gate.no_match' : 'gate.no_cars'))}</div>`;
         return;
       }
+    // „Sosit 14:32" where there is a timestamp, plain „Sosit" where the row
+    // came from an older import that never recorded one.
+    function gateArrivedAt(c) {
+      if (!c.arrived_at) return t('car.status.arrived');
+      const d = new Date(c.arrived_at);
+      if (isNaN(d)) return t('car.status.arrived');
+      const locale = { ro: 'ro-RO', ru: 'ru-RU', en: 'en-GB' }[currentLang] || 'ro-RO';
+      return t('gate.arrived_at', { time: d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) });
+    }
+    function arrivedIcon() {
+      return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" '
+        + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
+    }
+
       box.innerHTML = list.slice(0, 60).map(c => {
         const sk = statusKey(c.status);
         const arrived = sk === 'sosit';
         const name = [c.brand, c.model].filter(Boolean).join(' ') || c.model || '—';
         const blocked = plateBlocked(c.plate) !== null;
-        // Arriving is the only thing the gate does. Once in, the row is done.
+        // Arriving is the only thing the gate does. Once in, the row is done —
+        // and a disabled button is the worst way to say so: it holds 76x44px of
+        // the row, in the middle of the operator's thumb reach, and offers
+        // nothing. Late in an event most rows are in that state, so most of the
+        // list was dead buttons. The width goes back to the zone name, which
+        // was being cut off, and the space says something an operator actually
+        // asks: when did this car come in?
         const actionBtn = arrived
-          ? `<button class="gate-arrive is-in" disabled>${escape(t('car.status.arrived'))}</button>`
+          ? `<span class="gate-in">${arrivedIcon()}${escape(gateArrivedAt(c))}</span>`
           : `<button class="gate-arrive" data-gate-arrive="${c.id}">${escape(t('gate.arrive'))}</button>`;
         // A driver who is already in, and whom nothing can reach afterwards.
         // This is the one second in the whole event when linking them costs
@@ -6429,7 +6449,7 @@
               <div class="gate-plate">${c.entry_no ? `<span class="entry-no">#${escape(String(c.entry_no))}</span> ` : ''}${escape(c.plate || '—')}${c.is_vip ? ' <span class="gate-vip">VIP</span>' : ''}${blocked ? ' <span class="gate-blocked">⛔</span>' : ''}</div>
               <div class="gate-car-sub">${escape(name)}${c.owner ? ' · ' + escape(c.owner) : ''}</div>
             </div>
-            <select class="gate-zone" data-gate-zone="${c.id}" title="${escape(t('gate.zone_ph'))}">${zoneOptionsHTML(c.zone)}</select>
+            <select class="gate-zone" data-gate-zone="${c.id}" title="${escape(c.zone || t('gate.zone_ph'))}">${zoneOptionsHTML(c.zone)}</select>
             ${actionBtn}${tgBtn}
           </div>`;
       }).join('') + (list.length > 60 ? `<div class="gate-more">${escape(t('gate.more', { n: list.length - 60 }))}</div>` : '');
@@ -8591,7 +8611,7 @@
         membersMap.set(currentUser.email, {
           name: name === currentUser.email ? name.split('@')[0] : name,
           email: currentUser.email,
-          role: meta.department ? localizeDept(meta.department) : 'Member'
+          role: meta.department ? localizeDept(meta.department) : t('team.no_dept')
         });
       }
 
@@ -8602,7 +8622,7 @@
         membersMap.set(p.email, {
           name: name,
           email: p.email,
-          role: p.department ? localizeDept(p.department) : 'Member',
+          role: p.department ? localizeDept(p.department) : t('team.no_dept'),
           sysRole: (p.role && ['admin','staff','member','gate'].includes(p.role)) ? p.role : (p.is_admin ? 'admin' : 'member'),
           avatar: p.avatar_url || null
         });
@@ -8617,7 +8637,7 @@
           membersMap.set(u.email, {
             name: name,
             email: u.email,
-            role: meta.department ? localizeDept(meta.department) : 'Member'
+            role: meta.department ? localizeDept(meta.department) : t('team.no_dept')
           });
         });
       }

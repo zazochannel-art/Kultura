@@ -618,11 +618,17 @@
       overflow: hidden;
       word-wrap: break-word;
     }
+    /* A separator belongs BETWEEN two rows, so it is drawn on the second one.
+       As a border-bottom it also landed under the last row of every block —
+       all seventeen in Settings — a line with 14px of padding under it and
+       nothing after it to separate. `:last-child` alone would not have fixed
+       it either: one block ends with a row that still has a sibling after it,
+       so it is last on screen without being last in the markup. */
     .setting-row {
       display: flex; align-items: center; gap: 12px; padding: 14px 0;
-      border-bottom: 1px solid var(--border);
       min-width: 0;
     }
+    .setting-row + .setting-row { border-top: 1px solid var(--border); }
     .setting-row .txt { flex: 1; min-width: 0; }
     .setting-row .txt span { color: var(--text-dim); font-size: 12px; display: block; overflow-wrap: break-word; }
 
@@ -2964,10 +2970,37 @@
   .gate-burst-flash.show { animation: none; opacity: .45; transition: opacity .3s; }
 }
 
-/* Already in: the row is done, so the button reads as a state, not an action. */
-.gate-arrive.is-in { background: transparent; border: 1px solid var(--border); color: var(--text-mute); font-weight: 700; }
+/* Already in. This used to be a disabled .gate-arrive — 76x44px of button that
+   could not be pressed, on two rows out of three late in an event. It is a
+   state, so it is written as one: a tick, the word, and the minute it happened.
+   Half the width, and it answers a question instead of blocking one. */
+.gate-in{
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 700; color: var(--green); white-space: nowrap;
+}
+.gate-in svg{ width: 13px; height: 13px; flex-shrink: 0; }
+
 @media (max-width: 420px) {
-  .gate-zone { width: 92px; }
+  /* The zone name is what the driver is about to be told, and it was the thing
+     being cut: 56px of text space against names needing up to 101px, so seven
+     rows in twelve read „GREEN ZO…". The width freed by .gate-in above pays
+     for this.
+     The row wraps rather than scrolls, and a wrapping flex container places
+     items on lines BEFORE it shrinks them — so widening the select alone sent
+     the arrive button to a second line on every row. The info block's basis is
+     what has to give: at 9rem there was no room left for a readable zone. */
+  /* A 390px screen leaves 332px of row. The plate needs 97 of it on one line,
+     the action 76, the gaps 20 — which leaves 139 for the zone, and the longest
+     zone name („GREEN ZONE") needs 137 of text plus 36 of select padding. The
+     three do not fit, and no combination of widths makes them: swept the space
+     and every point either breaks the plate onto two lines, breaks the plate
+     with an ellipsis, or wraps the action onto a second row.
+     So the plate wins — it is what the operator matches against the car in
+     front of them — and the zone takes the width freed by .gate-in above.
+     92 -> 108px cuts the truncated names from seven rows in twelve to five;
+     the rest is a real limit of the width, not a setting left wrong. */
+  .gate-zone { width: 108px; flex-shrink: 1; min-width: 92px; }
+  .gate-car-info { flex: 1 1 7rem; }
   .gate-car-sub { font-size: 12px; }
 }
 

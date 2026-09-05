@@ -331,6 +331,8 @@ export default {
   "event.selector.label": "Активное событие",
   "settings.profile.role": "Роль",
   "role.admin": "Администратор",
+  "team.no_dept": "Без отдела",
+  "gate.arrived_at": "Прибыл {time}",
   "role.staff": "Персонал",
   "role.gate": "Ворота",
   "reg.title": "Заявки на рассмотрении",

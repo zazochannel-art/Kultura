@@ -334,6 +334,8 @@ export default {
   "event.selector.label": "Eveniment activ",
   "settings.profile.role": "Rol",
   "role.admin": "Administrator",
+  "team.no_dept": "Fără departament",
+  "gate.arrived_at": "Sosit {time}",
   "role.staff": "Personal",
   "role.gate": "Poartă",
   "reg.title": "Înscrieri în așteptare",

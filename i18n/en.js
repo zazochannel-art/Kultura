@@ -331,6 +331,8 @@ export default {
   "event.selector.label": "Active event",
   "settings.profile.role": "Role",
   "role.admin": "Administrator",
+  "team.no_dept": "No department",
+  "gate.arrived_at": "Arrived {time}",
   "role.staff": "Staff",
   "role.gate": "Gate",
   "reg.title": "Pending registrations",
