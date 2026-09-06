@@ -81,6 +81,9 @@
     .ttl{font-size:16px;font-weight:800;margin-top:1px}
     .notes{font-size:13px;color:var(--text-dim);margin-top:2px}
     .now-badge{font-size:10px;font-weight:800;color:#04120b;background:var(--green);border-radius:999px;padding:1px 7px;margin-left:6px;text-transform:uppercase}
+    /* Which day this programme belongs to, shown when it is not today and the
+       „now" markers are therefore absent. */
+    .when{text-align:center;color:var(--text-dim);font-size:13px;font-weight:700;margin:0 0 18px}
     .msg{text-align:center;color:var(--text-dim);padding:60px 20px;font-size:15px}
     .foot{text-align:center;color:var(--text-mute);font-size:12px;margin-top:26px}
     /* Empty/error states are centred in the remaining space so they read as
@@ -115,6 +118,30 @@
     const content = document.getElementById('content');
     const nowHHMM = () => { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 
+    // „acum" is a claim about TODAY.
+    //
+    // The marker was decided by comparing an agenda row's clock time against
+    // the wall clock and nothing else — no date anywhere — so on every day of
+    // the year one row was lit green as happening now and the earlier ones were
+    // greyed out as done. The event pinned to the public pages is currently
+    // fourteen months away, and the page still said the gates had opened.
+    const sameDay = (iso) => {
+      if (!iso) return false;
+      const d = new Date(iso);
+      if (isNaN(d)) return false;
+      const n = new Date();
+      return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
+    };
+    // How far off it is, for the line that replaces the markers.
+    const daysUntil = (iso) => {
+      const d = new Date(iso);
+      if (isNaN(d)) return null;
+      const n = new Date();
+      const a = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const b = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+      return Math.round((a - b) / 86400000);
+    };
+
     // Centred state with an actual retry button (see vote.html for rationale).
     function showState(icon, text, retry) {
       content.innerHTML = `<div class="state">
@@ -132,19 +159,32 @@
       const ev = d.event, ag = d.agenda || [];
       const cover = ev.cover_url ? `<img class="cover" src="${esc(ev.cover_url)}" alt="">` : '';
       const meta = [ev.date, ev.location].filter(Boolean).map(esc).join(' · ');
+      // Only a programme that is running today can have a „now" in it.
+      const isToday = sameDay(ev.starts_at);
       const now = nowHHMM();
       let curIdx = -1;
-      ag.forEach((a, i) => { if ((a.at_time || '') <= now) curIdx = i; });
+      if (isToday) ag.forEach((a, i) => { if ((a.at_time || '') <= now) curIdx = i; });
       const items = ag.length ? ag.map((a, i) => {
-        const cls = i === curIdx ? 'now' : ((a.at_time || '') < now ? 'past' : '');
+        const cls = !isToday ? '' : (i === curIdx ? 'now' : ((a.at_time || '') < now ? 'past' : ''));
         return `<div class="item ${cls}">
             <div class="time">${esc(a.at_time || '—')}${i === curIdx ? '<span class="now-badge">acum</span>' : ''}</div>
             <div class="ttl">${esc(a.title || '')}</div>
             ${a.notes ? `<div class="notes">${esc(a.notes)}</div>` : ''}
           </div>`;
       }).join('') : `<div class="state"><div class="ic">📅</div><p>Programul va fi anunțat în curând.</p></div>`;
+      // With no markers to read, say plainly which day this programme is for —
+      // otherwise a list of bare clock times looks like it is about now.
+      let when = '';
+      if (ag.length && !isToday && ev.starts_at) {
+        const d = daysUntil(ev.starts_at);
+        if (d === 1) when = 'Programul de mâine';
+        else if (d > 1) when = `Programul evenimentului — peste ${d} zile`;
+        else if (d === 0) when = '';
+        else if (d != null) when = 'Programul evenimentului care a trecut';
+      }
       content.innerHTML = `${cover}<h1>${esc(ev.title || 'Program')}</h1>
         ${meta ? `<div class="meta">${meta}</div>` : '<div style="height:12px"></div>'}
+        ${when ? `<div class="when">${esc(when)}</div>` : ''}
         ${ag.length ? `<div class="timeline">${items}</div>` : items}`;
     }
     async function load() {
