@@ -1599,7 +1599,7 @@ try {
   // who changes their mind.
   {
     const car = { entry_no: 12, brand: 'Nissan', model: 'Silvia', plate: 'XYZ 123', owner: 'Ion', zone: 'A2' };
-    const event = { title: 'Kultura Fest', starts_at: null, location: 'Chisinau' };
+    const event = { title: 'Kultura Fest', starts_at: '2027-11-25T12:00:00.000Z', location: 'Chisinau' };
     for (const [label, initial, mode] of [
       ['fresh', null, 'ok'],
       ['answered', 'yes', 'ok'],
@@ -1627,11 +1627,16 @@ try {
           ask: document.getElementById('askBox').style.display,
           state: document.getElementById('state').className,
           title: document.getElementById('title').textContent.trim(),
+          when: document.getElementById('evWhen').textContent.trim(),
         }));
         if (mode === 'fail') {
           check('confirm-bad-token-refuses', /invalid/i.test(v.title) && v.ask === 'none');
         } else {
           check(`confirm-${label}-shows-car`, v.no === '#12' && /Nissan Silvia/.test(v.name));
+          // „Are you coming?" is unanswerable without the day. `rsvp` has
+          // always sent it; the page used to drop it on the floor.
+          check(`confirm-${label}-shows-when-and-where`,
+            /25 noiembrie/.test(v.when) && /Chisinau/.test(v.when), v.when);
           check(`confirm-${label}-asks`, v.ask === 'block');
           if (label === 'answered') {
             // Already answered: show it, but leave the buttons — changing your
@@ -1651,8 +1656,10 @@ try {
         const owned = mode === 'fail'
           ? ['confirm-bad-token-refuses']
           : label === 'answered'
-            ? ['confirm-answered-shows-car', 'confirm-answered-asks', 'confirm-shows-previous-answer']
-            : ['confirm-fresh-shows-car', 'confirm-fresh-asks', 'confirm-fresh-has-no-state',
+            ? ['confirm-answered-shows-car', 'confirm-answered-shows-when-and-where',
+              'confirm-answered-asks', 'confirm-shows-previous-answer']
+            : ['confirm-fresh-shows-car', 'confirm-fresh-shows-when-and-where',
+              'confirm-fresh-asks', 'confirm-fresh-has-no-state',
               'confirm-sends-the-answer', 'confirm-reflects-no'];
         for (const n of owned) if (!checks.some((c) => c.name === n)) check(n, false);
         console.log(`confirm ${label}: ${e.message}`);
@@ -1729,6 +1736,90 @@ try {
       return content;
     });
     check('ticket-allows-pinch-zoom', !/user-scalable\s*=\s*no/i.test(vp) && !/maximum-scale/i.test(vp));
+  }
+
+  // 4m2. What the pass actually says. The endpoint had the entry number, the
+  // spot, the date and the place in hand and the page printed none of them:
+  // a QR, a plate and a zone. The gate calls out the number, the marshal
+  // sends people to a bay, and the participant needs the day and the address
+  // on the one screen they were told to keep open.
+  {
+    // Noon UTC on purpose: a midnight timestamp lands on the day before or
+    // after depending on the runner's timezone, and this asserts the day.
+    const base = {
+      id: 42, entry_no: 7, name: 'Ion', brand: 'Nissan', model: 'Silvia',
+      plate: 'XYZ 123', zone: 'A2', spot_no: 5, category: 'JDM', arrived: false,
+      event: 'Kultura Fest', event_starts_at: '2027-11-25T12:00:00.000Z',
+      event_location: 'Chisinau Arena', tg_link: '', tg_linked: true,
+      qr: 'KULTURA:42:XYZ 123',
+    };
+    const read = async (patch) => {
+      const ctx = await browser.newContext({ viewport: { width: 390, height: 850 } });
+      await ctx.route('**://*.supabase.co/**', (r) => {
+        if (!r.request().url().includes('/functions/v1/ticket')) return r.abort();
+        return r.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify({ ...base, ...patch }),
+        });
+      });
+      const pg = await ctx.newPage();
+      await pg.goto(`${BASE}/ticket.html?c=42&k=XYZ%20123`, { waitUntil: 'domcontentloaded' });
+      await pg.waitForTimeout(700);
+      const v = await pg.evaluate(() => {
+        const rowVal = (label) => {
+          for (const r of document.querySelectorAll('.t-row')) {
+            if (r.querySelector('.k')?.textContent.trim() === label) return r.querySelector('.v');
+          }
+          return null;
+        };
+        const zone = rowVal('Zonă');
+        // A value that wraps does not overflow, it takes a second line — so
+        // count the lines the text really occupies instead of measuring width.
+        let zoneLines = 0;
+        if (zone) {
+          const rg = document.createRange();
+          rg.selectNodeContents(zone);
+          zoneLines = rg.getClientRects().length;
+        }
+        return {
+          eno: document.querySelector('.t-eno')?.textContent.trim() || '',
+          when: document.querySelector('.t-head .when')?.textContent.trim() || '',
+          zone: zone ? zone.textContent.trim() : null,
+          zoneLines,
+          // The QR is the reason the page exists; nothing added above it may
+          // push it off the first screen on a small phone.
+          qrTop: document.querySelector('.qr')?.getBoundingClientRect().top ?? 1e9,
+          vh: window.innerHeight,
+        };
+      });
+      await ctx.close();
+      return v;
+    };
+
+    try {
+      const full = await read({});
+      check('ticket-shows-entry-number', full.eno === '#7', full.eno);
+      check('ticket-shows-when-and-where',
+        /25 noiembrie/.test(full.when) && /Chisinau Arena/.test(full.when), full.when);
+      check('ticket-shows-spot-next-to-zone', full.zone === 'A2 · Locul 5', String(full.zone));
+      check('ticket-zone-row-stays-on-one-line', full.zoneLines === 1, `lines=${full.zoneLines}`);
+      check('ticket-qr-still-above-the-fold', full.qrTop < full.vh, `${full.qrTop} vs ${full.vh}`);
+
+      // Nothing invented when the data is not there: an event with no date and
+      // a car with no spot must not grow an empty line or a stray separator.
+      const bare = await read({ spot_no: null, event_starts_at: null, event_location: '' });
+      check('ticket-zone-alone-when-no-spot', bare.zone === 'A2', String(bare.zone));
+      check('ticket-no-when-line-without-a-date', bare.when === '', bare.when);
+      check('ticket-entry-number-optional', (await read({ entry_no: null })).eno === '');
+    } catch (e) {
+      for (const n of ['ticket-shows-entry-number', 'ticket-shows-when-and-where',
+        'ticket-shows-spot-next-to-zone', 'ticket-zone-row-stays-on-one-line',
+        'ticket-qr-still-above-the-fold', 'ticket-zone-alone-when-no-spot',
+        'ticket-no-when-line-without-a-date', 'ticket-entry-number-optional']) {
+        if (!checks.some((c) => c.name === n)) check(n, false);
+      }
+      console.log(`ticket content: ${e.message}`);
+    }
   }
 
   // 4n. Readiness list, channel health and the offline bar. All three exist
