@@ -1270,6 +1270,30 @@ client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegra
     inserare cădea. Prin `to_jsonb(new)` întrebi rândul de o cheie, nu de o
     coloană: aceeași întrebare la care ambele tabele pot răspunde.
 
+86. **„Acum" e o afirmație despre ziua de azi.** Agenda publică marca un punct
+    din program ca fiind în desfășurare comparând ora din zi cu `at_time` — și
+    nimic altceva. Nicio dată nu intra în calcul, deci în oricare zi din an un
+    rând era verde cu „ACUM" și cele dinainte stinse ca trecute. Evenimentul
+    fixat pe paginile publice când am găsit asta era **peste 14 luni**, iar
+    pagina spunea că s-au deschis porțile.
+    Datele nici nu ajungeau acolo: `event-info` citea `starts_at` din bază, dar
+    nu-l trimitea în răspuns. Acum îl trimite, markerele apar doar în ziua
+    evenimentului, iar în rest un rând spune peste câte zile e — altfel o listă
+    de ore goale se citește tot ca „acum".
+
+85. **Exemplele dintr-un formular sunt o instrucțiune.** `register.html` avea în
+    comentariu „Moldova is preselected (event is in MD)" și `dial.value =
+    '+373'`, dar exemplele erau „B 100 XYZ" (număr de București), „București" și
+    „Silver". Backendul era de acord cu comentariul, nu cu exemplele:
+    `normPhone` completează cu `+373` numerele de 8 cifre. Primul lucru citit de
+    un participant moldovean îi arăta formatul altei țări.
+
+84. **O fundătură politicoasă tot fundătură e.** Pagina de vot închisă spunea
+    „revino în timpul evenimentului" — fără nume, fără dată, fără unde. Funcția
+    `vote` întoarce doar `{ open: false }` când e închis, deci pagina chiar
+    n-avea ce arăta; acum întreabă `event-info`, ca toate celelalte pagini
+    publice, și oferă un drum spre program.
+
 83. **Un buton dezactivat e cel mai prost mod de a spune „gata".** Rândurile
     deja sosite de la poartă păstrau butonul „Sosit" dezactivat: 76×44px în
     mijlocul razei degetului, care nu face nimic. Spre finalul unui eveniment

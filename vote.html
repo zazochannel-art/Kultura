@@ -108,6 +108,7 @@
     .retry{margin-top:2px;padding:11px 22px;border-radius:999px;cursor:pointer;font-family:inherit;
       font-size:14px;font-weight:800;color:#1a0410;border:0;background:var(--brand)}
     .retry:active{transform:scale(.97)}
+    a.retry{display:inline-block;text-decoration:none}
   </style>
 </head>
 <body>
@@ -123,6 +124,12 @@
 
   <script>
     const FN = 'https://knphmxxokowwkruimdus.supabase.co/functions/v1/vote';
+    // Voting is closed most of the time, and `vote` returns only { open:false }
+    // then — no name, no date. „Revino în timpul evenimentului" without saying
+    // when is a dead end, so the closed state asks the public event endpoint
+    // the same question every other public page asks.
+    const INFO_FN = 'https://knphmxxokowwkruimdus.supabase.co/functions/v1/event-info';
+    const EV_PARAM = new URLSearchParams(location.search).get('event') || '';
     const ANON = 'sb_publishable_9b7WSJF4UlfF1JIdCDjWqQ_dxOTpqSW';
     const HEAD = { 'Content-Type': 'application/json', 'apikey': ANON, 'Authorization': 'Bearer ' + ANON };
     // Stable per-device voter token.
@@ -216,11 +223,49 @@
       });
     }
 
+    // Closed, but not a dead end: name the event, say when it is, and offer the
+    // programme. Best effort — if the lookup fails the plain message still
+    // stands, which is what the page did before.
+    async function showClosed() {
+      document.getElementById('total').textContent = '';
+      let ev = null;
+      try {
+        const url = INFO_FN + (EV_PARAM ? '?event=' + encodeURIComponent(EV_PARAM) : '');
+        const r = await fetch(url, { headers: { 'apikey': ANON, 'Authorization': 'Bearer ' + ANON } });
+        ev = (await r.json()).event || null;
+      } catch (_) { /* the message below works without it */ }
+
+      let when = '';
+      if (ev && ev.starts_at) {
+        const d = new Date(ev.starts_at);
+        if (!isNaN(d)) {
+          const a = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+          const n = new Date();
+          const b = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+          const days = Math.round((a - b) / 86400000);
+          const nice = d.toLocaleDateString('ro-RO', { day: 'numeric', month: 'long' });
+          if (days === 0) when = 'Evenimentul e azi.';
+          else if (days === 1) when = 'Evenimentul e mâine.';
+          else if (days > 1) when = `Evenimentul e pe ${nice} — peste ${days} zile.`;
+          else when = `Evenimentul a fost pe ${nice}.`;
+        }
+      }
+      if (!when && ev && ev.date) when = `Evenimentul e pe ${ev.date}.`;
+
+      const title = ev && ev.title ? ev.title : '';
+      content.innerHTML = `<div class="state">
+          <div class="ic">🏁</div>
+          ${title ? `<p style="font-weight:800;color:var(--text);margin-bottom:4px">${esc(title)}</p>` : ''}
+          <p>Votarea se deschide în timpul evenimentului.${when ? ' ' + esc(when) : ''}</p>
+          <a class="retry" href="agenda.html${EV_PARAM ? '?event=' + encodeURIComponent(EV_PARAM) : ''}">Vezi programul</a>
+        </div>`;
+    }
+
     async function load() {
       try {
         const r = await fetch(FN + '?voter=' + encodeURIComponent(voter), { headers: HEAD });
         const data = await r.json();
-        if (!data.open) { showState('🏁', 'Votarea nu este deschisă momentan. Revino în timpul evenimentului.', false); document.getElementById('total').textContent=''; return; }
+        if (!data.open) { await showClosed(); return; }
         render(data);
       } catch (_) { showState('📡', 'Nu am putut încărca votarea. Verifică conexiunea.', true); }
     }

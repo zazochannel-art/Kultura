@@ -4858,6 +4858,110 @@ try {
     await tctx.close();
   }
 
+  // 4z. The three public pages, with the network answered.
+  //
+  // „acum" is a claim about TODAY. The agenda decided it by comparing an
+  // agenda row's clock time against the wall clock and nothing else — no date
+  // anywhere — so on every day of the year one row was lit green as happening
+  // now and the earlier ones greyed out as done. The event pinned to the
+  // public pages when this was found was fourteen months away.
+  {
+    const mkPublic = async (startsAt, votingOpen) => {
+      const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+      await c.route('**://*.supabase.co/**', (r) => {
+        const u = r.request().url();
+        const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+        if (u.includes('/functions/v1/event-info')) {
+          return J({
+            event: {
+              id: 6, title: 'Kultura Auto Weekend Festival', subtitle: '', date: '',
+              location: 'Chișinău, Arena', cover_url: '', starts_at: startsAt,
+              waiver_text: '', spots_left: 12,
+            },
+            agenda: [
+              { at_time: '09:00', title: 'Deschiderea porților', notes: '' },
+              { at_time: '11:30', title: 'Jurizare', notes: '' },
+              { at_time: '23:30', title: 'Închidere', notes: '' },
+            ],
+          });
+        }
+        if (u.includes('/functions/v1/vote')) return J(votingOpen ? { open: true, event: 'Fest', total: 0, cars: [] } : { open: false });
+        if (u.includes('/functions/v1/')) return J({ ok: true });
+        if (u.includes('/rest/v1/')) return J([]);
+        return r.abort();
+      });
+      return c;
+    };
+    const dayAt = (offsetDays, hour) => {
+      const d = new Date();
+      d.setDate(d.getDate() + offsetDays);
+      d.setHours(hour, 0, 0, 0);
+      return d.toISOString();
+    };
+
+    // Two days out: nothing may be marked as running, and the page has to say
+    // which day the times belong to — bare clock times read as "now".
+    const soonCtx = await mkPublic(dayAt(2, 10), false);
+    const sp = await soonCtx.newPage();
+    await sp.goto(`${BASE}/agenda.html`, { waitUntil: 'domcontentloaded' });
+    await sp.waitForTimeout(1200);
+    const soon = await sp.evaluate(() => ({
+      now: document.querySelectorAll('.item.now').length,
+      past: document.querySelectorAll('.item.past').length,
+      badge: document.querySelectorAll('.now-badge').length,
+      items: document.querySelectorAll('.item').length,
+      when: document.querySelector('.when')?.textContent.trim() || '',
+    }));
+    check('the-agenda-says-nothing-is-happening-when-the-event-is-not-today',
+      soon.items === 3 && soon.now === 0 && soon.past === 0 && soon.badge === 0, JSON.stringify(soon));
+    check('the-agenda-says-which-day-the-times-belong-to',
+      /2 zile/.test(soon.when), JSON.stringify(soon));
+
+    // The closed voting page used to say „revino în timpul evenimentului" and
+    // nothing else — no name, no date, nowhere to go.
+    const vp = await soonCtx.newPage();
+    await vp.goto(`${BASE}/vote.html`, { waitUntil: 'domcontentloaded' });
+    await vp.waitForTimeout(1400);
+    const closed = await vp.evaluate(() => ({
+      txt: document.getElementById('content')?.textContent.replace(/\s+/g, ' ').trim() || '',
+      agendaLink: !!document.querySelector('#content a[href^="agenda.html"]'),
+    }));
+    check('closed-voting-names-the-event-and-when', /Kultura Auto Weekend Festival/.test(closed.txt)
+      && /2 zile/.test(closed.txt), JSON.stringify(closed).slice(0, 200));
+    check('closed-voting-offers-somewhere-to-go', closed.agendaLink, JSON.stringify(closed).slice(0, 200));
+    await soonCtx.close();
+
+    // On the day itself the markers come back — the fix must not simply delete
+    // the feature. 09:00 and 11:30 are behind a 23:30 that is not.
+    const todayCtx = await mkPublic(dayAt(0, 9), false);
+    const tp2 = await todayCtx.newPage();
+    await tp2.goto(`${BASE}/agenda.html`, { waitUntil: 'domcontentloaded' });
+    await tp2.waitForTimeout(1200);
+    const today = await tp2.evaluate(() => ({
+      now: document.querySelectorAll('.item.now').length,
+      badge: document.querySelectorAll('.now-badge').length,
+      when: document.querySelector('.when')?.textContent.trim() || '',
+    }));
+    check('the-agenda-still-marks-now-on-the-day-itself',
+      today.now === 1 && today.badge === 1 && today.when === '', JSON.stringify(today));
+    await todayCtx.close();
+
+    // The form preselects Moldova because the event is in MD — the comment in
+    // register.html says so — while every worked example was Romanian.
+    const regCtx = await mkPublic(dayAt(2, 10), false);
+    const rp = await regCtx.newPage();
+    await rp.goto(`${BASE}/register.html`, { waitUntil: 'domcontentloaded' });
+    await rp.waitForTimeout(900);
+    const ph = await rp.evaluate(() => ({
+      plate: document.querySelector('[name="plate"]')?.placeholder || '',
+      city: document.querySelector('[name="city"]')?.placeholder || '',
+      dial: document.getElementById('dial')?.value || '',
+    }));
+    check('the-registration-examples-match-the-country-it-preselects',
+      ph.dial === '+373' && !/Bucure/i.test(ph.city) && !/^B /.test(ph.plate), JSON.stringify(ph));
+    await regCtx.close();
+  }
+
   // 5. Public pages (given out by QR at the event) must render standalone.
   // They talk to Supabase, which is unreachable here, so we only assert the
   // static shell renders and nothing throws before the network call.
