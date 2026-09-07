@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v175';
+    const APP_VERSION = 'v176';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -3952,6 +3952,14 @@
       const cars = activeCars();
       const agenda = (state.agenda || []).filter(a => String(a.event_id) === String(ev.id));
       const noZone = cars.filter(c => !String(c.zone || '').trim()).length;
+      // Numbered spots, half handed out. Using zones only is a legitimate way
+      // to run an event — the gate works from them and so does the map — so an
+      // event where nobody has a spot is not missing anything. What is worth
+      // saying is a job left half done: some drivers get „ZONE · Locul 12" on
+      // their pass and in their reminder, the rest get the zone alone, from the
+      // same plan on the same day.
+      const withSpot = cars.filter(c => c.spot_no != null).length;
+      const noSpot = cars.filter(c => String(c.zone || '').trim() && c.spot_no == null).length;
 
       const items = [];
 
@@ -3977,6 +3985,9 @@
       // A field with cars on it and no drawing: the map is an empty frame and
       // nobody can be told where to stand.
       if (cars.length && ev.plan_id == null) items.push({ k: 'plan', txt: t('ready.no_plan'), go: 'map' });
+      if (ev.plan_id != null && withSpot && noSpot) {
+        items.push({ k: 'spots', txt: t('ready.spots', { n: noSpot, total: cars.length }), go: 'map' });
+      }
       if (!ev.entries_frozen && cars.some(c => c.entry_no)) items.push({ k: 'freeze', txt: t('ready.freeze'), go: 'events' });
       if (_health) {
         const tg = _health.telegram || {};

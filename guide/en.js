@@ -17,18 +17,20 @@ export default {
   ],
   navTip:
     'Press Ctrl-K (or ⌘-K on a Mac, or the magnifier in the header) to jump ' +
-    'straight to any car, guest, event or task without hunting through menus.',
+    'straight to any car, event or task without hunting through menus.',
 
   rolesTitle: 'What you can do, by role',
   rolesNote:
     'An admin sets your role on the Team page. If a button described in this ' +
     'guide is nowhere on your screen, your role almost certainly does not ' +
-    'include it — nothing is broken.',
+    'include it — nothing is broken. The admin role is the exception: only ' +
+    'the primary account can grant or remove it.',
   roles: [
     { name: 'member', can: 'Sees the data. No administrative actions.' },
     { name: 'gate', can: 'The gate screen only. The app starts locked there — right for an account handed to a volunteer.' },
     { name: 'staff', can: 'Check-in, zones, approving registrations, the blocklist, announcements, feedback.' },
     { name: 'admin', can: 'Everything, plus SMS, backups, GDPR, voting and deletions.' },
+    { name: 'primary account', can: 'A single account, pinned in the database settings. Only it can grant or remove the admin role, and only it can delete another admin — every other admin keeps everything else. It cannot itself be deleted or demoted.' },
   ],
 
   phases: [
@@ -91,7 +93,7 @@ export default {
         {
           title: 'Prepare the gate tablets',
           where: 'Gate',
-          body: 'On each device at the entrance: open Gate, tap 📍 the gate name and type it in ("Gate A", "VIP entrance") so you will know later which way each car came in, then press the kiosk button 🖥. The app locks onto the gate screen and the display stops going to sleep.',
+          body: 'On each device at the entrance: open Gate and press the kiosk button 🖥. The app locks onto the gate screen and the display stops going to sleep.',
           tip: 'To leave kiosk mode: press the red kiosk button in the header and confirm. Alternatively, press and hold the "Gate — Check-in" title for 1.5 seconds.',
         },
         {
@@ -109,7 +111,7 @@ export default {
         {
           title: 'Check in at the gate',
           where: 'Gate',
-          body: 'Scan the QR code on the pass (or search by plate) → the car\'s card appears → press Arrived. Cars already on site get a Left button for when they drive off. The zone can be changed straight from the list.',
+          body: 'Scan the QR code on the pass (or search by plate) → the car\'s card appears → press Arrived. Arriving is the only thing the gate does: a car that is already in shows the time it came in, not a button. The zone can be changed straight from the list. If you marked someone by mistake, set their status back to "Invited" from the car\'s card.',
           tip: 'It works with no internet. Check-ins are saved on the device and upload themselves when the signal returns — the pill in the header shows how many are waiting. Do not reinstall the app or clear its data while any are still pending.',
         },
         {

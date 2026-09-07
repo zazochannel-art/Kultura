@@ -1900,6 +1900,41 @@ try {
       // RAW_EVENT has no plan_id: cars are entered and the map is an empty
       // frame, so nobody can be told where to stand.
       check('ready-list-flags-event-without-a-plan', rows.some(r => /plan/i.test(r)), rows.join(' | '));
+      // RAW_EVENT has no plan, so the spots line must stay quiet: with nothing
+      // drawn there are no spots to hand out, and the missing plan is already
+      // its own line. Nagging about both would be nagging twice for one gap.
+      check('ready-list-does-not-nag-about-spots-without-a-plan',
+        !rows.some(r => /loc pe plan/i.test(r)), rows.join(' | '));
+
+      // A drawn plan with nobody placed on it. This is the production shape:
+      // every car has a zone, the plan carries 237 spots, and 55 of 56 cars sit
+      // on none of them — so the pass and the reminder both fall back to the
+      // zone alone and nothing said the drawing was going undelivered.
+      const placed = await mk(SILENT, [
+        { id: 1, entry_no: 1, brand: 'VW', model: 'Golf', owner: 'A', plate: 'P1', status: 'Invitat', event_id: 6, zone: 'A1', spot_no: 3, deleted_at: null },
+        { id: 2, entry_no: 2, brand: 'Mazda', model: 'RX7', owner: 'B', plate: 'P2', status: 'Invitat', event_id: 6, zone: 'A1', spot_no: null, deleted_at: null },
+        { id: 3, entry_no: 3, brand: 'BMW', model: 'E30', owner: 'C', plate: 'P3', status: 'Invitat', event_id: 6, zone: 'A2', spot_no: null, deleted_at: null },
+      ], READY_EVENT);
+      await placed.p.waitForTimeout(700);
+      const spotRows = await placed.p.evaluate(() =>
+        [...document.querySelectorAll('#readyList .ready-row')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
+      check('ready-list-counts-cars-with-no-spot',
+        spotRows.some(r => /2 din 3/.test(r) && /loc pe plan/i.test(r)), spotRows.join(' | '));
+      await placed.c.close();
+
+      // Nobody placed at all: running on zones alone is a legitimate choice —
+      // the gate works from them and so does the map — so there is nothing to
+      // report. Only a half-finished job is worth a line.
+      const noneplaced = await mk(SILENT, [
+        { id: 1, entry_no: 1, brand: 'VW', model: 'Golf', owner: 'A', plate: 'P1', status: 'Invitat', event_id: 6, zone: 'A1', spot_no: null, deleted_at: null },
+        { id: 2, entry_no: 2, brand: 'Mazda', model: 'RX7', owner: 'B', plate: 'P2', status: 'Invitat', event_id: 6, zone: 'A1', spot_no: null, deleted_at: null },
+      ], READY_EVENT);
+      await noneplaced.p.waitForTimeout(700);
+      const zoneOnly = await noneplaced.p.evaluate(() =>
+        [...document.querySelectorAll('#readyList .ready-row')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
+      check('ready-list-accepts-running-on-zones-alone',
+        !zoneOnly.some(r => /loc pe plan/i.test(r)), zoneOnly.join(' | '));
+      await noneplaced.c.close();
 
       await a.p.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
       await a.p.waitForTimeout(1000);
@@ -2576,6 +2611,9 @@ try {
         'channel-health-all-green-when-configured',
         'ready-list-flags-missing-start-date', 'ready-list-flags-finished-event',
         'ready-list-flags-event-without-a-plan',
+        'ready-list-does-not-nag-about-spots-without-a-plan',
+        'ready-list-counts-cars-with-no-spot',
+        'ready-list-accepts-running-on-zones-alone',
         'ready-list-warns-about-the-next-event', 'ready-list-says-when-the-next-event-is',
         'ready-list-says-what-the-next-event-lacks', 'ready-list-stays-quiet-about-a-distant-event']) {
         if (!checks.some((c) => c.name === n)) check(n, false);

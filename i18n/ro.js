@@ -1007,6 +1007,7 @@ export default {
   "ready.agenda": "Programul evenimentului e gol",
   "ready.zones": "{n} din {total} mașini n-au zonă",
   "ready.capacity": "Nu e setat numărul de locuri",
+  "ready.spots": "{n} din {total} mașini n-au loc pe plan",
   "ready.no_plan": "Evenimentul n-are plan — harta e goală",
   "ready.soon": "{name} — {when}: {list}",
   "ready.soon_cars": "nicio mașină",
