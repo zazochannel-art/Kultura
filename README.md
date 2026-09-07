@@ -744,8 +744,8 @@ verificat în `profiles` pentru configurare.
 |---|---|---|
 | `kultura-scheduled-sms` | în fiecare minut | Trimite SMS-urile programate |
 | `kultura-sheet-sync` | la 5 min | Sincronizare din Google Sheets |
-| `kultura-task-reminders` | la 15 min | Remindere taskuri |
-| `kultura-event-reminders` | la 15 min | Remindere eveniment (24h/2h înainte) |
+| `kultura-task-reminders` | la 15 min | Remindere taskuri. Sare peste taskurile evenimentelor arhivate sau sandbox |
+| `kultura-event-reminders` | la 15 min | Remindere eveniment (24h/2h înainte), **fiecare cu textul lui**. Sare peste evenimentele arhivate sau sandbox |
 | `kultura-daily-backup` | 03:17 UTC | Backup complet |
 | `kultura-prune-rate-limits` | 04:23 UTC | Curăță contoarele mai vechi de o zi |
 | `kultura-prune-client-errors` | 04:41 UTC | Curăță erorile mai vechi de 14 zile |
@@ -786,15 +786,37 @@ Pozele rămase fără referință în DB se curăță cu **Setări → Curăță
 | `public_event_id` | Evenimentul fixat pentru paginile publice (gol = cel mai apropiat de azi) |
 | `sms_welcome_enabled` / `_template` | Mesaj automat la sosire. Pleacă prin Telegram, SMS ca rezervă |
 | `sms_approved_enabled` / `_template` | Mesaj automat la aprobarea înscrierii |
-| `sms_reminder_enabled` / `_template` | Remindere înainte de eveniment. **Numele minte: oprește mesajul, nu canalul** |
+| `sms_reminder_enabled` / `_template` | Reminderul de cu **24h** înainte. **Numele minte: oprește mesajul, nu canalul** |
+| `sms_reminder_2h_template` | Reminderul de cu **2h** înainte. Separat intenționat: amândouă foloseau același text, deci mesajul de la 2 ore spunea „ne vedem mâine” |
 | `zone_map_url` | Harta zonelor, ca poză urcată |
 | `zone_plan_url` | Planul desenat care ține loc de hartă (`plans/*.json`). Are prioritate față de poză |
-| `public_base_url` | Adresa publică a aplicației. Fără ea, `{{confirmare}}` din mesaje rămâne gol |
+| `public_base_url` | Adresa publică a aplicației. Fără ea, `{{confirmare}}` și `{{qr_code}}` din mesaje rămân goale |
 | `notify_prefer_telegram` | `1` = încearcă întâi Telegram, apoi SMS |
 
 `app_config` conține URL-uri de funcții și **secrete** — nu se citește din
 client. De aici: `link_secret` (semnează linkurile de confirmare și de Telegram),
 `telegram_bot_token` și `telegram_webhook_secret`.
+
+### Variabilele din mesaje
+
+Tot ce poate înlocui `send-sms` într-un șablon. Butoanele din Editorul de mesaj
+le oferă pe toate — au fost cândva doar primele șase, iar restul existau doar în
+codul funcției, deci nimeni nu avea de unde să afle că le poate folosi.
+
+| Variabilă | De unde vine |
+|---|---|
+| `{{prenume}}` `{{nume}}` | Din `cars.owner`, tăiat la primul spațiu |
+| `{{marca}}` `{{model}}` `{{numar}}` `{{categoria}}` | Din mașină |
+| `{{numar_concurs}}` | `#` + `entry_no` |
+| `{{zona}}` `{{loc}}` | Zona și locul numerotat |
+| `{{locatie}}` `{{data}}` | Din evenimentul campaniei (`filters.event_id`). Fără el rămân goale |
+| `{{qr_code}}` | Linkul spre biletul participantului |
+| `{{confirmare}}` | Linkul semnat „Vii la eveniment?" |
+
+Ultimele două cer `public_base_url`; `{{locatie}}` și `{{data}}` cer ca
+campania să numească un eveniment. Toate se completează **pe server**, la
+fiecare trimitere — inclusiv pentru campaniile programate, care înainte
+primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
 
 ## Ce e periculos să atingi
 

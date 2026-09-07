@@ -2777,6 +2777,58 @@ try {
       }
       console.log(`campaign reach checks: ${e.message}`);
     }
+
+    // 4o2. The message editor: which placeholders it offers, and whether the
+    // preview shows what will really be sent.
+    //
+    // `send-sms` has always substituted the entry number, zone, spot and the
+    // signed confirmation link, and the editor offered none of them — the only
+    // way to learn they existed was to read the edge function. The reverse held
+    // for {{qr_code}}: the client filled it in for a hand-aimed send while the
+    // server left it blank for every scheduled one, so the same template lost
+    // its link the moment it was put on a timer.
+    try {
+      const PARKED = [
+        { id: 1, entry_no: 41, brand: 'VW', model: 'Golf', owner: 'Ana Pop', plate: 'P1',
+          status: 'Invitat', event_id: 6, phone: '+37360000001', telegram_chat_id: 111,
+          zone: 'EXPO ZONE', spot_no: 12, deleted_at: null },
+      ];
+      const e2 = await mk(true, PARKED);
+      const v = await e2.p.evaluate(() => {
+        const chips = [...document.querySelectorAll('#smsVars [data-sms-var]')].map((b) => b.dataset.smsVar);
+        // Type a template that leans on the placeholders the editor now offers,
+        // then read what the preview makes of it.
+        const ta = document.getElementById('smsMessage');
+        ta.value = '{{numar_concurs}} | {{zona}} | {{loc}} | {{qr_code}}';
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+        document.getElementById('smsPreviewBtn')?.click();
+        return {
+          chips,
+          preview: (document.getElementById('smsPreviewBox')?.textContent || '').trim(),
+          // Two reminder moments, two texts.
+          tmpl24: !!document.getElementById('smsReminderTemplate'),
+          tmpl2: !!document.getElementById('smsReminder2hTemplate'),
+        };
+      });
+      for (const k of ['numar_concurs', 'zona', 'loc', 'locatie', 'data', 'confirmare']) {
+        check(`editor-offers-${k}`, v.chips.includes(k), v.chips.join(','));
+      }
+      // Substituted from the car in hand, not left as literal braces or blanks.
+      check('editor-preview-fills-entry-zone-and-spot',
+        /#41/.test(v.preview) && /EXPO ZONE/.test(v.preview) && /\b12\b/.test(v.preview), v.preview);
+      check('editor-preview-has-no-unresolved-placeholder', !/\{\{/.test(v.preview), v.preview);
+      check('editor-preview-fills-the-pass-link', /ticket\.html\?c=1/.test(v.preview), v.preview);
+      check('reminder-has-a-text-for-each-moment', v.tmpl24 && v.tmpl2, JSON.stringify(v));
+      await e2.c.close();
+    } catch (e) {
+      for (const n of ['editor-offers-numar_concurs', 'editor-offers-zona', 'editor-offers-loc',
+        'editor-offers-locatie', 'editor-offers-data', 'editor-offers-confirmare',
+        'editor-preview-fills-entry-zone-and-spot', 'editor-preview-has-no-unresolved-placeholder',
+        'editor-preview-fills-the-pass-link', 'reminder-has-a-text-for-each-moment']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`sms editor checks: ${e.message}`);
+    }
   }
 
   // 4p. Numbered parking spots drawn on the venue photo.

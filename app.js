@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v171';
+    const APP_VERSION = 'v172';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -339,7 +339,9 @@
           const { data, error } = await supa.auth.signUp({
             email, password,
             options: {
-              emailRedirectTo: 'https://zazochannel-art.github.io/Kultura/confirmed.html',
+              // Whatever host this copy is served from. It used to name a
+              // GitHub Pages address the app no longer lives at.
+              emailRedirectTo: new URL('confirmed.html', location.href).href,
               data: {
                 first_name: firstName,
                 last_name: lastName,
@@ -4759,7 +4761,11 @@
     // Recipients come from the cars of the event in hand.
     // Sending goes through the send-sms edge function; live progress is polled
     // from the sms_history row it updates.
-    const SMS_VAR_KEYS = ['prenume', 'nume', 'marca', 'model', 'numar', 'categoria', 'qr_code'];
+    // Everything `send-sms` can actually substitute. The last six were
+    // computed on the server for every send and offered nowhere in the UI, so
+    // the only way to learn they existed was to read the edge function.
+    const SMS_VAR_KEYS = ['prenume', 'nume', 'marca', 'model', 'numar', 'categoria',
+      'numar_concurs', 'zona', 'loc', 'locatie', 'data', 'qr_code', 'confirmare'];
     let _smsHistory = [];
     let _smsSending = false;
     let _smsPoll = null;
@@ -4804,7 +4810,13 @@
           add(c.phone, {
             prenume: parts.shift() || '', nume: parts.join(' '),
             marca: c.brand || '', model: c.model || '', numar: c.plate || '',
-            categoria: c.category || '', qr_code: ticketUrl(c)
+            categoria: c.category || '', qr_code: ticketUrl(c),
+            // The server fills these too, but only it can. Filling them here as
+            // well is what makes the preview show the real message rather than
+            // a row of blanks where the useful half of it will be.
+            numar_concurs: c.entry_no ? '#' + c.entry_no : '',
+            zona: c.zone || '', loc: c.spot_no != null ? String(c.spot_no) : '',
+            locatie: activeEvent()?.location || '', data: activeEventDay()
           }, c.id, c.telegram_chat_id);
         }
       }
@@ -4894,13 +4906,14 @@
     async function loadSmsAutomations() {
       try {
         const { data } = await supa.from('ui_settings').select('key,value')
-          .in('key', ['sms_welcome_enabled', 'sms_welcome_template', 'sms_reminder_enabled', 'sms_reminder_template', 'sms_approved_enabled', 'sms_approved_template']);
+          .in('key', ['sms_welcome_enabled', 'sms_welcome_template', 'sms_reminder_enabled', 'sms_reminder_template', 'sms_reminder_2h_template', 'sms_approved_enabled', 'sms_approved_template']);
         const m = {}; (data || []).forEach(r => { m[r.key] = r.value; });
         if (el('smsWelcomeEnabled')) el('smsWelcomeEnabled').checked = m.sms_welcome_enabled === '1';
         if (el('smsReminderEnabled')) el('smsReminderEnabled').checked = m.sms_reminder_enabled === '1';
         if (el('smsApprovedEnabled')) el('smsApprovedEnabled').checked = m.sms_approved_enabled === '1';
         if (el('smsWelcomeTemplate') && document.activeElement !== el('smsWelcomeTemplate')) el('smsWelcomeTemplate').value = m.sms_welcome_template || '';
         if (el('smsReminderTemplate') && document.activeElement !== el('smsReminderTemplate')) el('smsReminderTemplate').value = m.sms_reminder_template || '';
+        if (el('smsReminder2hTemplate') && document.activeElement !== el('smsReminder2hTemplate')) el('smsReminder2hTemplate').value = m.sms_reminder_2h_template || '';
         if (el('smsApprovedTemplate') && document.activeElement !== el('smsApprovedTemplate')) el('smsApprovedTemplate').value = m.sms_approved_template || '';
       } catch (_) {}
     }
@@ -4911,6 +4924,9 @@
         { key: 'sms_welcome_template', value: (el('smsWelcomeTemplate')?.value || '').trim() },
         { key: 'sms_reminder_enabled', value: el('smsReminderEnabled')?.checked ? '1' : '' },
         { key: 'sms_reminder_template', value: (el('smsReminderTemplate')?.value || '').trim() },
+        // Its own text. Both moments used to share one, so the message sent two
+        // hours before the gates opened was the one that says "see you tomorrow".
+        { key: 'sms_reminder_2h_template', value: (el('smsReminder2hTemplate')?.value || '').trim() },
         { key: 'sms_approved_enabled', value: el('smsApprovedEnabled')?.checked ? '1' : '' },
         { key: 'sms_approved_template', value: (el('smsApprovedTemplate')?.value || '').trim() },
       ].map(r => ({ ...r, updated_at: new Date().toISOString() }));
@@ -4991,7 +5007,11 @@
       const recips = smsRecipients();
       if (!recips.length) { setMsg(t('sms.err_no_recipients'), false); return; }
       const when = document.querySelector('input[name="smsWhen"]:checked')?.value || 'now';
-      const filters = { audiences: smsSelectedAud(), brand: el('smsFilterBrand')?.value || '', category: el('smsFilterCategory')?.value || '', city: el('smsFilterCity')?.value || '' };
+      // The event goes in the filters, not just in the count. A scheduled
+      // campaign is resolved server-side hours later, and without it the send
+      // reached every car in the database while this screen had counted only
+      // the ones belonging to the event in hand.
+      const filters = { audiences: smsSelectedAud(), brand: el('smsFilterBrand')?.value || '', category: el('smsFilterCategory')?.value || '', city: el('smsFilterCity')?.value || '', event_id: state.activeEventId ?? null };
 
       // Scheduled: store a row, a server job would pick it up at scheduled_at.
       if (when === 'scheduled') {
@@ -5031,7 +5051,7 @@
       el('smsProgressWrap').dataset.historyId = hist.id;
       startSmsProgress(hist.id, recips.length);
       try {
-        const { data, error: fnErr } = await supa.functions.invoke('send-sms', { body: { history_id: hist.id, message, recipients: recips } });
+        const { data, error: fnErr } = await supa.functions.invoke('send-sms', { body: { history_id: hist.id, message, recipients: recips, event_id: state.activeEventId ?? null } });
         if (fnErr) {
           let b = null; try { b = await fnErr.context.json(); } catch (_) {}
           throw new Error(b?.note || b?.error || fnErr.message);
@@ -5061,12 +5081,16 @@
       const msg = await uiPrompt(t('sms.single_prompt', { name: c.owner || c.plate || '' }), { placeholder: t('sms.msg_ph'), okLabel: t('sms.send') });
       if (msg == null || msg === false || !String(msg).trim()) return;
       const parts = (c.owner || '').trim().split(/\s+/);
-      const vars = { prenume: parts.shift() || '', nume: parts.join(' '), marca: c.brand || '', model: c.model || '', numar: c.plate || '', categoria: c.category || '', qr_code: ticketUrl(c) };
+      const vars = { prenume: parts.shift() || '', nume: parts.join(' '), marca: c.brand || '',
+        model: c.model || '', numar: c.plate || '', categoria: c.category || '', qr_code: ticketUrl(c),
+        numar_concurs: c.entry_no ? '#' + c.entry_no : '', zona: c.zone || '',
+        loc: c.spot_no != null ? String(c.spot_no) : '',
+        locatie: activeEvent()?.location || '', data: activeEventDay() };
       const { data: hist } = await supa.from('sms_history')
         .insert({ message: String(msg), recipient_count: 1, status: 'sending', filters: { single: c.id }, created_by: currentUserName() })
         .select().single();
       try {
-        const { data, error } = await supa.functions.invoke('send-sms', { body: { history_id: hist?.id, message: String(msg), recipients: [{ phone: c.phone || c.contact, car_id: c.id, vars }] } });
+        const { data, error } = await supa.functions.invoke('send-sms', { body: { history_id: hist?.id, message: String(msg), recipients: [{ phone: c.phone || c.contact, car_id: c.id, vars }], event_id: c.event_id ?? state.activeEventId ?? null } });
         if (error) { let b = null; try { b = await error.context.json(); } catch (_) {} throw new Error(b?.note || b?.error || error.message); }
         if (data?.error) throw new Error(data.note || data.error);
         showToast(t('sms.single_sent'));
@@ -5090,7 +5114,12 @@
     });
     el('smsPreviewBtn')?.addEventListener('click', () => {
       const box = el('smsPreviewBox'); if (!box) return;
-      const sample = smsRecipients()[0]?.vars || { prenume: 'Andrei', nume: 'Popescu', marca: 'BMW', model: 'M3', numar: 'CE 007', categoria: 'Participant', qr_code: 'KULTURA:1:CE 007' };
+      const sample = smsRecipients()[0]?.vars || {
+        prenume: 'Andrei', nume: 'Popescu', marca: 'BMW', model: 'M3', numar: 'CE 007',
+        categoria: 'Participant', numar_concurs: '#41', zona: 'EXPO ZONE', loc: '12',
+        locatie: 'Chisinau Arena', data: '25 noiembrie',
+        qr_code: 'https://exemplu/ticket.html?c=1', confirmare: 'https://exemplu/confirm.html?c=1'
+      };
       box.style.display = 'block';
       box.textContent = smsSubstitute(el('smsMessage')?.value || '', sample) || t('sms.preview_empty');
     });
@@ -5398,6 +5427,26 @@
     }
     function activeCars()  { return (state.cars  || []).filter(matchesActiveEvent); }
     function activeTasks() { return (state.tasks || []).filter(matchesActiveEvent); }
+    // The event in focus, when exactly one is. '' means "all events", and no
+    // single event's place or date can answer for that.
+    function activeEvent() {
+      if (!state.activeEventId) return null;
+      return (state.events || []).find(e => String(e.id) === String(state.activeEventId)) || null;
+    }
+    // Day and month, matching what `send-sms` puts in {{data}}. `starts_at` is
+    // written from a date picker forced to local midnight, so an hour here
+    // would be invented — and the preview has to show what will really be sent.
+    function activeEventDay() {
+      const ev = activeEvent();
+      if (!ev || !ev.starts_at) return '';
+      const d = new Date(ev.starts_at);
+      if (isNaN(d)) return '';
+      // Pinned to the event's own timezone, exactly as `send-sms` does it. Left
+      // to the viewer's clock, the preview would show one day and the message
+      // that actually goes out another.
+      try { return d.toLocaleDateString('ro-RO', { day: 'numeric', month: 'long', timeZone: 'Europe/Chisinau' }); }
+      catch (_) { return ''; }
+    }
 
     function populateEventPicker() {
       const sel = el('activeEventSelect');

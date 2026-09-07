@@ -5304,6 +5304,9 @@ button.notify-badge:disabled{ opacity:.55; cursor:default; }
    sender, and reading them as "SMS on/off" is what cost three kinds of
    message their only working channel. */
 .sms-card-hint{ margin:2px 0 12px; color:var(--text-dim); font-size:12px; line-height:1.45; }
+/* The 24h and the 2h reminder are two different messages. Unlabelled
+   textareas stacked under one checkbox gave no way to tell which was which. */
+.sms-tmpl-label{ margin:10px 0 4px; color:var(--text-dim); font-size:12px; font-weight:600; }
 
 .chan-note{
   padding:10px 12px; border-radius:12px; margin:0 0 14px;
