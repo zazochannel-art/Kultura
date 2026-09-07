@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v176';
+    const APP_VERSION = 'v177';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -826,6 +826,9 @@
       // Without this the strip says "0 spots on the plan" until something else
       // happens to repaint it.
       try { renderParkStrip(); } catch (_) {}
+      // Same reason, for the readiness list: it asks the plan which zones
+      // exist, and the plan lands after the list has already been drawn.
+      try { renderReadyList(); } catch (_) {}
       // Every plan from before this existed has no picture. Rather than a
       // migration nobody can run from a browser, the app makes one the first
       // time a staff member opens a plan — in the background, because nothing
@@ -3960,6 +3963,21 @@
       // same plan on the same day.
       const withSpot = cars.filter(c => c.spot_no != null).length;
       const noSpot = cars.filter(c => String(c.zone || '').trim() && c.spot_no == null).length;
+      // A zone nobody can find. Zones survive a redrawn plan — they sit on the
+      // car, not on the drawing — so a zone dropped from the plan leaves the
+      // cars still pointing at it. Those drivers read a zone name on their pass
+      // and in their reminder that the gate cannot find on the map, and they
+      // can never be given a numbered spot because no bay was ever drawn there.
+      // Four cars in the live event are in exactly this state.
+      const planZoneKeys = new Set((ZONE_SPOTS || [])
+        .map(sp => String(sp && sp.zone || '').trim().toLowerCase()).filter(Boolean));
+      const offPlan = ev.plan_id != null && planZoneKeys.size
+        ? cars.filter(c => {
+            const z = String(c.zone || '').trim();
+            return z && !planZoneKeys.has(z.toLowerCase());
+          })
+        : [];
+      const offPlanZones = [...new Set(offPlan.map(c => String(c.zone).trim()))];
 
       const items = [];
 
@@ -3987,6 +4005,13 @@
       if (cars.length && ev.plan_id == null) items.push({ k: 'plan', txt: t('ready.no_plan'), go: 'map' });
       if (ev.plan_id != null && withSpot && noSpot) {
         items.push({ k: 'spots', txt: t('ready.spots', { n: noSpot, total: cars.length }), go: 'map' });
+      }
+      if (offPlan.length) {
+        items.push({
+          k: 'offplan',
+          txt: t('ready.zone_off_plan', { n: offPlan.length, list: offPlanZones.join(', ') }),
+          go: 'cars',
+        });
       }
       if (!ev.entries_frozen && cars.some(c => c.entry_no)) items.push({ k: 'freeze', txt: t('ready.freeze'), go: 'events' });
       if (_health) {
@@ -4198,9 +4223,7 @@
         if (res.error) { showToast(t('common.error') + ': ' + res.error.message, 'error'); all.disabled = false; return; }
         // Renumbering is the one surprise worth naming: a car whose old number
         // was taken while it was gone comes back with a different one.
-        showToast(res.renumbered
-          ? t('trash.restored_many_renumbered', { n: res.n, r: res.renumbered })
-          : t('trash.restored_many', { n: res.n }));
+        showToast(restoredManyMsg(res));
         await loadDataFull();
         renderTrash();
         return;
@@ -4210,7 +4233,7 @@
       btn.disabled = true;
       const res = await untrashCar(btn.dataset.trashRestore);
       if (res.error) { showToast(t('common.error') + ': ' + res.error.message, 'error'); btn.disabled = false; return; }
-      showToast(res.renumbered ? t('trash.restored_renumbered', { n: res.entry_no }) : t('undo.restored'));
+      showToast(restoredMsg(res));
       await loadDataFull();
       renderTrash();
     });
@@ -5282,12 +5305,22 @@
 
     // Bringing one back. The database decides the number: it returns the old
     // one, or the next free one if somebody claimed it while the car was gone.
+    // The bay works the same way, with one difference: there is no "next free
+    // bay" to hand out, so a bay taken meanwhile comes back as none at all and
+    // `spot_freed` says so. Before that, a taken bay did not renumber the
+    // restore — it aborted it on the unique index, and in the group path took
+    // every other car down with it.
     async function untrashCar(id) {
       if (!requireOnline(t('offline.what_restore'))) return { error: new Error(t('offline.bar')) };
       const { data, error } = await supa.rpc('restore_car', { p_id: Number(id) });
       if (error) return { error };
       const row = Array.isArray(data) ? data[0] : data;
-      return { error: null, renumbered: !!row?.renumbered, entry_no: row?.entry_no ?? null };
+      return {
+        error: null,
+        renumbered: !!row?.renumbered,
+        entry_no: row?.entry_no ?? null,
+        spotFreed: !!row?.spot_freed,
+      };
     }
 
     // A whole group at once. Deleting fifty-five cars was one action; bringing
@@ -5301,7 +5334,29 @@
       const { data, error } = await supa.rpc('restore_cars', { p_ids: list });
       if (error) return { error };
       const rows = Array.isArray(data) ? data : [];
-      return { error: null, n: rows.length, renumbered: rows.filter(r => r && r.renumbered).length };
+      return {
+        error: null,
+        n: rows.length,
+        renumbered: rows.filter(r => r && r.renumbered).length,
+        spotFreed: rows.filter(r => r && r.spot_freed).length,
+      };
+    }
+
+    // What to say after a restore. The number and the bay are two separate
+    // surprises and either can happen alone, so the sentences are composed
+    // rather than multiplied into four fixed strings.
+    function restoredMsg(res) {
+      const parts = [res.renumbered ? t('trash.restored_renumbered', { n: res.entry_no }) : t('undo.restored')];
+      if (res.spotFreed) parts.push(t('trash.restored_spot_taken'));
+      return parts.join(' ');
+    }
+
+    function restoredManyMsg(res) {
+      const parts = [res.renumbered
+        ? t('trash.restored_many_renumbered', { n: res.n, r: res.renumbered })
+        : t('trash.restored_many', { n: res.n })];
+      if (res.spotFreed) parts.push(t('trash.restored_many_spot_taken', { n: res.spotFreed }));
+      return parts.join(' ');
     }
 
     // Offered right after a car is trashed: one tap takes it back, before the
@@ -5310,7 +5365,7 @@
       showUndoToast(label ? `${t('undo.car_deleted')} — ${label}` : t('undo.car_deleted'), async () => {
         const res = await untrashCar(id);
         if (res.error) { uiAlert(t('common.error') + ': ' + res.error.message); return; }
-        showToast(res.renumbered ? t('trash.restored_renumbered', { n: res.entry_no }) : t('undo.restored'));
+        showToast(restoredMsg(res));
         await loadDataFull();
       });
     }

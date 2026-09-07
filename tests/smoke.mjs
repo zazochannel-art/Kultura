@@ -1172,6 +1172,53 @@ try {
       // function, because app_config is unreachable from the browser.
       check('telegram-state-comes-from-function', /kultura_test_bot/.test(s.tgMsg) && /4/.test(s.tgMsg));
       check('telegram-token-marked-stored', /salvat/i.test(s.tokenPlaceholder));
+
+      // Restoring a car whose bay was handed to somebody else while it sat in
+      // the trash. The unique index used to abort the whole update and show a
+      // raw 23505; now the server frees the bay and says so, and the message
+      // has to carry that or the car comes back quietly unplaced.
+      const restoreCalls = [];
+      await tctx.route('**/rest/v1/rpc/restore_car', (r) => {
+        restoreCalls.push(r.request().postData() || '');
+        return r.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify([{ id: 7, entry_no: 7, renumbered: false, spot_freed: true }]),
+        });
+      });
+      await tp.evaluate(() => document.querySelector('#trashList [data-trash-restore]')?.click());
+      await tp.waitForTimeout(900);
+      const freedToast = await tp.evaluate(() =>
+        document.getElementById('modalToast')?.textContent || '');
+      check('restore-goes-through-the-rpc', restoreCalls.length === 1, JSON.stringify(restoreCalls));
+      check('restore-says-the-spot-was-given-away',
+        /f[aă]r[aă] loc/i.test(freedToast), freedToast || '(no toast)');
+
+      // The ordinary restore must not grow the warning: a bay nobody touched
+      // comes back with the car, and saying otherwise would send someone to
+      // the map to fix what is not broken.
+      const quiet = [];
+      await tctx.unroute('**/rest/v1/rpc/restore_car');
+      await tctx.route('**/rest/v1/rpc/restore_car', (r) => {
+        quiet.push(1);
+        return r.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify([{ id: 8, entry_no: 8, renumbered: false, spot_freed: false }]),
+        });
+      });
+      await tp.evaluate(() => {
+        const t = document.getElementById('modalToast');
+        if (t) t.textContent = '';
+        document.querySelector('#trashList [data-trash-restore]')?.click();
+      });
+      await tp.waitForTimeout(900);
+      const plainToast = await tp.evaluate(() =>
+        document.getElementById('modalToast')?.textContent || '');
+      // Both halves matter. Without the first, an empty toast would pass this
+      // for the wrong reason — which is exactly how it passed before the
+      // selector was fixed.
+      check('restore-stays-quiet-when-the-spot-was-still-free',
+        quiet.length === 1 && plainToast.length > 3 && !/f[aă]r[aă] loc/i.test(plainToast),
+        plainToast || '(no toast)');
     } catch (e) {
       for (const n of ['rsvp-badges-on-cards', 'card-flags-a-driver-the-bot-could-not-reach',
         'the-unreached-badge-is-a-button', 'the-unreached-badge-offers-a-resend',
@@ -1182,7 +1229,9 @@ try {
         'trash-offers-restore', 'trash-entry-badge-not-stretched', 'imports-listed',
         'import-undo-only-for-live-batch', 'telegram-panel-visible-to-admin',
         'telegram-token-never-echoed', 'public-base-url-loaded',
-        'telegram-state-comes-from-function', 'telegram-token-marked-stored']) {
+        'telegram-state-comes-from-function', 'telegram-token-marked-stored',
+        'restore-goes-through-the-rpc', 'restore-says-the-spot-was-given-away',
+        'restore-stays-quiet-when-the-spot-was-still-free']) {
         if (!checks.some((c) => c.name === n)) check(n, false);
       }
       console.log(`trash/telegram checks: ${e.message}`);
@@ -1827,7 +1876,7 @@ try {
   // nobody linked, and no sign at all that you were working offline outside
   // the gate screen.
   {
-    const mk = async (health, cars, event, agenda = [], sync = [], tasks = [], settings = []) => {
+    const mk = async (health, cars, event, agenda = [], sync = [], tasks = [], settings = [], plan = null) => {
       const c = await browser.newContext({ viewport: { width: 430, height: 930 }, isMobile: true, hasTouch: true });
       await c.route('**://*.supabase.co/**', (r) => {
         const u = r.request().url();
@@ -1839,6 +1888,10 @@ try {
         if (u.includes('/rest/v1/integration_runs')) return J(sync);
         if (u.includes('/rest/v1/tasks')) return J(tasks);
         if (u.includes('/rest/v1/ui_settings')) return J(settings);
+        // Without a plan the readiness list cannot know which zones exist, so
+        // the zone-off-plan line has nothing to say. Serving one is what lets
+        // that case be tested at all.
+        if (u.includes('/rest/v1/zone_plans')) return J(plan ? [plan] : []);
         if (u.includes('/rest/v1/events')) return J(Array.isArray(event) ? event : [event]);
         if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
         if (u.includes('/rest/v1/')) return J([]);
@@ -1932,6 +1985,46 @@ try {
       await noneplaced.p.waitForTimeout(700);
       const zoneOnly = await noneplaced.p.evaluate(() =>
         [...document.querySelectorAll('#readyList .ready-row')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
+      // A zone the plan does not have. Zones live on the car, not on the
+      // drawing, so redrawing a plan without "GREEN ZONE" leaves the cars in it
+      // pointing at a name the gate cannot find on the map — and they can never
+      // be given a numbered bay, because none was ever drawn there. Four cars
+      // in the live event are in exactly this state.
+      const PLAN = {
+        id: 1, name: 'P', plan_path: null, map_url: null, render_path: null,
+        spots: [{ zone: 'A1', no: 1, x: 10, y: 10 }, { zone: 'A2', no: 1, x: 20, y: 20 }],
+      };
+      const offplan = await mk(SILENT, [
+        { id: 1, entry_no: 1, brand: 'VW', model: 'Golf', owner: 'A', plate: 'P1', status: 'Invitat', event_id: 6, zone: 'A1', spot_no: null, deleted_at: null },
+        { id: 2, entry_no: 2, brand: 'Mazda', model: 'RX7', owner: 'B', plate: 'P2', status: 'Invitat', event_id: 6, zone: 'GREEN ZONE', spot_no: null, deleted_at: null },
+        { id: 3, entry_no: 3, brand: 'BMW', model: 'E30', owner: 'C', plate: 'P3', status: 'Invitat', event_id: 6, zone: 'GREEN ZONE', spot_no: null, deleted_at: null },
+      ], READY_EVENT, [], [], [], [], PLAN);
+      await offplan.p.waitForTimeout(900);
+      const offPlanRows = await offplan.p.evaluate(() =>
+        [...document.querySelectorAll('#readyList .ready-row')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
+      check('ready-list-flags-a-zone-that-is-not-on-the-plan',
+        offPlanRows.some(r => /2 ma[sș]ini/i.test(r) && /nu sunt pe plan/i.test(r)), offPlanRows.join(' | '));
+      // Naming the zone is the whole point: "two cars are somewhere wrong" is
+      // not something anyone can act on.
+      check('ready-list-names-the-zone-that-is-missing',
+        offPlanRows.some(r => /GREEN ZONE/.test(r)), offPlanRows.join(' | '));
+      await offplan.c.close();
+
+      // Every zone accounted for on the plan: nothing to report. Without this
+      // the rule could be "always complain" and still look like it works.
+      const onplan = await mk(SILENT, [
+        { id: 1, entry_no: 1, brand: 'VW', model: 'Golf', owner: 'A', plate: 'P1', status: 'Invitat', event_id: 6, zone: 'A1', spot_no: null, deleted_at: null },
+        { id: 2, entry_no: 2, brand: 'Mazda', model: 'RX7', owner: 'B', plate: 'P2', status: 'Invitat', event_id: 6, zone: 'a2', spot_no: null, deleted_at: null },
+      ], READY_EVENT, [], [], [], [], PLAN);
+      await onplan.p.waitForTimeout(900);
+      const onPlanRows = await onplan.p.evaluate(() =>
+        [...document.querySelectorAll('#readyList .ready-row')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
+      // 'a2' against a plan that spells it 'A2' is the same zone. Case is not a
+      // mismatch, and reporting it as one would cry wolf on every event.
+      check('ready-list-matches-zone-names-regardless-of-case',
+        !onPlanRows.some(r => /nu sunt pe plan/i.test(r)), onPlanRows.join(' | '));
+      await onplan.c.close();
+
       check('ready-list-accepts-running-on-zones-alone',
         !zoneOnly.some(r => /loc pe plan/i.test(r)), zoneOnly.join(' | '));
       await noneplaced.c.close();
