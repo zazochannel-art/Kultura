@@ -336,6 +336,7 @@ export default {
   "event.selector.aria": "Evenimentul în lucru",
   "event.selector.label": "Eveniment activ",
   "settings.profile.role": "Rol",
+  "role.primary_only": "Doar contul principal de administrator poate schimba rolul unui administrator.",
   "role.admin": "Administrator",
   "team.no_dept": "Fără departament",
   "gate.arrived_at": "Sosit {time}",

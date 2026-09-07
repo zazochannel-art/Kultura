@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v172';
+    const APP_VERSION = 'v173';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -9157,8 +9157,22 @@
     let _lastFocusedBeforeModal = null;
     let userBeingEdited = null;
     let editingEventId = null;
-    // Primary admin — role is locked (also enforced by a DB trigger).
-    const PRIMARY_ADMIN_EMAIL = 'igor.gratii.99@mail.ru';
+    // Primary admin — the only account that may hand out or take back the admin
+    // role. Enforced by DB triggers and by `admin-delete-user`; this is only so
+    // the UI does not offer a button the server will refuse.
+    //
+    // The fallback is a constant because `app_config` is unreadable from the
+    // browser by design. `health` (admin-only) returns the real value, so once
+    // it has answered we use that and the two cannot drift apart.
+    const PRIMARY_ADMIN_FALLBACK = 'igor.gratii.99@mail.ru';
+    function primaryAdminEmail() {
+      const fromServer = (_health && _health.primary_admin) || '';
+      return String(fromServer || PRIMARY_ADMIN_FALLBACK).trim().toLowerCase();
+    }
+    function isPrimaryAdmin() {
+      const me = (currentUser && currentUser.email || '').trim().toLowerCase();
+      return !!me && me === primaryAdminEmail();
+    }
 
     document.addEventListener('click', (ev) => {
       const opener = ev.target.closest('[data-modal]');
@@ -9184,21 +9198,18 @@
 
           const deleteBtn = el('deleteProfileBtn');
           if (deleteBtn) {
-            // Show delete button only if you are Admin and editing SOMEONE ELSE
-            deleteBtn.style.display = (admin && !isMe) ? 'block' : 'none';
+            // Admin, editing someone else — and removing another admin is the
+            // primary account's call, matching what the server enforces.
+            const tgt = (state.profiles || []).find(p => (p.email || '').toLowerCase() === (userBeingEdited || '').toLowerCase());
+            const tgtIsAdmin = !!tgt && (tgt.role === 'admin' || tgt.is_admin === true);
+            const mayDelete = admin && !isMe && (!tgtIsAdmin || isPrimaryAdmin());
+            deleteBtn.style.display = mayDelete ? 'block' : 'none';
           }
 
-          // Role selector: visible only to admins; preselect the target's role.
-          const roleField = el('profileRoleField');
-          if (roleField) {
-            roleField.style.display = admin ? 'block' : 'none';
-            if (admin) {
-              const tp = (state.profiles || []).find(p => (p.email || '').toLowerCase() === (userBeingEdited || '').toLowerCase());
-              el('profileRoleSelect').value = (tp && tp.role) ? tp.role : (tp && tp.is_admin ? 'admin' : 'member');
-            }
-          }
-
-          // Disable form if not allowed to edit
+          // Blanket form state FIRST. It walks every control including the role
+          // selector, so anything set before it gets overwritten — which is
+          // exactly how the role lock below used to be undone one line after
+          // it was applied.
           const form = el('form-edit-profile');
           if (form) {
             const canEdit = isMe || admin;
@@ -9207,9 +9218,31 @@
             });
           }
 
+          // Role selector: visible only to admins; preselect the target's role.
+          const roleField = el('profileRoleField');
+          const primary = isPrimaryAdmin();
+          const tp = (state.profiles || []).find(p => (p.email || '').toLowerCase() === (userBeingEdited || '').toLowerCase());
+          const targetIsAdmin = !!tp && (tp.role === 'admin' || tp.is_admin === true);
+          if (roleField) {
+            roleField.style.display = admin ? 'block' : 'none';
+            if (admin) {
+              const sel = el('profileRoleSelect');
+              // Only the primary account grants or removes admin. Hiding the
+              // option is cosmetic — the DB refuses the write either way — but
+              // an option that always fails is worse than no option.
+              const adminOpt = sel.querySelector('option[value="admin"]');
+              if (adminOpt) adminOpt.hidden = !primary;
+              sel.value = (tp && tp.role) ? tp.role : (tp && tp.is_admin ? 'admin' : 'member');
+              // Editing an existing admin's role is the primary's call too.
+              sel.disabled = targetIsAdmin && !primary;
+              const note = el('profileRoleNote');
+              if (note) note.hidden = primary || !targetIsAdmin;
+            }
+          }
+
           // The primary admin's role is locked: disable the selector and hide
           // the delete button, no matter who is viewing. (DB enforces it too.)
-          const isPrimary = (userBeingEdited || '').toLowerCase() === PRIMARY_ADMIN_EMAIL;
+          const isPrimary = (userBeingEdited || '').toLowerCase() === primaryAdminEmail();
           if (isPrimary) {
             el('profileRoleSelect').disabled = true;
             if (deleteBtn) deleteBtn.style.display = 'none';

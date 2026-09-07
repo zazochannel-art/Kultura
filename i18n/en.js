@@ -333,6 +333,7 @@ export default {
   "event.selector.aria": "Event in focus",
   "event.selector.label": "Active event",
   "settings.profile.role": "Role",
+  "role.primary_only": "Only the primary administrator account can change an administrator\u2019s role.",
   "role.admin": "Administrator",
   "team.no_dept": "No department",
   "gate.arrived_at": "Arrived {time}",

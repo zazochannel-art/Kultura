@@ -2831,6 +2831,121 @@ try {
     }
   }
 
+  // 4o3. Who may hand out the admin role.
+  //
+  // The role picker has always offered "Administrator" to every admin, and the
+  // profiles UPDATE policy lets any admin write any row — so an admin could
+  // promote anyone, demote another admin, or delete one. The database now
+  // reserves that for the primary account; these checks keep the UI from
+  // offering buttons the server will refuse.
+  {
+    const PRIMARY = 'boss@example.com';
+    const OTHER_ADMIN = 'admin2@example.com';
+    // A third admin who is neither the primary account nor the signed-in user.
+    // Without it the "an ordinary admin cannot touch an admin" checks could
+    // only aim at the primary's row — and that row is locked for everybody, so
+    // they passed for a reason that had nothing to do with the new rule.
+    const THIRD_ADMIN = 'admin3@example.com';
+    const PROFILES = [
+      { email: PRIMARY, full_name: 'Boss', role: 'admin', is_admin: true, department: 'Management' },
+      { email: OTHER_ADMIN, full_name: 'Al Doilea', role: 'admin', is_admin: true, department: 'Management' },
+      { email: THIRD_ADMIN, full_name: 'Al Treilea', role: 'admin', is_admin: true, department: 'Management' },
+      { email: 'staff@example.com', full_name: 'Om Obisnuit', role: 'staff', is_admin: false, department: 'Design' },
+    ];
+    const mkAdmin = async (asEmail) => {
+      const c = await browser.newContext({ viewport: { width: 430, height: 930 }, isMobile: true, hasTouch: true });
+      await c.route('**://*.supabase.co/**', (r) => {
+        const u = r.request().url();
+        const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+        if (u.includes('/functions/v1/health')) {
+          return J({ ok: true,
+            telegram: { configured: true, username: 'B', webhook_live: true, linked: 1, total: 1, preferred: true },
+            sms: { configured: true, provider: 'x' }, public_base_url: 'https://k.example',
+            // The server names the primary admin; the client must follow it
+            // rather than a constant of its own that could drift.
+            primary_admin: PRIMARY });
+        }
+        if (u.includes('/functions/v1/')) return J({ ok: true });
+        if (u.includes('/rest/v1/profiles')) return J(PROFILES);
+        if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'F', status: 'Activ', archived: false, is_sandbox: false }]);
+        if (u.includes('/rest/v1/')) return J([]);
+        return r.abort();
+      });
+      const p2 = await c.newPage();
+      await p2.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await p2.evaluate((email) => localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: { id: '00000000-0000-0000-0000-000000000000', email,
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString() },
+      })), asEmail);
+      await p2.reload({ waitUntil: 'domcontentloaded' });
+      await p2.waitForTimeout(2400);
+      await p2.evaluate(() => document.getElementById('splashScreen')?.remove());
+      return { c, p: p2 };
+    };
+    // Open the edit-profile modal for one teammate and read what it offers.
+    const openFor = async (pg, email) => {
+      await pg.evaluate((target) => {
+        // Drop the opener from a previous call first: a second element with the
+        // same id leaves getElementById returning the OLD one, so the modal
+        // would be re-read for the previous teammate and the check would pass
+        // or fail for the wrong reason.
+        document.getElementById('qaOpenHost')?.remove();
+        const host = document.createElement('div');
+        host.id = 'qaOpenHost';
+        host.innerHTML = `<button id="qaOpen" data-modal="edit-profile" data-edit-email="${target}" data-edit-name="X"></button>`;
+        document.body.appendChild(host);
+        host.querySelector('#qaOpen').click();
+      }, email);
+      await pg.waitForTimeout(400);
+      return pg.evaluate(() => {
+        const sel = document.getElementById('profileRoleSelect');
+        const opt = sel ? sel.querySelector('option[value="admin"]') : null;
+        const del = document.getElementById('deleteProfileBtn');
+        return {
+          adminOptionOffered: !!opt && !opt.hidden,
+          roleEditable: !!sel && !sel.disabled,
+          deleteOffered: !!del && del.style.display !== 'none',
+          noteShown: !!document.getElementById('profileRoleNote') && !document.getElementById('profileRoleNote').hidden,
+        };
+      });
+    };
+
+    try {
+      const boss = await mkAdmin(PRIMARY);
+      const bossOnAdmin = await openFor(boss.p, THIRD_ADMIN);
+      check('primary-admin-can-grant-the-admin-role', bossOnAdmin.adminOptionOffered, JSON.stringify(bossOnAdmin));
+      check('primary-admin-can-change-another-admin', bossOnAdmin.roleEditable, JSON.stringify(bossOnAdmin));
+      check('primary-admin-can-remove-another-admin', bossOnAdmin.deleteOffered, JSON.stringify(bossOnAdmin));
+      await boss.c.close();
+
+      const other = await mkAdmin(OTHER_ADMIN);
+      const otherOnAdmin = await openFor(other.p, THIRD_ADMIN);
+      check('ordinary-admin-is-not-offered-the-admin-role', !otherOnAdmin.adminOptionOffered, JSON.stringify(otherOnAdmin));
+      check('ordinary-admin-cannot-change-an-admin', !otherOnAdmin.roleEditable, JSON.stringify(otherOnAdmin));
+      check('ordinary-admin-cannot-remove-an-admin', !otherOnAdmin.deleteOffered, JSON.stringify(otherOnAdmin));
+      check('ordinary-admin-is-told-why', otherOnAdmin.noteShown, JSON.stringify(otherOnAdmin));
+
+      // Everything else an admin could do, they still can: this restricts one
+      // power, it does not demote them.
+      const otherOnStaff = await openFor(other.p, 'staff@example.com');
+      check('ordinary-admin-still-edits-ordinary-people', otherOnStaff.roleEditable, JSON.stringify(otherOnStaff));
+      check('ordinary-admin-still-removes-ordinary-people', otherOnStaff.deleteOffered, JSON.stringify(otherOnStaff));
+      await other.c.close();
+    } catch (e) {
+      for (const n of ['primary-admin-can-grant-the-admin-role', 'primary-admin-can-change-another-admin',
+        'primary-admin-can-remove-another-admin', 'ordinary-admin-is-not-offered-the-admin-role',
+        'ordinary-admin-cannot-change-an-admin', 'ordinary-admin-cannot-remove-an-admin',
+        'ordinary-admin-is-told-why', 'ordinary-admin-still-edits-ordinary-people',
+        'ordinary-admin-still-removes-ordinary-people']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`admin tier checks: ${e.message}`);
+    }
+  }
+
   // 4p. Numbered parking spots drawn on the venue photo.
   //
   // The zone answered "roughly where"; with 52 cars in one field that stopped
