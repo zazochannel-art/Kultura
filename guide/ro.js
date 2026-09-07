@@ -18,17 +18,19 @@ export default {
   ],
   navTip:
     'Apasă Ctrl-K (sau ⌘-K pe Mac, ori lupa din antet) ca să sari instant la ' +
-    'orice mașină, invitat, eveniment sau task, fără să cauți prin meniuri.',
+    'orice mașină, eveniment sau task, fără să cauți prin meniuri.',
 
   rolesTitle: 'Ce poți face, în funcție de rol',
   rolesNote:
     'Rolul ți-l dă un admin din pagina Echipa. Dacă un buton din ghid nu îți ' +
-    'apare pe ecran, aproape sigur rolul tău nu îl include — nu e o defecțiune.',
+    'apare pe ecran, aproape sigur rolul tău nu îl include — nu e o defecțiune. '
+    + 'Rolul de admin face excepție: îl dă și îl ia doar contul principal.',
   roles: [
     { name: 'member', can: 'Vede datele. Fără acțiuni de administrare.' },
     { name: 'gate', can: 'Doar ecranul porții. Aplicația pornește blocată acolo — potrivit pentru contul dat unui voluntar.' },
     { name: 'staff', can: 'Check-in, zone, aprobare înscrieri, listă neagră, anunțuri, feedback.' },
     { name: 'admin', can: 'Tot, plus SMS, backup, GDPR, votare și ștergeri.' },
+    { name: 'contul principal', can: 'Un singur cont, fixat în setările din baza de date. Doar el poate da sau lua rolul de admin și doar el poate șterge un alt admin — restul adminilor păstrează tot ce aveau. El însuși nu poate fi șters sau retrogradat.' },
   ],
 
   phases: [
@@ -91,7 +93,7 @@ export default {
         {
           title: 'Pregătești tabletele de la poartă',
           where: 'Poartă',
-          body: 'Pe fiecare dispozitiv de la intrare: deschizi Poartă, apeși pe 📍 numele porții și îl scrii („Poarta A", „Intrare VIP") ca să știi mai târziu pe unde a intrat fiecare mașină, apoi apeși butonul kiosk 🖥. Aplicația se blochează pe ecranul porții și ecranul nu se mai stinge.',
+          body: 'Pe fiecare dispozitiv de la intrare: deschizi Poartă și apeși butonul kiosk 🖥. Aplicația se blochează pe ecranul porții și ecranul nu se mai stinge.',
           tip: 'Ca să ieși din kiosk: apeși butonul roșu de kiosk din antet și confirmi. Alternativ, ții apăsat 1,5 secunde pe titlul „Poartă — Check-in".',
         },
         {
@@ -109,7 +111,7 @@ export default {
         {
           title: 'Check-in la poartă',
           where: 'Poartă',
-          body: 'Scanezi codul QR de pe pass (sau cauți după numărul de înmatriculare) → apare cardul mașinii → apeși Sosit. Mașinile deja sosite au buton Plecare, pentru când pleacă de pe teren. Zona se poate schimba direct din listă.',
+          body: 'Scanezi codul QR de pe pass (sau cauți după numărul de înmatriculare) → apare cardul mașinii → apeși Sosit. Sosirea e singurul lucru pe care îl face poarta: rândul unei mașini deja sosite arată ora la care a intrat, nu un buton. Zona se poate schimba direct din listă. Dacă ai marcat pe cineva din greșeală, îi pui statusul înapoi pe „Invitat" din fișa mașinii.',
           tip: 'Merge și fără internet. Check-in-urile se salvează pe dispozitiv și urcă singure când revine semnalul — pastila din antet arată câte așteaptă. Nu reinstala aplicația și nu goli datele cât timp mai sunt în așteptare.',
         },
         {

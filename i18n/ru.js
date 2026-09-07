@@ -994,6 +994,7 @@ export default {
   "ready.agenda": "Программа мероприятия пуста",
   "ready.zones": "У {n} из {total} машин нет зоны",
   "ready.capacity": "Не указано количество мест",
+  "ready.spots": "У {n} из {total} машин нет места на плане",
   "ready.no_plan": "У события нет плана — карта пустая",
   "ready.soon": "{name} — {when}: {list}",
   "ready.soon_cars": "ни одной машины",

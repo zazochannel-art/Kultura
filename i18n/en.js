@@ -994,6 +994,7 @@ export default {
   "ready.agenda": "The event schedule is empty",
   "ready.zones": "{n} of {total} cars have no zone",
   "ready.capacity": "No number of spots is set",
+  "ready.spots": "{n} of {total} cars have no spot on the plan",
   "ready.no_plan": "The event has no plan — the map is empty",
   "ready.soon": "{name} — {when}: {list}",
   "ready.soon_cars": "no cars",
