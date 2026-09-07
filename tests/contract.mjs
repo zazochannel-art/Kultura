@@ -109,9 +109,16 @@ async function main() {
   // Postgres grants EXECUTE to `public` by default, so every new function is
   // reachable at /rest/v1/rpc/<name> until someone revokes it. `prune_deleted_cars`
   // shipped that way and could empty the recycle bin for anyone with the key.
+  //
+  // Trigger functions are on this list too. Calling one directly errors out
+  // ("can only be called as a trigger"), so nothing was ever exposed through
+  // them — but two of them shipped without a revoke, and a rule nobody checks
+  // is a rule that decays. Triggers fire regardless of EXECUTE grants.
   for (const name of ['prune_deleted_cars', 'prune_activity_log', 'prune_rate_limits',
     'prune_client_errors', 'assign_entry_no', 'guard_frozen_entry_no',
-    'restore_car_unchecked', 'run_backup', 'resync_sequences']) {
+    'restore_car_unchecked', 'run_backup', 'resync_sequences',
+    'guard_admin_grants', 'guard_admin_deletes', 'protect_primary_admin',
+    'sync_profile_role', 'is_primary_admin']) {
     const r = await rest(`rpc/${name}`, { method: 'POST', body: '{}' });
     check(`anon-cannot-execute-${name}`, r.status >= 400, `status ${r.status}`);
   }
@@ -230,6 +237,9 @@ async function main() {
     ['import-participants', { rows: [] }],
     ['send-sms', { message: 'x', recipients: [] }],
     ['backup', {}],
+    // Restore reads a backup and writes rows back. It must never look at the
+    // body without a caller it can identify as an admin.
+    ['restore', { path: 'kultura-backup-nope.json', dry_run: true }],
   ]) {
     const r = await fn(name, { method: 'POST', body: JSON.stringify(payload) });
     check(`${name}-needs-authorization`, r.status === 401 || r.status === 403, `status ${r.status}`);
