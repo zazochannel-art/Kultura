@@ -675,6 +675,36 @@ const ROLE_RANK = { gate: 0, member: 0, staff: 1, admin: 2 };
   feedback, jurnal de erori.
 - **admin** — tot, plus SMS Center, backup/restaurare, GDPR, votare, jurnal de
   activitate, ștergeri în masă.
+- **contul principal** (`app_config.primary_admin`) — singurul care **dă și ia
+  rolul de admin**. Vezi mai jos.
+
+### Contul principal de administrator
+
+`app_config.primary_admin` ține un singur email. Acel cont e deasupra celorlalți
+admini prin trei lucruri, toate impuse în baza de date, nu în interfață:
+
+| Regulă | Unde |
+|---|---|
+| Nu poate fi șters și nu poate fi retrogradat | trigger `protect_primary_admin` |
+| **Doar el** poate da sau lua rolul de admin | trigger `guard_admin_grants` |
+| **Doar el** poate șterge un alt administrator | trigger `guard_admin_deletes` + funcția `admin-delete-user` |
+
+Restul adminilor păstrează tot ce aveau: șterg evenimente, campanii, profile
+obișnuite, folosesc SMS Center, backup, GDPR.
+
+Două note despre cum e construit:
+
+- **Scrierile fără utilizator trec.** Dacă nu există `auth.jwt() ->> 'email'`
+  (service role, `pg_cron`, o restaurare din backup, o sesiune SQL directă),
+  gărzile lasă scrierea să treacă. Altfel restaurarea din backup s-ar rupe, iar
+  cine ține cheia service role oricum are toată baza. `admin-delete-user`
+  șterge cu service role, deci repetă regula în cod — trigger-ul n-o poate
+  aplica acolo.
+- **Interfața doar oglindește regula.** Opțiunea „Administrator" e ascunsă
+  pentru ceilalți admini fiindcă un buton care eșuează mereu e mai rău decât
+  niciun buton — dar ascunderea nu protejează nimic. Serverul refuză oricum.
+  Emailul contului principal vine din `health` (admin-only); constanta din
+  `app.js` e doar rezervă pentru cazul în care `health` n-a răspuns încă.
 
 ## Modelul de securitate
 
@@ -694,8 +724,9 @@ sensibil trece prin RLS sau printr-o edge function cu service role.
 
 ### Despre avertismentele Supabase advisor
 
-Funcțiile `is_team_member()`, `is_staff_or_admin()`, `is_admin_user()` și
-`current_email()` apar ca „SECURITY DEFINER executabile public". **Este
+Funcțiile `is_team_member()`, `is_staff_or_admin()`, `is_admin_user()`,
+`is_primary_admin()` și `current_email()` apar ca „SECURITY DEFINER executabile
+public". **Este
 intenționat** — sunt folosite *în interiorul politicilor RLS*, deci trebuie să
 rămână executabile de `anon`/`authenticated`. Revocarea lor strică toate
 interogările protejate (s-a încercat o dată, a stricat aplicația).

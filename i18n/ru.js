@@ -333,6 +333,7 @@ export default {
   "event.selector.aria": "Текущее мероприятие",
   "event.selector.label": "Активное событие",
   "settings.profile.role": "Роль",
+  "role.primary_only": "Менять роль администратора может только главный администратор.",
   "role.admin": "Администратор",
   "team.no_dept": "Без отдела",
   "gate.arrived_at": "Прибыл {time}",

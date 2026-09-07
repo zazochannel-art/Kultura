@@ -273,6 +273,34 @@ async function main() {
       r2.status === 403, `status ${r2.status}`);
   }
 
+  // Handing out the admin role.
+  //
+  // The UI hides the option from everyone but the primary account, and hiding
+  // a <select> protects nothing: the anon key ships in the page, so anyone can
+  // aim the same write at the API by hand. These assert the refusal — the only
+  // thing that actually holds.
+  {
+    const r = await rest('profiles?email=eq.nobody%40example.com', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify({ role: 'admin', is_admin: true }),
+    });
+    // RLS gives an anonymous PATCH nothing to update — never a promoted row.
+    check('anon-cannot-hand-out-the-admin-role',
+      r.status === 401 || r.status === 403 || (Array.isArray(r.body) && r.body.length === 0),
+      `status ${r.status}, ${JSON.stringify(r.body).slice(0, 80)}`);
+
+    // Removing an administrator goes through this function, and it must not
+    // even look at the body without a caller it can identify.
+    const d = await fn('admin-delete-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'nobody@example.com' }),
+    });
+    check('admin-delete-user-needs-a-real-caller',
+      d.status === 401 || d.status === 403, `status ${d.status}`);
+  }
+
   // ---------------------------------------------------------------------------
   const failed = checks.filter(c => !c.ok);
   console.log(`\n${checks.length - failed.length}/${checks.length} passed`);

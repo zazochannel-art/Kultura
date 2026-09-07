@@ -5307,6 +5307,8 @@ button.notify-badge:disabled{ opacity:.55; cursor:default; }
 /* The 24h and the 2h reminder are two different messages. Unlabelled
    textareas stacked under one checkbox gave no way to tell which was which. */
 .sms-tmpl-label{ margin:10px 0 4px; color:var(--text-dim); font-size:12px; font-weight:600; }
+/* Says why a control is disabled, next to the control. */
+.field-note{ margin-top:6px; color:var(--text-dim); font-size:12px; line-height:1.45; }
 
 .chan-note{
   padding:10px 12px; border-radius:12px; margin:0 0 14px;
