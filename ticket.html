@@ -17,8 +17,16 @@
     .t-head{ padding:22px 24px; background:linear-gradient(120deg,#3b82f6,#8b5cf6); text-align:center; }
     .t-head .brand{ font-weight:900; letter-spacing:.14em; font-size:13px; opacity:.9; }
     .t-head .ev{ font-size:18px; font-weight:800; margin-top:4px; }
+    /* When and where. A pass that names only the event sends people looking it
+       up somewhere else on the morning they need it least. */
+    .t-head .when{ font-size:13px; font-weight:600; margin-top:5px; opacity:.9; }
     .t-body{ padding:24px; }
     .t-name{ font-size:24px; font-weight:800; text-align:center; }
+    /* The entry number is what the gate calls out and what the confirmation
+       page already shows. The pass was the one place it was missing. */
+    .t-eno-wrap{ text-align:center; margin-bottom:8px; }
+    .t-eno{ display:inline-block; padding:4px 13px; border-radius:999px; background:var(--elev);
+            border:1px solid var(--border); font-size:15px; font-weight:800; }
     .t-sub{ text-align:center; color:var(--dim); font-size:14px; margin-top:4px; }
     .t-status{ display:inline-flex; align-items:center; gap:6px; margin:14px auto 0; padding:6px 14px;
                border-radius:999px; font-size:13px; font-weight:700; }
@@ -77,17 +85,39 @@
                '<div class="t-hint">Programul, zona și confirmarea participării, direct în Telegram.</div>';
       }
 
+      // Day and month only. `starts_at` is built from a date picker with the
+      // time forced to local midnight, so an hour printed here would be
+      // invented, not read.
+      function evDay(iso){
+        if(!iso) return '';
+        var d = new Date(iso);
+        if(isNaN(d)) return '';
+        try { return d.toLocaleDateString('ro-RO', { day:'numeric', month:'long' }); }
+        catch(e){ return ''; }
+      }
+
+      // Zone and spot together, the way the app and the gate screen say it —
+      // the zone alone still leaves somebody hunting for their bay.
+      function whereLine(d){
+        var z = String(d.zone || '').trim();
+        if(!z) return '';
+        return d.spot_no == null ? z : z + ' · Locul ' + d.spot_no;
+      }
+
       function render(d){
         var carLine = [d.brand, d.model].filter(Boolean).join(' ');
+        var when = [evDay(d.event_starts_at), String(d.event_location || '').trim()].filter(Boolean).join(' · ');
         root.innerHTML =
-          '<div class="t-head"><div class="brand">KULTURA</div>'+(d.event?'<div class="ev">'+esc(d.event)+'</div>':'')+'</div>'+
+          '<div class="t-head"><div class="brand">KULTURA</div>'+(d.event?'<div class="ev">'+esc(d.event)+'</div>':'')+
+            (when?'<div class="when">'+esc(when)+'</div>':'')+'</div>'+
           '<div class="t-body">'+
+            (d.entry_no!=null?'<div class="t-eno-wrap"><span class="t-eno">#'+esc(d.entry_no)+'</span></div>':'')+
             '<div class="t-name">'+esc(d.name||'—')+'</div>'+
             (carLine?'<div class="t-sub">'+esc(carLine)+'</div>':'')+
             '<div class="t-status-wrap"><span class="t-status '+(d.arrived?'on':'off')+'">'+(d.arrived?'🟢 A sosit':'🎫 Bilet valid')+'</span></div>'+
             '<div class="qr" id="qr"></div>'+
             '<div class="t-hint">Arată acest cod la intrare</div>'+
-            '<div class="t-rows">'+row('Placă', d.plate)+row('Categorie', d.category)+row('Zonă', d.zone)+'</div>'+
+            '<div class="t-rows">'+row('Placă', d.plate)+row('Categorie', d.category)+row('Zonă', whereLine(d))+'</div>'+
             tgBlock(d)+
           '</div>';
         try {

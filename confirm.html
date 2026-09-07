@@ -70,7 +70,12 @@
       padding:28px 22px;backdrop-filter:blur(20px);box-shadow:0 24px 60px rgba(0,0,0,.4);
     }
     h1{font-size:23px;font-weight:900;letter-spacing:-.5px;margin-bottom:6px;text-align:center}
-    .sub{color:var(--text-dim);font-size:14px;text-align:center;margin-bottom:20px}
+    .sub{color:var(--text-dim);font-size:14px;text-align:center;margin-bottom:0}
+    /* When and where. `rsvp` has always sent both; asking somebody „are you
+       coming?" without naming the day made them go and look it up. */
+    .ev-when{color:var(--text);font-size:14px;font-weight:700;text-align:center;margin-top:4px}
+    .ev-head{margin-bottom:20px}
+    .ev-head.blank{margin-bottom:0}
     .car{
       display:flex;align-items:center;gap:14px;padding:16px;margin-bottom:20px;
       background:var(--fill);border:1px solid var(--border);border-radius:16px;
@@ -117,7 +122,10 @@
     <div class="brand"><img src="logo.png" alt="Kultura"></div>
     <div class="card">
       <h1 id="title">Confirmă participarea</h1>
-      <div class="sub" id="evName"></div>
+      <div class="ev-head">
+        <div class="sub" id="evName"></div>
+        <div class="ev-when" id="evWhen"></div>
+      </div>
 
       <div class="car" id="carBox" style="display:none;">
         <div class="eno" id="carNo" style="display:none;"></div>
@@ -155,6 +163,21 @@
       m.textContent = text || '';
       m.className = 'msg' + (isErr ? ' err' : '');
     };
+
+    // Day and month, plus the place. The event's `starts_at` comes from a
+    // date picker that forces local midnight, so printing an hour here would
+    // be inventing one.
+    function eventWhen(ev) {
+      if (!ev) return '';
+      let day = '';
+      if (ev.starts_at) {
+        const d = new Date(ev.starts_at);
+        if (!isNaN(d)) {
+          try { day = d.toLocaleDateString('ro-RO', { day: 'numeric', month: 'long' }); } catch (_) {}
+        }
+      }
+      return [day, String(ev.location || '').trim()].filter(Boolean).join(' · ');
+    }
 
     function showState(answer, at) {
       const box = el('state');
@@ -196,6 +219,9 @@
         if (c.entry_no) { el('carNo').textContent = '#' + c.entry_no; el('carNo').style.display = 'flex'; }
         el('carBox').style.display = 'flex';
         el('evName').textContent = (d.event && d.event.title) || '';
+        el('evWhen').textContent = eventWhen(d.event);
+        document.querySelector('.ev-head').classList
+          .toggle('blank', !el('evName').textContent && !el('evWhen').textContent);
         el('askBox').style.display = 'block';
         if (d.rsvp) showState(d.rsvp, d.rsvp_at);
       } catch (_) {

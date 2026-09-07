@@ -109,8 +109,8 @@ veche în cache.
 | `vote.html` | Votare „Best Car" + clasament live |
 | `agenda.html` | Programul evenimentului |
 | `feedback.html` | Feedback post-eveniment (stele + comentariu) |
-| `confirm.html` | „Vii la eveniment?" — link personal semnat, trimis în memento |
-| `ticket.html` | Biletul participantului (QR de check-in) **și** butonul de conectare la Telegram |
+| `confirm.html` | „Vii la eveniment?" — link personal semnat, trimis în memento. Spune și ziua și locul, altfel întrebarea n-are răspuns |
+| `ticket.html` | Biletul participantului: numărul de intrare, ziua și locul evenimentului, zona **și** locul numerotat, QR de check-in, plus butonul de conectare la Telegram |
 
 ### `plan.html` — planul desenat al terenului
 
@@ -714,7 +714,7 @@ fel, dar **își verifică singure apelantul** înăuntru (`is_admin_user()` /
 | `plate-check` | nu | Formularul public: spune doar dacă placa e cunoscută/blocată |
 | `vote` | nu | Votare publică + clasament. Max 12 voturi noi/oră/IP. Întoarce și `entry_no` + clasa |
 | `event-info` | nu | Evenimentul curent + agenda, pentru paginile publice. Întoarce și `waiver_text` și `spots_left` |
-| `ticket` | nu | Bilet/pass |
+| `ticket` | nu | Bilet/pass. Întoarce și `entry_no`, `spot_no`, `event_starts_at` și `event_location` — `event` rămâne string, ca biletele deja servite din cache să nu se rupă |
 | `rsvp` | nu | „Vii la eveniment?" pentru `confirm.html`. Token HMAC pe id-ul mașinii; un „nu" eliberează locul și promovează prima înscriere de pe lista de așteptare |
 | `telegram` | nu² | Webhook-ul botului (`/start <id>-<token>` leagă chat-ul de mașină), configurarea de către admin, **linkurile de invitație** (`action:'invite'`, staff) și mesajele pe care sistemul le trimite singur (`action:'notify'`). Are **două fișiere**: `index.ts` și `map-png.ts` — decodor + encoder PNG, care pune cercul peste harta desenată de aplicație |
 | `health` | da | Starea canalelor pentru admin: Telegram (conectat? webhook viu? câți legați?), SMS (configurat?), adresa publică. Booleeni și numere, niciodată secretele |
