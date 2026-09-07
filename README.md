@@ -749,8 +749,8 @@ fel, dar **își verifică singure apelantul** înăuntru (`is_admin_user()` /
 | `rsvp` | nu | „Vii la eveniment?" pentru `confirm.html`. Token HMAC pe id-ul mașinii; un „nu" eliberează locul și promovează prima înscriere de pe lista de așteptare |
 | `telegram` | nu² | Webhook-ul botului (`/start <id>-<token>` leagă chat-ul de mașină), configurarea de către admin, **linkurile de invitație** (`action:'invite'`, staff) și mesajele pe care sistemul le trimite singur (`action:'notify'`). Are **două fișiere**: `index.ts` și `map-png.ts` — decodor + encoder PNG, care pune cercul peste harta desenată de aplicație |
 | `health` | da | Starea canalelor pentru admin: Telegram (conectat? webhook viu? câți legați?), SMS (configurat?), adresa publică. Booleeni și numere, niciodată secretele |
-| `backup` | nu¹ | Export JSON a 15 tabele în bucket-ul `backups`. Lista `TABLES` **trebuie să rămână în pas cu `PK` din `restore`** — un tabel salvat dar absent acolo se sare în tăcere la restaurare |
-| `restore` | da | Restaurare **aditivă** din backup (admin) |
+| `backup` | nu¹ | Export JSON a 17 tabele în bucket-ul `backups`, **plus o oglindă a fișierelor încărcate** în `backups/assets/<bucket>/`. Lista `TABLES` **trebuie să rămână în pas cu `PK` din `restore`** — un tabel salvat dar absent acolo se sare în tăcere la restaurare |
+| `restore` | da | Restaurare **aditivă** din backup (admin). Cu `assets:true` repune și fișierele lipsă din oglindă — niciodată peste unul existent |
 | `gdpr-delete` | da | Ștergerea datelor unei persoane (admin) |
 | `photo-sweep` | da | Șterge pozele fără referință în DB (admin) |
 | `send-push` | nu¹ | Notificări push |
@@ -895,11 +895,33 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     întoarcere. Când adaugi un tabel în `TABLES` din funcția `backup`, adaugă-l
     și în `PK` din `restore`, altfel se salvează dar nu se mai restaurează.
     `app_config` rămâne exclus intenționat: conține secrete.
-11. **`run_backup()` nu citește răspunsul** funcției edge, deci cron-ul
-    raportează „succeeded" și când backupul a eșuat. Singura dovadă reală e un
-    fișier recent — de aia există banda de stare din **Setări → Copii de
-    siguranță**. Nu o scoate fără să pui altceva în loc.
-12. **Toată aplicația e scopată pe un eveniment.** `matchesActiveEvent()`
+11. **Singura dovadă că backupul merge e un fișier recent.** De aia există
+    banda de stare din **Setări → Copii de siguranță**, care se uită la
+    vechimea celui mai nou fișier. Nu o scoate fără să pui altceva în loc.
+    `integration_runs` **nu** e acel altceva: vezi punctul 13.
+12. **Backupul acoperă și fișierele, nu doar tabelele.** `zone_plans` lipsea
+    din `TABLES` până la v5 — ține planurile desenate (237 de locuri puse de
+    mână doar pentru evenimentul activ), iar `events.plan_id` e cheie străină
+    spre el. Cum `events` *era* salvat, o restaurare producea evenimente care
+    arătau spre planuri inexistente. Separat, **nicio poză nu era salvată**:
+    fotografia terenului din bucket-ul `maps`, pe care e desenată toată harta,
+    nu exista nicăieri în backup.
+
+    Fișierele se oglindesc în `backups/assets/<bucket>/`, nu se copiază zilnic:
+    30 de copii datate ale acelorași ~19 MB n-ar merita, iar scenariul de
+    apărat e „s-a pierdut bucket-ul", nu „vreau avatarul de marțea trecută".
+    Curățarea backup-urilor vechi filtrează după prefixul `kultura-backup-`,
+    deci nu atinge oglinda.
+13. **`pg_net` dă 5 secunde unui `http_post`, iar răspunsurile le șterge după
+    6 ore** (`pg_net.ttl`). Amândouă contau:
+    - Backupul depășea 5s, deci apelul de noapte înregistra mereu un timeout în
+      loc de un cod de status — și funcția edge era tăiată în mijloc. Acum
+      `run_backup()` cere `timeout_milliseconds := 120000`.
+    - `settle_integration_run` decontează backupul la **24 de ore** după apel,
+      când răspunsul e demult șters. Verdictul ieșea invariabil „fără răspuns",
+      indiferent dacă backupul mersese. Acum, peste TTL, scrie „verdict
+      expirat" și **nu** mai crește `fail_streak`: necunoscut nu e eșec.
+14. **Toată aplicația e scopată pe un eveniment.** `matchesActiveEvent()`
     filtrează listele, iar formularele preselectează evenimentul în lucru, deci
     ce se creează se leagă singur de el. Implicit: evenimentul „Activ", altfel
     cel mai recent neterminat, altfel toate. Două reguli nu se ating:
@@ -907,10 +929,10 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     de dinaintea scopării — ascunderea lor ar arăta ca pierdere de date), iar
     un eveniment finalizat **rămâne accesibil** din selector. Nu transforma
     filtrarea în ștergere.
-13. **Înscrierile publice primesc `event_id` în funcția `submit`**, nu din
+15. **Înscrierile publice primesc `event_id` în funcția `submit`**, nu din
     client: endpointul e public, deci un `event_id` trimis de apelant nu e de
     încredere. Se rezolvă server-side din evenimentul marcat „Activ".
-14. **Numărul de concurs (`cars.entry_no`) se atribuie de trigger**, nu din
+16. **Numărul de concurs (`cars.entry_no`) se atribuie de trigger**, nu din
     client. `assign_entry_no()` rulează BEFORE INSERT și ia un
     `pg_advisory_xact_lock` pe eveniment, exact ca rate-limit-ul: două mașini
     înscrise în aceeași secundă ar primi altfel același număr. Unicitatea e
@@ -918,25 +940,25 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     de la 1 la fiecare eveniment. Nu calcula `max(entry_no)+1` în JS și nu
     scrie câmpul la INSERT — triggerul respectă o valoare dată explicit, deci
     o valoare greșită din client rămâne greșită.
-15. **Jurnalul de jurizare e per jurat, nu per mașină.** `judge_scores` are
+17. **Jurnalul de jurizare e per jurat, nu per mașină.** `judge_scores` are
     cheie unică pe `(car_id, judge_email)` și se scrie prin upsert, deci un
     jurat care se răzgândește își corectează nota în loc să adauge una nouă.
     Media afișată e media juraților, iar egalitățile se arată **ca egalități**
     (toți cu media maximă primesc 🏆) — nu le rezolva din ordinea sortării,
     decizia e a panelului. Tabelul e vizibil doar pentru `is_staff_or_admin()`.
-16. **Capacitatea nu închide înscrierile.** Când `events.reg_capacity` e atinsă,
+18. **Capacitatea nu închide înscrierile.** Când `events.reg_capacity` e atinsă,
     `submit` marchează înscrierea `waitlist`, nu o respinge — formularul rămâne
     deschis, iar echipa promovează manual din coadă. Numărătoarea se face
     **server-side** (mașini + înscrieri neprocesate), pentru că `spots_left`
     din `event-info` e doar informativ și poate fi vechi în client. `0` sau gol
     în formular înseamnă *fără limită*, nu *zero locuri* — de aia se salvează
     ca `null`.
-17. **Acordul de participare se afișează doar dacă `events.waiver_text` există.**
+19. **Acordul de participare se afișează doar dacă `events.waiver_text` există.**
     Când există, semnătura (`waiver_name` + `waiver_at`) e obligatorie și se
     stochează pe înscriere — e singura urmă că omul a citit textul. Nu muta
     validarea exclusiv în client: câmpul se scrie în `submit`, iar textul vine
     din eveniment prin `event-info`.
-18. **Ștergerea unei mașini e „soft".** Se pune `deleted_at`; rândul rămâne 30
+20. **Ștergerea unei mașini e „soft".** Se pune `deleted_at`; rândul rămâne 30
     de zile și abia apoi îl șterge `prune_deleted_cars()`. Motivul e în date:
     jurnalul de activitate arată **1.670 de mașini șterse manual** de o singură
     persoană în două zile, în cicluri import → nu-mi place → șterg tot →
@@ -951,27 +973,27 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
       Un rând din coș își **păstrează** numărul scris pe el, dar nu blochează un
       alt rând viu să-l aibă.
     Singura ștergere definitivă rămasă e „Golește definitiv" din coș.
-19. **Reimportul readuce mașina, nu o duplică.** `import-participants` compară
+21. **Reimportul readuce mașina, nu o duplică.** `import-participants` compară
     și cu rândurile din coș; o potrivire aflată acolo e restaurată prin
     `restore_car_unchecked()`. Asta e ceea ce face ca un ciclu ștergere →
     reimport să nu renumeroteze lista de start. `restore_car()` e același lucru
     cu verificarea de permisiune deasupra — nu duplica logica în client.
-20. **Lista de start înghețată e o garanție, nu o etichetă.** Cu
+22. **Lista de start înghețată e o garanție, nu o etichetă.** Cu
     `events.entries_frozen`, triggerul `guard_frozen_entry_no` **refuză** orice
     schimbare de `entry_no` pentru o mașină vie din acel eveniment. Mașinile noi
     primesc numere în continuare (cineva ajunge mereu târziu), iar o mașină
     scoasă din coș poate fi renumerotată — nu era pe lista printată oricum.
-21. **Tokenurile din linkuri sunt HMAC, nu plăci.** `confirm.html` și invitația
+23. **Tokenurile din linkuri sunt HMAC, nu plăci.** `confirm.html` și invitația
     de Telegram folosesc `HMAC(link_secret, '<scop>:<car_id>')`, trunchiat la 24
     de caractere hex, comparat în timp constant. Placa e scrisă pe mașină: cu ea
     ca „cheie" (cum face `ticket`), un trecător ar putea anula participarea
     cuiva. **Construcția trebuie să rămână identică** în `rsvp`, `telegram` și
     `send-sms` — dacă diverge, toate linkurile aflate în circulație mor.
-22. **Un „nu vin" mișcă lista de așteptare o singură dată.** Promovarea se face
+24. **Un „nu vin" mișcă lista de așteptare o singură dată.** Promovarea se face
     doar la trecerea în `no`, nu la fiecare apăsare, altfel un participant
     indecis ar plimba toată coada înainte. Promovarea duce în `pending`, nu în
     aprobat: echipa tot decide, doar că nu mai trebuie să observe locul liber.
-23. **Nu citi și nu scrie `app_config` din client.** Tabelul are RLS activ
+25. **Nu citi și nu scrie `app_config` din client.** Tabelul are RLS activ
     **fără nicio politică**, intenționat: conține secrete. Din browser nu
     întorci nici măcar o eroare — primești o listă goală, deci codul pare că
     merge și tace. Exact așa s-a stricat prima versiune a panoului de Telegram:
@@ -983,7 +1005,7 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     ascunde defectul. Verificarea `telegram-state-comes-from-function` întoarce
     listă goală de acolo, tocmai ca panoul să fie obligat să afle totul din
     funcție.
-24. **Un bot de Telegram nu poate scrie primul.** Poate răspunde doar într-un
+26. **Un bot de Telegram nu poate scrie primul.** Poate răspunde doar într-un
     chat pe care persoana l-a deschis ea. Deci canalul nu există până când
     participanții **își deschid linkul personal** — iar prima versiune livrată
     n-avea nicio cale de a împărți acele linkuri: botul era conectat, zero
@@ -993,13 +1015,13 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     e semnat cu `link_secret`, care stă în `app_config`.
     Când adaugi funcții de mesagerie, întreabă-te întâi *cum ajunge omul în
     canal*, nu doar *cum trimitem*.
-25. **Un eveniment de probă nu are voie să ajungă în paginile publice.**
+27. **Un eveniment de probă nu are voie să ajungă în paginile publice.**
     `events.is_sandbox` e exclus în `submit` și `event-info` *înainte* de orice
     rezolvare — inclusiv înaintea unui `?event=<id>` din URL. Altfel un QR de pe
     un afiș, cu id-ul schimbat, ar depune înscrieri reale în evenimentul pe care
     cineva îl folosește ca să încerce lucruri. `wipe_sandbox_event()` refuză să
     atingă un eveniment care nu e marcat sandbox.
-26. **Ce nu se poate pune în coada offline.** Coada rejoacă un `update` mai
+28. **Ce nu se poate pune în coada offline.** Coada rejoacă un `update` mai
     târziu, deci merge doar pentru scrieri care rămân corecte peste timp:
     starea unei mașini, zona, câmpuri de pe un rând existent. **Nu** merge
     pentru aprobarea unei înscrieri (baza atribuie numărul de concurs — rejucat
@@ -1007,7 +1029,7 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     restaurarea din coș (e un RPC), nici pentru revendicarea unui task (doi
     oameni pot lua același task; decizia asta e mai veche și rămâne). Astea
     spun clar „ai nevoie de conexiune" prin `requireOnline()`.
-27. **O funcție SQL nouă e publică până o închizi tu.** Postgres acordă implicit
+29. **O funcție SQL nouă e publică până o închizi tu.** Postgres acordă implicit
     EXECUTE lui `public`, iar în Supabase asta înseamnă că oricine are cheia din
     pagină o poate apela prin `/rest/v1/rpc/<nume>`. `prune_deleted_cars()` a
     fost livrată așa: **un vizitator nelogat putea goli definitiv coșul de
@@ -1017,7 +1039,7 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     `revoke all ... from public, anon, authenticated`. Excepțiile sunt tot cele
     din regula 1 (helperii de RLS) plus ce apelezi explicit prin `rpc()`.
     Verifică după fiecare migrare cu advisor-ul Supabase — el a prins-o, nu eu.
-28. **Orice cale de mesaj trebuie să ducă un `car_id`.** Telegram-ul se
+30. **Orice cale de mesaj trebuie să ducă un `car_id`.** Telegram-ul se
     rezolvă din el: fără car_id, `send-sms` n-are cum să găsească chatul și
     mesajul poate pleca doar ca SMS. Trei căi au fost livrate așa — campania
     din SMS Center, SMS-ul la aprobare și cel de bun venit — deci treceau
@@ -1025,12 +1047,12 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     A doua parte a aceleiași greșeli: toate trei ieșeau devreme dacă lipsea
     telefonul. Un participant conectat pe Telegram e de contactat chiar fără
     număr; condiția corectă e „telefon **sau** chat", nu „telefon".
-29. **`send-sms` trimite pe două canale.** Numele a rămas pentru că îl apelează
+31. **`send-sms` trimite pe două canale.** Numele a rămas pentru că îl apelează
     clientul, două joburi cron și două funcții din bază. Nu-l face să pice cu
     `no_provider` când există bot de Telegram: aici **nu a existat niciodată** un
     furnizor SMS configurat, deci Telegram e adesea singurul canal care chiar
     livrează.
-30. **O secțiune goală nu e gratis.** Modulul „Invitați VIP" (tabel `vip_guests`,
+32. **O secțiune goală nu e gratis.** Modulul „Invitați VIP" (tabel `vip_guests`,
     două taburi, două modale, listă proprie) a trăit cu **zero rânduri** de la
     început. Nu deranja pe nimeni în cod, dar ocupa un loc în meniul pe care îl
     vede și un voluntar de la poartă, plus un `select` și un abonament realtime
@@ -1045,7 +1067,7 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     Tabelul `vip_guests` a rămas în bază și în backup: scoaterea din meniu nu
     șterge date. Coloanele `cars.vip_arrived` / `vip_arrived_at` erau citite doar
     de modulul scos, deci nu se mai cer la fiecare încărcare de mașini.
-31. **Dacă o stare se poate seta din UI, trebuie și citită înapoi la pornire.**
+33. **Dacă o stare se poate seta din UI, trebuie și citită înapoi la pornire.**
     Coada de înscrieri are trei stări — `pending`, `hold`, `waitlist` — dar
     `loadData()` cerea doar primele două. „Pe lista de așteptare" scria în bază,
     dădea toast, desena tabul… și înscrierea dispărea la următoarea pornire.
@@ -1060,12 +1082,12 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     însemnau același lucru. Acum: „Amână" (amânată, decizi mai târziu) vs
     „Pe lista de așteptare" (evenimentul e plin).
 
-32. **Funcțiile edge nu sunt în repo.** Trăiesc doar în Supabase; `git` nu le
+34. **Funcțiile edge nu sunt în repo.** Trăiesc doar în Supabase; `git` nu le
     vede. Când modifici una, singura urmă rămâne aici, în README, și în
     versiunea funcției din dashboard. Înainte s-o rescrii, citește-o cu
     `get_edge_function` — altfel suprascrii o schimbare pe care n-o vezi în
     diff.
-33. **Meniul botului e o promisiune.** `setMyCommands` afișează comenzile în
+35. **Meniul botului e o promisiune.** `setMyCommands` afișează comenzile în
     butonul albastru „Menu"; Telegram nu verifică dacă botul le și
     implementează. O comandă listată dar netratată cădea până acum pe ramura
     „orice alt mesaj" și răspundea cu fișa mașinii, ca și cum ar fi mers.
@@ -1075,7 +1097,7 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     E deliberat tolerant la eșec: dacă `setMyCommands` pică, setup-ul nu pică
     — un bot care livrează fără meniu tot livrează.
 
-34. **Un câmp obligatoriu se cere unde omul e deja acolo.** Zona era editabilă
+36. **Un câmp obligatoriu se cere unde omul e deja acolo.** Zona era editabilă
     în fișa mașinii, dar nimic n-o cerea vreodată — rezultatul măsurat: 47 din
     52 de mașini fără zonă și 17 atribuiri de zonă în toată viața aplicației.
     Acum aprobarea unei înscrieri o cere, fiindcă ăsta e singurul moment în
@@ -1085,18 +1107,18 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     Retro); pentru Performance, Drift, Supercar, German ar însemna să ghicim
     planul de parcare al organizatorului. O hartă categorie→zonă se poate face,
     dar o alege el, nu noi.
-35. **`events.date` e text, `events.starts_at` e adevărul.** `date` e scris de
+37. **`events.date` e text, `events.starts_at` e adevărul.** `date` e scris de
     om („23 - 24 August 2025"), `starts_at` e ce citesc reminderele,
     numărătoarea inversă și fereastra de confirmare. Poate fi null — și atunci
     toate trei sar peste eveniment **în tăcere**, ceea ce arată exact ca „n-a
     fost nimic de trimis". Lista de pregătire o spune acum pe față.
-36. **Randează după ce ai pus toată starea, nu după prima felie.**
+38. **Randează după ce ai pus toată starea, nu după prima felie.**
     `renderReadyList()` era chemat imediat după `state.cars`, înainte de
     `state.events` și `state.profiles` — deși citește evenimentul activ din
     primul și rolul din al doilea. La pornire la rece răspundea din nimic.
     Mutat după toate atribuirile, împreună cu `renderTgFunnel()`.
 
-37. **Ce se poate verifica la Telegram fără să deranjezi pe cineva.** Marcajul
+39. **Ce se poate verifica la Telegram fără să deranjezi pe cineva.** Marcajul
     HTML e validat de API **înainte** de căutarea chatului: trimite mesajul
     către un `chat_id` inexistent și citește descrierea erorii —
     `can't parse entities` înseamnă marcaj stricat, `chat not found` înseamnă
@@ -1104,7 +1126,7 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     un om real. (Toate cele trei formate — fișă, program, bun venit — au fost
     verificate așa.)
 
-38. **Ce nu se folosește se scoate, dar întâi se numără.** Trei funcții au
+40. **Ce nu se folosește se scoate, dar întâi se numără.** Trei funcții au
     ieșit odată, fiecare cu cifra ei din producție:
     * **Check-out la poartă** — `left_at` null pe toate cele 54 de rânduri care
       au existat vreodată. 18 mașini au sosit, 0 au plecat.
@@ -1116,13 +1138,13 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     Coloanele rămân în bază: scoaterea din interfață nu șterge date.
     `statusKey` încă recunoaște cuvântul „plecat", ca un backup restaurat să se
     randeze în loc să cadă.
-39. **Un raport de succes trebuie să poată fi citit fără cifrele de lângă el.**
+41. **Un raport de succes trebuie să poată fi citit fără cifrele de lângă el.**
     O campanie care ajungea la 1 din 52 se salva ca `sent` — verde în istoric,
     identică cu una care chiar a plecat. Acum: `partial` când o parte a ajuns,
     `error` când n-a ajuns nimic, plus un avertisment **înainte** de trimitere
     care spune câți pot primi. Un număr de telefon nu e un canal cât timp nu
     există furnizor SMS.
-40. **O stare tranzitorie are nevoie de cineva care s-o închidă.** Anularea unei
+42. **O stare tranzitorie are nevoie de cineva care s-o închidă.** Anularea unei
     campanii scria `cancelling` și se baza pe bucla de trimitere s-o observe
     între loturi — dar bucla se terminase deja, ceea ce e cazul obișnuit, o
     campanie durând secunde. Rândul rămânea așa la nesfârșit (#3, din 20
@@ -1130,30 +1152,30 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     programat, și închide orice campanie rămasă în `sending`/`cancelling` de
     peste 30 de minute, lăsând urma în `delivery_report`.
 
-41. **O poziție pe o imagine se ține în procente, nu în pixeli.** Locurile de
+43. **O poziție pe o imagine se ține în procente, nu în pixeli.** Locurile de
     parcare sunt puncte pe fotografia locației, iar aceeași hartă se citește pe
     telefon, pe laptop și pe proiector. Pixelii ar muta planul de pe asfalt la
     prima schimbare de lățime. Valorile se limitează la 0–100 și la citire, nu
     doar la scriere: un rând stricat în tabel n-are voie să scoată un pin în
     afara imaginii, unde nimeni nu-l mai poate apuca.
-42. **Unicitatea locului e treaba bazei, nu a interfeței.** Două mașini pe
+44. **Unicitatea locului e treaba bazei, nu a interfeței.** Două mașini pe
     același loc înseamnă doi șoferi trimiși pe aceeași bucată de asfalt.
     `cars_one_car_per_spot` e un index unic parțial pe
     `(event_id, lower(zone), spot_no)`, doar pentru rândurile vii cu loc setat —
     deci majoritatea neașezată nu e afectată, iar planul de luna trecută nu
     blochează luna asta. Clientul doar traduce eroarea 23505 într-un mesaj.
-43. **Ce nu s-a făcut, deliberat: atribuirea automată la poartă.** Ar fi firească
+45. **Ce nu s-a făcut, deliberat: atribuirea automată la poartă.** Ar fi firească
     — scanezi, primește locul următor — dar check-in-ul trece prin coada
     offline, deci locul ar trebui pus și el în coadă, iar indexul de unicitate
     s-ar aplica abia la golire, când e prea târziu ca operatorul să afle. Se
     face separat, cu rezolvarea conflictelor la flush.
-44. **Un plan se desenează pe rânduri, nu punct cu punct.** Planurile reale au
+46. **Un plan se desenează pe rânduri, nu punct cu punct.** Planurile reale au
     ranguri de patruzeci de locuri pe o linie. Apăsat unul câte unul nu mai e
     planificare, e introducere de date, așa că un rând se descrie prin cele două
     capete ale lui și prin câte locuri intră între ele. Iar orice unealtă care
     scrie patruzeci de rânduri dintr-un gest are nevoie de o anulare de aceeași
     mărime — de aici „Golește zona".
-45. **Fără zoom, harta se poate privi, dar nu se poate folosi.** Scalată pe un
+47. **Fără zoom, harta se poate privi, dar nu se poate folosi.** Scalată pe un
     telefon, o celulă de parcare are câțiva pixeli: nu se poate apăsa, nu se
     poate citi. Zoom-ul nu e un adaos peste locurile numerotate, e condiția ca
     ele să existe. Pinii se contra-scalează, ca mărirea să-i depărteze între ei
@@ -1161,36 +1183,36 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     puncte colorate: ocuparea se citește dintr-o privire, mașinile revin când e
     loc pentru ele. Deplasarea se oprește la marginea imaginii — un plan care
     poate fi tras în afara ramei lasă cititorul cu ecranul gol.
-46. **Numărul locului nu călătorește cu mașina.** Locul aparține zonei în care a
+48. **Numărul locului nu călătorește cu mașina.** Locul aparține zonei în care a
     fost dat. Mutată în altă zonă, mașina și-l pierde: păstrat, ar arăta fie
     către un loc care nu există în zona nouă, fie către unul deja ocupat, iar
     indexul de unicitate ar refuza toată mutarea cu o eroare de cheie duplicată.
-47. **`cars.zone` e NOT NULL cu implicit `''`.** „Fără zonă" se scrie cu șir gol,
+49. **`cars.zone` e NOT NULL cu implicit `''`.** „Fără zonă" se scrie cu șir gol,
     nu cu null — altfel baza refuză scrierea, iar opțiunea goală din selectorul
     de zonă devine un mesaj de eroare. Verificat pe producție: `23502`.
 
-48. **Planul e o înregistrare, nu o constantă.** Desenul terenului era numit de
+50. **Planul e o înregistrare, nu o constantă.** Desenul terenului era numit de
     o constantă în `app.js`, iar boxele stăteau într-un singur rând din
     `ui_settings`. Din asta ieșeau două limite care nu se vedeau ca limite: un
     teren avea exact un aranjament, deci pregătirea evenimentului următor îl
     ștergea pe cel dinainte, iar un desen nou cerea un deploy. Acum un plan e un
     rând în `zone_plans` — nume, desen, boxe — și se aduce dintr-un fișier.
-49. **Ce plan folosește un eveniment se scrie pe eveniment.** `events.plan_id`,
+51. **Ce plan folosește un eveniment se scrie pe eveniment.** `events.plan_id`,
     nu `zone_plans.event_id`: un plan e un obiect de bibliotecă, se dublează și
     poate sta nefolosit. Ținut invers, un aranjament l-ar urma pe cel care l-a
     deschis ultimul. `on delete set null` — ștergerea unui plan lasă evenimentul
     fără hartă, nu fără rând. Și `plan_id` intră în amprenta evenimentelor:
     fără el, un plan pus de pe alt dispozitiv n-ar redesena harta aici.
-50. **Adresa de unde se aduce un desen e o listă albă.** Aplicația face `fetch`
+52. **Adresa de unde se aduce un desen e o listă albă.** Aplicația face `fetch`
     la ea, iar rândul e editabil de oricine are drepturi de staff. Două surse
     sunt ale noastre — bucket-ul `plans` și fișierul din aplicație — și nimic
     altceva; `..` se refuză înaintea ambelor ramuri, fiindcă un URL de bucket e
     tot un URL. Regula stă în `utils.js`, ca să poată fi testată singură.
-51. **Bucket-ul `maps` primește doar imagini.** De aceea un plan SVG trebuia
+53. **Bucket-ul `maps` primește doar imagini.** De aceea un plan SVG trebuia
     rasterizat înainte de urcare. Un desen e JSON, deci are bucket-ul lui
     (`plans`, `application/json`), cu aceleași politici de staff.
 
-52. **O referință luată înaintea unui `await` nu mai e rândul.** Sincronizarea
+54. **O referință luată înaintea unui `await` nu mai e rândul.** Sincronizarea
     periodică înlocuiește obiectele din `state`, nu le modifică. Între un dialog
     de confirmare și scrierea care-i urmează încap două aşteptări, iar un
     `refresh` care aterizează între ele lasă în mână un obiect desprins:
@@ -1199,21 +1221,21 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     (`setEventPlanLocally`). Găsit exact așa: comutarea planului scria
     `events.plan_id` în bază, dar harta rămânea pe planul dinainte.
 
-53. **Poza de fundal a hărții scria acolo unde nimeni nu mai citea.**
+55. **Poza de fundal a hărții scria acolo unde nimeni nu mai citea.**
     „Înlocuiește" urca imaginea în bucket-ul `maps` și-i punea adresa în
     `ui_settings.zone_map_url` — o cheie pe care aplicația n-o mai citește de
     când planul e o înregistrare cu `map_url`-ul lui. Poza se vedea până la
     prima reîncărcare, apoi dispărea. Când o cheie iese din citire, drumurile
     care mai scriu în ea sunt moarte, nu doar tăcute.
 
-54. **Un lucru care se aduce trebuie și să se poată face.** Modalul de planuri
+56. **Un lucru care se aduce trebuie și să se poată face.** Modalul de planuri
     aducea un plan din fișier și spunea că fișierul e „JSON-ul exportat din
     editorul de plan", dar la editorul acela (`plan.html`) nu ducea niciun
     buton din aplicație. Primul plan se putea face doar știind adresa pe
     dinafară. Butonul „Desenează un plan nou" deschide editorul în fila lui, ca
     biblioteca de planuri să nu se reîncarce și să uite evenimentul.
 
-55. **Zonele sunt o listă care se mișcă, nu o constantă.** Cele nouă clase ale
+57. **Zonele sunt o listă care se mișcă, nu o constantă.** Cele nouă clase ale
     aplicației sunt scrise în cod, dar terenul își aduce propriile nume odată cu
     desenul — EXPO ZONE, GREEN ZONE, VIP ZONE — și mașini chiar stau în ele: 8
     din 54 la ultimul eveniment. Construite doar din constantă, toate listele de
@@ -1221,7 +1243,7 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     desena într-o astfel de zonă. `allZones()` le unește: întâi clasele
     aplicației, apoi ce aduce planul, fără dubluri.
 
-56. **Ce se poate da trebuie să se poată și lua înapoi.** `stamp_car_arrival`
+58. **Ce se poate da trebuie să se poată și lua înapoi.** `stamp_car_arrival`
     punea `arrived_at` la sosire și nimic nu-l ștergea vreodată. O apăsare
     greșită la poartă, „reparată" punând statusul înapoi pe Invitat, lăsa ora
     acolo — iar aplicația numără o sosire ca `status = 'sosit' SAU arrived_at
@@ -1231,19 +1253,19 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     Trigger-ul se verifică singur în migrație: patru aserțiuni într-un bloc
     `do`, iar un eșec ar fi anulat migrația.
 
-57. **O audiență numită „confirmați" trebuie să însemne confirmare.** Filtrele
+59. **O audiență numită „confirmați" trebuie să însemne confirmare.** Filtrele
     de campanie citeau statusul „Sosit" în loc de `rsvp`. Înainte de eveniment
     n-a sosit nimeni, deci „confirmați" era mereu goală; în ziua evenimentului
     „neconfirmați" pierdea pe toți cei care veniseră fără să răspundă.
 
-58. **Lista de pregătire trebuie să vadă și ce nu e pe ecran.** Se uita doar la
+60. **Lista de pregătire trebuie să vadă și ce nu e pe ecran.** Se uita doar la
     evenimentul activ — și exact așa două evenimente create într-o săptămână au
     stat la două zile distanță fără nicio mașină, fără plan și fără capacitate,
     în timp ce Acasă spunea că totul e în regulă. Acum orice eveniment care
     începe în următoarele 7 zile își spune lipsurile, oricare ar fi evenimentul
     din focus.
 
-59. **Canalul se leagă când omul e în fața ta.** Invitația spre bot se putea
+61. **Canalul se leagă când omul e în fața ta.** Invitația spre bot se putea
     doar trimite — prin WhatsApp — iar canalul e tocmai ce lipsea: 51 din 54 de
     șoferi n-au putut fi atinși deloc, și confirmarea pe care n-a primit-o
     nimeni a strâns zero răspunsuri. La poartă problema dispare: omul stă în
@@ -1251,7 +1273,7 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     oferă codul QR al invitației lui — o dată, doar cât timp nimic altceva nu-l
     poate ajunge, și doar dacă botul chiar e viu.
 
-60. **Scanarea trebuie să spună unde se merge.** Poarta identifica mașina și se
+62. **Scanarea trebuie să spună unde se merge.** Poarta identifica mașina și se
     oprea acolo: cartonașul dădea numele, proprietarul și statusul. Singurul
     lucru pe care șoferul îl aștepta — unde să tragă — era în alt ecran, deci
     operatorul citea numărul cu voce tare și pleca să-l caute. Cartonașul spune
@@ -1259,12 +1281,12 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     sau spune limpede că nimeni n-a alocat încă un loc și oferă drumul spre
     hartă. Locul se aprinde pe plan, fără să miște panorama sub degetul nimănui.
 
-61. **Culoarea e primul lucru pe care-l vede un om la poartă.** Aplicația purta
+63. **Culoarea e primul lucru pe care-l vede un om la poartă.** Aplicația purta
     marca, modelul și numărul; culoarea, singura care se potrivește dintr-o
     privire peste un rând de mașini, nu era cerută nicăieri. Acum se întreabă la
     înscriere și se citește pe cartonașul de la scanare.
 
-62. **O boxă are trei stări, nu două.** Liber și ocupat erau singurele, deci o
+64. **O boxă are trei stări, nu două.** Liber și ocupat erau singurele, deci o
     boxă ținută pentru cineva se putea doar ține minte. `res` pe boxă o pune
     deoparte: se desenează chihlimbariu, se numără între cele de pe plan, și
     când cineva vrea totuși să pună o mașină acolo e întrebat o dată — o
@@ -1323,7 +1345,7 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     inserare cădea. Prin `to_jsonb(new)` întrebi rândul de o cheie, nu de o
     coloană: aceeași întrebare la care ambele tabele pot răspunde.
 
-86. **„Acum" e o afirmație despre ziua de azi.** Agenda publică marca un punct
+68. **„Acum" e o afirmație despre ziua de azi.** Agenda publică marca un punct
     din program ca fiind în desfășurare comparând ora din zi cu `at_time` — și
     nimic altceva. Nicio dată nu intra în calcul, deci în oricare zi din an un
     rând era verde cu „ACUM" și cele dinainte stinse ca trecute. Evenimentul
@@ -1334,27 +1356,27 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     evenimentului, iar în rest un rând spune peste câte zile e — altfel o listă
     de ore goale se citește tot ca „acum".
 
-85. **Exemplele dintr-un formular sunt o instrucțiune.** `register.html` avea în
+69. **Exemplele dintr-un formular sunt o instrucțiune.** `register.html` avea în
     comentariu „Moldova is preselected (event is in MD)" și `dial.value =
     '+373'`, dar exemplele erau „B 100 XYZ" (număr de București), „București" și
     „Silver". Backendul era de acord cu comentariul, nu cu exemplele:
     `normPhone` completează cu `+373` numerele de 8 cifre. Primul lucru citit de
     un participant moldovean îi arăta formatul altei țări.
 
-84. **O fundătură politicoasă tot fundătură e.** Pagina de vot închisă spunea
+70. **O fundătură politicoasă tot fundătură e.** Pagina de vot închisă spunea
     „revino în timpul evenimentului" — fără nume, fără dată, fără unde. Funcția
     `vote` întoarce doar `{ open: false }` când e închis, deci pagina chiar
     n-avea ce arăta; acum întreabă `event-info`, ca toate celelalte pagini
     publice, și oferă un drum spre program.
 
-83. **Un buton dezactivat e cel mai prost mod de a spune „gata".** Rândurile
+71. **Un buton dezactivat e cel mai prost mod de a spune „gata".** Rândurile
     deja sosite de la poartă păstrau butonul „Sosit" dezactivat: 76×44px în
     mijlocul razei degetului, care nu face nimic. Spre finalul unui eveniment
     două rânduri din trei arată așa — în fixtură, 8 din 12. E o stare, deci se
     scrie ca o stare: bifă, cuvânt, și minutul („✓ Sosit 14:32"), care e
     întrebarea pe care operatorul chiar o are.
 
-82. **Uneori nu încape, și numărul o spune.** După ce butonul mort a eliberat
+72. **Uneori nu încape, și numărul o spune.** După ce butonul mort a eliberat
     lățime, am vrut și numele întreg al zonei. Nu intră: pe 390px rândul are
     332px, plăcuța cere 97 pe o linie, acțiunea 76, spațiile 20 — rămân 139
     pentru un select care ar avea nevoie de 137 de text plus 36 de padding.
@@ -1365,20 +1387,20 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     (92 → 108px, adică 4 nume tăiate din 12 în loc de 7), iar numele întreg
     stă pe `title`. Un compromis măsurat, scris ca atare, nu o setare uitată.
 
-81. **O linie desparte două lucruri, deci se desenează pe al doilea.**
+73. **O linie desparte două lucruri, deci se desenează pe al doilea.**
     `.setting-row` avea `border-bottom`, deci fiecare bloc din Setări — toate
     17 — se termina cu o linie și 14px de padding sub ea, fără nimic dedesubt.
     `:last-child` n-ar fi fost de ajuns: un bloc se termină cu un rând care mai
     are un frate după el, deci e ultimul pe ecran fără să fie ultimul în
     markup. `\+ .setting-row { border-top }` e corect indiferent ce urmează.
 
-80. **Un șir scris de mână scapă de gardă.** `'Member'` stătea literal în
+74. **Un șir scris de mână scapă de gardă.** `'Member'` stătea literal în
     `app.js`, în trei locuri, ca valoare implicită pentru **departament**. Apărea
     netradus în interfața românească și, mai rău, suna a rol chiar lângă
     badge-urile reale de rol. Garda de i18n verifică cheile, nu literalele: ce
     nu trece prin `t()` nu e văzut de nimeni.
 
-79. **Un element scos afară fără scrollbar e invizibil și pentru teste.**
+75. **Un element scos afară fără scrollbar e invizibil și pentru teste.**
     Header-ul își așeza cele două grupuri la lățimea lor naturală și lăsa rândul
     să crească peste ecran: pe 390px marginea dreaptă a avatarului cădea la
     **429px** — în afară, invizibil și neapăsabil, pe fiecare secțiune. Nimic
@@ -1388,7 +1410,7 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     ăsta nici nu se randează. Verificarea nouă se uită la elementul concret, nu
     la simptomul lui.
 
-78. **O bară a cărei lățime depinde de unde stai.** Bara de jos are opt taburi,
+76. **O bară a cărei lățime depinde de unde stai.** Bara de jos are opt taburi,
     iar cel activ își arată eticheta. Pe „Evenimente" rândul ajungea la 390px
     într-un container de 372 și roata dințată de Setări ieșea din raza degetului
     — pe celelalte taburi era în regulă. Patru pixeli luați de la fiecare tab
@@ -1401,7 +1423,7 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     poți muta o mașină între stări. Au rămas; s-au strâns paddingurile,
     iconița și rândul de acțiuni. 154 → 144.
 
-76. **Un card care răspunde de două ori la aceeași întrebare trebuie să fie de
+78. **Un card care răspunde de două ori la aceeași întrebare trebuie să fie de
     acord cu el însuși.** Data de sub iconița de calendar venea din `date` —
     text liber, scris de mână — iar numărătoarea din dreapta venea din
     `starts_at`. Un eveniment cu dată reală dar fără una tastată scria „—"
@@ -1415,7 +1437,7 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     extins, se vede acum pe rând: „mâine" și „în N zile", nu doar „ÎNTÂRZIAT"
     când e prea târziu.)
 
-75. **Un job oprit n-are ce raporta — și verdictul lui vechi nu e starea de
+79. **Un job oprit n-are ce raporta — și verdictul lui vechi nu e starea de
     acum.** Linkul Apps Script a fost golit, deci sincronizarea din Sheets nu
     mai rulează. Dar ultimul ei verdict — 404, 453 eșecuri la rând — rămăsese
     în `integration_runs` fără nimic care să-l mai actualizeze vreodată, deci
@@ -1423,7 +1445,7 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     care nu mai există. Aceeași greșeală ca la 70, în altă haină. Fără link,
     fără rând.
 
-74. **Un steag numit după canal, care de fapt oprește mesajul.** Cele trei
+80. **Un steag numit după canal, care de fapt oprește mesajul.** Cele trei
     setări `sms_*_enabled` par să spună „trimite SMS". În realitate ele
     păzesc `send-sms`, care încearcă **Telegram primul** și cade pe SMS doar
     dacă nu există chat legat — comentariul funcției o spune direct. Deci
@@ -1436,7 +1458,7 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     ce pleacă, iar roșul din „Starea canalelor" apare doar când **nimic** nu
     poate livra — nici furnizor SMS, nici bot cu chat-uri legate.
 
-73. **O fereastră care se uită doar înainte pierde definitiv ce a scăpat.**
+81. **O fereastră care se uită doar înainte pierde definitiv ce a scăpat.**
     Reminderul de eveniment se trimitea pentru `starts_at between now() and
     now()+24h`. Odată ce ziua a trecut, evenimentul nu se mai potrivește
     niciodată, nimic nu reîncearcă și nimic nu spune că s-a ratat: toate cele
@@ -1449,14 +1471,14 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     (Tot acolo: fereastra de 24h o conținea pe cea de 2h, deci un eveniment
     adăugat cu o oră înainte primea două mesaje din același șablon.)
 
-72. **Un badge care constată nu ajunge; trebuie să și poți face ceva.**
+82. **Un badge care constată nu ajunge; trebuie să și poți face ceva.**
     Cardul spunea „🔕 n-a primit" și oferea nimic — era un `<span>`. Retrimiterea
     nu se poate face din browser: `notify` din funcția Telegram cere
     `x-import-secret`, iar `app_config` e intenționat inaccesibil clientului.
     Deci retrimiterea stă în bază, ca `resend_car_notification(bigint)`, păzită
     de `is_staff_or_admin()` și cu EXECUTE revocat de la `public`/`anon`.
 
-71. **Numele omului stă în `profiles`, nu în `user_metadata`.**
+83. **Numele omului stă în `profiles`, nu în `user_metadata`.**
     `user_metadata` e completat de formularul nostru de înregistrare și de
     nimic altceva, deci un cont invitat din dashboard n-are niciunul — și
     salutul îi zicea adresa de mail brută, în timp ce fiecare alt ecran citea
@@ -1465,7 +1487,7 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     nume real cu prefixul adresei. Acum câmpul se trimite doar când chiar
     avem ce trimite.
 
-70. **„Oprit" și „stricat" nu sunt aceeași culoare.** SMS-ul e închis aici cu
+84. **„Oprit" și „stricat" nu sunt aceeași culoare.** SMS-ul e închis aici cu
     intenție — nu există și n-a existat vreodată un furnizor, iar totul pleacă
     prin Telegram. Pastila zicea totuși chihlimbariu „SMS: neconfigurat", adică
     exact ce zice despre un lucru lăsat pe jumătate. Acum are trei stări: verde
@@ -1479,7 +1501,7 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     în afara ecranului până alunecă în jos — deci n-ar fi putut fi citită nici
     dacă cineva o afișa. Are clasa ei acum.)
 
-69. **Un job programat care sună în afară trebuie să-și citească răspunsul.**
+85. **Un job programat care sună în afară trebuie să-și citească răspunsul.**
     `pg_net` e asincron: `net.http_post` întoarce un id de cerere, nu un
     rezultat. `perform net.http_post(...)` aruncă acel id, și odată aruncat
     nimeni nu mai poate afla ce s-a întâmplat. `kultura-sheet-sync` a trimis așa
@@ -1497,12 +1519,12 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     Singura excepție e `notify_telegram_car`, fiindcă răspunsul ei e deja citit
     înapoi — se scrie pe mașină, ca `telegram_notify_ok`.
 
-68. **Un loc se spune cu un deget, nu cu un număr.** „Zona Retro, locul 38" e
+86. **Un loc se spune cu un deget, nu cu un număr.** „Zona Retro, locul 38" e
     exact și nu-i spune șoferului încotro s-o ia. Fiecare boxă își poartă deja
     poziția ca procent din plan, deci o casetă de o sută de pixeli cu puncte
     răspunde la „acolo" fără să încarce desenul și fără să calculeze vreo scară.
 
-64. **Un dialog care schimbă ceva trebuie să spună ce anume schimbă.** Un plan
+87. **Un dialog care schimbă ceva trebuie să spună ce anume schimbă.** Un plan
     se aduce peste evenimentul selectat sus în ecran, iar numele desenului nu
     spune nimic despre asta. Un plan numit după evenimentul de luna viitoare a
     intrat peste cel de peste trei zile, iar 53 din cele 54 de mașini au rămas
@@ -1510,7 +1532,7 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     nu, deci n-avea ce să sară în ochi. Schimbarea unui plan salvat numea de la
     început evenimentul; importul face acum la fel.
 
-63. **Numerele parcării stăteau doar în hartă.** Câte boxe are planul, câte sunt
+88. **Numerele parcării stăteau doar în hartă.** Câte boxe are planul, câte sunt
     date și — cea care decide dacă poarta va funcționa — câte mașini vin fără
     niciun loc: toate existau, dar numai înăuntrul hărții. Un număr pentru care
     trebuie deschis un ecran e un număr pe care nu-l citește nimeni. Acum stau
