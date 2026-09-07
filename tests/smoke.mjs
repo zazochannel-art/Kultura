@@ -2852,6 +2852,7 @@ try {
       { email: THIRD_ADMIN, full_name: 'Al Treilea', role: 'admin', is_admin: true, department: 'Management' },
       { email: 'staff@example.com', full_name: 'Om Obisnuit', role: 'staff', is_admin: false, department: 'Design' },
     ];
+    const saved = [];
     const mkAdmin = async (asEmail) => {
       const c = await browser.newContext({ viewport: { width: 430, height: 930 }, isMobile: true, hasTouch: true });
       await c.route('**://*.supabase.co/**', (r) => {
@@ -2866,7 +2867,15 @@ try {
             primary_admin: PRIMARY });
         }
         if (u.includes('/functions/v1/')) return J({ ok: true });
-        if (u.includes('/rest/v1/profiles')) return J(PROFILES);
+        if (u.includes('/rest/v1/profiles')) {
+          // Remember what a save sends. The role is the whole point of this
+          // screen and it travels in this body — if it stops being sent, the
+          // promotion silently does nothing and no error is raised anywhere.
+          if (r.request().method() !== 'GET') {
+            try { saved.push(JSON.parse(r.request().postData() || 'null')); } catch (_) { saved.push(null); }
+          }
+          return J(PROFILES);
+        }
         if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'F', status: 'Activ', archived: false, is_sandbox: false }]);
         if (u.includes('/rest/v1/')) return J([]);
         return r.abort();
@@ -2934,12 +2943,36 @@ try {
       check('ordinary-admin-still-edits-ordinary-people', otherOnStaff.roleEditable, JSON.stringify(otherOnStaff));
       check('ordinary-admin-still-removes-ordinary-people', otherOnStaff.deleteOffered, JSON.stringify(otherOnStaff));
       await other.c.close();
+
+      // The save has to carry the role. It reaches the database as an upsert
+      // sending {email, department, role} and no is_admin — which is exactly
+      // what made promotion a silent no-op once: on the INSERT half of the
+      // upsert the trigger saw is_admin at its default of false next to
+      // role='admin', read that as "admin was cleared by hand", and rewrote
+      // the role back to 'member'. One row affected, no error, nothing changed.
+      const boss2 = await mkAdmin(PRIMARY);
+      await openFor(boss2.p, 'staff@example.com');
+      saved.length = 0;
+      await boss2.p.evaluate(() => {
+        const sel = document.getElementById('profileRoleSelect');
+        sel.value = 'admin';
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        document.getElementById('form-edit-profile')
+          ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      });
+      await boss2.p.waitForTimeout(700);
+      const body = saved.find((b) => b && (Array.isArray(b) ? b[0]?.email : b.email) === 'staff@example.com');
+      const row = Array.isArray(body) ? body[0] : body;
+      check('promoting-sends-the-role-to-the-server', !!row && row.role === 'admin',
+        JSON.stringify(saved).slice(0, 200));
+      await boss2.c.close();
     } catch (e) {
       for (const n of ['primary-admin-can-grant-the-admin-role', 'primary-admin-can-change-another-admin',
         'primary-admin-can-remove-another-admin', 'ordinary-admin-is-not-offered-the-admin-role',
         'ordinary-admin-cannot-change-an-admin', 'ordinary-admin-cannot-remove-an-admin',
         'ordinary-admin-is-told-why', 'ordinary-admin-still-edits-ordinary-people',
-        'ordinary-admin-still-removes-ordinary-people']) {
+        'ordinary-admin-still-removes-ordinary-people',
+        'promoting-sends-the-role-to-the-server']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
       console.log(`admin tier checks: ${e.message}`);
