@@ -1129,7 +1129,13 @@
             <button type="button" class="chip" data-sms-var="model">{{model}}</button>
             <button type="button" class="chip" data-sms-var="numar">{{numar}}</button>
             <button type="button" class="chip" data-sms-var="categoria">{{categoria}}</button>
+            <button type="button" class="chip" data-sms-var="numar_concurs">{{numar_concurs}}</button>
+            <button type="button" class="chip" data-sms-var="zona">{{zona}}</button>
+            <button type="button" class="chip" data-sms-var="loc">{{loc}}</button>
+            <button type="button" class="chip" data-sms-var="locatie">{{locatie}}</button>
+            <button type="button" class="chip" data-sms-var="data">{{data}}</button>
             <button type="button" class="chip" data-sms-var="qr_code">{{qr_code}}</button>
+            <button type="button" class="chip" data-sms-var="confirmare">{{confirmare}}</button>
           </div>
           <textarea id="smsMessage" rows="5" data-i18n-placeholder="sms.msg_ph" placeholder="Scrie mesajul... Poți folosi {{prenume}}, {{marca}} etc."></textarea>
           <div class="sms-meta-row">
@@ -1169,7 +1175,10 @@
           <label class="sms-check" style="margin-top:14px;"><input type="checkbox" id="smsApprovedEnabled"> <span data-i18n="sms.approved_enable">Trimite SMS automat când o înscriere este aprobată</span></label>
           <textarea id="smsApprovedTemplate" rows="2" data-i18n-placeholder="sms.approved_ph" placeholder="Salut {{prenume}}! Înscrierea ta a fost aprobată." style="margin-top:8px;"></textarea>
           <label class="sms-check" style="margin-top:14px;"><input type="checkbox" id="smsReminderEnabled"> <span data-i18n="sms.reminder_enable">Trimite reminder automat cu 24h și 2h înainte de eveniment</span></label>
-          <textarea id="smsReminderTemplate" rows="2" data-i18n-placeholder="sms.reminder_ph" placeholder="Salut {{prenume}}! Evenimentul se apropie." style="margin-top:8px;"></textarea>
+          <div class="sms-tmpl-label" data-i18n="sms.reminder_24h">Textul de cu 24h înainte</div>
+          <textarea id="smsReminderTemplate" rows="2" data-i18n-placeholder="sms.reminder_ph" placeholder="Salut {{prenume}}! Evenimentul se apropie."></textarea>
+          <div class="sms-tmpl-label" data-i18n="sms.reminder_2h">Textul de cu 2h înainte</div>
+          <textarea id="smsReminder2hTemplate" rows="2" data-i18n-placeholder="sms.reminder_2h_ph" placeholder="Începem în 2 ore!"></textarea>
           <div style="display:flex; justify-content:flex-end; margin-top:10px;">
             <button type="button" class="btn small" id="smsAutomSaveBtn" data-i18n="sms.autom_save">Salvează automatizările</button>
           </div>
