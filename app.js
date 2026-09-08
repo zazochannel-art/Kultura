@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v177';
+    const APP_VERSION = 'v178';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -4409,10 +4409,18 @@
       if (!roleAtLeast('staff')) { box.hidden = true; return; }
       const cars = activeCars();
       if (!cars.length) { box.hidden = true; return; }
-      const missing = cars.filter(c => !c.telegram_chat_id);
-      const linked = cars.length - missing.length;
+      // Somebody who sent /stop to the bot. Their chat is cleared, so before
+      // this they came back into the list looking like a driver nobody had got
+      // round to inviting — and the button beside them opened WhatsApp to ask
+      // again. They are counted, never offered.
+      const stopped = cars.filter(c => c.telegram_opted_out_at);
+      const missing = cars.filter(c => !c.telegram_chat_id && !c.telegram_opted_out_at);
+      const linked = cars.filter(c => c.telegram_chat_id).length;
+      const stoppedLine = stopped.length
+        ? `<div class="tg-funnel-more">${escape(t('tg.funnel_stopped', { n: stopped.length }))}</div>`
+        : '';
       if (!missing.length) {
-        box.innerHTML = `<div class="tg-funnel-head is-done">${escape(t('tg.funnel_all', { n: cars.length }))}</div>`;
+        box.innerHTML = `<div class="tg-funnel-head is-done">${escape(t('tg.funnel_all', { n: linked }))}</div>` + stoppedLine;
         box.hidden = false;
         return;
       }
@@ -4431,10 +4439,14 @@
         </div>`;
       }).join('');
       const more = missing.length - Math.min(SHOWN, missing.length);
+      // The total counts who could still be reached, not every car: somebody
+      // who refused is not a gap left to close, and counting them would keep
+      // the ratio short of complete for good.
       box.innerHTML =
-        `<div class="tg-funnel-head">${escape(t('tg.funnel_head', { linked, total: cars.length }))}</div>`
+        `<div class="tg-funnel-head">${escape(t('tg.funnel_head', { linked, total: cars.length - stopped.length }))}</div>`
         + rows
-        + (more ? `<div class="tg-funnel-more">${escape(t('tg.funnel_more', { n: more }))}</div>` : '');
+        + (more ? `<div class="tg-funnel-more">${escape(t('tg.funnel_more', { n: more }))}</div>` : '')
+        + stoppedLine;
       box.hidden = false;
     }
 
@@ -4456,7 +4468,8 @@
     // out is the whole job. This copies one per car for the event in hand.
     el('tgInviteAllBtn')?.addEventListener('click', async () => {
       const msg = el('tgMsg');
-      const cars = activeCars();
+      // Same rule as the per-driver button: an opt-out is not a gap to fill.
+      const cars = activeCars().filter(c => !c.telegram_opted_out_at);
       if (!cars.length) { showToast(t('tg.invite_none')); return; }
       if (msg) { msg.style.color = ''; msg.textContent = t('common.loading'); }
       try {
@@ -5670,7 +5683,7 @@
     // (notes, modifications, photos, checklist, detailed_description, …) are only
     // needed in the detail view, which hydrates them on demand. `updated_at` is
     // included so any edit still bumps the fingerprint.
-    const CAR_LIST_COLS  = 'id,entry_no,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,color,phone,telegram,city,category,updated_at,arrived_at,checked_in_by,spot_no,deleted_at,deleted_by,rsvp,rsvp_at,telegram_chat_id,import_batch,telegram_notified_at,telegram_notify_ok,telegram_notify_kind';
+    const CAR_LIST_COLS  = 'id,entry_no,model,owner,plate,zone,status,status_color,is_vip,event_id,created_at,contact,brand,year,color,phone,telegram,city,category,updated_at,arrived_at,checked_in_by,spot_no,deleted_at,deleted_by,rsvp,rsvp_at,telegram_chat_id,import_batch,telegram_notified_at,telegram_notify_ok,telegram_notify_kind,telegram_opted_out_at';
     const TASK_LIST_COLS = 'id,title,event,date,status,status_color,is_completed,event_id,due_at,created_at,assigned_user_id,assigned_user_name,started_at,completed_at,completed_by_user_id,completed_by_user_name,priority,category,due_date,created_by,assigned_to,assigned_at,completed_by,team,updated_at,reminder_sent';
 
     // Canonical parking zones (car categories). Single source of truth for the
@@ -5713,7 +5726,7 @@
       return html;
     }
 
-    const CAR_FP_FIELDS   = ['id','entry_no','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','color','city','event_id','updated_at','spot_no','rsvp','telegram_chat_id','telegram_notify_ok'];
+    const CAR_FP_FIELDS   = ['id','entry_no','status','status_color','zone','plate','phone','telegram','contact','owner','model','brand','is_vip','category','year','color','city','event_id','updated_at','spot_no','rsvp','telegram_chat_id','telegram_notify_ok','telegram_opted_out_at'];
     const AGENDA_FP_FIELDS = ['id','event_id','title','at_time','notes','updated_at'];
     const REG_FP_FIELDS   = ['id','brand','model','plate','owner','phone','telegram','email','city','category','year','color','social_links','transport_info','modifications','photos','status','created_at','telegram_user_id','telegram_username'];
     const TASK_FP_FIELDS  = ['id','status','status_color','priority','category','team','title','assigned_user_id','assigned_user_name','assigned_to','completed_by_user_id','completed_by_user_name','completed_at','started_at','is_completed','date','due_date','due_at','event','event_id','created_by','created_at','updated_at'];

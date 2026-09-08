@@ -980,6 +980,7 @@ export default {
   "tg.funnel_head": "{linked} din {total} conectați la bot. Restul nu pot primi nimic:",
   "tg.funnel_all": "Toți cei {n} participanți sunt conectați la bot.",
   "tg.funnel_more": "…și încă {n}.",
+  "tg.funnel_stopped": "{n} au cerut să nu mai primească mesaje pe Telegram — nu îi mai invităm.",
   "tg.invite_all": "Copiază linkurile de invitație",
   "tg.invite_hint": "Nimeni nu primește mesaje până nu își deschide linkul personal — un bot nu poate scrie primul. Linkul apare oricum pe biletul fiecărui participant, sub codul QR de pe pass.",
   "tg.invite_copied": "{n} linkuri copiate. {left} încă neconectați.",

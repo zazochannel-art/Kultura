@@ -1553,6 +1553,11 @@ try {
     const CARS = [
       { id: 1, entry_no: 1, brand: 'VW', model: 'Golf', owner: 'Ion', plate: 'C1', phone: '069123456', status: 'Invitat', event_id: 6, telegram_chat_id: null, deleted_at: null },
       { id: 2, entry_no: 2, brand: 'Audi', model: 'S4', owner: 'Maria', plate: 'C2', phone: '069222333', status: 'Invitat', event_id: 6, telegram_chat_id: 555, deleted_at: null },
+      // Connected once, then sent /stop. The chat is cleared, so before the
+      // opt-out was recorded this row was indistinguishable from a driver
+      // nobody had invited yet — and the funnel put a "send invite" button
+      // beside it.
+      { id: 3, entry_no: 3, brand: 'Dacia', model: 'Logan', owner: 'Vasile', plate: 'C3', phone: '069333444', status: 'Invitat', event_id: 6, telegram_chat_id: null, telegram_opted_out_at: '2026-09-01T10:00:00.000Z', deleted_at: null },
     ];
     const zctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
     await zctx.route('**://*.supabase.co/**', (r) => {
@@ -1623,6 +1628,8 @@ try {
           head: (box?.querySelector('.tg-funnel-head')?.textContent || '').trim(),
           rows: [...(box?.querySelectorAll('.tg-funnel-row') || [])].map(r => r.textContent.replace(/\s+/g, ' ').trim()),
           sendable: (box?.querySelectorAll('[data-tg-invite]') || []).length,
+          notes: [...(box?.querySelectorAll('.tg-funnel-more') || [])].map(x => x.textContent.trim()),
+          ids: [...(box?.querySelectorAll('[data-tg-invite]') || [])].map(b => b.dataset.tgInvite),
         };
       });
       check('funnel-visible-when-someone-unreachable', !funnel.hidden);
@@ -1631,11 +1638,25 @@ try {
       check('funnel-lists-only-the-unreachable',
         funnel.rows.length === 1 && /Ion|Golf/.test(funnel.rows[0]), JSON.stringify(funnel.rows));
       check('funnel-offers-a-send-button', funnel.sendable === 1);
+
+      // The driver who said stop. Asking them again is the one thing the app
+      // must not lead anyone into doing.
+      check('funnel-does-not-offer-to-re-invite-someone-who-said-stop',
+        funnel.sendable === 1 && !funnel.ids.includes('3'), JSON.stringify(funnel.ids));
+      check('funnel-does-not-list-the-driver-who-said-stop',
+        !funnel.rows.some(r => /Vasile|Logan/.test(r)), JSON.stringify(funnel.rows));
+      // Counted, though: silently dropping them would make the total wrong and
+      // leave nobody able to explain where the third car went.
+      check('funnel-says-how-many-asked-the-bot-to-stop',
+        funnel.notes.some(n => /^1 /.test(n) && /mesaje/i.test(n)), JSON.stringify(funnel.notes));
     } catch (e) {
       for (const n of ['approve-refused-without-zone', 'approve-says-why-zone-is-needed',
         'approve-warning-clears-on-choice', 'funnel-visible-when-someone-unreachable',
         'funnel-counts-linked-out-of-total', 'funnel-lists-only-the-unreachable',
-        'funnel-offers-a-send-button']) {
+        'funnel-offers-a-send-button',
+        'funnel-does-not-offer-to-re-invite-someone-who-said-stop',
+        'funnel-does-not-list-the-driver-who-said-stop',
+        'funnel-says-how-many-asked-the-bot-to-stop']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
       console.log(`zone/funnel checks: ${e.message}`);

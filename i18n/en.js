@@ -967,6 +967,7 @@ export default {
   "tg.funnel_head": "{linked} of {total} connected to the bot. The rest cannot receive anything:",
   "tg.funnel_all": "All {n} participants are connected to the bot.",
   "tg.funnel_more": "…and {n} more.",
+  "tg.funnel_stopped": "{n} asked the bot to stop messaging them — they are no longer invited.",
   "tg.invite_all": "Copy the invite links",
   "tg.invite_hint": "Nobody receives messages until they open their own link — a bot cannot write first. The link also appears on every participant's ticket, under the QR code from their pass.",
   "tg.invite_copied": "{n} links copied. {left} still not linked.",
