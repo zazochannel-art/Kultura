@@ -747,7 +747,7 @@ fel, dar **își verifică singure apelantul** înăuntru (`is_admin_user()` /
 | `event-info` | nu | Evenimentul curent + agenda, pentru paginile publice. Întoarce și `waiver_text` și `spots_left` |
 | `ticket` | nu | Bilet/pass. Întoarce și `entry_no`, `spot_no`, `event_starts_at` și `event_location` — `event` rămâne string, ca biletele deja servite din cache să nu se rupă |
 | `rsvp` | nu | „Vii la eveniment?" pentru `confirm.html`. Token HMAC pe id-ul mașinii; un „nu" eliberează locul și promovează prima înscriere de pe lista de așteptare |
-| `telegram` | nu² | Webhook-ul botului (`/start <id>-<token>` leagă chat-ul de mașină), configurarea de către admin, **linkurile de invitație** (`action:'invite'`, staff) și mesajele pe care sistemul le trimite singur (`action:'notify'`). Are **două fișiere**: `index.ts` și `map-png.ts` — decodor + encoder PNG, care pune cercul peste harta desenată de aplicație |
+| `telegram` | nu² | Webhook-ul botului (`/start <id>-<token>` leagă chat-ul de mașină), configurarea de către admin, **linkurile de invitație** (`action:'invite'`, staff) și mesajele pe care sistemul le trimite singur (`action:'notify'`). Are **trei fișiere**: `index.ts`, `strings.ts` — dicționarul ro/en/ru al botului — și `map-png.ts`, decodor + encoder PNG, care pune cercul peste harta desenată de aplicație. **Un redeploy înlocuiește toate fișierele**, deci `map-png.ts` trebuie retrimis identic de fiecare dată |
 | `health` | da | Starea canalelor pentru admin: Telegram (conectat? webhook viu? câți legați?), SMS (configurat?), adresa publică. Booleeni și numere, niciodată secretele |
 | `backup` | nu¹ | Export JSON a 17 tabele în bucket-ul `backups`, **plus o oglindă a fișierelor încărcate** în `backups/assets/<bucket>/`. Lista `TABLES` **trebuie să rămână în pas cu `PK` din `restore`** — un tabel salvat dar absent acolo se sare în tăcere la restaurare |
 | `restore` | da | Restaurare **aditivă** din backup (admin). Cu `assets:true` repune și fișierele lipsă din oglindă — niciodată peste unul existent |
@@ -769,6 +769,32 @@ trigger-e din baza de date.
 `x-telegram-bot-api-secret-token` pentru Telegram, sau tokenul unui admin
 verificat în `profiles` pentru configurare.
 
+### Comenzile botului
+
+| Comandă | Ce face |
+|---|---|
+| `/start <id>-<token>` | Leagă chatul de mașină sau de înscriere. Dacă chatul era legat de altcineva, cel vechi e anunțat |
+| `/bilet` | Numărul de concurs, zona și locul, cu harta ca poză unde există plan |
+| `/program` | Agenda evenimentului |
+| `/voteaza` | Linkul de votare, când votarea e deschisă |
+| `/feedback` | Linkul de feedback |
+| `/contact` | Scrie organizatorilor. Devine task în categoria „Participanți", max 5/oră/chat |
+| `/anuleaza` | „Nu mai vin." Aceeași cale ca butonul din reminder: eliberează locul și promovează primul de pe listă |
+| `/limba` | ro / en / ru. Limba se ține pe `cars.telegram_lang` |
+| `/stop` | Nu-mi mai scrie. Scrie `cars.telegram_opted_out_at` — de aici încolo omul e sărit de toate campaniile |
+
+Două lucruri **nu stau în cod, ci la Telegram**, și un deploy nu le schimbă:
+
+- **`allowed_updates`** — se pune prin `setWebhook`. Cât timp era doar
+  `['message']`, butoanele existau pe ecran și apăsarea lor nu ajungea nicăieri.
+- **meniul de comenzi** — se pune prin `setMyCommands`, o dată fără
+  `language_code` (varianta implicită, românește) și o dată pentru fiecare
+  limbă. Comenzile noi din `strings.ts` nu apar în meniul din Telegram până nu
+  se rulează.
+
+`status` din funcție întoarce `allowed_updates`, tocmai ca să se poată verifica
+fără să se ghicească.
+
 ## Joburi programate (cron)
 
 | Job | Când | Ce face |
@@ -782,6 +808,7 @@ verificat în `profiles` pentru configurare.
 | `kultura-prune-client-errors` | 04:41 UTC | Curăță erorile mai vechi de 14 zile |
 | `kultura-prune-activity-log` | 04:52 UTC | Curăță jurnalul de activitate mai vechi de un an |
 | `kultura-prune-deleted-cars` | 04:35 UTC | Șterge definitiv mașinile din coș mai vechi de 30 de zile |
+| `kultura-prune-registration-sessions` | 04:11 UTC | Curăță sesiunile de legare Telegram rămase neconsumate |
 
 `pg_net` e asincron: `net.http_post` întoarce un id, nu un răspuns. Un job care
 aruncă acel id nu poate afla niciodată dacă a reușit — `kultura-sheet-sync` a
@@ -1551,6 +1578,17 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     niciun loc: toate existau, dar numai înăuntrul hărții. Un număr pentru care
     trebuie deschis un ecran e un număr pe care nu-l citește nimeni. Acum stau
     pe Acasă, sub plăcile de statistici.
+
+90. **Ștergerea unui rând nu spune de ce a fost șters.** Botul scrie omului
+    când înscrierea îi e refuzată, iar mesajul îl trimite un trigger pe
+    `delete`. Numai că *aprobarea* șterge exact același rând: creează mașina și
+    apoi curăță coada. Triggerul n-are cum să deosebească acceptarea de refuz
+    uitându-se la ștergere — și o cascadă de la un eveniment șters ar fi anunțat
+    tot terenul dintr-o dată. De aceea refuzul are ușa lui, `reject_registration`,
+    care pune un flag valabil doar în tranzacția aia; triggerul tace dacă flagul
+    lipsește. **Tăcerea e implicită.** Dacă butonul de refuz se întoarce la un
+    `delete` direct, refuzurile devin mute — de asta există
+    `reject-goes-through-rpc` în smoke.
 
 ## Rămas de făcut manual
 
