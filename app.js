@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v178';
+    const APP_VERSION = 'v179';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -8131,12 +8131,38 @@
           ${admin ? `<button class="announce-item-del" data-announce-del="${a.id}" aria-label="${escape(t('common.delete'))}">&times;</button>` : ''}
         </div>`).join('') : `<div style="padding:8px 0;color:var(--text-mute);font-size:12px;">${escape(t('announce.none'))}</div>`;
     }
+    // How many people an announcement will actually reach on Telegram.
+    //
+    // Distinct chats, not linked cars: six linked cars here are two people, one
+    // of whom entered five, and telling an operator "6" before they press send
+    // would be the same overcount the bot itself used to make.
+    function announceReach() {
+      const live = new Set((state.events || [])
+        .filter(e => !e.archived).map(e => String(e.id)));
+      const chats = new Set();
+      for (const c of state.cars || []) {
+        if (c.deleted_at || c.telegram_opted_out_at) continue;
+        if (!c.telegram_chat_id) continue;
+        if (!live.has(String(c.event_id))) continue;
+        chats.add(String(c.telegram_chat_id));
+      }
+      return chats.size;
+    }
+
     async function sendAnnouncement() {
       const tI = el('announceTitle'), bI = el('announceBody');
       if (!tI) return;
       const title = (tI.value || '').trim();
       if (!title) return;
       const body = (bI.value || '').trim() || null;
+      // An announcement used to go to web push and stop there — in practice one
+      // subscribed device, all of them staff. It now also goes out on Telegram
+      // to every linked participant, so the button has to say so before it is
+      // pressed rather than after.
+      const n = announceReach();
+      if (!(await uiConfirm(n
+        ? t('announce.confirm_send', { n })
+        : t('announce.confirm_send_none')))) return;
       const btn = el('announceSendBtn'); if (btn) btn.disabled = true;
       const { error } = await supa.from('announcements').insert({ title, body, created_by: currentUserEmail() });
       if (btn) btn.disabled = false;
