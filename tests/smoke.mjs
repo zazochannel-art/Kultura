@@ -1558,6 +1558,10 @@ try {
       // nobody had invited yet — and the funnel put a "send invite" button
       // beside it.
       { id: 3, entry_no: 3, brand: 'Dacia', model: 'Logan', owner: 'Vasile', plate: 'C3', phone: '069333444', status: 'Invitat', event_id: 6, telegram_chat_id: null, telegram_opted_out_at: '2026-09-01T10:00:00.000Z', deleted_at: null },
+      // Maria's second car, on the same chat. Without it the "people, not cars"
+      // check passes whichever way the count is written, because one car and
+      // one person are the same number — which is how it first passed here.
+      { id: 4, entry_no: 4, brand: 'Audi', model: 'A3', owner: 'Maria', plate: 'C4', phone: '069222333', status: 'Invitat', event_id: 6, telegram_chat_id: 555, deleted_at: null },
     ];
     const zctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
     await zctx.route('**://*.supabase.co/**', (r) => {
@@ -1633,7 +1637,7 @@ try {
         };
       });
       check('funnel-visible-when-someone-unreachable', !funnel.hidden);
-      check('funnel-counts-linked-out-of-total', /1.*2/.test(funnel.head), funnel.head);
+      check('funnel-counts-linked-out-of-total', /2.*3/.test(funnel.head), funnel.head);
       // Only the unlinked car — listing the connected one would be noise.
       check('funnel-lists-only-the-unreachable',
         funnel.rows.length === 1 && /Ion|Golf/.test(funnel.rows[0]), JSON.stringify(funnel.rows));
@@ -1649,6 +1653,37 @@ try {
       // leave nobody able to explain where the third car went.
       check('funnel-says-how-many-asked-the-bot-to-stop',
         funnel.notes.some(n => /^1 /.test(n) && /mesaje/i.test(n)), JSON.stringify(funnel.notes));
+
+      // Announcements used to reach web push only — in practice the team. They
+      // now also go out on Telegram to every linked participant, so the button
+      // has to say who gets it BEFORE it is pressed, and it has to count
+      // people rather than cars.
+      const writes = [];
+      await zctx.route('**/rest/v1/announcements**', (r) => {
+        if (r.request().method() === 'POST') writes.push(r.request().postData() || '');
+        return r.fulfill({ status: 201, contentType: 'application/json', body: '[]' });
+      });
+      await zp.evaluate(() => {
+        const t = document.getElementById('announceTitle');
+        if (t) t.value = 'Poarta se deschide la 10';
+        document.getElementById('announceSendBtn')?.click();
+      });
+      await zp.waitForTimeout(500);
+      const dlg = await zp.evaluate(() => {
+        const d = document.getElementById('uiDialog');
+        return {
+          open: !!d && d.classList.contains('show'),
+          text: (document.getElementById('uiDialogMessage')?.textContent || '').replace(/\s+/g, ' ').trim(),
+        };
+      });
+      check('announcement-asks-before-messaging-every-participant', dlg.open, JSON.stringify(dlg));
+      // One person entered two of the three cars in the fixture, and the third
+      // opted out: the honest number is 1, not 2.
+      // Two of the four cars are linked, but they are one person's two cars.
+      // The honest number is 1.
+      check('announcement-counts-people-not-cars',
+        /\b1 participan/i.test(dlg.text) && !/\b2 participan/i.test(dlg.text), dlg.text);
+      check('announcement-not-sent-until-confirmed', writes.length === 0, JSON.stringify(writes));
     } catch (e) {
       for (const n of ['approve-refused-without-zone', 'approve-says-why-zone-is-needed',
         'approve-warning-clears-on-choice', 'funnel-visible-when-someone-unreachable',
@@ -1656,7 +1691,10 @@ try {
         'funnel-offers-a-send-button',
         'funnel-does-not-offer-to-re-invite-someone-who-said-stop',
         'funnel-does-not-list-the-driver-who-said-stop',
-        'funnel-says-how-many-asked-the-bot-to-stop']) {
+        'funnel-says-how-many-asked-the-bot-to-stop',
+        'announcement-asks-before-messaging-every-participant',
+        'announcement-counts-people-not-cars',
+        'announcement-not-sent-until-confirmed']) {
         if (!checks.some((c2) => c2.name === n)) check(n, false);
       }
       console.log(`zone/funnel checks: ${e.message}`);
