@@ -1322,6 +1322,84 @@ try {
     await rctx.close();
   }
 
+  // 4ja. Refusing a registration goes through `reject_registration`, not a bare
+  // DELETE.
+  //
+  // The bot now writes to the person when their registration is refused, and it
+  // is a database trigger on the delete that sends it. But approving deletes the
+  // very same row — approval inserts the car and then clears the queue entry —
+  // so the trigger cannot tell acceptance from refusal by looking at the delete.
+  // The RPC is the one door that means "refused"; it sets a transaction-local
+  // flag the trigger reads. If this button ever goes back to deleting directly,
+  // refusals become silent, so the test watches the wire rather than the DOM.
+  {
+    const seen = { rpc: [], del: [] };
+    const REGS = [
+      { id: 21, brand: 'R', model: 'Pending', owner: 'o', plate: 'Q1', status: 'pending', event_id: 6, photos: [], created_at: new Date().toISOString() },
+    ];
+    const jctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+    await jctx.route('**://*.supabase.co/**', (r) => {
+      const req = r.request();
+      const u = req.url();
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      if (u.includes('/rest/v1/rpc/reject_registration')) {
+        seen.rpc.push(req.postData() || '');
+        return J(null);
+      }
+      if (u.includes('/rest/v1/car_registrations')) {
+        if (req.method() === 'DELETE') { seen.del.push(u); return J([]); }
+        const m = decodeURIComponent(u).match(/status=in\.\(([^)]*)\)/);
+        const want = m ? m[1].split(',').map((x) => x.replace(/"/g, '').trim()) : null;
+        return J(want ? REGS.filter((x) => want.includes(x.status)) : REGS);
+      }
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Ev', status: 'planned', event_date: new Date(Date.now() + 864e5).toISOString().slice(0, 10) }]);
+      if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+      if (u.includes('/rest/v1/')) return J([]);
+      if (u.includes('/functions/v1/')) return J({});
+      return r.abort();
+    });
+    const jp = await jctx.newPage();
+    await jp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+    await jp.evaluate(() => {
+      localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      }));
+    });
+    await jp.reload({ waitUntil: 'domcontentloaded' });
+    try {
+      // The queue lives on the cars screen and starts hidden, so get there first.
+      await jp.click('[data-section="cars"]');
+      await jp.waitForSelector('#regQueue [data-reg-open="21"]', { timeout: 12000 });
+      await jp.click('#regQueue [data-reg-open="21"]');
+      await jp.waitForSelector('#regDetailReject', { state: 'visible', timeout: 6000 });
+      await jp.click('#regDetailReject');
+      await jp.waitForSelector('#uiDialog.show #uiDialogOk', { state: 'visible', timeout: 6000 });
+      await jp.click('#uiDialogOk');
+      await jp.waitForTimeout(900);
+      check('reject-goes-through-rpc', seen.rpc.length === 1);
+      // The row it names has to be the one that was open, not whatever was first.
+      check('reject-rpc-carries-the-id', /"p_id"\s*:\s*21\b/.test(seen.rpc[0] || ''));
+      // And nothing bypassed it.
+      check('reject-does-not-delete-directly', seen.del.length === 0);
+      // Gone from the queue either way — the operator sees the same thing.
+      const left = await jp.$$eval('#regQueue [data-reg-open]', (n) => n.length);
+      check('reject-clears-the-card', left === 0);
+    } catch (e) {
+      for (const n of ['reject-goes-through-rpc', 'reject-rpc-carries-the-id',
+        'reject-does-not-delete-directly', 'reject-clears-the-card']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`reject checks: ${e.message}`);
+    }
+    await jctx.close();
+  }
+
   // 4kb. Sending a driver the bot connect link. The driver is by definition NOT
   // on Telegram yet — that is what the link is for — so the bot cannot deliver
   // it and SMS has no provider configured. WhatsApp is the one channel that

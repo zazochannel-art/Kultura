@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v179';
+    const APP_VERSION = 'v180';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -10468,9 +10468,14 @@
     async function holdRegistration(id) {
       return setRegStatus(id, 'hold', t('reg.held'));
     }
+    // Through the RPC, not a plain delete. Approving deletes the same row —
+    // it turns the registration into a car and then removes the queue entry —
+    // so the database cannot tell the two apart on its own. `reject_registration`
+    // is the one door that means "refused", and the bot only writes to the
+    // person when the refusal came through it.
     async function rejectRegistration(id, skipConfirm) {
       if (!skipConfirm && !(await uiConfirm(t('reg.reject_confirm')))) return;
-      const { error } = await supa.from('car_registrations').delete().eq('id', id);
+      const { error } = await supa.rpc('reject_registration', { p_id: Number(id) });
       if (error) { showToast(t('common.error') + ': ' + error.message, 'error'); return; }
       state.registrations = (state.registrations || []).filter(x => String(x.id) !== String(id));
       renderRegQueue();
