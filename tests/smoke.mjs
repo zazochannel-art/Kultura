@@ -1972,6 +1972,74 @@ try {
     }
   }
 
+  // 4m0. The hour on the pass, and the timezone trap under it.
+  //
+  // `events.starts_at` comes from a date picker that forces local midnight —
+  // every event in this database is exactly 00:00 — so the pass never showed an
+  // hour at all, and printing that one would have invented it. The hour it
+  // shows now is the first entry of the event's own agenda, which is where the
+  // operator actually writes the times.
+  //
+  // That string carries no timezone, and it must stay that way: a participant
+  // opening their pass from another country needs the hour on the gate's clock.
+  // Parsing it into a Date would convert it into theirs, silently, and only for
+  // the people travelling — the ones least able to tell it is wrong. So the
+  // browser here is deliberately put in Tokyo, nine hours off, and the pass has
+  // to read the same.
+  {
+    const withTicket = async (extra, tz) => {
+      const c = await browser.newContext({ viewport: { width: 430, height: 930 }, timezoneId: tz });
+      await c.route('**://*.supabase.co/**', (r) => {
+        if (!r.request().url().includes('/functions/v1/ticket')) return r.abort();
+        return r.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify({
+            id: 42, entry_no: 7, name: 'Ion', brand: 'Nissan', model: 'Silvia',
+            plate: 'XYZ 123', zone: 'A2', category: 'JDM', arrived: false,
+            event: 'Kultura Fest', qr: 'KULTURA:42:XYZ 123',
+            event_location: 'Chisinau Arena',
+            // 26 November 2027, 00:00 in Chisinau — the midnight artefact.
+            event_starts_at: '2027-11-25T22:00:00+00:00',
+            tg_link: '', tg_linked: true, ...extra,
+          }),
+        });
+      });
+      const p = await c.newPage();
+      await p.goto(`${BASE}/ticket.html?c=42&k=XYZ%20123`, { waitUntil: 'domcontentloaded' });
+      await p.waitForTimeout(700);
+      const line = await p.evaluate(() => (document.querySelector('.when')?.textContent || '').trim());
+      await c.close();
+      return line;
+    };
+
+    try {
+      const home = await withTicket({ event_start_time: '10:00' }, 'Europe/Chisinau');
+      check('ticket-shows-the-hour', /ora 10:00/.test(home), home);
+      check('ticket-still-shows-day-and-place', /noiembrie/.test(home) && /Chisinau Arena/.test(home), home);
+
+      // Nine hours east. The hour on the pass may not move with the reader.
+      const abroad = await withTicket({ event_start_time: '10:00' }, 'Asia/Tokyo');
+      check('ticket-hour-does-not-follow-the-reader', /ora 10:00/.test(abroad), abroad);
+
+      // No agenda yet: the pass says the day, and invents nothing.
+      const noHour = await withTicket({ event_start_time: '' }, 'Europe/Chisinau');
+      check('ticket-invents-no-hour-without-an-agenda', !/ora/.test(noHour) && /noiembrie/.test(noHour), noHour);
+      // Nor does it print the midnight the date picker leaves behind.
+      check('ticket-never-prints-the-midnight-artefact', !/00:00/.test(noHour), noHour);
+
+      // Junk in a free-text column must not reach a pass read at a gate.
+      const junk = await withTicket({ event_start_time: 'dimineata' }, 'Europe/Chisinau');
+      check('ticket-drops-an-hour-it-cannot-read', !/ora/.test(junk), junk);
+    } catch (e) {
+      for (const n of ['ticket-shows-the-hour', 'ticket-still-shows-day-and-place',
+        'ticket-hour-does-not-follow-the-reader', 'ticket-invents-no-hour-without-an-agenda',
+        'ticket-never-prints-the-midnight-artefact', 'ticket-drops-an-hour-it-cannot-read']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`ticket hour checks: ${e.message}`);
+    }
+  }
+
   // 4m. The ticket page is the only route by which a participant ever links
   // their Telegram chat — a bot cannot message someone who has not opened it
   // first. The feature shipped once with no way to hand the link out at all,
