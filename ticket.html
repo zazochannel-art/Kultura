@@ -85,15 +85,30 @@
                '<div class="t-hint">Programul, zona și confirmarea participării, direct în Telegram.</div>';
       }
 
-      // Day and month only. `starts_at` is built from a date picker with the
-      // time forced to local midnight, so an hour printed here would be
-      // invented, not read.
+      // Day and month. `starts_at` is built from a date picker with the time
+      // forced to local midnight, so its hour is an artefact — every event in
+      // this database is exactly 00:00 — and printing it would invent one.
       function evDay(iso){
         if(!iso) return '';
         var d = new Date(iso);
         if(isNaN(d)) return '';
         try { return d.toLocaleDateString('ro-RO', { day:'numeric', month:'long' }); }
         catch(e){ return ''; }
+      }
+
+      // The hour, from the one place it honestly exists: the first entry of the
+      // event's own agenda, which is the gate opening and which the operator
+      // already keeps up to date.
+      //
+      // It is a bare clock string with no timezone in it, and that is exactly
+      // what a pass needs: somebody opening this from another country wants the
+      // hour on the gate's clock, not one converted into theirs. So it is
+      // printed as written — never parsed into a Date, which is what would drag
+      // a timezone back in. Anything that is not HH:MM is left off rather than
+      // shown, because a pass is read once, in a hurry, at an entrance.
+      function evHour(t){
+        var m = /^\s*([01]?\d|2[0-3]):([0-5]\d)/.exec(String(t || ''));
+        return m ? ('ora ' + (m[1].length < 2 ? '0' + m[1] : m[1]) + ':' + m[2]) : '';
       }
 
       // Zone and spot together, the way the app and the gate screen say it —
@@ -106,7 +121,8 @@
 
       function render(d){
         var carLine = [d.brand, d.model].filter(Boolean).join(' ');
-        var when = [evDay(d.event_starts_at), String(d.event_location || '').trim()].filter(Boolean).join(' · ');
+        var when = [evDay(d.event_starts_at), evHour(d.event_start_time),
+                    String(d.event_location || '').trim()].filter(Boolean).join(' · ');
         root.innerHTML =
           '<div class="t-head"><div class="brand">KULTURA</div>'+(d.event?'<div class="ev">'+esc(d.event)+'</div>':'')+
             (when?'<div class="when">'+esc(when)+'</div>':'')+'</div>'+

@@ -110,7 +110,7 @@ veche în cache.
 | `agenda.html` | Programul evenimentului |
 | `feedback.html` | Feedback post-eveniment (stele + comentariu) |
 | `confirm.html` | „Vii la eveniment?" — link personal semnat, trimis în memento. Spune și ziua și locul, altfel întrebarea n-are răspuns |
-| `ticket.html` | Biletul participantului: numărul de intrare, ziua și locul evenimentului, zona **și** locul numerotat, QR de check-in, plus butonul de conectare la Telegram |
+| `ticket.html` | Biletul participantului: numărul de intrare, ziua **și ora** evenimentului (ora vine din primul rând al agendei, nu din `starts_at`), locul, zona **și** locul numerotat, QR de check-in, plus butonul de conectare la Telegram |
 
 ### `plan.html` — planul desenat al terenului
 
@@ -745,7 +745,7 @@ fel, dar **își verifică singure apelantul** înăuntru (`is_admin_user()` /
 | `plate-check` | nu | Formularul public: spune doar dacă placa e cunoscută/blocată |
 | `vote` | nu | Votare publică + clasament. Max 12 voturi noi/oră/IP. Întoarce și `entry_no` + clasa |
 | `event-info` | nu | Evenimentul curent + agenda, pentru paginile publice. Întoarce și `waiver_text` și `spots_left` |
-| `ticket` | nu | Bilet/pass. Întoarce și `entry_no`, `spot_no`, `event_starts_at` și `event_location` — `event` rămâne string, ca biletele deja servite din cache să nu se rupă |
+| `ticket` | nu | Bilet/pass. Întoarce și `entry_no`, `spot_no`, `event_starts_at`, `event_start_time` (primul rând al agendei — singura oră reală) și `event_location`; `event` rămâne string, ca biletele deja servite din cache să nu se rupă |
 | `rsvp` | nu | „Vii la eveniment?" pentru `confirm.html`. Token HMAC pe id-ul mașinii; un „nu" eliberează locul și promovează prima înscriere de pe lista de așteptare |
 | `telegram` | nu² | Webhook-ul botului (`/start <id>-<token>` leagă chat-ul de mașină), configurarea de către admin, **linkurile de invitație** (`action:'invite'`, staff) și mesajele pe care sistemul le trimite singur (`action:'notify'`). Are **trei fișiere**: `index.ts`, `strings.ts` — dicționarul ro/en/ru al botului — și `map-png.ts`, decodor + encoder PNG, care pune cercul peste harta desenată de aplicație. **Un redeploy înlocuiește toate fișierele**, deci `map-png.ts` trebuie retrimis identic de fiecare dată |
 | `health` | da | Starea canalelor pentru admin: Telegram (conectat? webhook viu? câți legați?), SMS (configurat?), adresa publică. Booleeni și numere, niciodată secretele |
@@ -1642,6 +1642,35 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     cinci mașini. `reachCount()` numără chat-uri distincte, sare peste cine a
     zis `/stop`, și e aceeași funcție și pentru anunț și pentru mutarea
     evenimentului.
+
+94. **Ora evenimentului nu e în `starts_at`, ci în agendă.** Modalul de
+    eveniment are doar un selector de dată, deci `starts_at` e data plus miezul
+    nopții — toate evenimentele din bază sunt exact 00:00 și ora de acolo e un
+    artefact. Ora pe care o citește un participant o scrie operatorul în agendă,
+    pe primul rând („10:00 Deschiderea Oficială"), și de acolo o ia biletul.
+
+95. **Un ceas fără fus orar nu trebuie trecut printr-un `Date`.** Orele din
+    agendă sunt șiruri simple, `HH:MM`, fără fus în ele — exact ce trebuie pe un
+    bilet, fiindcă cine îl deschide din altă țară are nevoie de ora de pe ceasul
+    porții. Parsarea lor într-un `Date` convertește tăcut în fusul cititorului,
+    și doar pentru cei care călătoresc — adică tocmai cei care n-au cum să-și dea
+    seama. `ticket-hour-does-not-follow-the-reader` pune browserul în Tokyo:
+    cu ora trecută printr-un `Date`, biletul spune 17:00 în loc de 10:00.
+
+96. **`returning ... into` vrea exact un rând.** `prune_registration_sessions`
+    avea `returning 1 into n` peste un `delete` care șterge mai multe rânduri,
+    urmat de `get diagnostics n = row_count` — care face oricum treaba. Jobul a
+    mers cât timp expira cel mult o sesiune și a picat în ziua în care au fost
+    două. Fusese neprogramat până acum două runde, de aceea defectul n-avusese
+    ocazia să se arate. Un `delete` care pică nu șterge nimic, deci nu s-a
+    pierdut nimic — dar tabelul ar fi crescut la nesfârșit.
+
+97. **Funcțiile de trigger n-au ce căuta în API-ul public.** Apelate direct
+    răspund doar „trigger functions can only be called as triggers", deci nu erau
+    exploatabile — dar o funcție `SECURITY DEFINER` expusă degeaba e zgomot care
+    ascunde următoarea descoperire reală. Se pot revoca fără să se strice
+    triggerele: un trigger nu verifică EXECUTE pe rolul care l-a declanșat.
+    Verificat pe o tranzacție rulată înapoi înainte de aplicare.
 
 ## Rămas de făcut manual
 
