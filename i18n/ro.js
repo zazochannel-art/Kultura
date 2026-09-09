@@ -375,6 +375,7 @@ export default {
   "event.capacity": "Locuri disponibile",
   "event.capacity_ph": "Lasă gol pentru nelimitat",
   "event.capacity_hint": "Când se umple, înscrierile noi intră automat pe lista de așteptare.",
+  "event.notify_confirm": "Ai schimbat ora sau locul. {n} participanți conectați pe Telegram primesc un mesaj cu ce era și ce e acum. Trimitem?",
   "event.waiver": "Acord de participare",
   "event.waiver_ph": "Lasă gol dacă nu ceri niciun acord.",
   "event.waiver_hint": "Textul apare la înscriere. Participantul bifează și își scrie numele — se salvează cu dată și oră.",

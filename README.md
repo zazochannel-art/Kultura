@@ -776,12 +776,26 @@ verificat în `profiles` pentru configurare.
 | `/start <id>-<token>` | Leagă chatul de mașină sau de înscriere. Dacă chatul era legat de altcineva, cel vechi e anunțat |
 | `/bilet` | Numărul de concurs, zona și locul, cu harta ca poză unde există plan |
 | `/program` | Agenda evenimentului |
+| `/unde` | Adresa, ora de start și un link de hartă. `events.location` era completat de la început și nu-l spunea niciun mesaj |
 | `/voteaza` | Linkul de votare, când votarea e deschisă |
 | `/feedback` | Linkul de feedback |
 | `/contact` | Scrie organizatorilor. Devine task în categoria „Participanți", max 5/oră/chat |
 | `/anuleaza` | „Nu mai vin." Aceeași cale ca butonul din reminder: eliberează locul și promovează primul de pe listă |
 | `/limba` | ro / en / ru. Limba se ține pe `cars.telegram_lang` |
 | `/stop` | Nu-mi mai scrie. Scrie `cars.telegram_opted_out_at` — de aici încolo omul e sărit de toate campaniile |
+
+Pe lângă comenzi, botul mai primește **două feluri de mesaje**:
+
+- **un contact** — butonul „Trimite numărul meu". Telegram dă numărul cu care e
+  făcut contul, verificat de el, nu unul tastat. Funcția verifică întâi că fișa
+  de contact e a celui care a trimis-o (`contact.user_id == from.id`), altfel o
+  fișă redirecționată din agenda cuiva ar fi o cale spre biletul altui om.
+  `claim_cars_by_phone` face potrivirea și întoarce chatul precedent al fiecărei
+  mașini, ca cel dat la o parte să fie anunțat.
+- **o poză** — se agață de mașină, în bucketul `car-photos`, aceeași formă de
+  cale ca la încărcarea din aplicație. La mai multe mașini pe același chat,
+  răspunsul e descrierea pozei (placa sau numărul de concurs): un `file_id` e
+  mult peste cei 64 de octeți pe care îi duce un buton, deci butoane nu se pot.
 
 Două lucruri **nu stau în cod, ci la Telegram**, și un deploy nu le schimbă:
 
@@ -794,6 +808,13 @@ Două lucruri **nu stau în cod, ci la Telegram**, și un deploy nu le schimbă:
 
 `status` din funcție întoarce `allowed_updates`, tocmai ca să se poată verifica
 fără să se ghicească.
+
+Și o capcană la rularea lor prin `pg_net`: timeoutul implicit e de **5 secunde**,
+iar prima cerere dintr-un lot îl atinge des. Se vede ca `status_code` **null** în
+`net._http_response`, nu ca eroare — meniul implicit a rămas o dată pe lista
+veche exact așa. Trimite-le cu `timeout_milliseconds := 15000` și citește
+răspunsul înapoi cu `getMyCommands` / `getWebhookInfo` înainte să declari că
+merge.
 
 ## Joburi programate (cron)
 
@@ -881,6 +902,12 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
 1. **Nu revoca EXECUTE** pe `is_team_member` / `is_staff_or_admin` /
    `is_admin_user` / `current_email`. Sunt folosite în politicile RLS. Se strică
    tot.
+   La fel și **`normalize_phone_md`**, dar din alt motiv: stă într-un index pe
+   `cars`, iar Postgres evaluează expresia indexului cu drepturile celui care
+   scrie. Verificat pe o tranzacție rulată înapoi — după revocare, orice INSERT
+   sau UPDATE pe `cars` făcut de echipă pică cu „permission denied for function
+   normalize_phone_md". Regula 27 („o funcție nouă e publică până o revoci") nu
+   se aplică funcțiilor din expresii de index.
 2. **Nu muta rate-limit-ul înapoi în JS.** Verificarea trebuie să rămână atomică
    (`rate_limit_hit`), altfel o rafală concurentă trece integral.
 3. **Nu repune politici de INSERT pentru `anon`** pe `car_registrations` /
@@ -1589,6 +1616,32 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     lipsește. **Tăcerea e implicită.** Dacă butonul de refuz se întoarce la un
     `delete` direct, refuzurile devin mute — de asta există
     `reject-goes-through-rpc` în smoke.
+
+91. **Un formular care arată o dată, peste o coloană care ține un moment.**
+    Modalul de eveniment are un `<input type="date">`, iar `events.starts_at` e
+    un timestamp. La deschidere momentul se citea ca dată locală, la salvare
+    data se scria înapoi ca miezul nopții local — 22:00Z ieșea 00:00Z, adică
+    altă zi. Se închide la loc doar în fusul Moldovei, de aceea n-a sărit în
+    ochi ani de zile, deși mișca `days_left`, reminderele de 24h/2h și ora de pe
+    bilet. Acum momentul se rescrie **doar când data de pe ecran chiar e altă
+    dată**, comparată cu aceeași funcție care a completat câmpul. Păzit de
+    `event-plain-save-keeps-the-hour`.
+
+92. **Un trigger care anunță lumea nu poate fi mai sensibil decât un om.**
+    Mutarea unui eveniment scrie acum tuturor celor conectați. Dacă ar fi
+    pornit la orice diferență de text, corectarea „Chisinau" în „Chișinău" ar fi
+    ajuns pe toate telefoanele — și un avertisment care sună degeaba e un
+    avertisment pe care oamenii învață să-l închidă. Baza compară locul fără
+    diacritice, fără punctuație și fără majuscule; aplicația **pliază la fel**,
+    altfel ar întreba „trimitem?" despre un mesaj care nu pleacă. Cele două
+    plieri trebuie să rămână identice — `event-move-quiet-on-a-typo-fix` cade
+    dacă se despart.
+
+93. **Numărul dintr-o confirmare e de oameni, nu de rânduri.** „Anunț 6
+    participanți" era fals: șase mașini legate însemnau doi oameni, unul cu
+    cinci mașini. `reachCount()` numără chat-uri distincte, sare peste cine a
+    zis `/stop`, și e aceeași funcție și pentru anunț și pentru mutarea
+    evenimentului.
 
 ## Rămas de făcut manual
 

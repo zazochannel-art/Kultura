@@ -1322,6 +1322,124 @@ try {
     await rctx.close();
   }
 
+  // 4jb. Moving an event asks before it writes to the field.
+  //
+  // A trigger on `starts_at`, `date` and `location` now sends every connected
+  // participant the old value and the new one. That is right — somebody who is
+  // not told turns up at the wrong place — but it makes an ordinary Save into a
+  // broadcast, so the operator is told how many people hear it first.
+  //
+  // The half that is easy to get wrong is the silence: the database ignores a
+  // change that only touches case, diacritics or punctuation, and if the app
+  // asked anyway the question would train people to dismiss it. Both halves are
+  // checked, and the count has to be PEOPLE — the fixture is deliberately two
+  // cars on one chat plus one on another.
+  {
+    const EVENT = {
+      id: 6, title: 'Ev', subtitle: null, status: 'planned', status_color: '#000',
+      date: '26 Noiembrie 2027', starts_at: '2027-11-25T22:00:00+00:00',
+      location: 'Chisinau Arena', archived: false, is_sandbox: false,
+      reg_capacity: null, waiver_text: null, entries_frozen: false, cover_url: null,
+    };
+    const CARS = [
+      { id: 1, entry_no: 1, brand: 'A', model: 'One', plate: 'E1', owner: 'o', status: 'Invitat', event_id: 6, telegram_chat_id: 555, telegram_opted_out_at: null, deleted_at: null },
+      { id: 2, entry_no: 2, brand: 'A', model: 'Two', plate: 'E2', owner: 'o', status: 'Invitat', event_id: 6, telegram_chat_id: 555, telegram_opted_out_at: null, deleted_at: null },
+      { id: 3, entry_no: 3, brand: 'B', model: 'Three', plate: 'E3', owner: 'o', status: 'Invitat', event_id: 6, telegram_chat_id: 777, telegram_opted_out_at: null, deleted_at: null },
+      // Said stop: must not be counted as somebody who will hear it.
+      { id: 4, entry_no: 4, brand: 'C', model: 'Four', plate: 'E4', owner: 'o', status: 'Invitat', event_id: 6, telegram_chat_id: null, telegram_opted_out_at: new Date().toISOString(), deleted_at: null },
+    ];
+    const saved = [];
+    const ectx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+    await ectx.route('**://*.supabase.co/**', (r) => {
+      const req = r.request();
+      const u = req.url();
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      if (u.includes('/rest/v1/events')) {
+        if (req.method() === 'PATCH') { saved.push(req.postData() || ''); return J([EVENT]); }
+        return J([EVENT]);
+      }
+      if (u.includes('/rest/v1/cars')) return J(CARS);
+      if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+      if (u.includes('/rest/v1/')) return J([]);
+      if (u.includes('/functions/v1/')) return J({});
+      return r.abort();
+    });
+    const ep = await ectx.newPage();
+    await ep.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+    await ep.evaluate(() => {
+      localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      }));
+    });
+    await ep.reload({ waitUntil: 'domcontentloaded' });
+
+    // Open the event for editing, change one field, save, and say what happened.
+    const editSave = async (field, value) => {
+      await ep.click('[data-section="events"]');
+      await ep.waitForSelector('[data-action="event-edit"][data-event-id="6"]', { timeout: 12000 });
+      await ep.click('[data-action="event-edit"][data-event-id="6"]');
+      await ep.waitForSelector('#form-add-event', { state: 'visible', timeout: 6000 });
+      await ep.fill(`#form-add-event [name="${field}"]`, value);
+      await ep.click('#form-add-event button[type="submit"]');
+      await ep.waitForTimeout(500);
+      const asked = await ep.evaluate(() => {
+        const d = document.getElementById('uiDialog');
+        if (!d || !d.classList.contains('show')) return null;
+        return (document.getElementById('uiDialogMessage')?.textContent || '').trim();
+      });
+      if (asked !== null) await ep.click('#uiDialogCancel');
+      await ep.waitForTimeout(400);
+      await ep.evaluate(() => {
+        const m = document.getElementById('modal-add-event');
+        if (m) m.classList.remove('show');
+      });
+      return asked;
+    };
+
+    try {
+      // A typo fix on the place. The database folds this away, so the app must
+      // not ask — a question about a change nobody is sent is a question people
+      // learn to click through.
+      const quiet = await editSave('location', 'Chișinău  Arena.');
+      check('event-move-quiet-on-a-typo-fix', quiet === null);
+
+      // A real move. The typo fix above went through silently — that is the
+      // point of it — so what matters here is that THIS save adds nothing.
+      const writesBefore = saved.length;
+      const asked = await editSave('location', 'Stadionul Zimbru');
+      check('event-move-asks-before-telling-everyone', typeof asked === 'string' && asked.length > 10);
+      // Two chats, not three cars, and not the driver who sent /stop.
+      check('event-move-counts-people-not-cars', /\b2\b/.test(asked || ''));
+      // Cancelling means cancelling: nothing may have been written.
+      check('event-move-cancel-writes-nothing', saved.length === writesBefore);
+
+      // And the save that changes nothing must ask nothing AND write the same
+      // moment back. The form shows a date, the column stores a moment: reading
+      // 22:00Z out as a date and writing it back as local midnight moved the
+      // event by hours everywhere except this country's own timezone — and with
+      // the trigger in place that lands as "the time changed" on every phone,
+      // on an ordinary save of an unrelated field.
+      const untouched = await editSave('subtitle', 'ceva nou');
+      check('event-plain-save-asks-nothing', untouched === null);
+      const body = saved.length ? JSON.parse(saved[saved.length - 1]) : null;
+      check('event-plain-save-keeps-the-hour',
+        !!body && new Date(body.starts_at).getTime() === new Date(EVENT.starts_at).getTime());
+    } catch (e) {
+      for (const n of ['event-move-quiet-on-a-typo-fix', 'event-move-asks-before-telling-everyone',
+        'event-move-counts-people-not-cars', 'event-move-cancel-writes-nothing']) {
+        if (!checks.some((c2) => c2.name === n)) check(n, false);
+      }
+      console.log(`event move checks: ${e.message}`);
+    }
+    await ectx.close();
+  }
+
   // 4ja. Refusing a registration goes through `reject_registration`, not a bare
   // DELETE.
   //
@@ -5425,8 +5543,21 @@ try {
   // now and the earlier ones greyed out as done. The event pinned to the
   // public pages when this was found was fourteen months away.
   {
+    // The page marks "now" by comparing an agenda row's clock time against the
+    // wall clock, and the rows below are 09:00, 11:30 and 23:30. So this block
+    // quietly depended on the hour CI happened to run at: between midnight and
+    // nine in the morning nothing has started yet, `curIdx` stays -1, and
+    // `the-agenda-still-marks-now-on-the-day-itself` failed for a reason that
+    // had nothing to do with the code under test.
+    //
+    // The browser's clock is pinned instead, and the fixture dates are built
+    // from the same instant, so the block means the same thing at every hour.
+    // `setFixedTime` pins Date without freezing timers, which is what a page
+    // that renders on load needs.
+    const REF = (() => { const d = new Date(); d.setHours(14, 0, 0, 0); return d; })();
     const mkPublic = async (startsAt, votingOpen) => {
       const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+      await c.clock.setFixedTime(REF);
       await c.route('**://*.supabase.co/**', (r) => {
         const u = r.request().url();
         const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
@@ -5452,7 +5583,7 @@ try {
       return c;
     };
     const dayAt = (offsetDays, hour) => {
-      const d = new Date();
+      const d = new Date(REF);
       d.setDate(d.getDate() + offsetDays);
       d.setHours(hour, 0, 0, 0);
       return d.toISOString();

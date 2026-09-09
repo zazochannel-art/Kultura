@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v180';
+    const APP_VERSION = 'v181';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -8136,18 +8136,23 @@
     // Distinct chats, not linked cars: six linked cars here are two people, one
     // of whom entered five, and telling an operator "6" before they press send
     // would be the same overcount the bot itself used to make.
-    function announceReach() {
+    //
+    // `eventId` null means every event still running, which is what a general
+    // announcement goes to; a number narrows it to that one event.
+    function reachCount(eventId) {
       const live = new Set((state.events || [])
         .filter(e => !e.archived).map(e => String(e.id)));
       const chats = new Set();
       for (const c of state.cars || []) {
         if (c.deleted_at || c.telegram_opted_out_at) continue;
         if (!c.telegram_chat_id) continue;
-        if (!live.has(String(c.event_id))) continue;
+        if (eventId == null) { if (!live.has(String(c.event_id))) continue; }
+        else if (String(c.event_id) !== String(eventId)) continue;
         chats.add(String(c.telegram_chat_id));
       }
       return chats.size;
     }
+    function announceReach() { return reachCount(null); }
 
     async function sendAnnouncement() {
       const tI = el('announceTitle'), bI = el('announceBody');
@@ -9855,7 +9860,28 @@
       // Real date drives the auto-computed "days left". The free-text label is
       // optional — if left blank, format it from the picked date.
       const startsVal = fd.get('starts_at');
-      const startsAt = startsVal ? new Date(startsVal + 'T00:00:00').toISOString() : null;
+      const priorEvent = editingEventId
+        ? (state.events || []).find(e => String(e.id) === String(editingEventId))
+        : null;
+      // The form shows a DATE; the column stores a MOMENT. Reading the moment
+      // back as a date and writing it out again as local midnight moved the
+      // event: 22:00Z came back as 25 November and went out as 00:00Z, which is
+      // a different day. It round-trips only in this country's own timezone,
+      // which is why it went unnoticed — and it shifted `days_left`, the 24h and
+      // 2h reminders and the hour printed on the pass, silently.
+      //
+      // So the timestamp is only rewritten when the date on screen is actually a
+      // different date. Same rendering as the one that filled the field in, or
+      // the comparison would be between two different things.
+      const asDateInput = (iso) => {
+        if (!iso) return '';
+        const d = new Date(iso);
+        return isNaN(d) ? '' : new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+      };
+      const startsAt = !startsVal ? null
+        : (priorEvent && asDateInput(priorEvent.starts_at) === startsVal
+          ? priorEvent.starts_at
+          : new Date(startsVal + 'T00:00:00').toISOString());
       let displayDate = (fd.get('date') || '').trim();
       if (!displayDate && startsVal) {
         try { displayDate = new Date(startsVal + 'T00:00:00').toLocaleDateString('ro-RO', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (_) { displayDate = startsVal; }
@@ -9890,6 +9916,38 @@
         ...(frozen ? {} : { entries_frozen_at: null }),
         days_left: null   // computed live from starts_at
       };
+      // Moving an event now writes to everyone connected to it: a trigger on
+      // `starts_at`, `date` and `location` sends the old value and the new one.
+      // That is the right default — somebody who is not told turns up at the
+      // wrong place — but a message going to the whole field is not a thing to
+      // find out about afterwards. Same rule as the announcement button: say who
+      // hears it, then ask.
+      //
+      // The comparison mirrors the database's exactly, or the question would be
+      // asked when nothing is sent: the place is folded (case, diacritics and
+      // punctuation dropped) so fixing „Chisinau” to „Chișinău” is silent, and
+      // the hour is read the way the trigger reads it — from `starts_at` when
+      // there is one, from the written date only when there is not.
+      if (priorEvent && !priorEvent.archived && !priorEvent.is_sandbox) {
+        const heard = reachCount(editingEventId);
+        const fold = (v) => String(v || '').toLowerCase()
+          .replace(/[ăâîșşțţ]/g,
+            (c) => ({ 'ă': 'a', 'â': 'a', 'î': 'i', 'ș': 's', 'ş': 's', 'ț': 't', 'ţ': 't' }[c]))
+          .replace(/[^a-z0-9]/g, '');
+        const whenOf = (o) => {
+          if (o.starts_at) {
+            const d = new Date(o.starts_at);
+            return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 16);
+          }
+          return String(o.date || '').trim();
+        };
+        const moved = whenOf(priorEvent) !== whenOf(payload)
+          || fold(priorEvent.location) !== fold(payload.location);
+        if (heard && moved && !(await uiConfirm(t('event.notify_confirm', { n: heard })))) {
+          btn.disabled = false;
+          return;
+        }
+      }
       try {
         const { error } = editingEventId
           ? await supa.from('events').update(payload).eq('id', editingEventId)
