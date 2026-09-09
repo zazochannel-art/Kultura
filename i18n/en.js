@@ -372,6 +372,7 @@ export default {
   "event.capacity": "Available spots",
   "event.capacity_ph": "Leave empty for unlimited",
   "event.capacity_hint": "Once full, new registrations go to the waitlist automatically.",
+  "event.notify_confirm": "You changed the time or the place. {n} participants connected on Telegram get a message with the old value and the new one. Send it?",
   "event.waiver": "Participation waiver",
   "event.waiver_ph": "Leave empty if you do not require one.",
   "event.waiver_hint": "The text appears on the registration form. The participant ticks it and types their name — saved with a timestamp.",
