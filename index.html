@@ -705,6 +705,24 @@
             </div>
             <button type="button" class="btn small" id="openAccountBtn" data-i18n="settings.account.open">Deschide</button>
           </div>
+          <!-- The team's own notifications, on the bot the participants already
+               use. Everything the team is told went to web push and nowhere
+               else — one subscription in this project, made in July, for a team
+               of five — so every task reminder and new registration landed on
+               one device. This row is the only way in: the link is minted
+               server-side against the caller's own account, so nobody can mint
+               one that binds somebody else's. -->
+          <div class="setting-row" style="align-items:flex-start;">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+            </div>
+            <div class="txt" style="flex:1;">
+              <strong data-i18n="staff.tg.title">Notificările mele pe Telegram</strong>
+              <span data-i18n="staff.tg.sub">Taskurile, înscrierile noi și mesajele de la participanți ajung și pe telefon, nu doar în aplicație.</span>
+              <div class="modal-msg" id="staffTgMsg" style="margin-top:6px;"></div>
+            </div>
+            <button type="button" class="btn small" id="staffTgBtn">Conectează-mă</button>
+          </div>
         </div>
 
         <div class="setting-block">
