@@ -2199,13 +2199,23 @@ try {
   // nobody linked, and no sign at all that you were working offline outside
   // the gate screen.
   {
-    const mk = async (health, cars, event, agenda = [], sync = [], tasks = [], settings = [], plan = null) => {
+    const mk = async (health, cars, event, agenda = [], sync = [], tasks = [], settings = [], plan = null,
+      profile = { email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }) => {
       const c = await browser.newContext({ viewport: { width: 430, height: 930 }, isMobile: true, hasTouch: true });
       await c.route('**://*.supabase.co/**', (r) => {
         const u = r.request().url();
         const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
         if (u.includes('/functions/v1/health')) return J(health);
-        if (u.includes('/functions/v1/telegram')) return J({ ok: true, has_token: true, username: 'Bot', webhook: 'x', linked: 0 });
+        if (u.includes('/functions/v1/telegram')) {
+          let action = '';
+          try { action = JSON.parse(r.request().postData() || '{}').action || ''; } catch (_) { action = ''; }
+          // The team member's own way onto the bot. The token is minted against
+          // the caller's JWT server-side; the browser only ever sees the URL.
+          if (action === 'staff_link') {
+            return J({ ok: true, link: 'https://t.me/Bot?start=s' + '0123456789abcdef'.repeat(2), ttl_min: 15, linked: false, name: 'QA' });
+          }
+          return J({ ok: true, has_token: true, username: 'Bot', webhook: 'x', linked: 0 });
+        }
         if (u.includes('/rest/v1/cars')) return J(/deleted_at=not\.is\.null/.test(u) ? [] : cars);
         if (u.includes('/rest/v1/event_agenda')) return J(agenda);
         if (u.includes('/rest/v1/integration_runs')) return J(sync);
@@ -2216,7 +2226,7 @@ try {
         // that case be tested at all.
         if (u.includes('/rest/v1/zone_plans')) return J(plan ? [plan] : []);
         if (u.includes('/rest/v1/events')) return J(Array.isArray(event) ? event : [event]);
-        if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+        if (u.includes('/rest/v1/profiles')) return J([profile]);
         if (u.includes('/rest/v1/')) return J([]);
         return r.abort();
       });
@@ -2258,6 +2268,14 @@ try {
       { id: 1, entry_no: 1, brand: 'VW', model: 'Golf', owner: 'A', plate: 'P1', status: 'Sosit', event_id: 6, zone: '', deleted_at: null },
       { id: 2, entry_no: 2, brand: 'Mazda', model: 'RX7', owner: 'B', plate: 'P2', status: 'Sosit', event_id: 6, zone: 'A1', deleted_at: null },
     ];
+    // The same cars, for the fixtures that are meant to be in good shape.
+    //
+    // `HEALTHY` claims a bot with linked chats, and the channel pill now checks
+    // that claim against the cars themselves rather than taking the health
+    // payload's word for it — a payload saying "3 linked" while every car in
+    // the list has no chat is exactly the disagreement the pill exists to
+    // catch, and it is the shape production is in.
+    const LINKED_CARS = CARS.map(c => ({ ...c, zone: 'A1', telegram_chat_id: 900000 + c.id }));
 
     try {
       // Everything unfinished: the list names each gap.
@@ -2375,6 +2393,136 @@ try {
       check('channel-health-does-not-warn-about-sms-that-is-off',
         !pills.some(p => /SMS/.test(p.text) && (p.state === 'is-warn' || p.state === 'is-bad')),
         JSON.stringify(pills));
+
+      // ---- How much of the field the bot reaches, not whether one chat exists.
+      //
+      // Green used to mean "at least one linked chat somewhere". In production
+      // that was 2 linked chats against 56 cars — a channel reaching four
+      // percent of the drivers, reported as working, on the only channel this
+      // project has. Green now means most of the field; anything less is amber
+      // and the readiness list says the share out loud.
+      const COVER = (n, linked, opted = 0) => Array.from({ length: n }, (_, i) => ({
+        id: i + 1, entry_no: i + 1, brand: 'VW', model: 'Golf', owner: 'O' + i, plate: 'P' + i,
+        status: 'Invitat', event_id: 6, zone: 'A1', deleted_at: null,
+        telegram_chat_id: i < linked ? 900000 + i : null,
+        telegram_opted_out_at: i >= n - opted ? new Date().toISOString() : null,
+      }));
+      const AGENDA = [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }];
+      const tgPillOf = async (ctx) => {
+        await ctx.p.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
+        await ctx.p.waitForTimeout(1100);
+        return await ctx.p.evaluate(() => {
+          const x = [...document.querySelectorAll('#channelHealth .chan-pill')].find(e => /Telegram/.test(e.textContent));
+          return x ? { state: x.className.replace('chan-pill ', ''), text: x.textContent.trim() } : null;
+        });
+      };
+      const readyRowsOf = (ctx) => ctx.p.evaluate(() =>
+        [...document.querySelectorAll('#readyList .ready-row')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
+
+      const low = await mk(HEALTHY, COVER(10, 2), READY_EVENT, AGENDA);
+      const lowPill = await tgPillOf(low);
+      check('channel-health-warns-below-coverage-threshold',
+        !!lowPill && lowPill.state === 'is-warn', JSON.stringify(lowPill));
+      // The share over the event in hand, not a lifetime count. HEALTHY claims
+      // 3 of 3 linked; the cars say 2 of 10, and the cars are the people an
+      // announcement would actually go to.
+      check('channel-health-counts-coverage-over-the-event',
+        !!lowPill && /2 din 10/.test(lowPill.text), JSON.stringify(lowPill));
+      const lowRows = await readyRowsOf(low);
+      check('ready-list-flags-partial-telegram-coverage',
+        lowRows.some(r => /Telegram/i.test(r) && /2 din 10/.test(r)), lowRows.join(' | '));
+      await low.c.close();
+
+      const high = await mk(HEALTHY, COVER(10, 8), READY_EVENT, AGENDA);
+      const highPill = await tgPillOf(high);
+      check('channel-health-green-above-coverage-threshold',
+        !!highPill && highPill.state === 'is-ok', JSON.stringify(highPill));
+      const highRows = await readyRowsOf(high);
+      check('ready-list-quiet-when-most-are-linked',
+        !highRows.some(r => /Telegram/i.test(r)), highRows.join(' | '));
+      await high.c.close();
+
+      // Somebody who sent /stop is out of the denominator. They refused the
+      // channel; holding the team to a share it is not allowed to reach would
+      // leave a line nobody can ever clear, and a line nobody can clear is a
+      // line everybody stops reading.
+      const opted = await mk(HEALTHY, COVER(10, 7, 3), READY_EVENT, AGENDA);
+      const optedPill = await tgPillOf(opted);
+      check('coverage-leaves-out-people-who-said-stop',
+        !!optedPill && optedPill.state === 'is-ok' && /7 din 7/.test(optedPill.text), JSON.stringify(optedPill));
+      await opted.c.close();
+
+      // ---- The team's own way onto the bot.
+      //
+      // Everything the team is told went to web push and nowhere else: one
+      // subscription in this project, made in July, for a team of five. This
+      // row is the only door in, and it is deliberately not admin-only — the
+      // Telegram block above is.
+      const staffOff = await mk(HEALTHY, LINKED_CARS, READY_EVENT, AGENDA);
+      await staffOff.p.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
+      await staffOff.p.waitForTimeout(900);
+      const offRow = await staffOff.p.evaluate(() => ({
+        msg: document.getElementById('staffTgMsg')?.textContent.trim() || '',
+        btn: document.getElementById('staffTgBtn')?.textContent.trim() || '',
+      }));
+      check('settings-says-the-team-member-is-not-on-the-bot',
+        /^Neconectat/i.test(offRow.msg), JSON.stringify(offRow));
+      check('settings-offers-to-connect-the-team-member',
+        /^Conecteaz/i.test(offRow.btn), JSON.stringify(offRow));
+      // Pressing it mints a link and leaves it on screen: the phone that
+      // carries Telegram is usually not the device the app is open on, so a
+      // link that only opens locally would not reach the person who needs it.
+      await staffOff.p.click('#staffTgBtn');
+      await staffOff.p.waitForTimeout(800);
+      const minted = await staffOff.p.evaluate(() => {
+        const m = document.getElementById('staffTgMsg');
+        const a = m ? m.querySelector('a') : null;
+        return { txt: m ? m.textContent.trim() : '', href: a ? a.getAttribute('href') : '' };
+      });
+      check('settings-hands-over-a-bot-link-to-open',
+        /^https:\/\/t\.me\/Bot\?start=s[0-9a-f]{32}$/.test(minted.href), JSON.stringify(minted));
+      // A link with no stated life is a link somebody opens tomorrow.
+      check('settings-says-how-long-the-bot-link-lasts',
+        /15/.test(minted.txt), minted.txt);
+      await staffOff.c.close();
+
+      // Already linked: the row says so, and the button offers the move rather
+      // than pretending nothing has happened.
+      const staffOn = await mk(HEALTHY, LINKED_CARS, READY_EVENT, AGENDA, [], [], [], null,
+        { email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true, telegram_chat_id: 4242 });
+      await staffOn.p.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
+      await staffOn.p.waitForTimeout(900);
+      const onRow = await staffOn.p.evaluate(() => ({
+        msg: document.getElementById('staffTgMsg')?.textContent.trim() || '',
+        btn: document.getElementById('staffTgBtn')?.textContent.trim() || '',
+      }));
+      check('settings-says-the-team-member-is-on-the-bot',
+        /^Conectat/i.test(onRow.msg), JSON.stringify(onRow));
+      check('settings-offers-to-move-an-existing-bot-link',
+        /^Mut/i.test(onRow.btn), JSON.stringify(onRow));
+      await staffOn.c.close();
+
+      // A plain member sees the row too. The channel pills and the Telegram
+      // block are admin-only, and a member who could not reach this row would
+      // have no way to be told anything outside the app.
+      const staffMember = await mk(HEALTHY, LINKED_CARS, READY_EVENT, AGENDA, [], [], [], null,
+        { email: 'qa@example.com', full_name: 'QA', role: 'member', is_admin: false });
+      await staffMember.p.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
+      await staffMember.p.waitForTimeout(900);
+      const memberRow = await staffMember.p.evaluate(() => {
+        const b = document.getElementById('staffTgBtn');
+        const tg = document.getElementById('telegramBlock');
+        return {
+          btn: b ? b.textContent.trim() : '',
+          visible: !!(b && b.offsetParent !== null),
+          adminBlock: tg ? getComputedStyle(tg).display : 'missing',
+        };
+      });
+      check('a-plain-member-can-still-join-the-bot',
+        memberRow.visible === true && /^Conecteaz/i.test(memberRow.btn), JSON.stringify(memberRow));
+      check('a-plain-member-still-cannot-see-the-bot-settings',
+        memberRow.adminBlock === 'none', JSON.stringify(memberRow));
+      await staffMember.c.close();
 
       // And the SMS Center says the same thing at the top, because that is
       // where somebody types a message for 52 phone numbers.
@@ -2525,7 +2673,7 @@ try {
       await a.c.close();
 
       // Nothing missing: the list must vanish rather than sit there empty.
-      const b = await mk(HEALTHY, CARS.map(c => ({ ...c, zone: 'A1' })), READY_EVENT,
+      const b = await mk(HEALTHY, LINKED_CARS, READY_EVENT,
         [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }]);
       await b.p.waitForTimeout(900);
       const hidden = await b.p.evaluate(() => document.getElementById('readyList').hidden);
@@ -2567,7 +2715,7 @@ try {
         entries_frozen: false, reg_capacity: null, plan_id: null,
         starts_at: new Date(Date.now() + 2 * 86400e3).toISOString(),
       };
-      const e2 = await mk(HEALTHY, CARS.map(c => ({ ...c, zone: 'A1' })), [READY_EVENT, soonEvent],
+      const e2 = await mk(HEALTHY, LINKED_CARS, [READY_EVENT, soonEvent],
         [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }]);
       await e2.p.waitForTimeout(900);
       const soonRows = await e2.p.evaluate(() =>
@@ -2584,7 +2732,7 @@ try {
 
       // A month out is not this week's problem: the same gaps, far enough away
       // that saying so every day would train everyone to ignore the list.
-      const e3 = await mk(HEALTHY, CARS.map(c => ({ ...c, zone: 'A1' })),
+      const e3 = await mk(HEALTHY, LINKED_CARS,
         [READY_EVENT, { ...soonEvent, starts_at: new Date(Date.now() + 30 * 86400e3).toISOString() }],
         [{ id: 1, event_id: 6, at_time: '10:00', title: 'Sosiri', notes: '' }]);
       await e3.p.waitForTimeout(900);
@@ -3031,7 +3179,14 @@ try {
         'ready-list-counts-cars-with-no-spot',
         'ready-list-accepts-running-on-zones-alone',
         'ready-list-warns-about-the-next-event', 'ready-list-says-when-the-next-event-is',
-        'ready-list-says-what-the-next-event-lacks', 'ready-list-stays-quiet-about-a-distant-event']) {
+        'ready-list-says-what-the-next-event-lacks', 'ready-list-stays-quiet-about-a-distant-event',
+        'channel-health-warns-below-coverage-threshold', 'channel-health-counts-coverage-over-the-event',
+        'ready-list-flags-partial-telegram-coverage', 'channel-health-green-above-coverage-threshold',
+        'ready-list-quiet-when-most-are-linked', 'coverage-leaves-out-people-who-said-stop',
+        'settings-says-the-team-member-is-not-on-the-bot', 'settings-offers-to-connect-the-team-member',
+        'settings-hands-over-a-bot-link-to-open', 'settings-says-how-long-the-bot-link-lasts',
+        'settings-says-the-team-member-is-on-the-bot', 'settings-offers-to-move-an-existing-bot-link',
+        'a-plain-member-can-still-join-the-bot', 'a-plain-member-still-cannot-see-the-bot-settings']) {
         if (!checks.some((c) => c.name === n)) check(n, false);
       }
       console.log(`readiness/health checks: ${e.message}`);
