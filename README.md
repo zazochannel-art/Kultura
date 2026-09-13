@@ -747,14 +747,14 @@ fel, dar **își verifică singure apelantul** înăuntru (`is_admin_user()` /
 | `event-info` | nu | Evenimentul curent + agenda, pentru paginile publice. Întoarce și `waiver_text` și `spots_left` |
 | `ticket` | nu | Bilet/pass. Întoarce și `entry_no`, `spot_no`, `event_starts_at`, `event_start_time` (primul rând al agendei — singura oră reală) și `event_location`; `event` rămâne string, ca biletele deja servite din cache să nu se rupă |
 | `rsvp` | nu | „Vii la eveniment?" pentru `confirm.html`. Token HMAC pe id-ul mașinii; un „nu" eliberează locul și promovează prima înscriere de pe lista de așteptare |
-| `telegram` | nu² | Webhook-ul botului (`/start <id>-<token>` leagă chat-ul de mașină), configurarea de către admin, **linkurile de invitație** (`action:'invite'`, staff) și mesajele pe care sistemul le trimite singur (`action:'notify'`). Are **trei fișiere**: `index.ts`, `strings.ts` — dicționarul ro/en/ru al botului — și `map-png.ts`, decodor + encoder PNG, care pune cercul peste harta desenată de aplicație. **Un redeploy înlocuiește toate fișierele**, deci `map-png.ts` trebuie retrimis identic de fiecare dată |
+| `telegram` | nu² | Webhook-ul botului (`/start <id>-<token>` leagă chat-ul de mașină), configurarea de către admin, **linkurile de invitație** (`action:'invite'`, staff), **linkul personal al unui om din echipă** (`action:'staff_link'`, orice cont) și mesajele pe care sistemul le trimite singur (`action:'notify'`, inclusiv `type:'staff'`). Are **trei fișiere**: `index.ts`, `strings.ts` — dicționarul ro/en/ru al botului — și `map-png.ts`, decodor + encoder PNG, care pune cercul peste harta desenată de aplicație. **Un redeploy înlocuiește toate fișierele**, deci `map-png.ts` trebuie retrimis identic de fiecare dată |
 | `health` | da | Starea canalelor pentru admin: Telegram (conectat? webhook viu? câți legați?), SMS (configurat?), adresa publică. Booleeni și numere, niciodată secretele |
 | `backup` | nu¹ | Export JSON a 17 tabele în bucket-ul `backups`, **plus o oglindă a fișierelor încărcate** în `backups/assets/<bucket>/`. Lista `TABLES` **trebuie să rămână în pas cu `PK` din `restore`** — un tabel salvat dar absent acolo se sare în tăcere la restaurare |
 | `restore` | da | Restaurare **aditivă** din backup (admin). Cu `assets:true` repune și fișierele lipsă din oglindă — niciodată peste unul existent |
-| `gdpr-delete` | da | Ștergerea datelor unei persoane (admin) |
+| `gdpr-delete` | da | Ștergerea datelor unei persoane (admin). Șterge `cars`, `car_registrations`, pozele din storage **și copiile numărului de telefon rămase în `sms_history.delivery_report`** — fără ultima, ștergerea nu era ștergere. Rândul de audit ține un **digest** al căutării, nu căutarea: aceasta e chiar numărul sau placa pe care tocmai le-am șters |
 | `photo-sweep` | da | Șterge pozele fără referință în DB (admin) |
 | `send-push` | nu¹ | Notificări push |
-| `send-sms` | nu¹ | Trimitere mesaje. **Două canale**, în ciuda numelui: Telegram unde participantul e conectat, SMS în rest |
+| `send-sms` | nu¹ | Trimitere mesaje. **Două canale**, în ciuda numelui: Telegram unde participantul e conectat, SMS în rest. Raportul de livrare notează **id-ul mașinii**, nu numărul de telefon, plus un `failed_by` cu motivele numărate |
 | `import-participants` | nu¹ | Import din Google Sheets. Fiecare rulare are un `batch` și fiecare rând creat îl poartă, ca importul să poată fi anulat în bloc |
 | `ai-import` | da | Import asistat |
 | `read-plate` | da | OCR plăcuță |
@@ -775,6 +775,7 @@ verificat în `profiles` pentru configurare.
 |---|---|
 | `/start <id>-<token>` | Leagă chatul de mașină sau de înscriere. Dacă chatul era legat de altcineva, cel vechi e anunțat |
 | `/bilet` | Numărul de concurs, zona și locul, cu harta ca poză unde există plan |
+| `/eu` | Contul de echipă legat la chatul ăsta. Pentru un chat care nu e al echipei, spune de unde se ia linkul, nu că nu există |
 | `/program` | Agenda evenimentului |
 | `/unde` | Adresa, ora de start și un link de hartă. `events.location` era completat de la început și nu-l spunea niciun mesaj |
 | `/voteaza` | Linkul de votare, când votarea e deschisă |
@@ -1671,6 +1672,92 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
     ascunde următoarea descoperire reală. Se pot revoca fără să se strice
     triggerele: un trigger nu verifică EXECUTE pe rolul care l-a declanșat.
     Verificat pe o tranzacție rulată înapoi înainte de aplicare.
+
+98. **Echipa n-avea niciun canal, doar aplicația.** Tot ce i se spunea echipei
+    — înscriere nouă, task atribuit, comentariu, memento de termen, mesaj prin
+    `/contact` — pleca prin web push și nicăieri altundeva. În proiectul ăsta
+    web push înseamnă **un singur abonament**, făcut în iulie, pentru o echipă
+    de cinci: patru oameni din cinci nu puteau fi anunțați deloc, iar al
+    cincilea doar dacă avea acel telefon la el. Botul, care duce deja mesajele
+    către participanți, e canalul care chiar ajunge undeva.
+
+    Sunt trei bucăți și fiecare e o capcană separată:
+
+    - `push_and_tell(p_body)` — **o singură ușă** pentru tot ce i se spune
+      echipei. Înainte fiecare declanșator își construia singur apelul către
+      `send-push`; cu cinci apelanți, unul care ar fi fost adăugat mai târziu
+      ar fi ajuns pe un canal și nu pe celălalt, fără ca cineva să observe.
+      Funcția trimite push-ul **și** notifică botul, cu aceeași adresare:
+      `target_email` la un om, `target_department` la un departament, niciunul
+      la toți cei legați.
+    - `staff_link_tokens` — RLS pornit, **fără nicio politică**, la fel ca
+      `app_config`. Tokenul nu poate sta pe `profiles`, fiindcă
+      `profiles_select_all_authenticated` e `using (true)`: un coleg l-ar putea
+      citi și cheltui, adică și-ar lega notificările altcuiva pe telefonul lui.
+      Linkul se bate pe JWT-ul celui care cere, în `action:'staff_link'`.
+    - **rândul din Setări → Cont nu e gated pe rol.** Blocul TELEGRAM de
+      deasupra e doar de admin; dacă și rândul ăsta ar fi fost, un `member` —
+      adică majoritatea echipei — n-ar fi avut nicio cale să fie anunțat.
+
+    `/start s<token>` cheltuie tokenul **înainte** de a lega contul: dacă
+    legarea pică, un token cheltuit e un link mort și omul cere altul, pe când
+    unul necheltuit după o legare parțială e un link care merge de două ori.
+    Chatul de pe care se mută e anunțat, ca la mașini. `/stop` șterge și
+    `profiles.telegram_chat_id`: „stop" înseamnă stop, nu „stop doar pe jumătate".
+
+99. **„Măcar un chat legat" nu e o stare de sănătate.** Pastila Telegram era
+    verde de la primul chat conectat. În producție asta însemna **2 chaturi
+    legate la 56 de mașini** — un canal care ajunge la 4% dintre șoferi,
+    raportat ca funcțional, pe singurul canal pe care îl are proiectul. Acum
+    verde înseamnă că botul acoperă cea mai mare parte a terenului
+    (`TG_COVER_OK = 0.7`), sub prag e chihlimbariu, iar lista de pregătire
+    spune proporția cu voce tare („Doar 2 din 10…").
+
+    Trei detalii care contează:
+
+    - Proporția se ia peste **mașinile evenimentului activ**, nu peste
+      `_health`, care numără fiecare mașină importată vreodată: acel numitor
+      doar crește, deci pragul ar fi devenit chihlimbariu permanent.
+    - Cine a dat `/stop` **iese din numitor**. A refuzat canalul; o linie pe
+      care echipa n-o poate curăța niciodată e o linie pe care echipa nu o mai
+      citește.
+    - Zero legați rămâne **chihlimbariu, nu roșu**. De acolo pleacă fiecare
+      eveniment, iar o pastilă roșie în prima zi e o pastilă roșie pe care
+      nimeni n-o mai vede în ziua a treia. Roșu rămâne pentru cele două stări
+      chiar stricate: fără token și fără webhook.
+
+    `telegramReachOf` a rămas neatins, dinadins: el răspunde la „poate pleca
+    campania asta către cineva?", iar cu două chaturi legate poate — către doi
+    oameni. Sunt două întrebări diferite și nu trebuie amestecate.
+
+100. **O ștergere GDPR care lasă numărul în altă parte nu e o ștergere.**
+     `send-sms` scria câte un `{ to, error }` per destinatar picat în
+     `sms_history.delivery_report`. Fără furnizor SMS, **toți** pică la fel,
+     deci cinci campanii țineau fiecare câte 50 de numere de telefon lângă 50 de
+     copii ale cuvântului `no_provider` — **253 de intrări** în total. Nimic nu
+     le citea: dialogul campaniei arăta numai numărătorile, iar motivul e
+     același pentru toți. Iar `gdpr-delete` ștergea `cars` și
+     `car_registrations` și nu știa că lista aia există.
+
+     Trei schimbări, plus curățarea celor deja scrise:
+
+     - Raportul notează acum **id-ul mașinii**, nu numărul: răspunde la singura
+      întrebare pentru care lista era bună (cine n-a primit) și încetează să
+      fie dată cu caracter personal în clipa în care mașina e ștearsă. Lângă el
+      stă `failed_by`, motivele numărate — „`no_provider` × 51" spune mai mult
+      decât 51 de rânduri identice și nu numește pe nimeni.
+     - `gdpr-delete` curăță și rapoartele, pe amândouă formele (numărul vechi,
+      id-ul nou), și scrie înapoi doar rândurile care chiar se schimbă.
+     - Rândul de audit ținea **căutarea ca atare** — adică numărul sau placa pe
+      care tocmai le ștersesem, rescrise în baza de date de chiar apelul care
+      trebuia să le scoată. Acum ține un `query_sha256`: dovedește ștergerea
+      pentru cine are deja identificatorul și nu spune nimic nimănui altcuiva.
+     - Cele 253 de intrări existente au fost curățate (verificat întâi pe o
+      tranzacție rulată înapoi: 5 rânduri, 253 → 0), păstrând numărătorile și
+      motivele.
+
+     `activity_log` a fost verificat și el: pentru mașini ține doar marca și
+     modelul lângă un id — niciun telefon, niciun mail, nicio placă.
 
 ## Rămas de făcut manual
 

@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v182';
+    const APP_VERSION = 'v183';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -172,6 +172,7 @@
           if (typeof renderCarsChips === 'function')   renderCarsChips();
           if (typeof renderEventsChips === 'function') renderEventsChips();
           if (typeof renderTeam === 'function')        renderTeam();
+          if (typeof renderStaffTgRow === 'function') renderStaffTgRow();
           if (typeof updatePushUI === 'function')      updatePushUI();
           if (typeof updateNotifUI === 'function')     updateNotifUI();
           if (typeof updatePushLang === 'function')    updatePushLang();
@@ -2997,6 +2998,60 @@
     el('avatarBadge').addEventListener('click', openAccount);
     el('openAccountBtn')?.addEventListener('click', openAccount);
 
+    // ----- My own notifications, on the bot the participants already use.
+    //
+    // Web push reaches whoever installed the app and allowed notifications: in
+    // this project one subscription, made in July, for a team of five. Every
+    // new registration, task reminder and /contact message landed on that one
+    // device, and nobody else on the team could have been reached at all.
+    //
+    // The link is minted by the `telegram` function against the caller's own
+    // JWT and parked in `staff_link_tokens`, which has RLS on and no policies —
+    // `profiles` is readable in full by every signed-in team member, so a token
+    // kept there would be one a colleague could read and spend.
+    function renderStaffTgRow() {
+      const msg = el('staffTgMsg');
+      const btn = el('staffTgBtn');
+      if (!msg || !btn) return;
+      const p = currentProfile();
+      const linked = !!(p && p.telegram_chat_id);
+      // Only overwrite a message this row owns: a freshly minted link is worth
+      // more on screen than a repeat of the state the person already read.
+      if (!btn.dataset.minted) {
+        msg.style.color = linked ? 'var(--green)' : '';
+        msg.textContent = t(linked ? 'staff.tg.linked' : 'staff.tg.not_linked');
+      }
+      btn.textContent = t(linked ? 'staff.tg.move' : 'staff.tg.connect');
+    }
+
+    el('staffTgBtn')?.addEventListener('click', async () => {
+      const msg = el('staffTgMsg');
+      const btn = el('staffTgBtn');
+      if (!requireOnline(t('staff.tg.title'))) return;
+      btn.disabled = true;
+      try {
+        const r = await tgCall('staff_link');
+        if (!r.link) throw new Error(t('tg.no_token_yet'));
+        btn.dataset.minted = '1';
+        // The phone that carries Telegram is often not the device the app is
+        // open on, so the link has to survive being carried across: it goes on
+        // the clipboard and stays on screen as something tappable. Opening it
+        // here would work on a phone and do nothing visible on a desktop.
+        try { await navigator.clipboard.writeText(r.link); showToast(t('staff.tg.copied')); } catch (_) {}
+        if (msg) {
+          msg.style.color = '';
+          msg.textContent = t('staff.tg.minted', { min: r.ttl_min }) + ' ';
+          const a = document.createElement('a');
+          a.href = r.link; a.target = '_blank'; a.rel = 'noopener';
+          a.textContent = r.link;
+          msg.appendChild(a);
+        }
+      } catch (e) {
+        btn.dataset.minted = '';
+        if (msg) { msg.style.color = 'var(--red)'; msg.textContent = t('common.error') + ': ' + (e.message || e); }
+      } finally { btn.disabled = false; }
+    });
+
     // Scope the whole app to one event. The pick is remembered per device.
     el('activeEventSelect')?.addEventListener('change', (e) => {
       setActiveEvent(e.target.value || '');
@@ -3818,13 +3873,30 @@
       const pill = (state, label) =>
         `<span class="chan-pill is-${state}"><span class="chan-dot"></span>${escape(label)}</span>`;
 
-      const tgState = !tg.configured ? 'bad' : (!tg.webhook_live ? 'bad' : (tg.linked ? 'ok' : 'warn'));
+      // Green used to mean "one chat somewhere is linked", and it went green
+      // over a bot reaching 2 of 56 drivers. Now it means the bot reaches most
+      // of the field, and anything less is amber. The share is taken over the
+      // cars in scope, because those are the people an announcement would go
+      // to — `_health` counts every car ever imported, and that denominator
+      // only ever grows.
+      const cover = telegramCoverage(activeCars());
+      const tgState = !tg.configured ? 'bad'
+        : !tg.webhook_live ? 'bad'
+          : !cover.total ? (tg.linked ? 'ok' : 'warn')
+            // Amber all the way down to zero, red never: nobody linked is
+            // where every event starts, and a red pill on day one is a red
+            // pill nobody reads by day three. Red stays for the two states
+            // that are actually broken — no token, no webhook.
+            : cover.ratio < TG_COVER_OK ? 'warn' : 'ok';
       // A bot that is configured, receiving, and has at least one linked chat is
       // a channel that delivers. Anything less is not, whatever the token says.
+      // Deliberately NOT the coverage above: this decides whether a campaign
+      // can go out at all, and with two linked chats it can — to two people.
       const telegramReach = !!(tg.configured && tg.webhook_live && tg.linked > 0);
       const tgLabel = !tg.configured ? t('chan.tg_off')
         : !tg.webhook_live ? t('chan.tg_no_hook')
-          : t('chan.tg_linked', { n: tg.linked, total: tg.total });
+          : cover.total ? t('chan.tg_linked', { n: cover.linked, total: cover.total })
+            : t('chan.tg_linked', { n: tg.linked, total: tg.total });
 
       // SMS is off here on purpose and Telegram carries everything, so amber —
       // which reads as "left half-done" — was wrong for it. Grey says the
@@ -4016,7 +4088,13 @@
       if (!ev.entries_frozen && cars.some(c => c.entry_no)) items.push({ k: 'freeze', txt: t('ready.freeze'), go: 'events' });
       if (_health) {
         const tg = _health.telegram || {};
-        if (tg.configured && !tg.linked) items.push({ k: 'tg', txt: t('ready.telegram', { total: tg.total }), go: 'settings' });
+        // Not "nobody is linked" — that only ever fired at exactly zero, so at
+        // 2 of 56 the list had nothing to say about the channel that carries
+        // everything. It stays up until most of the field can be reached.
+        const cover = telegramCoverage(cars);
+        if (tg.configured && cover.total && cover.ratio < TG_COVER_OK) {
+          items.push({ k: 'tg', txt: t('ready.telegram', { n: cover.linked, total: cover.total }), go: 'settings' });
+        }
         if (!_health.public_base_url) items.push({ k: 'base', txt: t('ready.base_url'), go: 'settings' });
       }
       // Only once the backup banner has actually looked. Undefined means
@@ -5029,6 +5107,28 @@
       return !!(tg.configured && tg.webhook_live && tg.linked > 0);
     }
 
+    // How much of the field the bot can actually reach.
+    //
+    // `telegramReachOf` above answers "is there anybody at all", which is the
+    // right question for "can this campaign go out". It is the wrong question
+    // for "is this channel in good shape": it answered yes on 2 linked chats
+    // out of 56 cars, and the pill went green over a bot that reaches four
+    // percent of the field. A bot cannot write first, so coverage is what
+    // decides whether an announcement lands, and it was the one number nobody
+    // was shown.
+    //
+    // Somebody who sent /stop is out of the denominator. They refused; holding
+    // the team to a share it is not allowed to reach would leave a line that
+    // can never be cleared.
+    const TG_COVER_OK = 0.7;
+    function telegramCoverage(cars) {
+      const list = (cars || []).filter(c => !c.telegram_opted_out_at);
+      const total = list.length;
+      const linked = list.filter(c => c.telegram_chat_id != null).length;
+      // No cars is not poor coverage — there is nobody to reach yet.
+      return { linked, total, ratio: total ? linked / total : 1 };
+    }
+
     // Live progress: poll the history row while the campaign is sending.
     function startSmsProgress(historyId, total) {
       const wrap = el('smsProgressWrap'); if (wrap) wrap.style.display = 'block';
@@ -5183,8 +5283,16 @@
       if (d) {
         const h = _smsHistory.find(x => String(x.id) === d.dataset.smsDetail);
         if (h) {
-          const rep = h.delivery_report && h.delivery_report.errors ? h.delivery_report.errors.length : 0;
-          uiAlert(`${t('sms.h_sent')}: ${h.sent_count || 0}\n${t('sms.h_delivered')}: ${h.delivered_count || 0}\n${t('sms.h_failed')}: ${h.failed_count || 0}\n\n${escape(h.message || '')}`);
+          // Why it failed, which this dialog never said. It used to count
+          // `delivery_report.errors` into a variable nothing rendered — and
+          // that list was one phone number per failed recipient, kept for a
+          // reader who did not exist. `failed_by` is the same information as a
+          // tally ("no_provider × 51") and names nobody.
+          const by = (h.delivery_report && h.delivery_report.failed_by) || null;
+          const why = by ? Object.entries(by).map(([k, n]) => `${k} × ${n}`).join(', ') : '';
+          uiAlert(`${t('sms.h_sent')}: ${h.sent_count || 0}\n${t('sms.h_delivered')}: ${h.delivered_count || 0}\n${t('sms.h_failed')}: ${h.failed_count || 0}`
+            + (why ? `\n${t('sms.h_why')}: ${escape(why)}` : '')
+            + `\n\n${escape(h.message || '')}`);
         }
         return;
       }
@@ -5641,6 +5749,10 @@
         tgBlk.style.display = admin ? 'block' : 'none';
         if (admin) { try { loadTelegramSettings(); renderTgFunnel(); loadChannelHealth().then(renderReadyList); } catch (_) {} }
       }
+      // Not role-gated, unlike the block above: the bot is where a member of
+      // the team is actually reachable, and a member who cannot see this row
+      // has no way to be told anything outside the app.
+      try { renderStaffTgRow(); } catch (_) {}
       const wipeRow = el('sandboxWipeRow');
       if (wipeRow) wipeRow.style.display = (admin && activeEventIsSandbox()) ? 'flex' : 'none';
       const actBlk = el('activityBlock');
