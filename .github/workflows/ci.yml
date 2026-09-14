@@ -21,7 +21,7 @@ jobs:
       - name: Syntax check
         run: |
           set -e
-          files=$(git ls-files '*.js' '*.mjs' | grep -v '^vendor/' | grep -v '^moneyflow/')
+          files=$(git ls-files '*.js' '*.mjs' | grep -v '^vendor/')
           echo "$files"
           for f in $files; do node --check "$f"; done
 
@@ -45,7 +45,7 @@ jobs:
           set -e
           git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
           base="origin/${{ github.base_ref }}"
-          changed=$(git diff --name-only "$base"...HEAD -- '*.js' '*.mjs' '*.css' '*.html' | grep -v '^tests/' | grep -v '^scripts/' | grep -v '^moneyflow/' || true)
+          changed=$(git diff --name-only "$base"...HEAD -- '*.js' '*.mjs' '*.css' '*.html' | grep -v '^tests/' | grep -v '^scripts/' || true)
           if [ -z "$changed" ]; then
             echo "No shipped assets changed — nothing to bump."; exit 0
           fi
@@ -95,57 +95,3 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Run smoke tests
         run: node tests/smoke.mjs
-
-  # MONEYFLOW is a separate Next.js app under moneyflow/ with its own toolchain,
-  # so it gets its own job rather than being squeezed into the checks above.
-  moneyflow:
-    name: MONEYFLOW (types, lint, unit, schema, build)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: moneyflow
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: moneyflow/package-lock.json
-
-      - name: Install
-        run: npm ci
-
-      - name: Types
-        run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Unit tests
-        run: npm test
-
-      # Triggers, RLS policies and the RPCs cannot be unit-tested in TypeScript.
-      # This applies every migration to a real PostgreSQL and asserts they work.
-      - name: Schema checks
-        env:
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
-        run: bash scripts/verify-schema.sh
-
-      # The build has to pass without secrets: nothing may read a Supabase key
-      # at module load, or a preview deploy breaks before it starts.
-      - name: Build
-        run: npm run build
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
