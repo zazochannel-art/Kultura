@@ -100,10 +100,10 @@ account with three months of realistic history if you want to see it full.
 
 ### Deploy to Vercel
 
-Import the repository, set **Root Directory** to `moneyflow`, add the three
-`NEXT_PUBLIC_*` variables (and `ANTHROPIC_API_KEY` if you want it), deploy. Set
-`NEXT_PUBLIC_SITE_URL` to the production URL so password-reset links point at
-the right place.
+Import the repository, add the three `NEXT_PUBLIC_*` variables (and
+`ANTHROPIC_API_KEY` if you want it), deploy. Set `NEXT_PUBLIC_SITE_URL` to the
+production URL so password-reset links point at the right place — that is what
+password-reset and email-confirmation links are built from.
 
 ---
 

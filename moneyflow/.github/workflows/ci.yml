@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    name: Types, lint, unit tests, schema, build
+    runs-on: ubuntu-latest
+
+    services:
+      # Triggers, RLS policies and the reporting RPCs cannot be unit-tested in
+      # TypeScript. The schema step applies every migration to this instance and
+      # asserts they actually behave.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Types
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Schema checks
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+        run: bash scripts/verify-schema.sh
+
+      # The build has to pass without secrets: nothing may read a Supabase key
+      # at module load, or a preview deploy breaks before it starts.
+      - name: Build
+        run: npm run build
