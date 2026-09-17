@@ -1,0 +1,185 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * MontajPro — design tokens.
+ * Paleta este fixată în `:root` (aplicația este dark-first, ca uneltele SaaS
+ * moderne) și expusă în Tailwind prin `@theme inline`.
+ */
+:root {
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #18181b;
+  --card-foreground: #fafafa;
+  --popover: #18181b;
+  --popover-foreground: #fafafa;
+  --primary: #06b6d4;
+  --primary-foreground: #04222a;
+  --secondary: #8b5cf6;
+  --secondary-foreground: #f5f3ff;
+  --muted: #1f1f23;
+  --muted-foreground: #71717a;
+  --accent: #27272a;
+  --accent-foreground: #fafafa;
+  --destructive: #ef4444;
+  --destructive-foreground: #fef2f2;
+  --success: #22c55e;
+  --success-foreground: #052e16;
+  --warning: #f59e0b;
+  --warning-foreground: #2c1a00;
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #06b6d4;
+  --radius: 0.875rem;
+
+  /* Înălțimile barelor fixe — folosite pentru padding-ul conținutului. */
+  --bottom-nav-h: 4.25rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    /* Fără zoom accidental la dublu-tap pe șantier. */
+    touch-action: manipulation;
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    /* Safe-area pentru iPhone cu notch. */
+    padding-bottom: env(safe-area-inset-bottom);
+    overscroll-behavior-y: none;
+  }
+
+  /* Inputurile sub 16px declanșează zoom automat pe iOS. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  @media (min-width: 768px) {
+    input,
+    select,
+    textarea {
+      font-size: 0.875rem;
+    }
+  }
+
+  ::selection {
+    background-color: color-mix(in oklab, var(--primary) 35%, transparent);
+  }
+
+  /* Scrollbar discret, în tonul aplicației. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: #2f2f35;
+    border-radius: 999px;
+    border: 3px solid var(--background);
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Fundal cu aură — folosit pe ecranele de autentificare și pe header. */
+  .aurora {
+    background-image:
+      radial-gradient(
+        60rem 30rem at 10% -10%,
+        color-mix(in oklab, var(--primary) 18%, transparent),
+        transparent 60%
+      ),
+      radial-gradient(
+        50rem 25rem at 90% 0%,
+        color-mix(in oklab, var(--secondary) 16%, transparent),
+        transparent 60%
+      );
+  }
+
+  .card-hover {
+    transition:
+      border-color 150ms ease,
+      background-color 150ms ease,
+      transform 150ms ease;
+  }
+  .card-hover:active {
+    transform: scale(0.99);
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Print — pentru ofertele tipărite/salvate ca PDF. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+    color: #0a0a0a !important;
+  }
+  .print-surface {
+    background: #fff !important;
+    color: #0a0a0a !important;
+    border-color: #d4d4d8 !important;
+  }
+}
