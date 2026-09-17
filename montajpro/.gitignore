@@ -1,5 +1,10 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Rădăcina repo-ului ignoră package.json și package-lock.json (aplicația veche
+# nu are pas de build). Aici sunt esențiale: fără ele `npm ci` nu are ce instala.
+!package.json
+!package-lock.json
+
 # dependencies
 /node_modules
 /.pnp
