@@ -53,6 +53,32 @@
     <div class="splash-loader"></div>
   </div>
 
+  <!-- Opened by double-clicking index.html instead of going to the web
+       address. A file:// page keeps none of what makes this an app — the
+       service worker is refused, so there is no offline shell and no
+       update-on-reload, and push cannot be registered at all — while signing
+       in still works, so it looks like it is fine. It sits outside both views
+       deliberately: the point is to be read before somebody spends nineteen
+       minutes signing in and reloading, which is what happened. -->
+  <div id="fileOriginBar" class="offline-bar is-offline" hidden></div>
+  <!-- Filled by an inline, non-module script on purpose.
+       `app.js` is a module, and a module is exactly what a file:// page may
+       refuse to load — so the one situation this warning exists for is the one
+       where nothing in app.js runs. An inline classic script always runs, so
+       this is the earliest point at which the truth can be told. When app.js
+       does boot, `renderFileOriginBar` replaces the text with the translated
+       one; the wording here is the Romanian default, matching the app. -->
+  <script>
+    (function () {
+      if (location.protocol !== 'file:') return;
+      var b = document.getElementById('fileOriginBar');
+      if (!b) return;
+      b.textContent = 'Ai deschis aplicația de pe disc. Nu merg modul offline, '
+        + 'actualizarea automată și notificările — deschide-o de la adresa web.';
+      b.hidden = false;
+    })();
+  </script>
+
   <!-- ============ LOGIN VIEW ============ -->
   <div id="loginView">
     <div class="login-card">

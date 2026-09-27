@@ -69,11 +69,11 @@ async function waitForServer(timeoutMs = 8000) {
   throw new Error('dev server did not start');
 }
 
-function chromiumOpts() {
+function chromiumOpts(extraArgs = []) {
   const cand = process.env.PLAYWRIGHT_CHROMIUM || '/opt/pw-browsers/chromium';
   // A fake camera, so the gate scanner can actually be driven. Nothing else in
   // the suite touches getUserMedia, and a fake device is inert until asked for.
-  const args = ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'];
+  const args = ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', ...extraArgs];
   return existsSync(cand) ? { executablePath: cand, args } : { args };
 }
 
@@ -5873,6 +5873,279 @@ try {
     check('the-registration-examples-match-the-country-it-preselects',
       ph.dial === '+373' && !/Bucure/i.test(ph.city) && !/^B /.test(ph.plate), JSON.stringify(ph));
     await regCtx.close();
+  }
+
+  // 4x. The app opened from disk instead of from the web address.
+  //
+  // Five rows in `client_errors` came from one person double-clicking
+  // index.html: `pushSupported()` tested whether the API names existed, and on
+  // a file:// page all three do and every one of them throws. The rejection
+  // went to the global handler, was filed as "Failed to get a
+  // ServiceWorkerRegistration", and the person reloaded for nineteen minutes
+  // with nothing on screen telling them what was wrong.
+  //
+  // Loaded over file:// on purpose: the protocol IS the condition, so a test
+  // that faked it would not be testing anything.
+  {
+    const fctx = await browser.newContext();
+    await fctx.route('**://*.supabase.co/**', (r) =>
+      r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+    const fp = await fctx.newPage();
+    const fileErrs = [];
+    fp.on('pageerror', (e) => fileErrs.push(String(e.message)));
+    try {
+      await fp.goto(`file://${ROOT}/index.html`, { waitUntil: 'domcontentloaded' });
+      await fp.waitForTimeout(2600);   // past the 1200ms updatePushUI timer
+      const bar = await fp.evaluate(() => {
+        const e = document.getElementById('fileOriginBar');
+        return e ? { hidden: e.hidden, txt: e.textContent.replace(/\s+/g, ' ').trim(), proto: location.protocol } : null;
+      });
+      check('opened-from-disk-is-actually-file-protocol', bar?.proto === 'file:', bar?.proto);
+      // Chromium here refuses to load `app.js` from file:// at all, because it
+      // is a module — which is the harder half of this case, not an obstacle to
+      // testing it. The warning is written by an inline classic script for
+      // exactly that reason, so it must be on screen even with every module
+      // blocked. If this passes, it passes in the worst version of the problem.
+      check('file-origin-bar-shows-with-every-module-blocked', bar?.hidden === false, JSON.stringify(bar));
+      // It has to name the way out, not just say something is wrong.
+      check('file-origin-bar-says-to-use-the-web-address',
+        /adresa web/i.test(bar?.txt || ''), bar?.txt);
+      // Outside both views, so it is readable before signing in — which matters
+      // because signing in from a file:// page can work.
+      check('file-origin-bar-is-readable-before-login',
+        await fp.evaluate(() => {
+          const b = document.getElementById('fileOriginBar');
+          const login = document.getElementById('loginView');
+          return !!b && b.offsetParent !== null && !!login && !login.contains(b);
+        }));
+      // No unhandled rejection naming a browser API, whether or not app.js ran.
+      check('opened-from-disk-throws-no-serviceworker-error',
+        !fileErrs.some((m) => /ServiceWorkerRegistration/i.test(m)), fileErrs.slice(0, 2).join(' | '));
+      // The premise of the whole fix: the API names ARE present here. Testing
+      // for them is what the old `pushSupported` did, and it is why it said yes.
+      const pushApis = await fp.evaluate(() =>
+        'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window);
+      check('the-push-apis-exist-on-a-file-page', pushApis === true, String(pushApis));
+    } catch (e) {
+      for (const n of ['opened-from-disk-is-actually-file-protocol',
+        'file-origin-bar-shows-with-every-module-blocked',
+        'file-origin-bar-says-to-use-the-web-address',
+        'file-origin-bar-is-readable-before-login',
+        'opened-from-disk-throws-no-serviceworker-error',
+        'the-push-apis-exist-on-a-file-page']) {
+        if (!checks.some((c) => c.name === n)) check(n, false, e.message);
+      }
+    }
+    await fctx.close();
+  }
+
+  // 4x1. What the app's own `pushSupported` decides on a file:// page.
+  //
+  // The first version of this test re-implemented the predicate inside the test
+  // and asserted on that, which is a tautology: reverting `pushSupported` in
+  // app.js left it passing. This measures behaviour instead — whether
+  // `getRegistration` is called at all — and a correct predicate never reaches
+  // it.
+  //
+  // Needs `--allow-file-access-from-files`, because otherwise Chromium refuses
+  // to load app.js from file:// and there is no `pushSupported` to observe. That
+  // flag is not a way around the problem, it is the browser that reported it:
+  // the five rows in `client_errors` came from a Chrome that loaded the module
+  // from disk quite happily. The block above covers the stricter browser.
+  {
+    let fbrowser;
+    try {
+      fbrowser = await chromium.launch(chromiumOpts(['--allow-file-access-from-files']));
+      const mctx = await fbrowser.newContext();
+      await mctx.route('**://*.supabase.co/**', (r) =>
+        r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+      // Counted, not stubbed away: the point is whether the app asks at all.
+      await mctx.addInitScript(() => {
+        window.__swAsks = 0;
+        try {
+          if (navigator.serviceWorker) {
+            const real = navigator.serviceWorker.getRegistration.bind(navigator.serviceWorker);
+            navigator.serviceWorker.getRegistration = function (...a) {
+              window.__swAsks++;
+              return real(...a);
+            };
+          }
+        } catch (_) { /* nothing to count */ }
+      });
+      const mp = await mctx.newPage();
+      const modErrs = [];
+      mp.on('pageerror', (e) => modErrs.push(String(e.message)));
+      await mp.goto(`file://${ROOT}/index.html`, { waitUntil: 'domcontentloaded' });
+      await mp.waitForTimeout(3200);   // well past the 1200ms updatePushUI timer
+      const state = await mp.evaluate(() => ({
+        booted: typeof window.__swAsks === 'number',
+        asks: window.__swAsks,
+        barShown: document.getElementById('fileOriginBar')?.hidden === false,
+      }));
+      // If app.js did not run there is nothing to conclude, so say so rather
+      // than passing by accident.
+      check('app-js-runs-from-disk-with-file-access-allowed',
+        state.booted === true && state.barShown === true, JSON.stringify(state));
+      check('push-is-never-asked-about-from-a-file-page', state.asks === 0, JSON.stringify(state));
+      check('a-booted-file-page-throws-no-serviceworker-error',
+        !modErrs.some((m) => /ServiceWorkerRegistration/i.test(m)), modErrs.slice(0, 2).join(' | '));
+      await mctx.close();
+    } catch (e) {
+      for (const n of ['app-js-runs-from-disk-with-file-access-allowed',
+        'push-is-never-asked-about-from-a-file-page',
+        'a-booted-file-page-throws-no-serviceworker-error']) {
+        if (!checks.some((c) => c.name === n)) check(n, false, e.message);
+      }
+    } finally {
+      if (fbrowser) await fbrowser.close();
+    }
+  }
+
+  // 4x2. `updatePushUI` must not be able to throw, on any origin.
+  //
+  // The file:// case above is now caught by `pushSupported`, so that path never
+  // reaches the browser call at all — which would leave the try/catch inside
+  // `updatePushUI` as a guard nothing proves. This is the other way in: a served
+  // page where the APIs are present and `getRegistration` rejects anyway. It
+  // runs from a bare `setTimeout`, so without the catch the rejection reaches
+  // the global handler and is filed as a client error naming a browser API.
+  {
+    const rctx = await browser.newContext({ viewport: { width: 430, height: 930 }, isMobile: true, hasTouch: true });
+    await rctx.route('**://*.supabase.co/**', (r) => {
+      const u = r.request().url();
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Festival', status: 'Activ', archived: false, entries_frozen: false }]);
+      if (u.includes('/functions/v1/')) return J({ ok: true });
+      if (u.includes('/rest/v1/')) return J([]);
+      return r.abort();
+    });
+    // Before any of the app's own script runs, so the startup timer hits it.
+    await rctx.addInitScript(() => {
+      try {
+        if (navigator.serviceWorker) {
+          navigator.serviceWorker.getRegistration = () =>
+            Promise.reject(new Error("Failed to get a ServiceWorkerRegistration: forced by the test"));
+        }
+      } catch (_) { /* nothing to patch, nothing to prove */ }
+    });
+    const rp = await rctx.newPage();
+    const rejErrs = [];
+    rp.on('pageerror', (e) => rejErrs.push(String(e.message)));
+    try {
+      await rp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await rp.evaluate(() => localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      })));
+      await rp.reload({ waitUntil: 'domcontentloaded' });
+      await rp.waitForTimeout(3000);   // well past the 1200ms timer
+      check('a-refusing-serviceworker-never-becomes-an-unhandled-rejection',
+        !rejErrs.some((m) => /ServiceWorkerRegistration/i.test(m)), rejErrs.slice(0, 2).join(' | '));
+      // And the panel says so plainly instead of sitting half-rendered.
+      await rp.evaluate(() => document.getElementById('splashScreen')?.remove());
+      await rp.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
+      await rp.waitForTimeout(600);
+      const pushRow = await rp.evaluate(() => {
+        const st = document.getElementById('pushStatus');
+        const btn = document.getElementById('pushToggleBtn');
+        return { txt: (st?.textContent || '').trim(), btnHidden: btn ? btn.style.display === 'none' : null };
+      });
+      check('a-refusing-serviceworker-hides-the-push-button',
+        pushRow.btnHidden === true && pushRow.txt.length > 0, JSON.stringify(pushRow));
+    } catch (e) {
+      for (const n of ['a-refusing-serviceworker-never-becomes-an-unhandled-rejection',
+        'a-refusing-serviceworker-hides-the-push-button']) {
+        if (!checks.some((c) => c.name === n)) check(n, false, e.message);
+      }
+    }
+    await rctx.close();
+  }
+
+  // 4y. What a GDPR erasure reports.
+  //
+  // The server has always answered `photos_removed` and `reports_scrubbed`; the
+  // panel showed only the row count and threw both away. That mattered because
+  // the photo deletion was broken in a way only those numbers could reveal: the
+  // bucket was guessed from the table the row came from, so a car that kept its
+  // `/registration-photos/...` URLs from when it was a registration had its row
+  // deleted and its photos left at a public URL — and the panel said the same
+  // cheerful green line either way.
+  {
+    const gdctx = await browser.newContext({ viewport: { width: 430, height: 930 }, isMobile: true, hasTouch: true });
+    let gdprBody = null;
+    await gdctx.route('**://*.supabase.co/**', (r) => {
+      const u = r.request().url();
+      const J = (x) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+      if (u.includes('/functions/v1/gdpr-delete')) {
+        let b = {};
+        try { b = JSON.parse(r.request().postData() || '{}'); } catch (_) { b = {}; }
+        const matches = [{ source: 'cars', id: 3415, plate: 'DLP 312', owner: 'Ion', phone: '069', email: '', photos: 2 }];
+        if (b.dry_run !== false) return J({ dry_run: true, query: b.query, count: 1, matches, photos_promised: 2 });
+        return J({ dry_run: false, query: b.query, deleted: 1, cars: 1, regs: 0, matches, ...gdprBody });
+      }
+      if (u.includes('/rest/v1/profiles')) return J([{ email: 'qa@example.com', full_name: 'QA', role: 'admin', is_admin: true }]);
+      if (u.includes('/rest/v1/events')) return J([{ id: 6, title: 'Festival', status: 'Activ', archived: false, entries_frozen: false }]);
+      if (u.includes('/functions/v1/')) return J({ ok: true });
+      if (u.includes('/rest/v1/')) return J([]);
+      return r.abort();
+    });
+    const gdp = await gdctx.newPage();
+    const runErase = async (answer) => {
+      gdprBody = answer;
+      await gdp.fill('#gdprQuery', 'DLP 312');
+      await gdp.click('#gdprSearchBtn');
+      await gdp.waitForSelector('#gdprDeleteBtn', { state: 'visible', timeout: 6000 });
+      await gdp.click('#gdprDeleteBtn');
+      await gdp.waitForSelector('#uiDialog.show #uiDialogOk', { state: 'visible', timeout: 6000 });
+      await gdp.click('#uiDialogOk');
+      await gdp.waitForTimeout(700);
+      return await gdp.evaluate(() => {
+        const m = document.getElementById('gdprMsg');
+        return { txt: (m?.textContent || '').replace(/\s+/g, ' ').trim(), colour: m?.style.color || '' };
+      });
+    };
+    try {
+      await gdp.goto(`${BASE}/index.html`, { waitUntil: 'domcontentloaded' });
+      await gdp.evaluate(() => localStorage.setItem('sb-knphmxxokowwkruimdus-auth-token', JSON.stringify({
+        access_token: 'fake', token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake',
+        user: {
+          id: '00000000-0000-0000-0000-000000000000', email: 'qa@example.com',
+          aud: 'authenticated', role: 'authenticated',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      })));
+      await gdp.reload({ waitUntil: 'domcontentloaded' });
+      await gdp.waitForTimeout(2400);
+      await gdp.evaluate(() => document.getElementById('splashScreen')?.remove());
+      await gdp.evaluate(() => document.querySelector('.mtab[data-section="settings"], .tab[data-section="settings"]')?.click());
+      await gdp.waitForTimeout(700);
+
+      // A complete erasure: rows, photos and reports all reported.
+      const ok = await runErase({ photos_promised: 2, photos_removed: 2, reports_scrubbed: 1 });
+      check('gdpr-says-how-many-photos-went', /2/.test(ok.txt) && /poz/i.test(ok.txt), ok.txt);
+      check('gdpr-says-the-reports-were-cleaned', /rapoart/i.test(ok.txt), ok.txt);
+      check('gdpr-a-complete-erasure-reads-green', /green/.test(ok.colour), ok.colour);
+
+      // The shape of the bug: the row went, the photos did not.
+      const half = await runErase({ photos_promised: 2, photos_removed: 0, reports_scrubbed: 0 });
+      check('gdpr-flags-an-erasure-that-left-the-photos',
+        /red/.test(half.colour), `${half.colour} — ${half.txt}`);
+      check('gdpr-says-zero-photos-when-none-went', /0/.test(half.txt) && /poz/i.test(half.txt), half.txt);
+    } catch (e) {
+      for (const n of ['gdpr-says-how-many-photos-went', 'gdpr-says-the-reports-were-cleaned',
+        'gdpr-a-complete-erasure-reads-green', 'gdpr-flags-an-erasure-that-left-the-photos',
+        'gdpr-says-zero-photos-when-none-went']) {
+        if (!checks.some((c) => c.name === n)) check(n, false, e.message);
+      }
+    }
+    await gdctx.close();
   }
 
   // 5. Public pages (given out by QR at the event) must render standalone.
