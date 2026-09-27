@@ -24,7 +24,7 @@
     // everyone. Report uncaught errors so failures are diagnosable after the
     // fact. Best-effort and heavily throttled: reporting must never itself
     // break the app or spam the table from a render loop.
-    const APP_VERSION = 'v183';
+    const APP_VERSION = 'v184';
     let _errCount = 0, _lastErrAt = 0;
     const _errSeen = new Set();
     async function reportClientError(message, stack) {
@@ -142,6 +142,13 @@
       document.querySelectorAll('[data-i18n-aria]').forEach(el => {
         el.setAttribute('aria-label', t(el.dataset.i18nAria));
       });
+
+      // Outside the signed-in block below on purpose: a page opened from disk
+      // has to say so on the login screen, before somebody signs in and spends
+      // twenty minutes wondering why nothing sticks.
+      if (typeof renderFileOriginBar === 'function') {
+        try { renderFileOriginBar(); } catch (_) {}
+      }
 
       // Update active state on language buttons. Styling lives in CSS (see
       // .lang-btn) — inline styles here used to fight the stylesheet and made
@@ -4226,6 +4233,22 @@
       bar.hidden = false;
     }
 
+    // Opened from disk rather than from the web address.
+    //
+    // Signing in still works from a file:// page, which is exactly what makes
+    // this worth saying out loud — it looks like the app. What does not work is
+    // everything that needs an origin: no service worker, so no offline shell
+    // and no update-on-reload, and push cannot be registered at all. The only
+    // previous sign was five rows in `client_errors` naming a browser API,
+    // written while somebody reloaded for nineteen minutes.
+    function renderFileOriginBar() {
+      const bar = el('fileOriginBar');
+      if (!bar) return;
+      if (location.protocol !== 'file:') { bar.hidden = true; return; }
+      bar.textContent = t('offline.file_origin');
+      bar.hidden = false;
+    }
+
     // Actions that cannot honestly be queued. Approving a registration makes a
     // car, and the entry number is assigned by the database — replaying that
     // later would hand out a number that is already on someone's windscreen.
@@ -7289,7 +7312,20 @@
       const msg = el('gdprMsg'); if (msg) { msg.style.color = 'var(--text-dim)'; msg.textContent = t('gdpr.deleting'); }
       const res = await gdprInvoke(false);
       if (!res) return;
-      if (msg) { msg.style.color = 'var(--green)'; msg.textContent = t('gdpr.deleted', { n: res.deleted || 0 }); }
+      // Say what actually went, not just how many rows. The server has always
+      // answered `photos_removed` and `reports_scrubbed` and this discarded
+      // both, so an erasure that deleted the row and left the photos behind in
+      // storage reported the same cheerful green line as one that worked.
+      if (msg) {
+        const parts = [t('gdpr.deleted', { n: res.deleted || 0 })];
+        parts.push(t('gdpr.deleted_photos', { n: res.photos_removed || 0 }));
+        if (res.reports_scrubbed) parts.push(t('gdpr.deleted_reports', { n: res.reports_scrubbed }));
+        msg.textContent = parts.join(' · ');
+        // Rows gone and photos left is the shape of a half-done erasure, and it
+        // is not something to colour green.
+        const half = (res.deleted || 0) > 0 && (res.photos_promised || 0) > 0 && !(res.photos_removed || 0);
+        msg.style.color = half ? 'var(--red)' : 'var(--green)';
+      }
       el('gdprResults').innerHTML = '';
       if (el('gdprQuery')) el('gdprQuery').value = '';
       try { await loadData(); } catch (_) {}
@@ -10858,8 +10894,16 @@
     // Public VAPID key — safe to embed; the matching private key lives only
     // in the send-push Edge Function secrets.
     const VAPID_PUBLIC_KEY = 'BDxoYrWZYVICRD_0BtDEI5yGlWBL7_RLB1aU2hpMnjKBk6NbojHoJ8Zu5xB7DixaQe_uPI5xkw9ek5PtgW7Dxpk';
+    // Whether push can work here — not merely whether the API names exist.
+    //
+    // All three of them exist on a page opened from disk and every one of them
+    // throws: what decides this is the origin, not the presence of the API.
+    // `isSecureContext` does not catch it on its own either, because the spec
+    // counts file:// as trustworthy, so the protocol has to be named. Five rows
+    // in `client_errors` came from one person double-clicking index.html.
     const pushSupported = () =>
-      'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+      'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+      && window.isSecureContext && location.protocol !== 'file:';
 
     function urlBase64ToUint8Array(base64) {
       const padding = '='.repeat((4 - (base64.length % 4)) % 4);
@@ -10878,18 +10922,28 @@
         btn.style.display = 'none';
         return;
       }
-      const reg = await navigator.serviceWorker.getRegistration();
-      const sub = reg ? await reg.pushManager.getSubscription() : null;
-      if (sub && Notification.permission === 'granted') {
-        status.textContent = t('settings.push.status_on');
-        status.style.color = 'var(--green)';
-        btn.textContent = t('settings.push.disable');
-        btn.dataset.state = 'on';
-      } else {
-        status.textContent = t('settings.push.status_off');
+      // Never allowed to throw. This runs from a bare `setTimeout` and from
+      // every language switch, so a rejection here reaches the global handler
+      // and is filed as a client error that names a browser API rather than
+      // the thing that is actually wrong.
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = reg ? await reg.pushManager.getSubscription() : null;
+        if (sub && Notification.permission === 'granted') {
+          status.textContent = t('settings.push.status_on');
+          status.style.color = 'var(--green)';
+          btn.textContent = t('settings.push.disable');
+          btn.dataset.state = 'on';
+        } else {
+          status.textContent = t('settings.push.status_off');
+          status.style.color = 'var(--text-mute)';
+          btn.textContent = t('settings.push.enable');
+          btn.dataset.state = 'off';
+        }
+      } catch (_) {
+        status.textContent = t('settings.push.unsupported');
         status.style.color = 'var(--text-mute)';
-        btn.textContent = t('settings.push.enable');
-        btn.dataset.state = 'off';
+        btn.style.display = 'none';
       }
     }
 

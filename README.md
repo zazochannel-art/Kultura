@@ -743,7 +743,7 @@ fel, dar **își verifică singure apelantul** înăuntru (`is_admin_user()` /
 |---|---|---|
 | `submit` | nu | **Singura** cale publică de scriere (înscrieri + feedback). Rate-limit pe IP. Decide tot aici dacă înscrierea intră `pending` sau `waitlist`, comparând `reg_capacity` cu numărul de locuri deja ocupate |
 | `plate-check` | nu | Formularul public: spune doar dacă placa e cunoscută/blocată |
-| `vote` | nu | Votare publică + clasament. Max 12 voturi noi/oră/IP. Întoarce și `entry_no` + clasa |
+| `vote` | nu | Votare publică + clasament. Max 12 voturi noi/oră/IP. Întoarce și `entry_no` + clasa. **Deschisă nu înseamnă doar „cheia e setată"**: refuză cu `reason:'too_early'` înainte de ziua de start a evenimentului și cu `'archived'` pe unul arhivat — o cheie uitată în `ui_settings` deschidea buletinul public cu 14 luni înainte |
 | `event-info` | nu | Evenimentul curent + agenda, pentru paginile publice. Întoarce și `waiver_text` și `spots_left` |
 | `ticket` | nu | Bilet/pass. Întoarce și `entry_no`, `spot_no`, `event_starts_at`, `event_start_time` (primul rând al agendei — singura oră reală) și `event_location`; `event` rămâne string, ca biletele deja servite din cache să nu se rupă |
 | `rsvp` | nu | „Vii la eveniment?" pentru `confirm.html`. Token HMAC pe id-ul mașinii; un „nu" eliberează locul și promovează prima înscriere de pe lista de așteptare |
@@ -751,7 +751,7 @@ fel, dar **își verifică singure apelantul** înăuntru (`is_admin_user()` /
 | `health` | da | Starea canalelor pentru admin: Telegram (conectat? webhook viu? câți legați?), SMS (configurat?), adresa publică. Booleeni și numere, niciodată secretele |
 | `backup` | nu¹ | Export JSON a 17 tabele în bucket-ul `backups`, **plus o oglindă a fișierelor încărcate** în `backups/assets/<bucket>/`. Lista `TABLES` **trebuie să rămână în pas cu `PK` din `restore`** — un tabel salvat dar absent acolo se sare în tăcere la restaurare |
 | `restore` | da | Restaurare **aditivă** din backup (admin). Cu `assets:true` repune și fișierele lipsă din oglindă — niciodată peste unul existent |
-| `gdpr-delete` | da | Ștergerea datelor unei persoane (admin). Șterge `cars`, `car_registrations`, pozele din storage **și copiile numărului de telefon rămase în `sms_history.delivery_report`** — fără ultima, ștergerea nu era ștergere. Rândul de audit ține un **digest** al căutării, nu căutarea: aceasta e chiar numărul sau placa pe care tocmai le-am șters |
+| `gdpr-delete` | da | Ștergerea datelor unei persoane (admin). Șterge `cars`, `car_registrations`, pozele din storage — cu **bucketul citit din URL**, nu ghicit din tabel, altfel pozele unei înscrieri aprobate rămâneau la un URL public — **și copiile numărului de telefon rămase în `sms_history.delivery_report`**. Întoarce `photos_promised` / `photos_removed` / `reports_scrubbed`, iar panoul le arată: „rânduri șterse, zero poze" se colorează roșu. Rândul de audit ține un **digest** al căutării, nu căutarea: aceasta e chiar numărul sau placa pe care tocmai le-am șters |
 | `photo-sweep` | da | Șterge pozele fără referință în DB (admin) |
 | `send-push` | nu¹ | Notificări push |
 | `send-sms` | nu¹ | Trimitere mesaje. **Două canale**, în ciuda numelui: Telegram unde participantul e conectat, SMS în rest. Raportul de livrare notează **id-ul mașinii**, nu numărul de telefon, plus un `failed_by` cu motivele numărate |
@@ -1758,6 +1758,105 @@ primeau `{{qr_code}}` gol fiindcă doar clientul îl umplea.
 
      `activity_log` a fost verificat și el: pentru mașini ține doar marca și
      modelul lângă un id — niciun telefon, niciun mail, nicio placă.
+
+101. **Aceeași ștergere, un bucket mai încolo.** Lecția 100 a reparat numerele
+     de telefon din rapoartele de campanie și a ratat exact aceeași greșeală la
+     poze: bucketul era **ghicit din tabelul de unde venea rândul**
+     (`photoPaths(cars, '/car-photos/')`, `photoPaths(regs,
+     '/registration-photos/')`), nu citit din URL. Dar o înscriere aprobată
+     devine mașină **păstrându-și URL-urile din bucketul de înscrieri**, deci
+     `split('/car-photos/')[1]` ieșea `undefined` și poza rămânea la un URL
+     public. Trei mașini din baza asta erau exact în starea aia.
+
+     Bucketul vine acum din URL, cu toate cele patru forme pe care le dă
+     Supabase (`/object/public/…`, `/sign/…`, `/authenticated/…` și fără prefix),
+     iar ce nu se poate citi e lăsat în pace și **numărat ca neșters**, nu
+     ghicit.
+
+     Partea care a ținut defectul ascuns era însă în interfață: panoul afișa
+     numai `res.deleted`, numărul de rânduri. Serverul întorcea de la început
+     `photos_removed` și `reports_scrubbed` și **le arunca pe amândouă**, deci o
+     ștergere care lăsa pozele în urmă raporta exact aceeași linie verde ca una
+     care mergea. Acum le arată, iar „rânduri șterse, zero poze" se colorează
+     roșu — pentru că e forma unei ștergeri făcute pe jumătate, și asta nu e
+     ceva de colorat în verde. `photos_removed` se numără din ce zice storage-ul
+     că a șters, nu din câte căi i-am trimis: „am cerut 4" nu e dovadă că 4
+     fișiere au dispărut.
+
+102. **Un banner despre module nu poate fi scris de un modul.** Cinci rânduri în
+     `client_errors`, toate pe v183, de la același om în nouăsprezece minute:
+     `Failed to get a ServiceWorkerRegistration: The URL protocol of the current
+     origin ('null') is not supported`, de la
+     `file:///C:/Users/…/index.html`. Aplicația fusese deschisă cu dublu-clic.
+
+     Două greșeli separate:
+
+     - `pushSupported()` testa **prezența numelor de API**. Pe o pagină
+       `file://` toate trei există și toate trei aruncă — decide **originea**,
+       nu API-ul. `isSecureContext` nu prinde nici el cazul, fiindcă specificația
+       numără `file://` drept de încredere, deci protocolul trebuie numit pe
+       nume.
+     - `updatePushUI()` n-avea `try/catch`, deși sora ei `updatePushLang()` are,
+       și e chemată dintr-un `setTimeout` golaș — deci respingerea ajungea în
+       handlerul global și se scria în jurnal sub numele unui API de browser, nu
+       al lucrului chiar stricat.
+
+     Prima încercare de reparație a pus avertismentul în `app.js`. Care e
+     `type="module"` — și un modul e exact ce o pagină `file://` poate refuza să
+     încarce, deci singura situație pentru care exista avertismentul era și
+     singura în care n-ar fi rulat. Testul a arătat-o imediat: bannerul a rămas
+     ascuns în suită, și a apărut în sonda mea doar pentru că pornisem Chromium
+     cu `--allow-file-access-from-files`. Acum îl scrie un **script inline,
+     clasic**, care rulează întotdeauna; `renderFileOriginBar` doar îi înlocuiește
+     textul cu cel tradus, când aplicația chiar pornește.
+
+     Testul încarcă pagina de pe `file://` **fără** acel flag, dinadins: dacă
+     trece cu fiecare modul blocat, trece în varianta cea mai rea a problemei.
+     Garda `try/catch` are testul ei separat — pe o pagină servită, cu
+     `getRegistration` făcut să respingă — fiindcă altfel ar fi rămas o gardă pe
+     care n-o dovedește nimic: cu `pushSupported` reparat, calea de pe `file://`
+     nici nu mai ajunge la apel.
+
+103. **„E setată cheia" nu înseamnă „e deschisă votarea".** Singura poartă a
+     funcției `vote` era ca `ui_settings.voting_event_id` să aibă o valoare.
+     Proiectul a fost găsit cu ea arătând spre un eveniment de la **25 noiembrie
+     2027** — peste patrusprezece luni: buletinul public era viu, `/voteaza`
+     dădea linkul șoferilor, iar doisprezece votanți noi pe oră pe adresă puteau
+     semăna rezultatul unui eveniment real înainte să vină vreo mașină. Zero
+     voturi apucaseră să intre. Setarea ei trimisese deja „Votarea a început!"
+     celor doi șoferi legați, cu un an și ceva înainte.
+
+     Ziua de start a evenimentului e cel mai devreme când un vot poate însemna
+     ceva, deci aia e poarta acum (`too_early`). După zi rămâne deschisă —
+     clasamentul se citește zile întregi și mesajul de final duce la el. Un
+     `starts_at` lipsă **nu** e tratat ca răspuns: votarea se deschide, pentru că
+     lista de pregătire se plânge deja de data lipsă, iar refuzul aici ar face
+     din o gaură două.
+
+     Golirea cheii nu trimite nimic — `notify_voting_open` iese devreme pe
+     valoare goală, verificat înainte de a o goli.
+
+     **Botul are însă a doua copie a aceleiași întrebări**: `/voteaza` citește
+     `voting_event_id` direct și nu știe de poartă. Cu cheia goală cele două sunt
+     de acord, dar setată prea devreme din nou, botul ar oferi linkul către o
+     pagină care zice „închis". Nu l-am atins, fiindcă un redeploy de telegram
+     cere retrimiterea a trei fișiere octet cu octet pentru o neconcordanță
+     cosmetică — dar capcana e aici, scrisă.
+
+104. **Un `select()` cu o coloană inexistentă eșuează în tăcere.** Poarta de mai
+     sus a răspuns întâi `no_event` în loc de `too_early`, ceea ce a scos la
+     iveală un defect vechi: `vote` cerea `'id, title, name'` din `events`, și
+     **`events` n-are coloană `name`**. PostgREST refuză tot selectul, deci
+     `data` venea `null` — de când există funcția. Se degrada fără zgomot,
+     fiindcă singura folosire era `ev.title || ev.name || ''`: pagina publică de
+     votare **n-a arătat niciodată numele evenimentului** și nimeni n-avea de ce
+     să se uite.
+
+     Ce l-a scos la lumină e că am pus o poartă care **depinde** de acea citire.
+     Un `null` tolerat cu `?? ''` e un eșec care nu se vede; un `null` de care
+     depinde o decizie devine imediat vizibil. În `app.js` același `ev.name` e
+     doar un fallback mort pe un obiect JS (se face `select('*')`), deci acolo
+     nu strica nimic.
 
 ## Rămas de făcut manual
 
