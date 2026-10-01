@@ -45,7 +45,7 @@ jobs:
           set -e
           git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
           base="origin/${{ github.base_ref }}"
-          changed=$(git diff --name-only "$base"...HEAD -- '*.js' '*.mjs' '*.css' '*.html' | grep -v '^tests/' | grep -v '^scripts/' || true)
+          changed=$(git diff --name-only "$base"...HEAD -- '*.js' '*.mjs' '*.css' '*.html' | grep -v '^tests/' | grep -v '^scripts/' | grep -v '^idle-car-empire/' || true)
           if [ -z "$changed" ]; then
             echo "No shipped assets changed — nothing to bump."; exit 0
           fi
@@ -56,6 +56,27 @@ jobs:
             echo "::error::Assets changed but sw.js CACHE is still '$new'. Bump it so clients get the update."
             exit 1
           fi
+
+  # Idle Car Empire is a separate Next.js app; the Kultura service worker does
+  # not ship it, so it gets its own checks.
+  idle-car-empire:
+    name: Idle Car Empire (lint, types, tests, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: idle-car-empire
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: idle-car-empire/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
 
   # What the hermetic smoke suite structurally cannot check: grants, RLS, and
   # what the edge functions really answer. Read-only plus refusals — see the
